@@ -1,0 +1,18 @@
+@"
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Streamlit
+.streamlit/
+
+# Datos (opcional: incluir o excluir según prefieras)
+# data/mission.db
+
+# IDE
+.vscode/
+.idea/
+"@ | Out-File -Encoding UTF8 .gitignore
