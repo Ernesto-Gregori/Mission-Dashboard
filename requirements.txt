@@ -1,0 +1,6 @@
+streamlit==1.32.0
+pandas==2.1.4
+sqlite3-fts4  # Para búsqueda en biblioteca
+google-generativeai==0.3.2
+python-dotenv==1.0.0
+plotly==5.18.0
