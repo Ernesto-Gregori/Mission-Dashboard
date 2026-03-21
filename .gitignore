@@ -16,3 +16,6 @@ venv/
 .vscode/
 .idea/
 "@ | Out-File -Encoding UTF8 .gitignore
+
+.env
+*.env
