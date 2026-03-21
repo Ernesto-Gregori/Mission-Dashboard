@@ -3,16 +3,31 @@
 Flujo: Subir → IA procesa → Revisar → Guardar → Agregar resaltados
 """
 
-import streamlit as st
+import sys
+from pathlib import Path
 from datetime import date, datetime
 import json
 import hashlib
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent.parent))
-from app.database import init_database, DB_PATH
 import sqlite3
+
+# Agregar app al path PRIMERO
+sys.path.append(str(Path(__file__).parent.parent))
+
+# Imports de la aplicación
+from app.database import init_database, DB_PATH
+from app.ai_client import (
+    extraer_metadatos_libro, 
+    verificar_conexion,
+    estado_gemini,
+    api_key_configurada
+)
+
+# Streamlit al final
+import streamlit as st
+
+# ═════════════════════════════════════════════════════════════════
+# CONFIGURACIÓN STREAMLIT
+# ═════════════════════════════════════════════════════════════════
 
 st.set_page_config(
     page_title="Biblioteca | Mission Dashboard",
@@ -132,6 +147,14 @@ def guardar_metadatos_ia(libro_id, metadatos):
     """Paso 3: Guardar metadatos revisados (después de previsualización)"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+
+    # ── Convertir listas a JSON string antes de guardar ─────
+    for campo_lista in ['subcategorias', 'temas_clave', 'autores_adicionales']:
+        valor = metadatos.get(campo_lista)
+        if isinstance(valor, list):
+            metadatos[campo_lista] = json.dumps(valor)
+        elif valor is None:
+            metadatos[campo_lista] = json.dumps([])
     
     # Campos que actualizamos explícitamente
     campos_actualizar = {
@@ -221,76 +244,6 @@ def obtener_resaltados(libro_id, color=None):
     return resaltados
 
 # ═══════════════════════════════════════════════════════════════
-# SIMULACIÓN DE IA
-# ═══════════════════════════════════════════════════════════════
-
-def simular_extraccion_ia(nombre_archivo, formato):
-    """SIMULACIÓN: En producción, esto llamaría a Gemini Vision/PDF"""
-    if "python" in nombre_archivo.lower() or "programming" in nombre_archivo.lower():
-        return {
-            'titulo': 'Python Crash Course',
-            'subtitulo': 'A Hands-On, Project-Based Introduction to Programming',
-            'autor': 'Eric Matthes',
-            'autores_adicionales': json.dumps([]),
-            'editorial': 'No Starch Press',
-            'anio_publicacion': 2019,
-            'edicion': '2nd Edition',
-            'idioma': 'en',
-            'categoria_principal': 'Programacion',
-            'subcategorias': json.dumps(['Python', 'Desarrollo Web', 'Ciencia de Datos']),
-            'temas_clave': json.dumps(['Python 3', 'Django', 'Matplotlib', 'Pygame']),
-            'descripcion': 'Libro práctico para aprender Python desde cero con proyectos reales incluyendo visualización de datos, desarrollo web y videojuegos.',
-            'indice': '1. Basics\n2. Lists and Dictionaries\n3. if Statements\n4. Dictionaries\n5. User Input and while Loops\n6. Functions\n7. Classes\n8. Files and Exceptions\n9. Testing Your Code\n10. Project: Alien Invasion\n11. Project: Data Visualization\n12. Project: Web Applications',
-            'notas_bibliotecaria': 'Excelente para principiantes. Proyectos prácticos bien estructurados.',
-            'total_paginas': 544,
-            'fuente_metadatos': 'IA',
-            'confianza_ia': 8,
-            'isbn': '978-1593279288'
-        }
-    elif "theology" in nombre_archivo.lower() or "grudem" in nombre_archivo.lower():
-        return {
-            'titulo': 'Systematic Theology',
-            'subtitulo': 'An Introduction to Biblical Doctrine',
-            'autor': 'Wayne A. Grudem',
-            'autores_adicionales': json.dumps([]),
-            'editorial': 'Zondervan',
-            'anio_publicacion': 1994,
-            'edicion': '1st Edition',
-            'idioma': 'en',
-            'categoria_principal': 'Teologia',
-            'subcategorias': json.dumps(['Teologia Sistematica', 'Doctrina Biblica', 'Presbiteriana']),
-            'temas_clave': json.dumps(['Dios', 'Creacion', 'Pecado', 'Cristo', 'Salvacion', 'Iglesia', 'Escatologia']),
-            'descripcion': 'Obra magistral de teología sistemática que aborda todas las doctrinas principales desde una perspectiva bíblica y evangélica.',
-            'indice': 'Part 1: The Doctrine of the Word of God\nPart 2: The Doctrine of God\nPart 3: The Doctrine of Man\nPart 4: The Doctrines of Christ and the Holy Spirit\nPart 5: The Doctrine of the Application of Redemption\nPart 6: The Doctrine of the Church\nPart 7: The Doctrine of the Future',
-            'notas_bibliotecaria': 'Texto estándar en seminarios. Requiere lectura cuidadosa. Recomendado para Instituto Bíblico.',
-            'total_paginas': 1291,
-            'fuente_metadatos': 'IA',
-            'confianza_ia': 9,
-            'isbn': '978-0310286707'
-        }
-    else:
-        return {
-            'titulo': nombre_archivo.replace(f'.{formato}', '').replace('_', ' ').title(),
-            'subtitulo': None,
-            'autor': 'Desconocido',
-            'autores_adicionales': json.dumps([]),
-            'editorial': None,
-            'anio_publicacion': None,
-            'edicion': None,
-            'idioma': 'es',
-            'categoria_principal': 'Otros',
-            'subcategorias': json.dumps([]),
-            'temas_clave': json.dumps([]),
-            'descripcion': 'No se pudo extraer descripción automáticamente. Por favor completar manualmente.',
-            'indice': None,
-            'notas_bibliotecaria': 'Metadatos incompletos. Requiere revisión manual.',
-            'total_paginas': None,
-            'fuente_metadatos': 'IA',
-            'confianza_ia': 3,
-            'isbn': None
-        }
-
-# ═══════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════
 
@@ -329,7 +282,21 @@ with st.sidebar:
     st.metric("Completados", completados)
     
     st.divider()
-    st.caption("🤖 Integración Gemini: Próximamente")
+    st.header("🤖 Bibliotecaria IA")
+    estado = estado_gemini()
+    col1, col2 = st.columns(2)
+    if not estado['api_key_configurada']:
+        st.error("❌ IA no configurada. Añade GROQ_API_KEY al archivo .env")
+        st.info("Crea archivo .env en la carpeta raíz con: GROQ_API_KEY=tu_key_aqui")
+    elif estado['modo'] == 'offline_sin_cuota':
+        st.warning("⚠️ Groq: Sin cuota disponible (vuelve mañana)")
+        st.info("🤖 Usando modo fallback con respuestas predefinidas")
+    else:
+        st.success(f"✅ Groq: {estado['modo']}")
+
+    col1, col2 = st.columns(2)
+    col1.metric("API Key", "✓" if estado['api_key_configurada'] else "✗")
+    col2.metric("Consultas hoy", f"{estado['llamadas_hoy']}/{estado['max_llamadas']}")
 
 # ═══════════════════════════════════════════════════════════════
 # TABS PRINCIPALES
@@ -356,6 +323,7 @@ with tab_cargar:
             
             if archivo:
                 contenido = archivo.getvalue()
+                st.session_state['pdf_contenido'] = contenido
                 hash_archivo = hashlib.md5(contenido).hexdigest()[:16]
                 
                 existentes = obtener_libros_por_estado()
@@ -413,11 +381,29 @@ with tab_cargar:
         
         libro = obtener_libro(st.session_state.libro_en_proceso)
         
-        with st.spinner("🔍 Extrayendo metadatos con IA..."):
-            import time
-            time.sleep(1.5)
+        # Verificar si hay conexión
+        if not verificar_conexion():
+            st.warning("⚠️ Bibliotecaria IA no disponible. Usando extracción básica.")
+            # Fallback a extracción simple del nombre
+            metadatos = {
+                'titulo': libro['nombre_archivo'].replace('.pdf', '').replace('_', ' ').title(),
+                'autor': 'Desconocido',
+                'categoria_principal': 'Otros',
+                'descripcion': 'Extracción automática no disponible. Por favor completa manualmente.',
+                'total_paginas': 0,
+                'confianza_extraccion': 1,
+                'fuente_metadatos': 'Manual_Fallback'
+            }
+            st.session_state.metadatos_propuestos = metadatos
+            st.rerun()
+        
+        with st.spinner("🔍 Bibliotecaria analizando PDF..."):
             
-            metadatos = simular_extraccion_ia(libro['nombre_archivo'], libro['formato'])
+            metadatos = extraer_metadatos_libro(
+                st.session_state.get('pdf_contenido', b""),
+                libro['nombre_archivo']
+            )
+            
             st.session_state.metadatos_propuestos = metadatos
             st.rerun()
     

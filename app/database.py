@@ -36,6 +36,93 @@ sqlite3.register_converter("TIMESTAMP", convert_datetime)
 # Ruta de la base de datos
 DB_PATH = Path(__file__).parent.parent / "data" / "mission.db"
 
+# ═════════════════════════════════════════════════════════════════
+# SISTEMA DE 3 SOBRES
+# ═════════════════════════════════════════════════════════════════
+
+SOBRES_CONFIG = {
+    'Supervivencia': {
+        'nombre': 'SUPERVIVENCIA',
+        'emoji': '🔴',
+        'descripcion': 'Gastos fijos + necesidades básicas',
+        'color': '#f85149',
+        'pct': 0.65,
+        'subcategorias': [
+            'Tarjeta_MSI',
+            'Deuda_Fija',
+            'Comida',
+            'Transporte',
+            'Servicios',
+            'Otro_Supervivencia'
+        ]
+    },
+    'Futuro_Hogar': {
+        'nombre': 'FUTURO Y HOGAR',
+        'emoji': '🟢',
+        'descripcion': 'Ahorro sagrado — no tocar',
+        'color': '#3fb950',
+        'pct': 0.20,
+        'subcategorias': [
+            'Ahorro_Emergencia',
+            'Fondo_Renta',
+            'Otro_Ahorro'
+        ]
+    },
+    'Ministerio_Extras': {
+        'nombre': 'MINISTERIO Y EXTRAS',
+        'emoji': '🔵',
+        'descripcion': 'Libros, citas, ofrendas',
+        'color': '#58a6ff',
+        'pct': 0.15,
+        'subcategorias': [
+            'Libros_Cursos',
+            'Cita_Esposa',
+            'Ofrenda_Diezmo',
+            'Personal'
+        ]
+    }
+}
+
+def init_sobres(cursor):
+    """Crea tablas del sistema de 3 sobres"""
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ingreso_mensual (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mes INTEGER NOT NULL,
+            anio INTEGER NOT NULL,
+            monto_total REAL NOT NULL DEFAULT 0,
+            notas TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(mes, anio)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS gastos_sobres (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL,
+            sobre TEXT NOT NULL CHECK(sobre IN (
+                'Supervivencia', 'Futuro_Hogar', 'Ministerio_Extras'
+            )),
+            subcategoria TEXT NOT NULL,
+            descripcion TEXT NOT NULL,
+            monto REAL NOT NULL CHECK(monto > 0),
+            es_fijo BOOLEAN DEFAULT 0,
+            notas TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_gastos_sobres_fecha
+        ON gastos_sobres(fecha DESC)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_gastos_sobres_sobre
+        ON gastos_sobres(sobre)
+    """)
+
 
 def init_database():
     """
@@ -45,8 +132,11 @@ def init_database():
     # Crear carpeta data si no existe
     DB_PATH.parent.mkdir(exist_ok=True)
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     cursor = conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")  # ← permite lecturas simultáneas
+    cursor.execute("PRAGMA synchronous=NORMAL")
+
     
     # ═════════════════════════════════════════════════════════
     # TABLA: GASTOS (Finanzas)
@@ -141,6 +231,13 @@ def init_database():
             INSERT OR IGNORE INTO bloques_fijos (nombre, hora_inicio, hora_fin, dias_semana, tipo, color)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (nombre, inicio, fin, dias, tipo, color))
+
+    cursor.execute("""
+        DELETE FROM bloques_fijos 
+        WHERE id NOT IN (
+            SELECT MIN(id) FROM bloques_fijos GROUP BY nombre
+        )
+    """)
     
     # ═════════════════════════════════════════════════════════
     # TABLA: SESIONES_COMPLETADAS (registro diario)
@@ -356,6 +453,277 @@ def init_database():
     
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_devocionales_fecha ON devocionales(fecha DESC)")
 
+    # ═════════════════════════════════════════════════════════
+    # TABLA: REGISTROS_SALUD (Energía y ejercicio diario)
+    # ═════════════════════════════════════════════════════════
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS registros_salud (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL UNIQUE,
+            
+            -- Sueño
+            horas_sueno REAL,
+            calidad_sueno INTEGER CHECK(calidad_sueno BETWEEN 1 AND 10),
+            hora_dormir TIME,
+            hora_despertar TIME,
+            
+            -- Energía durante el día (autoevaluación)
+            energia_manana INTEGER CHECK(energia_manana BETWEEN 1 AND 10),
+            energia_tarde INTEGER CHECK(energia_tarde BETWEEN 1 AND 10),
+            energia_noche INTEGER CHECK(energia_noche BETWEEN 1 AND 10),
+            
+            -- Ejercicio (principalmente calistenia miércoles)
+            hizo_ejercicio BOOLEAN DEFAULT 0,
+            tipo_ejercicio TEXT,  -- 'Calistenia', 'Caminata', 'Otro'
+            duracion_minutos INTEGER,
+            intensidad INTEGER CHECK(intensidad BETWEEN 1 AND 10),  -- 1=suave, 10=máxima
+            notas_ejercicio TEXT,
+            
+            -- Correlación con productividad (para análisis posterior)
+            productividad_percibida INTEGER CHECK(productividad_percibida BETWEEN 1 AND 10),
+            
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_salud_fecha ON registros_salud(fecha DESC)")
+    
+    # ═════════════════════════════════════════════════════════
+    # TABLA: CORRELACION_ANALISIS (Resultados de IA)
+    # ═════════════════════════════════════════════════════════
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS correlacion_analisis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha_analisis DATE DEFAULT CURRENT_DATE,
+            tipo_correlacion TEXT,  -- 'ejercicio_productividad', 'sueno_energia', etc.
+            descripcion TEXT,
+            coeficiente_correlacion REAL,  -- -1 a 1 si aplica
+            recomendacion TEXT,
+            generado_por TEXT DEFAULT 'IA'  -- 'IA' o 'Manual'
+        )
+    """)
+
+        # ═════════════════════════════════════════════════════════
+    # TABLA: SANDBOX - Ideas, snippets y recursos técnicos
+    # ═════════════════════════════════════════════════════════
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sandbox_ideas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            descripcion TEXT,
+            categoria TEXT CHECK(categoria IN (
+                'Script_Automatizacion', 'Web_App', 'Mobile', 'Data_Science', 
+                'DevOps', 'Seguridad', 'Otro'
+            )) DEFAULT 'Otro',
+            tecnologias TEXT,  -- JSON: ["Python", "Streamlit", "SQLite"]
+            complejidad INTEGER CHECK(complejidad BETWEEN 1 AND 5),  -- 1=fácil, 5=experto
+            estado TEXT CHECK(estado IN (
+                'Idea', 'Investigando', 'Prototipo', 'Pausado', 'Completado', 'Abandonado'
+            )) DEFAULT 'Idea',
+            motivacion INTEGER CHECK(motivacion BETWEEN 1 AND 10),  -- ganas de hacerlo
+            notas_tecnicas TEXT,
+            enlaces_referencia TEXT,  -- JSON array de URLs
+            tiempo_estimado_horas INTEGER,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sandbox_snippets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            lenguaje TEXT CHECK(lenguaje IN (
+                'Python', 'JavaScript', 'HTML_CSS', 'SQL', 'Bash', 'Markdown', 'Otro'
+            )),
+            codigo TEXT NOT NULL,
+            descripcion TEXT,
+            tags TEXT,  -- JSON: ["pandas", "streamlit", "sqlite"]
+            fuente_url TEXT,  -- de dónde lo sacaste
+            proyecto_relacionado_id INTEGER,  -- FK a sandbox_ideas opcional
+            veces_usado INTEGER DEFAULT 0,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (proyecto_relacionado_id) REFERENCES sandbox_ideas(id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sandbox_sesiones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL,
+            hora_inicio TIME,
+            hora_fin TIME,
+            duracion_minutos INTEGER,
+            tipo_actividad TEXT CHECK(tipo_actividad IN (
+                'Investigando', 'Codificando', 'Depurando', 'Aprendiendo', 'Documentando'
+            )),
+            proyecto_id INTEGER,  -- FK opcional
+            descripcion TEXT,  -- qué hiciste, logros, bloqueos
+            codigo_producido TEXT,  -- snippet resultado de la sesión
+            satisfaccion INTEGER CHECK(satisfaccion BETWEEN 1 AND 10),
+            FOREIGN KEY (proyecto_id) REFERENCES sandbox_ideas(id)
+        )
+    """)
+    
+    # Índices
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sandbox_ideas_estado ON sandbox_ideas(estado)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sandbox_snippets_lenguaje ON sandbox_snippets(lenguaje)")
+    
+    # Datos de ejemplo
+    ideas_ejemplo = [
+        ("Organizador de 500 libros en Linux", "Script para escanear y catalogar PDFs automáticamente", "Script_Automatizacion", '["Python", "OS", "SQLite"]', 3, "Investigando", 8),
+        ("App de citas matrimoniales", "Recordatorio inteligente de aniversarios y preferencias", "Web_App", '["Streamlit", "SQLite"]', 2, "Idea", 9),
+        ("Analizador de devocionales", "NLP para encontrar temas recurrentes en mis notas teológicas", "Data_Science", '["Python", "spaCy", "pandas"]', 4, "Idea", 6),
+    ]
+    
+    for titulo, desc, cat, tech, comp, estado, motiv in ideas_ejemplo:
+        cursor.execute("""
+            INSERT OR IGNORE INTO sandbox_ideas (titulo, descripcion, categoria, tecnologias, complejidad, estado, motivacion)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (titulo, desc, cat, tech, comp, estado, motiv))
+    
+    snippets_ejemplo = [
+        ("Leer PDFs en carpeta recursiva", "Python", 
+         "import os\nfrom pathlib import Path\n\ndef find_pdfs(root_dir):\n    return list(Path(root_dir).rglob('*.pdf'))",
+         "Busca todos los PDFs recursivamente", '["os", "pathlib"]', None, 0),
+        ("Streamlit dark mode CSS", "HTML_CSS",
+         "st.markdown('<style>...dark mode...</style>', unsafe_allow_html=True)",
+         "Template base para tema oscuro", '["streamlit", "css"]', None, 0),
+    ]
+    
+    for titulo, lang, codigo, desc, tags, proj, usado in snippets_ejemplo:
+        cursor.execute("""
+            INSERT OR IGNORE INTO sandbox_snippets (titulo, lenguaje, codigo, descripcion, tags, proyecto_relacionado_id, veces_usado)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (titulo, lang, codigo, desc, tags, proj, usado))
+
+        # ═════════════════════════════════════════════════════════
+    # TABLA: MATRIMONIO - Gestión de citas y conexión de pareja
+    # ═════════════════════════════════════════════════════════
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS matrimonio_citas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL,
+            hora TIME,
+            tipo_cita TEXT CHECK(tipo_cita IN (
+                'Cena_Romantica', 'Salida_Casual', 'Estadia_Casa', 
+                'Viaje_Corto', 'Aniversario', 'Cumpleanos_Esposa',
+                'Sorpresa', 'Otra'
+            )) DEFAULT 'Otra',
+            titulo TEXT NOT NULL,  -- "Cena en el lugar favorito"
+            descripcion TEXT,
+            lugar TEXT,
+            presupuesto_estimado REAL,
+            
+            -- Planificación
+            estado_planificacion TEXT CHECK(estado_planificacion IN (
+                'Idea', 'Planeando', 'Confirmada', 'Completada', 'Cancelada'
+            )) DEFAULT 'Idea',
+            
+            -- Notas de preparación
+            que_llevar TEXT,  -- flores, regalo, reserva confirmada
+            notas_preparacion TEXT,
+            
+            -- Post-cita: reflexión
+            como_salio TEXT,  -- descripción de cómo fue
+            calidad_conexion INTEGER CHECK(calidad_conexion BETWEEN 1 AND 10),
+            aprendizaje TEXT,  -- qué descubriste de tu esposa
+            
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            recordatorio_20_30_enviado BOOLEAN DEFAULT 0
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS matrimonio_notas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            categoria TEXT CHECK(categoria IN (
+                'Preferencias_Esposa', 'Ideas_Regalo', 'Frases_Recordar',
+                'Momentos_Especiales', 'Metas_Pareja', 'Conversaciones_Pendientes'
+            )),
+            contenido TEXT NOT NULL,
+            contexto TEXT,  -- dónde/when se mencionó
+            fecha_mencion DATE,
+            urgencia INTEGER CHECK(urgencia BETWEEN 1 AND 10),  -- 10 = hacer ASAP
+            usado_en_cita_id INTEGER,  -- FK si se usó
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (usado_en_cita_id) REFERENCES matrimonio_citas(id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS matrimonio_habitos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL UNIQUE,
+            tiempo_calidad_minutos INTEGER,  -- tiempo real dedicado
+            tipo_conexion TEXT CHECK(tipo_conexion IN (
+                'Conversacion_Profunda', 'Actividad_Juntos', 'Intimidad_Fisica',
+                'Servicio_Amor', 'Tiempo_Qualidad', 'Otro'
+            )),
+            iniciado_por TEXT CHECK(iniciado_por IN ('Yo', 'Esposa', 'Ambos')),
+            satisfaccion INTEGER CHECK(satisfaccion BETWEEN 1 AND 10),
+            notas TEXT,
+            modo_pareja_activado BOOLEAN DEFAULT 0  -- ¿se respetó el 21:00?
+        )
+    """)
+    
+    # Índices
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_citas_fecha ON matrimonio_citas(fecha)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_notas_categoria ON matrimonio_notas(categoria)")
+    
+    # Datos de ejemplo
+    citas_ejemplo = [
+        ("2026-03-21", "21:00", "Cena_Romantica", "Cena de viernes tradicional", 
+         "Restaurante italiano favorito", 800, "Confirmada", "Reserva hecha, llevar flores"),
+        ("2026-04-15", None, "Aniversario", "Aniversario de bodas", 
+         "Sorpresa", 2500, "Planeando", "Investigar destino fin de semana"),
+    ]
+    
+    for fecha, hora, tipo, titulo, lugar, presup, estado, prep in citas_ejemplo:
+        cursor.execute("""
+            INSERT OR IGNORE INTO matrimonio_citas 
+            (fecha, hora, tipo_cita, titulo, lugar, presupuesto_estimado, estado_planificacion, notas_preparacion)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (fecha, hora, tipo, titulo, lugar, presup, estado, prep))
+    
+    notas_ejemplo = [
+        ("Preferencias_Esposa", "Le encanta el chocolate amargo, no el dulce", 
+         "Conversación cafetería", "2026-02-14", 8),
+        ("Ideas_Regalo", "Libro de teología sistemática de Frame", 
+         "Mencionó en clase", "2026-03-10", 9),
+        ("Frases_Recordar", "\"Me siento más conectada cuando caminamos juntos\"", 
+         "Después de cena", "2026-03-05", 10),
+    ]
+    
+    for cat, contenido, contexto, fecha, urg in notas_ejemplo:
+        cursor.execute("""
+            INSERT OR IGNORE INTO matrimonio_notas 
+            (categoria, contenido, contexto, fecha_mencion, urgencia)
+            VALUES (?, ?, ?, ?, ?)
+        """, (cat, contenido, contexto, fecha, urg))
+    
+    # ═════════════════════════════════════════════════════════
+    # TABLA: HABITOS_DIARIOS
+    # ═════════════════════════════════════════════════════════
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS habitos_diarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL,
+            habito TEXT NOT NULL CHECK(habito IN (
+                'devocional', 'codigo', 'lectura', 'calistenia'
+            )),
+            completado BOOLEAN DEFAULT 0,
+            hora_completado TIME,
+            UNIQUE(fecha, habito)
+        )
+    """)
+
+
+    init_sobres(cursor)
     conn.commit()
     conn.close()
     # print(f"✅ Base de datos inicializada en: {DB_PATH}")
@@ -365,177 +733,190 @@ def init_database():
 # FUNCIONES CRUD PARA GASTOS
 # ═════════════════════════════════════════════════════════════════
 
-def agregar_gasto(fecha: date, categoria: str, descripcion: str, 
-                  monto: float, notas: str = "") -> int:
-    """
-    CREATE: Agrega un nuevo gasto.
-    Retorna el ID del registro creado.
-    """
-    conn = sqlite3.connect(DB_PATH)
+def guardar_ingreso(mes: int, anio: int, monto: float, notas: str = "") -> bool:
+    import sqlite3
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
-    
+    try:
+        cursor.execute("""
+            INSERT INTO ingreso_mensual (mes, anio, monto_total, notas)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(mes, anio)
+            DO UPDATE SET monto_total = ?, notas = ?
+        """, (mes, anio, monto, notas, monto, notas))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error guardando ingreso: {e}")
+        return False
+    finally:
+        conn.close()
+
+def obtener_ingreso(mes: int, anio: int) -> float:
+    import sqlite3
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO gastos (fecha, categoria, descripcion, monto, notas)
-        VALUES (?, ?, ?, ?, ?)
-    """, (fecha, categoria, descripcion, monto, notas))
-    
-    nuevo_id = cursor.lastrowid
+        SELECT monto_total FROM ingreso_mensual
+        WHERE mes = ? AND anio = ?
+    """, (mes, anio))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else 0.0
+
+def agregar_gasto_sobre(fecha, sobre: str, subcategoria: str,
+                        descripcion: str, monto: float,
+                        es_fijo: bool = False, notas: str = "") -> int:
+    import sqlite3
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO gastos_sobres
+            (fecha, sobre, subcategoria, descripcion, monto, es_fijo, notas)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (str(fecha), sobre, subcategoria, descripcion, monto, es_fijo, notas))
+    gasto_id = cursor.lastrowid
     conn.commit()
     conn.close()
-    
-    return nuevo_id
+    return gasto_id
 
-
-def obtener_gastos(mes: int = None, anio: int = None, 
-                   categoria: str = None, limite: int = 100) -> list:
-    """
-    READ: Obtiene gastos con filtros opcionales.
-    Retorna lista de diccionarios.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Para acceder por nombre de columna
+def obtener_gastos_sobre(mes=None, anio=None, sobre=None, limite=100) -> list:
+    import sqlite3
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    query = "SELECT * FROM gastos WHERE 1=1"
+    query = "SELECT * FROM gastos_sobres WHERE 1=1"
     params = []
     
     if mes and anio:
-        query += " AND strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?"
+        query += """ AND strftime('%m', fecha) = ? 
+                    AND strftime('%Y', fecha) = ?"""
         params.extend([f"{mes:02d}", str(anio)])
+    if sobre:
+        query += " AND sobre = ?"
+        params.append(sobre)
     
-    if categoria:
-        query += " AND categoria = ?"
-        params.append(categoria)
-    
-    query += " ORDER BY fecha DESC LIMIT ?"
+    query += " ORDER BY fecha DESC, creado_en DESC LIMIT ?"
     params.append(limite)
     
     cursor.execute(query, params)
-    filas = cursor.fetchall()
-    
-    # Convertir a lista de diccionarios
-    resultado = [dict(fila) for fila in filas]
-    
+    gastos = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    return resultado
+    return gastos
 
-
-def actualizar_gasto(gasto_id: int, **campos) -> bool:
-    """
-    UPDATE: Modifica un gasto existente.
-    Campos permitidos: fecha, categoria, descripcion, monto, notas
-    """
-    campos_permitidos = {'fecha', 'categoria', 'descripcion', 'monto', 'notas'}
-    campos_actualizar = {k: v for k, v in campos.items() if k in campos_permitidos}
-    
-    if not campos_actualizar:
-        return False
-    
-    conn = sqlite3.connect(DB_PATH)
+def actualizar_gasto_sobre(gasto_id: int, **kwargs) -> bool:
+    import sqlite3
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
-    
-    set_clause = ", ".join(f"{k} = ?" for k in campos_actualizar.keys())
-    valores = list(campos_actualizar.values()) + [gasto_id]
-    
-    cursor.execute(f"""
-        UPDATE gastos 
-        SET {set_clause}
-        WHERE id = ?
-    """, valores)
-    
-    filas_afectadas = cursor.rowcount
-    conn.commit()
-    conn.close()
-    
-    return filas_afectadas > 0
+    try:
+        campos_permitidos = {
+            'fecha', 'sobre', 'subcategoria',
+            'descripcion', 'monto', 'es_fijo', 'notas'
+        }
+        campos = {
+            k: (str(v) if k == 'fecha' else v)
+            for k, v in kwargs.items()
+            if k in campos_permitidos and v is not None
+        }
+        if not campos:
+            return False
+        set_clause = ", ".join(f"{k} = ?" for k in campos)
+        cursor.execute(
+            f"UPDATE gastos_sobres SET {set_clause} WHERE id = ?",
+            list(campos.values()) + [gasto_id]
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
 
-
-def eliminar_gasto(gasto_id: int) -> bool:
-    """
-    DELETE: Elimina un gasto permanentemente.
-    """
-    conn = sqlite3.connect(DB_PATH)
+def eliminar_gasto_sobre(gasto_id: int) -> bool:
+    import sqlite3
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
-    
-    cursor.execute("DELETE FROM gastos WHERE id = ?", (gasto_id,))
-    
-    filas_afectadas = cursor.rowcount
-    conn.commit()
-    conn.close()
-    
-    return filas_afectadas > 0
+    try:
+        cursor.execute("DELETE FROM gastos_sobres WHERE id = ?", (gasto_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
 
-
-# ═════════════════════════════════════════════════════════════════
-# FUNCIONES DE REPORTES
-# ═════════════════════════════════════════════════════════════════
-
-def resumen_mensual(mes: int, anio: int) -> dict:
+def calcular_sobres(mes: int, anio: int) -> dict:
     """
-    Genera resumen de gastos vs. presupuesto para un mes específico.
-    CORREGIDO: Maneja categorías sin gastos registrados.
+    Calcula el estado de los 3 sobres.
+    Lógica: llenar en orden según ingreso disponible.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    ingreso = obtener_ingreso(mes, anio)
+    gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=500)
     
-    # PRIMERO: Obtener todos los presupuestos del mes/año
-    cursor.execute("""
-        SELECT categoria, limite 
-        FROM presupuestos 
-        WHERE mes = ? AND anio = ?
-    """, (mes, anio))
+    sobres = {}
+    ingreso_restante = ingreso
     
-    presupuestos_raw = {row[0]: row[1] for row in cursor.fetchall()}
-    
-    # Si no hay presupuestos para este mes/año, crear estructura vacía
-    if not presupuestos_raw:
-        # Intentar usar presupuestos de ejemplo o crear vacío
-        categorias_default = ['Hogar', 'Instituto', 'Programacion', 'Citas_Esposa']
-        presupuestos_raw = {cat: 0 for cat in categorias_default}
-    
-    # SEGUNDO: Obtener gastos reales del mes
-    cursor.execute("""
-        SELECT 
-            categoria,
-            COALESCE(SUM(monto), 0) as gastado
-        FROM gastos
-        WHERE strftime('%m', fecha) = ? AND strftime('%Y', fecha) = ?
-        GROUP BY categoria
-    """, (f"{mes:02d}", str(anio)))
-    
-    gastos_raw = {row[0]: row[1] for row in cursor.fetchall()}
-    
-    # TERCERO: Combinar datos (categoría SIEMPRE viene del presupuesto)
-    categorias = []
-    total_gastado = 0
-    total_presupuesto = 0
-    
-    for categoria, limite in presupuestos_raw.items():
-        gastado = gastos_raw.get(categoria, 0.0)  # 0 si no hay gastos
-        disponible = limite - gastado
-        porcentaje = (gastado / limite * 100) if limite > 0 else 0
+    for key, config in SOBRES_CONFIG.items():
+        gastos_sobre = [g for g in gastos if g['sobre'] == key]
+        gastado = sum(g['monto'] for g in gastos_sobre)
         
-        categorias.append({
-            'categoria': categoria,  # ← SIEMPRE existe, nunca None
+        # Presupuesto ideal según % del ingreso
+        presupuesto_ideal = ingreso * config['pct']
+        
+        # Lógica de llenado en orden
+        presupuesto_real = min(presupuesto_ideal, max(0, ingreso_restante))
+        ingreso_restante -= presupuesto_ideal
+        
+        disponible = presupuesto_real - gastado
+        pct_usado = (gastado / presupuesto_real * 100) if presupuesto_real > 0 else 0
+        
+        # Desglose por subcategoría
+        por_subcat = {}
+        for g in gastos_sobre:
+            sub = g['subcategoria']
+            if sub not in por_subcat:
+                por_subcat[sub] = 0
+            por_subcat[sub] += g['monto']
+        
+        # Separar fijos y variables (solo Supervivencia)
+        fijos = sum(g['monto'] for g in gastos_sobre if g['es_fijo'])
+        variables = gastado - fijos
+        
+        sobres[key] = {
+            **config,
             'gastado': gastado,
-            'limite': limite,
+            'presupuesto': presupuesto_real,
+            'presupuesto_ideal': presupuesto_ideal,
             'disponible': disponible,
-            'porcentaje_usado': round(porcentaje, 1)
-        })
-        
-        total_gastado += gastado
-        total_presupuesto += limite
+            'pct_usado': pct_usado,
+            'gastos': gastos_sobre,
+            'cantidad_gastos': len(gastos_sobre),
+            'sobre_lleno': presupuesto_real >= presupuesto_ideal,
+            'por_subcat': por_subcat,
+            'fijos': fijos,
+            'variables': variables,
+        }
     
-    conn.close()
+    # Calcular excedente
+    excedente = ingreso - sum(
+        SOBRES_CONFIG[k]['pct'] for k in SOBRES_CONFIG
+    ) * ingreso
     
     return {
+        'ingreso': ingreso,
         'mes': mes,
         'anio': anio,
-        'categorias': categorias,
-        'total_gastado': total_gastado,
-        'total_presupuesto': total_presupuesto,
-        'total_disponible': total_presupuesto - total_gastado,
-        'porcentaje_global': round(total_gastado / total_presupuesto * 100, 1) if total_presupuesto > 0 else 0
+        'total_gastado': sum(g['monto'] for g in gastos),
+        'total_disponible': ingreso - sum(g['monto'] for g in gastos),
+        'pct_global': (
+            sum(g['monto'] for g in gastos) / ingreso * 100
+        ) if ingreso > 0 else 0,
+        'sobres': sobres,
+        'excedente': excedente,
+        'sin_ingreso': ingreso == 0,
     }
 
 
