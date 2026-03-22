@@ -5,7 +5,10 @@ database.py - Capa de acceso a datos para Mission Dashboard
 import sqlite3
 from datetime import datetime, date
 from pathlib import Path
+import os
 import json
+
+import libsql
 
 # ═════════════════════════════════════════════════════════
 # ADAPTADOR SQLITE PARA PYTHON 3.12+ (evita DeprecationWarning)
@@ -879,6 +882,142 @@ def obtener_tipos_bloque() -> list:
         return todos
     except Exception:
         return defaults
+
+# ═════════════════════════════════════════════════════════════════
+# CAPA DE COMPATIBILIDAD SQLITE / TURSO
+# ═════════════════════════════════════════════════════════════════
+
+def _get_turso_config():
+    """Obtiene configuración de Turso desde .env o Streamlit Secrets."""
+    url   = None
+    token = None
+    try:
+        import streamlit as st
+        url   = st.secrets.get("TURSO_URL")
+        token = st.secrets.get("TURSO_TOKEN")
+    except Exception:
+        pass
+    if not url or not token:
+        from dotenv import load_dotenv
+        load_dotenv()
+        url   = os.getenv("TURSO_URL")
+        token = os.getenv("TURSO_TOKEN")
+    return url, token
+
+def usar_turso() -> bool:
+    """Retorna True si Turso está configurado."""
+    url, token = _get_turso_config()
+    return bool(url and token)
+
+def ejecutar(sql: str, params: list = None, fetchall: bool = False):
+    """
+    Wrapper unificado — usa Turso en producción, SQLite en local.
+    """
+    if usar_turso():
+        url, token = _get_turso_config()
+        conn_turso = libsql.connect(url, auth_token=token)
+        cursor_t   = conn_turso.cursor()
+        cursor_t.execute(sql, params or [])
+        if fetchall:
+            cols = [d[0] for d in cursor_t.description]
+            return [dict(zip(cols, row)) for row in cursor_t.fetchall()]
+        conn_turso.commit()
+        return cursor_t.lastrowid
+    else:
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        try:
+            cursor.execute(sql, params or [])
+            if fetchall:
+                return [dict(r) for r in cursor.fetchall()]
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+def migrar_local_a_turso():
+    """
+    Migra todos los datos de SQLite local a Turso.
+    Ejecutar UNA SOLA VEZ después de configurar Turso.
+    """
+    url, token = _get_turso_config()
+    if not url or not token:
+        print("❌ TURSO_URL y TURSO_TOKEN no configurados")
+        return False
+
+    print(f"🔄 Conectando a Turso: {url}")
+
+    # Leer datos locales
+    conn_local = sqlite3.connect(DB_PATH, timeout=30)
+    conn_local.row_factory = sqlite3.Row
+    cursor_local = conn_local.cursor()
+
+    # Conectar a Turso
+    conn_turso = libsql.connect(url, auth_token=token)
+    cursor_turso = conn_turso.cursor()
+
+    # Paso 1 — Crear esquema en Turso
+    print("📋 Creando esquema en Turso...")
+    cursor_local.execute("""
+        SELECT sql FROM sqlite_master
+        WHERE type='table' AND sql IS NOT NULL
+        ORDER BY rootpage
+    """)
+    for (schema_sql,) in cursor_local.fetchall():
+        if schema_sql:
+            try:
+                cursor_turso.execute(schema_sql)
+                conn_turso.commit()
+            except Exception as e:
+                if 'already exists' not in str(e).lower():
+                    print(f"  ⚠️ Schema: {e}")
+
+    # Paso 2 — Migrar datos
+    tablas = [
+        'bitacora_semanal', 'bloques_fijos', 'sesiones_completadas',
+        'libros', 'resaltados', 'devocionales', 'registros_salud',
+        'sandbox_ideas', 'sandbox_snippets', 'sandbox_sesiones',
+        'matrimonio_citas', 'matrimonio_notas', 'matrimonio_habitos',
+        'habitos_config', 'habitos_diarios_v2', 'pedidos_oracion',
+        'ingreso_mensual', 'gastos_sobres', 'eventos_calendario',
+    ]
+
+    total = 0
+    for tabla in tablas:
+        try:
+            cursor_local.execute(f"SELECT * FROM {tabla}")
+            filas = cursor_local.fetchall()
+            if not filas:
+                print(f"  ⏭️  {tabla}: vacía")
+                continue
+
+            cols = [d[0] for d in cursor_local.description]
+            placeholders = ', '.join(['?' for _ in cols])
+            cols_str = ', '.join(cols)
+            sql_insert = (
+                f"INSERT OR IGNORE INTO {tabla} "
+                f"({cols_str}) VALUES ({placeholders})"
+            )
+
+            errores = 0
+            for fila in filas:
+                try:
+                    cursor_turso.execute(sql_insert, list(fila))
+                except Exception as e:
+                    errores += 1
+
+            conn_turso.commit()
+            total += len(filas)
+            status = f"({errores} errores)" if errores else "✅"
+            print(f"  {status} {tabla}: {len(filas)} filas")
+
+        except Exception as e:
+            print(f"  ❌ {tabla}: {e}")
+
+    conn_local.close()
+    print(f"\n🎉 Migración completa — {total} filas totales")
+    return True
 
 
 # ═════════════════════════════════════════════════════════════════
