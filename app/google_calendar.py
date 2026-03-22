@@ -5,7 +5,6 @@ google_calendar.py - Sincronización bidireccional con Google Calendar
 import json
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from turtle import st
 from typing import Optional, Dict, List
 
 # Reutiliza las credenciales de Google Fit
