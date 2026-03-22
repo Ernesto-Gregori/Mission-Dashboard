@@ -11,18 +11,13 @@ import sys
 from pathlib import Path
 
 # ═══════════════════════════════════════════════════════════════
-# CORRECCIÓN: Agregar app al path ANTES de imports
+# PATH
 # ═══════════════════════════════════════════════════════════════
-
-# Obtener ruta del proyecto (donde está este archivo)
 BASE_DIR = Path(__file__).parent.resolve()
-
-# Agregar app al path (corregido para Windows)
 sys.path.insert(0, str(BASE_DIR / "app"))
 
-# Ahora importar
 from app.database import init_database, DB_PATH
-from app.ai_client import (      # ← nombre nuevo del archivo
+from app.ai_client import (
     generar_alerta_matrimonio,
     chat_simple,
     api_key_configurada,
@@ -31,25 +26,8 @@ from app.ai_client import (      # ← nombre nuevo del archivo
 )
 
 # ═══════════════════════════════════════════════════════════════
-# NUEVO: Cache de estado Gemini — se evalúa UNA vez cada 5 min
+# 1. set_page_config — SIEMPRE PRIMERO
 # ═══════════════════════════════════════════════════════════════
-
-@st.cache_resource(ttl=300)
-def _init_gemini():
-    """
-    Se ejecuta solo al arrancar (o tras 5 min).
-    Hace la única llamada real a la API.
-    """
-    verificar_conexion()   # Calienta el cache interno de gemini_client
-    return True
-
-# Llamar al inicio — solo consume 1 llamada real, luego usa cache
-_init_gemini()
-
-# ═══════════════════════════════════════════════════════════════
-# CONFIGURACIÓN GLOBAL
-# ═══════════════════════════════════════════════════════════════
-
 st.set_page_config(
     page_title="Mission Dashboard",
     page_icon="🎯",
@@ -57,7 +35,63 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Inicializar base de datos
+# ═══════════════════════════════════════════════════════════════
+# 2. AUTENTICACIÓN
+# ═══════════════════════════════════════════════════════════════
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.markdown("""
+        <style>
+            /* Ocultar sidebar y navegación */
+            [data-testid="stSidebar"] {display: none !important;}
+            [data-testid="collapsedControl"] {display: none !important;}
+            section[data-testid="stSidebarNav"] {display: none !important;}
+            
+            /* Fondo negro inmediato para tapar el flash */
+            .stApp {
+                background-color: #0d1117 !important;
+            }
+            
+            /* Ocultar todo el contenido excepto el login */
+            .stApp > div:first-child {
+                background-color: #0d1117 !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("## 🏠 Mission Dashboard")
+        st.markdown("Acceso privado — solo usuarios autorizados")
+        pwd = st.text_input("Contraseña", type="password", key="pwd_input")
+        if st.button("Entrar", use_container_width=True, type="primary"):
+            try:
+                password_correcto = st.secrets.get("APP_PASSWORD", "")
+            except Exception:
+                password_correcto = ""
+            if pwd == password_correcto:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("❌ Contraseña incorrecta")
+    st.stop()
+
+# ═══════════════════════════════════════════════════════════════
+# 3. Cache de IA
+# ═══════════════════════════════════════════════════════════════
+@st.cache_resource(ttl=300)
+def _init_gemini():
+    verificar_conexion()
+    return True
+
+_init_gemini()
+
+# ═══════════════════════════════════════════════════════════════
+# 4. Inicializar BD y resto del código
+# ═══════════════════════════════════════════════════════════════
 init_database()
 
 # ═══════════════════════════════════════════════════════════════
