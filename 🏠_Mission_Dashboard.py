@@ -169,7 +169,7 @@ load_css()
 # ═══════════════════════════════════════════════════════════════
 
 if 'user_name' not in st.session_state:
-    st.session_state.user_name = "Misionero"
+    st.session_state.user_name = "Ernesto Gregori"
 
 # ═══════════════════════════════════════════════════════════════
 # FUNCIONES DE BASE DE DATOS - HÁBITOS Y MÉTRICAS
@@ -178,52 +178,159 @@ if 'user_name' not in st.session_state:
 import sqlite3
 from datetime import timedelta
 
-def get_habitos_hoy():
-    """Obtiene y/o inicializa hábitos del día actual"""
-    hoy = date.today().isoformat()
+def get_habitos_config() -> list:
+    """Lee el catálogo de hábitos desde BD."""
     conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
-    # Inicializar los 4 hábitos si no existen hoy
-    for habito in ['devocional', 'codigo', 'lectura', 'calistenia']:
+    try:
         cursor.execute("""
-            INSERT OR IGNORE INTO habitos_diarios (fecha, habito, completado)
-            VALUES (?, ?, 0)
-        """, (hoy, habito))
-    conn.commit()
-    
-    cursor.execute("SELECT * FROM habitos_diarios WHERE fecha = ?", (hoy,))
-    habitos = {row['habito']: dict(row) for row in cursor.fetchall()}
-    conn.close()
-    return habitos
+            SELECT * FROM habitos_config
+            WHERE activo = 1
+            ORDER BY orden, id
+        """)
+        return [dict(r) for r in cursor.fetchall()]
+    except Exception:
+        return []
+    finally:
+        conn.close()
 
-def toggle_habito(habito: str):
-    """Alterna completado/pendiente de un hábito"""
+def get_habitos_hoy() -> dict:
+    """Obtiene estado de hábitos de hoy desde habitos_diarios_v2."""
     hoy = date.today().isoformat()
     conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT completado FROM habitos_diarios 
-        WHERE fecha = ? AND habito = ?
-    """, (hoy, habito))
-    
-    row = cursor.fetchone()
-    nuevo_estado = 0 if (row and row[0]) else 1
-    hora_actual = datetime.now().strftime('%H:%M') if nuevo_estado else None
-    
-    cursor.execute("""
-        INSERT INTO habitos_diarios (fecha, habito, completado, hora_completado)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(fecha, habito)
-        DO UPDATE SET completado = ?, hora_completado = ?
-    """, (hoy, habito, nuevo_estado, hora_actual, nuevo_estado, hora_actual))
-    
-    conn.commit()
-    conn.close()
+    try:
+        # Inicializar registros para hábitos activos
+        configs = get_habitos_config()
+        for h in configs:
+            cursor.execute("""
+                INSERT OR IGNORE INTO habitos_diarios_v2
+                    (fecha, habito_clave, completado)
+                VALUES (?, ?, 0)
+            """, (hoy, h['clave']))
+        conn.commit()
+
+        cursor.execute("""
+            SELECT * FROM habitos_diarios_v2
+            WHERE fecha = ?
+        """, (hoy,))
+        return {
+            row['habito_clave']: dict(row)
+            for row in cursor.fetchall()
+        }
+    except Exception:
+        return {}
+    finally:
+        conn.close()
+
+def toggle_habito(clave: str):
+    """Alterna completado de un hábito."""
+    hoy = date.today().isoformat()
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT completado FROM habitos_diarios_v2
+            WHERE fecha = ? AND habito_clave = ?
+        """, (hoy, clave))
+        row      = cursor.fetchone()
+        nuevo    = 0 if (row and row[0]) else 1
+        hora_now = datetime.now().strftime('%H:%M') if nuevo else None
+        cursor.execute("""
+            INSERT INTO habitos_diarios_v2
+                (fecha, habito_clave, completado, hora_completado)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(fecha, habito_clave)
+            DO UPDATE SET completado = ?, hora_completado = ?
+        """, (hoy, clave, nuevo, hora_now, nuevo, hora_now))
+        conn.commit()
+    finally:
+        conn.close()
+
+def agregar_habito(label: str, emoji: str, hora: str) -> bool:
+    """Crea un nuevo hábito en el catálogo."""
+    clave = label.lower().strip().replace(' ', '_')[:20]
+    conn  = sqlite3.connect(DB_PATH, timeout=30)
+    cursor = conn.cursor()
+    try:
+        # Calcular orden máximo
+        cursor.execute("SELECT MAX(orden) FROM habitos_config")
+        max_ord = cursor.fetchone()[0] or 0
+        cursor.execute("""
+            INSERT OR IGNORE INTO habitos_config
+                (clave, label, emoji, hora, activo, orden)
+            VALUES (?, ?, ?, ?, 1, ?)
+        """, (clave, label.strip(), emoji or '⭐',
+              hora or '—', max_ord + 1))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+def editar_habito(clave: str, label: str,
+                  emoji: str, hora: str) -> bool:
+    """Edita label/emoji/hora de un hábito."""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE habitos_config
+            SET label=?, emoji=?, hora=?
+            WHERE clave=?
+        """, (label, emoji, hora, clave))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+def eliminar_habito(clave: str) -> bool:
+    """Desactiva un hábito (no lo borra, preserva historial)."""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE habitos_config
+            SET activo = 0
+            WHERE clave = ?
+        """, (clave,))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+def restaurar_habitos_default():
+    """Reactiva los 4 hábitos fijos si fueron desactivados."""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    cursor = conn.cursor()
+    try:
+        for clave in ['devocional','codigo','lectura','calistenia']:
+            cursor.execute("""
+                UPDATE habitos_config SET activo = 1
+                WHERE clave = ?
+            """, (clave,))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_habitos_custom():
+    return st.session_state.get('habitos_custom', {})
+
+def toggle_habito_custom(clave: str):
+    custom = st.session_state.get('habitos_custom', {})
+    if clave in custom:
+        custom[clave]['completado'] = (
+            0 if custom[clave]['completado'] else 1
+        )
+        st.session_state.habitos_custom = custom
+
+def eliminar_habito_custom(clave: str):
+    custom = st.session_state.get('habitos_custom', {})
+    custom.pop(clave, None)
+    st.session_state.habitos_custom = custom
 
 def get_metricas_modulos():
     """Lee datos reales de todos los módulos desde SQLite"""
@@ -234,33 +341,43 @@ def get_metricas_modulos():
     metricas = {}
     hoy = date.today()
 
-    # ── FINANZAS ──────────────────────────────────────────────
+     # ── FINANZAS — usa sistema de 3 sobres ────────────────────
     try:
-        mes_actual = hoy.strftime('%Y-%m')
-        cursor.execute("""
-            SELECT COALESCE(SUM(monto), 0) as total
-            FROM gastos WHERE strftime('%Y-%m', fecha) = ?
-        """, (mes_actual,))
-        total_gastos = cursor.fetchone()['total']
+        from app.database import calcular_sobres
+        mes_actual = hoy.month
+        anio_actual = hoy.year
+        datos_sobres = calcular_sobres(mes_actual, anio_actual)
 
-        cursor.execute("""
-            SELECT COALESCE(SUM(limite), 0) as total
-            FROM presupuestos WHERE mes = ? AND anio = ?
-        """, (hoy.month, hoy.year))
-        total_ppto = cursor.fetchone()['total']
+        total_gastado = datos_sobres['total_gastado']
+        ingreso       = datos_sobres['ingreso']
 
-        pct = int(total_gastos / total_ppto * 100) if total_ppto > 0 else 0
+        if ingreso > 0:
+            pct = int(total_gastado / ingreso * 100)
+        else:
+            # Fallback: leer tabla presupuestos vieja
+            cursor.execute("""
+                SELECT COALESCE(SUM(limite), 0) as total
+                FROM presupuestos WHERE mes = ? AND anio = ?
+            """, (hoy.month, hoy.year))
+            ppto_viejo = cursor.fetchone()['total']
+            pct = int(total_gastado / ppto_viejo * 100) \
+                  if ppto_viejo > 0 else 0
+            ingreso = ppto_viejo  # mostrar algo
+
         metricas['finanzas'] = {
-            'gastos': total_gastos,
-            'presupuesto': total_ppto,
-            'pct': pct,
-            'semaforo': '🟢' if pct < 70 else '🟡' if pct < 90 else '🔴',
-            'color': '#3fb950' if pct < 70 else '#e3b341' if pct < 90 else '#f85149'
+            'gastos':       total_gastado,
+            'presupuesto':  ingreso,
+            'pct':          pct,
+            'semaforo':     '🟢' if pct < 70 else '🟡' if pct < 90 else '🔴',
+            'color':        '#3fb950' if pct < 70 else
+                            '#e3b341' if pct < 90 else '#f85149',
+            'sin_ingreso':  datos_sobres['sin_ingreso']
         }
-    except Exception:
+    except Exception as e:
         metricas['finanzas'] = {
-            'gastos': 0, 'presupuesto': 0, 
-            'pct': 0, 'semaforo': '⚪', 'color': '#8b949e'
+            'gastos': 0, 'presupuesto': 0,
+            'pct': 0, 'semaforo': '⚪', 'color': '#8b949e',
+            'sin_ingreso': True
         }
 
     # ── DEEP WORK ─────────────────────────────────────────────
@@ -426,6 +543,42 @@ habitos = get_habitos_hoy()
 metricas = get_metricas_modulos()
 
 # ═══════════════════════════════════════════════════════════════
+# SIDEBAR - NAVEGACIÓN Y PERFIL
+# ═══════════════════════════════════════════════════════════════
+
+with st.sidebar:
+    # Logo/Header
+    st.markdown("""
+    <div style="text-align: center; padding: 1rem 0;">
+        <h1 style="color: #e3b341; margin: 0;">🎯 MISSION</h1>
+        <p style="color: #8b949e; font-size: 0.75rem; margin: 0;">SISTEMA DE GESTIÓN INTEGRAL</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Perfil rápido
+    st.markdown(f"""
+    <div style="padding: 0.5rem;">
+        <p style="color: #f0f6fc; margin: 0; font-weight: 600;">👤 {st.session_state.user_name}</p>
+        <p style="color: #8b949e; margin: 0; font-size: 0.75rem;">{datetime.now().strftime('%A, %d de %B')}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Navegación (Streamlit maneja esto automáticamente con pages/)
+    st.markdown("""
+    <p style="color: #8b949e; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+        Navegación
+    </p>
+    """, unsafe_allow_html=True)
+    
+    # Info de versión
+    st.divider()
+    st.caption("v1.0 • Python + Streamlit")
+
+# ═══════════════════════════════════════════════════════════════
 # HEADER PRINCIPAL
 # ═══════════════════════════════════════════════════════════════
 
@@ -435,69 +588,281 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════
-# SECCIÓN 1: HÁBITOS DIARIOS (INTERACTIVOS)
+# SECCIÓN 1: HÁBITOS DIARIOS — CRUD COMPLETO
 # ═══════════════════════════════════════════════════════════════
 
 st.subheader("📋 Hábitos del día")
 
-HABITOS_CONFIG = {
-    'devocional': {'emoji': '📖', 'label': 'Devocional',  'hora': '05:45'},
-    'codigo':     {'emoji': '💻', 'label': 'Código',       'hora': '06:15'},
-    'lectura':    {'emoji': '📚', 'label': 'Lectura',      'hora': '19:30'},
-    'calistenia': {'emoji': '💪', 'label': 'Calistenia',   'hora': 'Mié 16:30'},
-}
+# Session state para gestión
+if 'modo_gestion_hab'  not in st.session_state:
+    st.session_state.modo_gestion_hab  = False
+if 'hab_editando'      not in st.session_state:
+    st.session_state.hab_editando      = None
 
-cols = st.columns(4)
+# Cargar datos
+configs_hab = get_habitos_config()
+habitos     = get_habitos_hoy()
 
-for i, (key, cfg) in enumerate(HABITOS_CONFIG.items()):
-    with cols[i]:
-        completado = habitos.get(key, {}).get('completado', 0)
-        hora_ok    = habitos.get(key, {}).get('hora_completado', '')
+# ── Botón gestionar ────────────────────────────────────────────
+col_tit_h, col_btn_h = st.columns([5, 1])
+with col_btn_h:
+    if st.button(
+        "✖ Cerrar" if st.session_state.modo_gestion_hab
+        else "⚙️ Gestionar",
+        use_container_width=True,
+        key="btn_gest_hab"
+    ):
+        st.session_state.modo_gestion_hab = (
+            not st.session_state.modo_gestion_hab
+        )
+        st.session_state.hab_editando = None
+        st.rerun()
 
-        color_borde = '#3fb950' if completado else '#30363d'
-        color_fondo = '#0f2d0f' if completado else '#161b22'
-        simbolo     = '✅' if completado else '○'
-        color_sym   = '#3fb950' if completado else '#8b949e'
+# ── PANEL GESTIÓN ──────────────────────────────────────────────
+if st.session_state.modo_gestion_hab:
+    with st.container():
+        st.markdown("#### ⚙️ Gestión de hábitos")
 
+        # ── Agregar nuevo ──────────────────────────────────────
+        st.markdown("**➕ Nuevo hábito**")
+        col_n1, col_n2, col_n3, col_n4 = st.columns([3, 1, 2, 1])
+        with col_n1:
+            nh_label = st.text_input(
+                "Nombre", placeholder="Ej: Meditación",
+                key="nh_label"
+            )
+        with col_n2:
+            nh_emoji = st.text_input(
+                "Emoji", value="⭐", max_chars=2,
+                key="nh_emoji"
+            )
+        with col_n3:
+            nh_hora = st.text_input(
+                "Hora", placeholder="07:00",
+                key="nh_hora"
+            )
+        with col_n4:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("➕ Agregar",
+                         use_container_width=True,
+                         key="btn_nh"):
+                if not nh_label.strip():
+                    st.error("⚠️ Nombre requerido")
+                else:
+                    ok = agregar_habito(
+                        nh_label, nh_emoji, nh_hora
+                    )
+                    if ok:
+                        st.success(f"✅ '{nh_label}' creado")
+                        st.rerun()
+                    else:
+                        st.warning("Ya existe un hábito con ese nombre")
+
+        st.divider()
+
+        # ── Lista de todos los hábitos con editar/eliminar ─────
+        st.markdown("**📋 Hábitos activos:**")
+
+        # Cargar TODOS (activos) para gestión
+        conn_g = sqlite3.connect(DB_PATH, timeout=30)
+        conn_g.row_factory = sqlite3.Row
+        cur_g  = conn_g.cursor()
+        cur_g.execute("""
+            SELECT * FROM habitos_config
+            ORDER BY orden, id
+        """)
+        todos_configs = [dict(r) for r in cur_g.fetchall()]
+        conn_g.close()
+
+        for hc in todos_configs:
+            col_e, col_em, col_lab, col_hor, col_est, col_ed, col_del = \
+                st.columns([0.5, 0.5, 2, 1.5, 1, 0.8, 0.8])
+
+            with col_e:
+                st.caption(hc['emoji'])
+            with col_em:
+                activo_txt = "🟢" if hc['activo'] else "⚪"
+                st.caption(activo_txt)
+            with col_lab:
+                st.caption(f"**{hc['label']}**")
+            with col_hor:
+                st.caption(hc['hora'])
+            with col_est:
+                st.caption(
+                    "Activo" if hc['activo'] else "Inactivo"
+                )
+            with col_ed:
+                if st.button(
+                    "✏️", key=f"ed_h_{hc['clave']}",
+                    use_container_width=True,
+                    help="Editar"
+                ):
+                    st.session_state.hab_editando = hc['clave']
+                    st.rerun()
+            with col_del:
+                if st.button(
+                    "🗑️" if hc['activo'] else "♻️",
+                    key=f"del_h_{hc['clave']}",
+                    use_container_width=True,
+                    help="Desactivar" if hc['activo']
+                         else "Reactivar"
+                ):
+                    if hc['activo']:
+                        st.session_state[
+                            f'confirm_del_h_{hc["clave"]}'
+                        ] = True
+                    else:
+                        # Reactivar
+                        conn_r = sqlite3.connect(DB_PATH, timeout=30)
+                        conn_r.execute("""
+                            UPDATE habitos_config
+                            SET activo=1 WHERE clave=?
+                        """, (hc['clave'],))
+                        conn_r.commit()
+                        conn_r.close()
+                        st.success(f"♻️ '{hc['label']}' reactivado")
+                        st.rerun()
+
+            # Confirmar eliminación
+            if st.session_state.get(
+                f'confirm_del_h_{hc["clave"]}'
+            ):
+                c1, c2, c3 = st.columns([3, 1, 1])
+                with c1:
+                    st.warning(
+                        f"⚠️ ¿Desactivar *{hc['label']}*? "
+                        f"(el historial se conserva)"
+                    )
+                with c2:
+                    if st.button(
+                        "🗑️ Sí",
+                        key=f"cfd_h_{hc['clave']}",
+                        use_container_width=True
+                    ):
+                        eliminar_habito(hc['clave'])
+                        st.session_state[
+                            f'confirm_del_h_{hc["clave"]}'
+                        ] = False
+                        st.success(
+                            f"✅ '{hc['label']}' desactivado"
+                        )
+                        st.rerun()
+                with c3:
+                    if st.button(
+                        "✖", key=f"cnf_h_{hc['clave']}",
+                        use_container_width=True
+                    ):
+                        st.session_state[
+                            f'confirm_del_h_{hc["clave"]}'
+                        ] = False
+                        st.rerun()
+
+            # Formulario edición inline
+            if st.session_state.hab_editando == hc['clave']:
+                with st.form(f"form_edit_h_{hc['clave']}"):
+                    st.markdown(f"#### ✏️ Editando: {hc['label']}")
+                    col_f1, col_f2, col_f3 = st.columns([3, 1, 2])
+                    with col_f1:
+                        e_label = st.text_input(
+                            "Nombre", value=hc['label']
+                        )
+                    with col_f2:
+                        e_emoji = st.text_input(
+                            "Emoji", value=hc['emoji'],
+                            max_chars=2
+                        )
+                    with col_f3:
+                        e_hora = st.text_input(
+                            "Hora", value=hc['hora']
+                        )
+                    col_sg, col_sc = st.columns(2)
+                    with col_sg:
+                        if st.form_submit_button(
+                            "💾 Guardar",
+                            use_container_width=True,
+                            type="primary"
+                        ):
+                            if not e_label.strip():
+                                st.error("⚠️ Nombre requerido")
+                            else:
+                                editar_habito(
+                                    hc['clave'],
+                                    e_label, e_emoji, e_hora
+                                )
+                                st.session_state.hab_editando = None
+                                st.success("✅ Actualizado")
+                                st.rerun()
+                    with col_sc:
+                        if st.form_submit_button(
+                            "✖ Cancelar",
+                            use_container_width=True
+                        ):
+                            st.session_state.hab_editando = None
+                            st.rerun()
+
+        # Botón restaurar defaults
+        st.divider()
+        if st.button(
+            "♻️ Restaurar hábitos por defecto",
+            use_container_width=False
+        ):
+            restaurar_habitos_default()
+            st.success("✅ Hábitos por defecto restaurados")
+            st.rerun()
+
+    st.divider()
+
+# ── TARJETAS DE HÁBITOS ────────────────────────────────────────
+n_cols = min(len(configs_hab), 6) if configs_hab else 4
+cols_h = st.columns(n_cols)
+
+for i, cfg in enumerate(configs_hab):
+    clave      = cfg['clave']
+    completado = habitos.get(clave, {}).get('completado', 0)
+    hora_ok    = habitos.get(clave, {}).get('hora_completado', '')
+
+    color_b = '#3fb950' if completado else '#30363d'
+    color_f = '#0f2d0f' if completado else '#161b22'
+    simbolo = '✅'       if completado else '○'
+    color_s = '#3fb950' if completado else '#8b949e'
+
+    with cols_h[i % n_cols]:
         st.markdown(f"""
-        <div style="
-            background: {color_fondo};
-            border: 1px solid {color_borde};
-            border-radius: 12px;
-            padding: 1rem;
-            text-align: center;
-            margin-bottom: 0.5rem;
-        ">
-            <div style="font-size: 1.5rem;">{cfg['emoji']}</div>
-            <div style="color: #f0f6fc; font-weight: 600; font-size: 0.9rem;">
-                {cfg['label']}
+        <div style="background:{color_f}; border:1px solid {color_b};
+                    border-radius:12px; padding:1rem;
+                    text-align:center; margin-bottom:0.5rem;">
+            <div style="font-size:1.5rem;">{cfg['emoji']}</div>
+            <div style="color:#f0f6fc; font-weight:600;
+                        font-size:0.9rem;">{cfg['label']}</div>
+            <div style="color:{color_s}; font-size:1.8rem;
+                        line-height:1.2;">{simbolo}</div>
+            <div style="color:#8b949e; font-size:0.75rem;">
+                {cfg['hora']}
             </div>
-            <div style="color: {color_sym}; font-size: 1.8rem; line-height: 1.2;">
-                {simbolo}
-            </div>
-            <div style="color: #8b949e; font-size: 0.75rem;">{cfg['hora']}</div>
-            {f'<div style="color:#3fb950;font-size:0.7rem;">✓ {hora_ok}</div>' 
+            {f'<div style="color:#3fb950; font-size:0.7rem;">✓ {hora_ok}</div>'
               if hora_ok else ''}
         </div>
         """, unsafe_allow_html=True)
 
-        label_btn = "✓ Hecho" if completado else "Marcar ✓"
         if st.button(
-            label_btn,
-            key=f"hab_{key}",
+            "✓ Hecho" if completado else "Marcar ✓",
+            key=f"hab_{clave}",
             use_container_width=True,
             type="secondary" if completado else "primary"
         ):
-            toggle_habito(key)
+            toggle_habito(clave)
             st.rerun()
 
-# Barra de progreso diaria
+# ── Progreso ───────────────────────────────────────────────────
 completados_hoy = sum(
-    1 for h in habitos.values() if h.get('completado')
+    1 for cfg in configs_hab
+    if habitos.get(cfg['clave'], {}).get('completado')
 )
+total_hoy = len(configs_hab)
+
 st.progress(
-    completados_hoy / 4,
-    text=f"Hábitos completados hoy: {completados_hoy}/4"
+    completados_hoy / total_hoy if total_hoy else 0,
+    text=f"Hábitos completados: {completados_hoy}/{total_hoy}"
 )
 
 st.divider()
@@ -513,16 +878,25 @@ mod_col1, mod_col2 = st.columns(2)
 with mod_col1:
     # ── Finanzas ──────────────────────────────────────────────
     fin = metricas['finanzas']
+    sin_ingreso_txt = (
+        " · ⚠️ Registra ingreso en Finanzas"
+        if fin.get('sin_ingreso') else ""
+    )
     st.markdown(f"""
     <div class="mission-card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="color:#f0f6fc; font-weight:600;">💰 Finanzas Personales</span>
+        <div style="display:flex; justify-content:space-between;
+                    align-items:center;">
+            <span style="color:#f0f6fc; font-weight:600;">
+                💰 Finanzas Personales
+            </span>
             <span style="color:{fin['color']}; font-size:0.875rem;">
                 {fin['semaforo']} {fin['pct']}% usado
             </span>
         </div>
         <p style="color:#8b949e; font-size:0.875rem; margin-top:0.5rem;">
-            Gastado: ${fin['gastos']:,.0f} / Presupuesto: ${fin['presupuesto']:,.0f}
+            Gastado: ${fin['gastos']:,.0f} /
+            Ingreso: ${fin['presupuesto']:,.0f}
+            {sin_ingreso_txt}
         </p>
     </div>
     """, unsafe_allow_html=True)

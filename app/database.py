@@ -137,70 +137,47 @@ def init_database():
     cursor.execute("PRAGMA journal_mode=WAL")  # ← permite lecturas simultáneas
     cursor.execute("PRAGMA synchronous=NORMAL")
 
-    
-    # ═════════════════════════════════════════════════════════
-    # TABLA: GASTOS (Finanzas)
-    # ═════════════════════════════════════════════════════════
-    
+    # ═══════════════════════════════════════════════════════════
+    # TABLA: AGENDA — BITÁCORA SEMANAL
+    # ═══════════════════════════════════════════════════════════
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS gastos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha DATE NOT NULL,
-            categoria TEXT NOT NULL CHECK(categoria IN (
-                'Hogar', 'Instituto', 'Programacion', 'Citas_Esposa'
-            )),
-            descripcion TEXT NOT NULL,
-            monto REAL NOT NULL CHECK(monto > 0),
-            notas TEXT,
-            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS bitacora_semanal (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            semana_inicio       DATE    UNIQUE NOT NULL,
+            -- 3 Victorias
+            victoria_1          TEXT,
+            victoria_2          TEXT,
+            victoria_3          TEXT,
+            -- Monitor financiero
+            ingreso_actual      REAL,
+            sobre_supervivencia INTEGER DEFAULT 0,
+            aporte_transicion   REAL    DEFAULT 0,
+            presupuesto_cita    REAL    DEFAULT 0,
+            semaforo_superv     TEXT    DEFAULT 'verde',
+            semaforo_ahorros    TEXT    DEFAULT 'verde',
+            semaforo_extras     TEXT    DEFAULT 'verde',
+            gasto_pausado       TEXT,
+            -- Cita/conexión
+            actividad_cita      TEXT,
+            costo_cita          REAL,
+            -- Lectura
+            libro_actual        TEXT,
+            pagina_actual       INTEGER DEFAULT 0,
+            frase_favorita      TEXT,
+            -- Vaciado mental
+            pendientes_soltar   TEXT,
+            reflexion_semana    TEXT,
+            -- Estado general
+            estado              TEXT    DEFAULT 'abierta'
+                                CHECK(estado IN ('abierta','cerrada')),
+            creado_en           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
-    # Índice para búsquedas rápidas por fecha
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_gastos_fecha 
-        ON gastos(fecha DESC)
+        CREATE INDEX IF NOT EXISTS idx_bitacora_semana
+        ON bitacora_semanal(semana_inicio)
     """)
-    
-    # ═════════════════════════════════════════════════════════
-    # TABLA: PRESUPUESTOS MENSUALES
-    # ═════════════════════════════════════════════════════════
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS presupuestos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            mes INTEGER NOT NULL CHECK(mes BETWEEN 1 AND 12),
-            anio INTEGER NOT NULL,
-            categoria TEXT NOT NULL CHECK(categoria IN (
-                'Hogar', 'Instituto', 'Programacion', 'Citas_Esposa'
-            )),
-            limite REAL NOT NULL CHECK(limite > 0),
-            UNIQUE(mes, anio, categoria)
-        )
-    """)
-    
-    # Insertar presupuestos de ejemplo para marzo 2026
-    # (Puedes modificar estos valores)
-    # Insertar presupuestos de ejemplo para el mes actual si no existen
-    mes_actual = datetime.now().month
-    anio_actual = datetime.now().year
-    
-    presupuestos_ejemplo = [
-        (mes_actual, anio_actual, 'Hogar', 8000),
-        (mes_actual, anio_actual, 'Instituto', 3000),
-        (mes_actual, anio_actual, 'Programacion', 2000),
-        (mes_actual, anio_actual, 'Citas_Esposa', 2500),
-    ]
-    
-    # DEBUG: Verificar qué se está insertando
-    # print(f"Insertando presupuestos para {mes_actual}/{anio_actual}")
-    
-    for mes, anio, cat, limite in presupuestos_ejemplo:
-        cursor.execute("""
-            INSERT OR IGNORE INTO presupuestos (mes, anio, categoria, limite)
-            VALUES (?, ?, ?, ?)
-        """, (mes, anio, cat, limite))
-        # print(f"  → {cat}: ${limite}")
     
         # ═════════════════════════════════════════════════════════
     # TABLA: BLOQUES_FIJOS (Deep Work - horarios recurrentes)
@@ -213,7 +190,7 @@ def init_database():
             hora_inicio TIME NOT NULL,
             hora_fin TIME NOT NULL,
             dias_semana TEXT NOT NULL,  -- JSON: [1,2,3,4,5] = Lunes a Viernes
-            tipo TEXT NOT NULL CHECK(tipo IN ('Instituto', 'Programacion', 'Biblioteca', 'Personal')),
+            tipo TEXT NOT NULL,
             color TEXT DEFAULT '#58a6ff',
             activo BOOLEAN DEFAULT 1
         )
@@ -326,98 +303,8 @@ def init_database():
     
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_resaltados_libro ON resaltados(libro_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_resaltados_color ON resaltados(color_etiqueta)")
-    
-    # ═════════════════════════════════════════════════════════
-    # LIBROS DE EJEMPLO (NUEVA ESTRUCTURA)
-    # ═════════════════════════════════════════════════════════
-    
-    libros_ejemplo = [
-        {
-            'titulo': 'Python Crash Course',
-            'autor': 'Eric Matthes',
-            'categoria_principal': 'Programacion',
-            'descripcion': 'Libro práctico para aprender Python desde cero con proyectos reales.',
-            'total_paginas': 544,
-            'estado': 'leyendo',
-            'pagina_actual': 120,
-            'fuente_metadatos': 'IA',
-            'confianza_ia': 8,
-            'formato': 'PDF',
-            'nombre_archivo': 'python_crash_course.pdf'
-        },
-        {
-            'titulo': 'Systematic Theology',
-            'autor': 'Wayne A. Grudem',
-            'categoria_principal': 'Teologia',
-            'descripcion': 'Obra magistral de teología sistemática desde perspectiva evangélica.',
-            'total_paginas': 1291,
-            'estado': 'catalogado',
-            'pagina_actual': 0,
-            'fuente_metadatos': 'IA',
-            'confianza_ia': 9,
-            'formato': 'PDF',
-            'nombre_archivo': 'grudem_systematic.pdf'
-        },
-        {
-            'titulo': 'The Meaning of Marriage',
-            'autor': 'Timothy Keller',
-            'categoria_principal': 'Matrimonio',
-            'descripcion': 'Visión bíblica del matrimonio para parejas modernas.',
-            'total_paginas': 352,
-            'estado': 'por_procesar',
-            'pagina_actual': 0,
-            'fuente_metadatos': 'Manual',
-            'confianza_ia': 10,
-            'formato': 'EPUB',
-            'nombre_archivo': 'keller_marriage.epub'
-        },
-        {
-            'titulo': 'Clean Code',
-            'autor': 'Robert C. Martin',
-            'categoria_principal': 'Programacion',
-            'descripcion': 'Guía de mejores prácticas para código limpio y mantenible.',
-            'total_paginas': 464,
-            'estado': 'completado',
-            'pagina_actual': 464,
-            'fuente_metadatos': 'IA',
-            'confianza_ia': 8,
-            'formato': 'PDF',
-            'nombre_archivo': 'clean_code.pdf'
-        },
-        {
-            'titulo': 'Institutes of the Christian Religion',
-            'autor': 'John Calvin',
-            'categoria_principal': 'Teologia',
-            'descripcion': 'Obra fundamental de la Reforma protestante.',
-            'total_paginas': 1800,
-            'estado': 'por_procesar',
-            'pagina_actual': 0,
-            'fuente_metadatos': 'Manual',
-            'confianza_ia': 10,
-            'formato': 'PDF',
-            'nombre_archivo': 'calvin_institutes.pdf'
-        }
-    ]
-    
-    for libro in libros_ejemplo:
-        # Verificar si ya existe por título
-        cursor.execute("SELECT id FROM libros WHERE titulo = ?", (libro['titulo'],))
-        if not cursor.fetchone():
-            cursor.execute("""
-                INSERT INTO libros (
-                    titulo, autor, categoria_principal, descripcion, total_paginas,
-                    pagina_actual, estado, fuente_metadatos, confianza_ia,
-                    formato, nombre_archivo, subcategorias, temas_clave, autores_adicionales
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                libro['titulo'], libro['autor'], libro['categoria_principal'],
-                libro['descripcion'], libro['total_paginas'], libro['pagina_actual'],
-                libro['estado'], libro['fuente_metadatos'], libro['confianza_ia'],
-                libro['formato'], libro['nombre_archivo'],
-                json.dumps([]), json.dumps([]), json.dumps([])
-            ))
 
-        # ═════════════════════════════════════════════════════════
+    # ═════════════════════════════════════════════════════════
     # TABLA: DEVOCIONALES (Bitácora Teológica)
     # ═════════════════════════════════════════════════════════
     
@@ -468,19 +355,30 @@ def init_database():
             hora_dormir TIME,
             hora_despertar TIME,
             
-            -- Energía durante el día (autoevaluación)
+            -- Energía
             energia_manana INTEGER CHECK(energia_manana BETWEEN 1 AND 10),
             energia_tarde INTEGER CHECK(energia_tarde BETWEEN 1 AND 10),
             energia_noche INTEGER CHECK(energia_noche BETWEEN 1 AND 10),
             
-            -- Ejercicio (principalmente calistenia miércoles)
+            -- Ejercicio principal (resumen)
             hizo_ejercicio BOOLEAN DEFAULT 0,
-            tipo_ejercicio TEXT,  -- 'Calistenia', 'Caminata', 'Otro'
+            tipo_ejercicio TEXT,
             duracion_minutos INTEGER,
-            intensidad INTEGER CHECK(intensidad BETWEEN 1 AND 10),  -- 1=suave, 10=máxima
+            intensidad INTEGER CHECK(intensidad BETWEEN 1 AND 10),
             notas_ejercicio TEXT,
             
-            -- Correlación con productividad (para análisis posterior)
+            -- NUEVO: Detalle de sesiones múltiples
+            zonas_musculares TEXT,   -- JSON: ["Pecho", "Core/Abdomen"]
+            sesiones_json TEXT,      -- JSON: lista completa de sesiones
+            
+            -- NUEVO: Datos de Google Fit
+            calorias_fit REAL,
+            pasos_fit INTEGER,
+            fc_promedio_fit INTEGER,
+            fc_maxima_fit INTEGER,
+            fuente_datos TEXT DEFAULT 'manual',  -- 'manual', 'google_fit', 'mixto'
+            
+            -- Productividad
             productividad_percibida INTEGER CHECK(productividad_percibida BETWEEN 1 AND 10),
             
             creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -488,119 +386,81 @@ def init_database():
     """)
     
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_salud_fecha ON registros_salud(fecha DESC)")
-    
-    # ═════════════════════════════════════════════════════════
-    # TABLA: CORRELACION_ANALISIS (Resultados de IA)
-    # ═════════════════════════════════════════════════════════
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS correlacion_analisis (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha_analisis DATE DEFAULT CURRENT_DATE,
-            tipo_correlacion TEXT,  -- 'ejercicio_productividad', 'sueno_energia', etc.
-            descripcion TEXT,
-            coeficiente_correlacion REAL,  -- -1 a 1 si aplica
-            recomendacion TEXT,
-            generado_por TEXT DEFAULT 'IA'  -- 'IA' o 'Manual'
-        )
-    """)
 
-        # ═════════════════════════════════════════════════════════
-    # TABLA: SANDBOX - Ideas, snippets y recursos técnicos
-    # ═════════════════════════════════════════════════════════
-    
+    # ═══════════════════════════════════════════════════════════
+    # TABLAS: SANDBOX MULTI-DOMINIO
+    # ═══════════════════════════════════════════════════════════
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sandbox_ideas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo      TEXT    NOT NULL,
             descripcion TEXT,
-            categoria TEXT CHECK(categoria IN (
-                'Script_Automatizacion', 'Web_App', 'Mobile', 'Data_Science', 
-                'DevOps', 'Seguridad', 'Otro'
-            )) DEFAULT 'Otro',
-            tecnologias TEXT,  -- JSON: ["Python", "Streamlit", "SQLite"]
-            complejidad INTEGER CHECK(complejidad BETWEEN 1 AND 5),  -- 1=fácil, 5=experto
-            estado TEXT CHECK(estado IN (
-                'Idea', 'Investigando', 'Prototipo', 'Pausado', 'Completado', 'Abandonado'
-            )) DEFAULT 'Idea',
-            motivacion INTEGER CHECK(motivacion BETWEEN 1 AND 10),  -- ganas de hacerlo
-            notas_tecnicas TEXT,
-            enlaces_referencia TEXT,  -- JSON array de URLs
-            tiempo_estimado_horas INTEGER,
-            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            dominio     TEXT    DEFAULT 'Personal',
+            categoria   TEXT,
+            etiquetas   TEXT    DEFAULT '[]',
+            estado      TEXT    DEFAULT 'Idea'
+                        CHECK(estado IN (
+                            'Idea','Investigando','En_proceso',
+                            'Completado','Pausado','Abandonado'
+                        )),
+            prioridad   INTEGER DEFAULT 3
+                        CHECK(prioridad BETWEEN 1 AND 5),
+            motivacion  INTEGER DEFAULT 7
+                        CHECK(motivacion BETWEEN 1 AND 10),
+            notas       TEXT,
+            creado_en   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sandbox_snippets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
-            lenguaje TEXT CHECK(lenguaje IN (
-                'Python', 'JavaScript', 'HTML_CSS', 'SQL', 'Bash', 'Markdown', 'Otro'
-            )),
-            codigo TEXT NOT NULL,
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo      TEXT    NOT NULL,
             descripcion TEXT,
-            tags TEXT,  -- JSON: ["pandas", "streamlit", "sqlite"]
-            fuente_url TEXT,  -- de dónde lo sacaste
-            proyecto_relacionado_id INTEGER,  -- FK a sandbox_ideas opcional
+            lenguaje    TEXT    DEFAULT 'Python',
+            codigo      TEXT,
+            tags        TEXT    DEFAULT '[]',
+            dominio     TEXT    DEFAULT 'Programacion',
             veces_usado INTEGER DEFAULT 0,
-            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (proyecto_relacionado_id) REFERENCES sandbox_ideas(id)
+            creado_en   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sandbox_sesiones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha DATE NOT NULL,
-            hora_inicio TIME,
-            hora_fin TIME,
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha           DATE    DEFAULT CURRENT_DATE,
             duracion_minutos INTEGER,
-            tipo_actividad TEXT CHECK(tipo_actividad IN (
-                'Investigando', 'Codificando', 'Depurando', 'Aprendiendo', 'Documentando'
-            )),
-            proyecto_id INTEGER,  -- FK opcional
-            descripcion TEXT,  -- qué hiciste, logros, bloqueos
-            codigo_producido TEXT,  -- snippet resultado de la sesión
-            satisfaccion INTEGER CHECK(satisfaccion BETWEEN 1 AND 10),
-            FOREIGN KEY (proyecto_id) REFERENCES sandbox_ideas(id)
+            tipo_actividad  TEXT,
+            dominio         TEXT    DEFAULT 'Personal',
+            proyecto_id     INTEGER REFERENCES sandbox_ideas(id),
+            descripcion     TEXT,
+            codigo_producido TEXT,
+            satisfaccion    INTEGER CHECK(satisfaccion BETWEEN 1 AND 10),
+            creado_en       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
-    # Índices
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sandbox_ideas_estado ON sandbox_ideas(estado)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sandbox_snippets_lenguaje ON sandbox_snippets(lenguaje)")
-    
-    # Datos de ejemplo
-    ideas_ejemplo = [
-        ("Organizador de 500 libros en Linux", "Script para escanear y catalogar PDFs automáticamente", "Script_Automatizacion", '["Python", "OS", "SQLite"]', 3, "Investigando", 8),
-        ("App de citas matrimoniales", "Recordatorio inteligente de aniversarios y preferencias", "Web_App", '["Streamlit", "SQLite"]', 2, "Idea", 9),
-        ("Analizador de devocionales", "NLP para encontrar temas recurrentes en mis notas teológicas", "Data_Science", '["Python", "spaCy", "pandas"]', 4, "Idea", 6),
-    ]
-    
-    for titulo, desc, cat, tech, comp, estado, motiv in ideas_ejemplo:
-        cursor.execute("""
-            INSERT OR IGNORE INTO sandbox_ideas (titulo, descripcion, categoria, tecnologias, complejidad, estado, motivacion)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (titulo, desc, cat, tech, comp, estado, motiv))
-    
-    snippets_ejemplo = [
-        ("Leer PDFs en carpeta recursiva", "Python", 
-         "import os\nfrom pathlib import Path\n\ndef find_pdfs(root_dir):\n    return list(Path(root_dir).rglob('*.pdf'))",
-         "Busca todos los PDFs recursivamente", '["os", "pathlib"]', None, 0),
-        ("Streamlit dark mode CSS", "HTML_CSS",
-         "st.markdown('<style>...dark mode...</style>', unsafe_allow_html=True)",
-         "Template base para tema oscuro", '["streamlit", "css"]', None, 0),
-    ]
-    
-    for titulo, lang, codigo, desc, tags, proj, usado in snippets_ejemplo:
-        cursor.execute("""
-            INSERT OR IGNORE INTO sandbox_snippets (titulo, lenguaje, codigo, descripcion, tags, proyecto_relacionado_id, veces_usado)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (titulo, lang, codigo, desc, tags, proj, usado))
 
-        # ═════════════════════════════════════════════════════════
+    # Migraciones seguras
+    migraciones_sandbox = [
+        "ALTER TABLE sandbox_ideas ADD COLUMN dominio TEXT DEFAULT 'Personal'",
+        "ALTER TABLE sandbox_ideas ADD COLUMN etiquetas TEXT DEFAULT '[]'",
+        "ALTER TABLE sandbox_ideas ADD COLUMN prioridad INTEGER DEFAULT 3",
+        "ALTER TABLE sandbox_ideas ADD COLUMN notas TEXT",
+        "ALTER TABLE sandbox_ideas ADD COLUMN actualizado_en TIMESTAMP",
+        "ALTER TABLE sandbox_snippets ADD COLUMN dominio TEXT DEFAULT 'Programacion'",
+        "ALTER TABLE sandbox_snippets ADD COLUMN actualizado_en TIMESTAMP",
+        "ALTER TABLE sandbox_sesiones ADD COLUMN dominio TEXT DEFAULT 'Personal'",
+    ]
+    for sql in migraciones_sandbox:
+        try:
+            cursor.execute(sql)
+        except Exception:
+            pass
+
+    # ═════════════════════════════════════════════════════════
     # TABLA: MATRIMONIO - Gestión de citas y conexión de pareja
     # ═════════════════════════════════════════════════════════
     
@@ -670,58 +530,137 @@ def init_database():
             modo_pareja_activado BOOLEAN DEFAULT 0  -- ¿se respetó el 21:00?
         )
     """)
+
+    # Migraciones matrimonio/familia
+    migraciones_matrim = [
+        "ALTER TABLE matrimonio_citas ADD COLUMN ambito TEXT DEFAULT 'Matrimonio'",
+        "ALTER TABLE matrimonio_citas ADD COLUMN actualizado_en TIMESTAMP",
+        "ALTER TABLE matrimonio_notas ADD COLUMN actualizado_en TIMESTAMP",
+        "ALTER TABLE matrimonio_habitos ADD COLUMN actualizado_en TIMESTAMP",
+    ]
+    for sql in migraciones_matrim:
+        try:
+            cursor.execute(sql)
+        except Exception:
+            pass
     
     # Índices
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_citas_fecha ON matrimonio_citas(fecha)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_notas_categoria ON matrimonio_notas(categoria)")
-    
-    # Datos de ejemplo
-    citas_ejemplo = [
-        ("2026-03-21", "21:00", "Cena_Romantica", "Cena de viernes tradicional", 
-         "Restaurante italiano favorito", 800, "Confirmada", "Reserva hecha, llevar flores"),
-        ("2026-04-15", None, "Aniversario", "Aniversario de bodas", 
-         "Sorpresa", 2500, "Planeando", "Investigar destino fin de semana"),
-    ]
-    
-    for fecha, hora, tipo, titulo, lugar, presup, estado, prep in citas_ejemplo:
-        cursor.execute("""
-            INSERT OR IGNORE INTO matrimonio_citas 
-            (fecha, hora, tipo_cita, titulo, lugar, presupuesto_estimado, estado_planificacion, notas_preparacion)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (fecha, hora, tipo, titulo, lugar, presup, estado, prep))
-    
-    notas_ejemplo = [
-        ("Preferencias_Esposa", "Le encanta el chocolate amargo, no el dulce", 
-         "Conversación cafetería", "2026-02-14", 8),
-        ("Ideas_Regalo", "Libro de teología sistemática de Frame", 
-         "Mencionó en clase", "2026-03-10", 9),
-        ("Frases_Recordar", "\"Me siento más conectada cuando caminamos juntos\"", 
-         "Después de cena", "2026-03-05", 10),
-    ]
-    
-    for cat, contenido, contexto, fecha, urg in notas_ejemplo:
-        cursor.execute("""
-            INSERT OR IGNORE INTO matrimonio_notas 
-            (categoria, contenido, contexto, fecha_mencion, urgencia)
-            VALUES (?, ?, ?, ?, ?)
-        """, (cat, contenido, contexto, fecha, urg))
-    
-    # ═════════════════════════════════════════════════════════
-    # TABLA: HABITOS_DIARIOS
-    # ═════════════════════════════════════════════════════════
+
+    # ═══════════════════════════════════════════════════════════
+    # TABLA: HABITOS_CONFIG (catálogo dinámico)
+    # ═══════════════════════════════════════════════════════════
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS habitos_diarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha DATE NOT NULL,
-            habito TEXT NOT NULL CHECK(habito IN (
-                'devocional', 'codigo', 'lectura', 'calistenia'
-            )),
-            completado BOOLEAN DEFAULT 0,
-            hora_completado TIME,
-            UNIQUE(fecha, habito)
+        CREATE TABLE IF NOT EXISTS habitos_config (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            clave       TEXT    NOT NULL UNIQUE,
+            label       TEXT    NOT NULL,
+            emoji       TEXT    DEFAULT '⭐',
+            hora        TEXT    DEFAULT '—',
+            activo      BOOLEAN DEFAULT 1,
+            orden       INTEGER DEFAULT 0,
+            creado_en   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
+    # Migración: tabla habitos_diarios sin CHECK constraint fijo
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS habitos_diarios_v2 (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha           DATE    NOT NULL,
+            habito_clave    TEXT    NOT NULL,
+            completado      BOOLEAN DEFAULT 0,
+            hora_completado TIME,
+            UNIQUE(fecha, habito_clave)
+        )
+    """)
+
+    # Insertar hábitos fijos por defecto si no existen
+    habitos_defaults = [
+        ('devocional', 'Devocional', '📖', '05:45', 1),
+        ('codigo',     'Código',     '💻', '06:15', 2),
+        ('lectura',    'Lectura',    '📚', '19:30', 3),
+        ('calistenia', 'Calistenia', '💪', 'Mié 16:30', 4),
+    ]
+    for clave, label, emoji, hora, orden in habitos_defaults:
+        cursor.execute("""
+            INSERT OR IGNORE INTO habitos_config
+                (clave, label, emoji, hora, activo, orden)
+            VALUES (?, ?, ?, ?, 1, ?)
+        """, (clave, label, emoji, hora, orden))
+
+    # ═══════════════════════════════════════════════════════════
+    # TABLA: PEDIDOS DE ORACIÓN
+    # ═══════════════════════════════════════════════════════════
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pedidos_oracion (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo        TEXT    NOT NULL,
+            descripcion   TEXT,
+            categoria     TEXT    CHECK(categoria IN (
+                              'Personal', 'Familia', 'Matrimonio',
+                              'Instituto', 'Ministerio', 'Otros'
+                          )) DEFAULT 'Personal',
+            urgencia      INTEGER CHECK(urgencia BETWEEN 1 AND 5) DEFAULT 3,
+            estado        TEXT    CHECK(estado IN (
+                              'Activo', 'Respondido', 'En_espera', 'Archivado'
+                          )) DEFAULT 'Activo',
+            fecha_inicio  DATE    DEFAULT CURRENT_DATE,
+            fecha_respuesta DATE,
+            nota_respuesta TEXT,
+            creado_en     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_pedidos_estado
+        ON pedidos_oracion(estado)
+    """)
+        # Migración: agregar dias_oracion si no existe
+    try:
+        cursor.execute("""
+            ALTER TABLE pedidos_oracion
+            ADD COLUMN dias_oracion TEXT DEFAULT '[]'
+        """)
+    except Exception:
+        pass  # Ya existe
+
+    # ═══════════════════════════════════════════════════════════════
+    # TABLA: EVENTOS_CALENDARIO
+    # ═══════════════════════════════════════════════════════════════
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS eventos_calendario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL,
+            hora_inicio TIME,
+            hora_fin TIME,
+            titulo TEXT NOT NULL,
+            descripcion TEXT,
+            tipo TEXT DEFAULT 'Personal',
+            color TEXT DEFAULT '#58a6ff',
+            recurrente BOOLEAN DEFAULT 0,
+            google_id TEXT,
+            fuente TEXT DEFAULT 'local',
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_eventos_fecha 
+        ON eventos_calendario(fecha)
+    """)
+
+    # ═══════════════════════════════════════════════════════════════
+    # MIGRACIÓN: columnas Google Calendar en eventos_calendario
+    # ═══════════════════════════════════════════════════════════════
+    for sql in [
+        "ALTER TABLE eventos_calendario ADD COLUMN google_id TEXT",
+        "ALTER TABLE eventos_calendario ADD COLUMN fuente TEXT DEFAULT 'local'",
+    ]:
+        try:
+            cursor.execute(sql)
+        except Exception:
+            pass  # Ya existe
 
     init_sobres(cursor)
     conn.commit()
@@ -918,6 +857,28 @@ def calcular_sobres(mes: int, anio: int) -> dict:
         'excedente': excedente,
         'sin_ingreso': ingreso == 0,
     }
+
+def obtener_tipos_bloque() -> list:
+    """
+    Obtiene los tipos únicos ya usados en BD
+    más los defaults, sin duplicados.
+    """
+    defaults = ['Instituto', 'Programacion', 'Biblioteca', 'Personal']
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT tipo FROM bloques_fijos
+            WHERE tipo IS NOT NULL
+            ORDER BY tipo
+        """)
+        en_bd = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        # Unir defaults + los que ya existen en BD sin duplicar
+        todos = list(dict.fromkeys(defaults + en_bd))
+        return todos
+    except Exception:
+        return defaults
 
 
 # ═════════════════════════════════════════════════════════════════

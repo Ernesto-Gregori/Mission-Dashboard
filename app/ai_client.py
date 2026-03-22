@@ -318,3 +318,174 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni explicaciones:
         "confianza_extraccion": 1,
         "fuente_metadatos": "IA",
     }
+
+def buscar_metadatos_isbn(isbn: str) -> dict:
+    """
+    Busca metadatos de un libro por ISBN.
+    Orden: Open Library → Google Books → Groq completa huecos.
+    """
+    import requests
+    
+    metadatos = {}
+    isbn_limpio = isbn.replace('-', '').replace(' ', '').strip()
+    
+    # ── 1. Open Library ──────────────────────────────────────
+    try:
+        url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn_limpio}&format=json&jscmd=data"
+        resp = requests.get(url, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            key = f"ISBN:{isbn_limpio}"
+            if key in data:
+                libro = data[key]
+                metadatos['titulo']          = libro.get('title', '')
+                metadatos['subtitulo']       = libro.get('subtitle', '')
+                metadatos['editorial']       = (libro.get('publishers') or [{}])[0].get('name', '')
+                metadatos['total_paginas']   = libro.get('number_of_pages', 0)
+                metadatos['isbn']            = isbn_limpio
+                
+                # Año de publicación
+                fecha = libro.get('publish_date', '')
+                if fecha:
+                    import re
+                    anio_match = re.search(r'\d{4}', fecha)
+                    metadatos['anio_publicacion'] = int(anio_match.group()) if anio_match else None
+                
+                # Autores
+                autores = libro.get('authors', [])
+                if autores:
+                    metadatos['autor'] = autores[0].get('name', '')
+                    if len(autores) > 1:
+                        metadatos['autores_adicionales'] = [a.get('name','') for a in autores[1:]]
+                
+                # Temas
+                subjects = libro.get('subjects', [])
+                if subjects:
+                    metadatos['temas_clave'] = [
+                        s.get('name', s) if isinstance(s, dict) else str(s)
+                        for s in subjects[:8]
+                    ]
+                
+                print(f"[ISBN] Open Library: {metadatos.get('titulo','')}")
+    except Exception as e:
+        print(f"[ISBN] Open Library error: {e}")
+    
+    # ── 2. Google Books (completa huecos) ─────────────────────
+    try:
+        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn_limpio}"
+        resp = requests.get(url, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            items = data.get('items', [])
+            if items:
+                info = items[0].get('volumeInfo', {})
+                
+                # Solo completar lo que falta
+                if not metadatos.get('titulo'):
+                    metadatos['titulo'] = info.get('title', '')
+                if not metadatos.get('autor'):
+                    autores = info.get('authors', [])
+                    metadatos['autor'] = autores[0] if autores else ''
+                    if len(autores) > 1:
+                        metadatos['autores_adicionales'] = autores[1:]
+                if not metadatos.get('editorial'):
+                    metadatos['editorial'] = info.get('publisher', '')
+                if not metadatos.get('anio_publicacion'):
+                    fecha = info.get('publishedDate', '')
+                    if fecha:
+                        import re
+                        anio_match = re.search(r'\d{4}', fecha)
+                        metadatos['anio_publicacion'] = int(anio_match.group()) if anio_match else None
+                if not metadatos.get('total_paginas'):
+                    metadatos['total_paginas'] = info.get('pageCount', 0)
+                if not metadatos.get('descripcion'):
+                    metadatos['descripcion'] = info.get('description', '')[:500]
+                if not metadatos.get('temas_clave'):
+                    metadatos['temas_clave'] = info.get('categories', [])
+                
+                # Idioma
+                metadatos['idioma'] = info.get('language', 'es')
+                
+                print(f"[ISBN] Google Books: {metadatos.get('titulo','')}")
+    except Exception as e:
+        print(f"[ISBN] Google Books error: {e}")
+    
+    # ── 3. Groq completa y categoriza ─────────────────────────
+    if metadatos.get('titulo'):
+        try:
+            prompt = f"""Dados estos metadatos de un libro, completa y mejora la información:
+
+Título: {metadatos.get('titulo', '')}
+Autor: {metadatos.get('autor', '')}
+Editorial: {metadatos.get('editorial', '')}
+Descripción actual: {metadatos.get('descripcion', 'Sin descripción')[:200]}
+Temas actuales: {metadatos.get('temas_clave', [])}
+
+Responde SOLO en JSON válido sin texto adicional:
+{{
+  "categoria_principal": "una de: Teologia, Programacion, Matrimonio, Filosofia, Liderazgo, Historia, Otros",
+  "descripcion_mejorada": "descripción clara y útil de 2-3 oraciones si la actual es pobre",
+  "temas_clave": ["lista", "de", "temas", "relevantes", "máximo 6"],
+  "subcategorias": ["subcategorías", "específicas", "máximo 3"],
+  "confianza_ia": 8
+}}"""
+            
+            respuesta = _llamar_ai(prompt, max_tokens=400)
+            if respuesta:
+                import re, json
+                json_match = re.search(r'\{.*\}', respuesta, re.DOTALL)
+                if json_match:
+                    extra = json.loads(json_match.group())
+                    metadatos['categoria_principal'] = extra.get('categoria_principal', 'Otros')
+                    metadatos['subcategorias']       = extra.get('subcategorias', [])
+                    metadatos['confianza_ia']        = extra.get('confianza_ia', 7)
+                    
+                    # Mejorar descripción si Groq la tiene mejor
+                    if extra.get('descripcion_mejorada') and len(extra['descripcion_mejorada']) > len(metadatos.get('descripcion', '')):
+                        metadatos['descripcion'] = extra['descripcion_mejorada']
+                    
+                    # Combinar temas
+                    temas_extra = extra.get('temas_clave', [])
+                    temas_existentes = metadatos.get('temas_clave', [])
+                    metadatos['temas_clave'] = list(dict.fromkeys(temas_existentes + temas_extra))[:8]
+                    
+                    print(f"[ISBN] Groq completó: categoría={metadatos['categoria_principal']}")
+        except Exception as e:
+            print(f"[ISBN] Groq error: {e}")
+    else:
+        # Título no encontrado — Groq intenta con solo el ISBN
+        try:
+            prompt = f"""El ISBN {isbn_limpio} no está en las APIs públicas.
+Basándote en tu conocimiento, ¿conoces este libro?
+Si lo conoces responde en JSON, si no responde {{"desconocido": true}}:
+{{
+  "titulo": "",
+  "autor": "",
+  "editorial": "",
+  "anio_publicacion": 0,
+  "categoria_principal": "",
+  "descripcion": "",
+  "temas_clave": [],
+  "subcategorias": [],
+  "confianza_ia": 3
+}}"""
+            respuesta = _llamar_ai(prompt, max_tokens=300)
+            if respuesta:
+                import re, json
+                json_match = re.search(r'\{.*\}', respuesta, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group())
+                    if not data.get('desconocido'):
+                        metadatos.update(data)
+                        print(f"[ISBN] Groq conoce el libro: {metadatos.get('titulo','')}")
+        except Exception as e:
+            print(f"[ISBN] Groq fallback error: {e}")
+    
+    metadatos['isbn']            = isbn_limpio
+    metadatos['fuente_metadatos'] = 'ISBN'
+    metadatos.setdefault('confianza_ia', 5)
+    metadatos.setdefault('temas_clave', [])
+    metadatos.setdefault('subcategorias', [])
+    metadatos.setdefault('autores_adicionales', [])
+    
+    return metadatos
