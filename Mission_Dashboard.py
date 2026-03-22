@@ -581,34 +581,201 @@ metricas = get_metricas_modulos()
 # ═══════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    # Logo/Header
-    st.markdown("""
-    <div style="text-align: center; padding: 1rem 0;">
-        <h1 style="color: #e3b341; margin: 0;">🎯 MISSION</h1>
-        <p style="color: #8b949e; font-size: 0.75rem; margin: 0;">SISTEMA DE GESTIÓN INTEGRAL</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.divider()
-    
-    # Perfil rápido
+    # ── Header ───────────────────────────────────────────────
     st.markdown(f"""
-    <div style="padding: 0.5rem;">
-        <p style="color: #f0f6fc; margin: 0; font-weight: 600;">👤 {st.session_state.user_name}</p>
-        <p style="color: #8b949e; margin: 0; font-size: 0.75rem;">{datetime.now().strftime('%A, %d de %B')}</p>
+    <div style="padding:0.5rem;">
+        <p style="color:#f0f6fc; margin:0; font-weight:600;">
+            👤 {st.session_state.user_name}
+        </p>
+        <p style="color:#8b949e; margin:0; font-size:0.75rem;">
+            {datetime.now().strftime('%A, %d de %B')}
+        </p>
     </div>
     """, unsafe_allow_html=True)
-    
+
     st.divider()
-    
-    # Navegación (Streamlit maneja esto automáticamente con pages/)
-    st.markdown("""
-    <p style="color: #8b949e; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
-        Navegación
-    </p>
-    """, unsafe_allow_html=True)
-    
-    # Info de versión
+
+    # ── Rachas ───────────────────────────────────────────────
+    st.markdown("**🔥 Rachas activas**")
+
+    # Racha devocional
+    conn_sb = sqlite3.connect(DB_PATH, timeout=30)
+    conn_sb.row_factory = sqlite3.Row
+    cursor_sb = conn_sb.cursor()
+
+    cursor_sb.execute("""
+        SELECT fecha FROM devocionales
+        ORDER BY fecha DESC LIMIT 30
+    """)
+    fechas_dev = [r['fecha'] for r in cursor_sb.fetchall()]
+    racha_dev = 0
+    check_dev = date.today()
+    for f in fechas_dev:
+        if f == check_dev.isoformat():
+            racha_dev += 1
+            check_dev -= timedelta(days=1)
+        else:
+            break
+
+    # Racha hábitos (días con todos completados)
+    cursor_sb.execute("""
+        SELECT fecha, COUNT(*) as total,
+               SUM(completado) as completados
+        FROM habitos_diarios_v2
+        GROUP BY fecha
+        ORDER BY fecha DESC LIMIT 30
+    """)
+    racha_hab = 0
+    check_hab = date.today()
+    for row in cursor_sb.fetchall():
+        f_date = datetime.strptime(row['fecha'], '%Y-%m-%d').date()
+        if f_date == check_hab and row['completados'] == row['total']:
+            racha_hab += 1
+            check_hab -= timedelta(days=1)
+        else:
+            break
+
+    # Próxima cita
+    cursor_sb.execute("""
+        SELECT titulo, fecha, hora FROM matrimonio_citas
+        WHERE fecha >= ?
+          AND estado_planificacion IN ('Confirmada','Planeando')
+        ORDER BY fecha, hora LIMIT 1
+    """, (date.today().isoformat(),))
+    proxima_cita = cursor_sb.fetchone()
+
+    # Finanzas
+    cursor_sb.execute("""
+        SELECT monto_total FROM ingreso_mensual
+        WHERE mes = ? AND anio = ?
+    """, (date.today().month, date.today().year))
+    ing_row = cursor_sb.fetchone()
+    ingreso_sb = ing_row['monto_total'] if ing_row else 0
+
+    cursor_sb.execute("""
+        SELECT SUM(monto) as total FROM gastos_sobres
+        WHERE strftime('%Y-%m', fecha) = ?
+    """, (date.today().strftime('%Y-%m'),))
+    gasto_row  = cursor_sb.fetchone()
+    gastado_sb = gasto_row['total'] or 0 if gasto_row else 0
+    conn_sb.close()
+
+    # Renderizar rachas
+    color_dev = "#3fb950" if racha_dev >= 7 else "#e3b341" if racha_dev >= 3 else "#f85149"
+    color_hab = "#3fb950" if racha_hab >= 7 else "#e3b341" if racha_hab >= 3 else "#f85149"
+
+    col_sb1, col_sb2 = st.columns(2)
+    with col_sb1:
+        st.markdown(f"""
+        <div style="background:#161b22;border:1px solid #30363d;
+                    border-radius:8px;padding:0.6rem;text-align:center;">
+            <div style="font-size:1.2rem;">✝️</div>
+            <div style="color:{color_dev};font-weight:700;
+                        font-size:1.1rem;">{racha_dev}d</div>
+            <div style="color:#8b949e;font-size:0.65rem;">Devocional</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_sb2:
+        st.markdown(f"""
+        <div style="background:#161b22;border:1px solid #30363d;
+                    border-radius:8px;padding:0.6rem;text-align:center;">
+            <div style="font-size:1.2rem;">📋</div>
+            <div style="color:{color_hab};font-weight:700;
+                        font-size:1.1rem;">{racha_hab}d</div>
+            <div style="color:#8b949e;font-size:0.65rem;">Hábitos</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── Próxima cita ─────────────────────────────────────────
+    st.markdown("**💑 Próxima cita**")
+    if proxima_cita:
+        dias_cita = (
+            datetime.strptime(proxima_cita['fecha'], '%Y-%m-%d').date()
+            - date.today()
+        ).days
+        label_cita = "Hoy 🎉" if dias_cita == 0 else f"En {dias_cita} días"
+        st.markdown(f"""
+        <div style="background:#1a1229;border:1px solid #a371f7;
+                    border-radius:8px;padding:0.6rem;">
+            <div style="color:#a371f7;font-size:0.7rem;
+                        font-weight:700;">{label_cita}</div>
+            <div style="color:#f0f6fc;font-size:0.8rem;">
+                {proxima_cita['titulo'][:25]}
+            </div>
+            <div style="color:#8b949e;font-size:0.7rem;">
+                {proxima_cita['fecha']}
+                {' — ' + proxima_cita['hora'][:5] if proxima_cita['hora'] else ''}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.caption("Sin citas programadas")
+
+    st.divider()
+
+    # ── Finanzas rápido ──────────────────────────────────────
+    st.markdown("**💰 Finanzas del mes**")
+    if ingreso_sb > 0:
+        pct_sb     = int(gastado_sb / ingreso_sb * 100)
+        color_fin  = "#3fb950" if pct_sb < 70 else "#e3b341" if pct_sb < 90 else "#f85149"
+        st.markdown(f"""
+        <div style="background:#161b22;border:1px solid #30363d;
+                    border-radius:8px;padding:0.6rem;">
+            <div style="display:flex;justify-content:space-between;">
+                <span style="color:#8b949e;font-size:0.75rem;">
+                    ${gastado_sb:,.0f} / ${ingreso_sb:,.0f}
+                </span>
+                <span style="color:{color_fin};font-size:0.75rem;
+                             font-weight:700;">{pct_sb}%</span>
+            </div>
+            <div style="background:#21262d;border-radius:4px;
+                        height:6px;margin-top:0.4rem;">
+                <div style="background:{color_fin};
+                            width:{min(pct_sb,100)}%;
+                            height:100%;border-radius:4px;"></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.caption("⚠️ Sin ingreso registrado")
+
+    st.divider()
+
+    # ── Estado IA ────────────────────────────────────────────
+    st.markdown("**🤖 Estado IA**")
+    estado_ia = estado_gemini()
+    if not estado_ia.get('api_key_configurada'):
+        st.error("❌ Sin API Key")
+    elif estado_ia.get('modo') == 'offline_sin_cuota':
+        st.warning("⚠️ Sin cuota hoy")
+    else:
+        llamadas   = estado_ia.get('llamadas_hoy', 0)
+        max_llam   = estado_ia.get('max_llamadas', 400)
+        pct_ia     = int(llamadas / max_llam * 100) if max_llam > 0 else 0
+        color_ia   = "#3fb950" if pct_ia < 70 else "#e3b341" if pct_ia < 90 else "#f85149"
+        st.markdown(f"""
+        <div style="background:#161b22;border:1px solid #30363d;
+                    border-radius:8px;padding:0.6rem;">
+            <div style="display:flex;justify-content:space-between;">
+                <span style="color:#3fb950;font-size:0.75rem;">✅ Conectado</span>
+                <span style="color:{color_ia};font-size:0.75rem;">
+                    {llamadas}/{max_llam}
+                </span>
+            </div>
+            <div style="background:#21262d;border-radius:4px;
+                        height:6px;margin-top:0.4rem;">
+                <div style="background:{color_ia};
+                            width:{min(pct_ia,100)}%;
+                            height:100%;border-radius:4px;"></div>
+            </div>
+            <div style="color:#8b949e;font-size:0.65rem;margin-top:0.3rem;">
+                llamadas hoy
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.divider()
     st.caption("v1.0 • Python + Streamlit")
 
@@ -620,6 +787,122 @@ st.markdown("""
 <h1 style="margin-bottom: 0.25rem;">Control de Mando</h1>
 <p style="color: #8b949e; margin-top: 0;">Dashboard integral de vida</p>
 """, unsafe_allow_html=True)
+
+# ── Calcular hábitos de hoy para alertas y métricas ─────────────────────────
+configs_hab_alert = get_habitos_config()
+habitos_alert     = get_habitos_hoy()
+completados_hoy   = sum(
+    1 for cfg in configs_hab_alert
+    if habitos_alert.get(cfg['clave'], {}).get('completado')
+)
+total_hoy = len(configs_hab_alert)
+
+# ═══════════════════════════════════════════════════════════════
+# ALERTAS INTELIGENTES — visible al abrir la app
+# ═══════════════════════════════════════════════════════════════
+
+hora_actual = datetime.now().hour
+hoy         = date.today()
+alertas     = []
+
+# Devocional
+if hora_actual >= 6:
+    conn_a = sqlite3.connect(DB_PATH, timeout=30)
+    cursor_a = conn_a.cursor()
+    cursor_a.execute(
+        "SELECT id FROM devocionales WHERE fecha = ?",
+        (hoy.isoformat(),)
+    )
+    if not cursor_a.fetchone():
+        alertas.append(("warning", "✝️ Sin devocional hoy — recuerda apartar tiempo con Dios"))
+    else:
+        alertas.append(("success", "✝️ Devocional completado hoy ✓"))
+    conn_a.close()
+
+# Deep Work
+if hora_actual >= 8:
+    conn_a = sqlite3.connect(DB_PATH, timeout=30)
+    cursor_a = conn_a.cursor()
+    cursor_a.execute("""
+        SELECT COUNT(*) as total,
+               SUM(CASE WHEN estado='Completado' THEN 1 ELSE 0 END) as comp
+        FROM sesiones_completadas WHERE fecha = ?
+    """, (hoy.isoformat(),))
+    row_dw   = cursor_a.fetchone()
+    conn_a.close()
+    comp_dw  = row_dw[1] or 0
+    total_dw = row_dw[0] or 0
+    if total_dw > 0 and comp_dw == 0:
+        alertas.append(("error", "⏱️ Sin bloques Deep Work completados hoy"))
+    elif comp_dw > 0:
+        alertas.append(("success", f"⏱️ {comp_dw} bloques Deep Work completados ✓"))
+
+# Salud
+if hora_actual >= 21:
+    conn_a = sqlite3.connect(DB_PATH, timeout=30)
+    cursor_a = conn_a.cursor()
+    cursor_a.execute(
+        "SELECT id FROM registros_salud WHERE fecha = ?",
+        (hoy.isoformat(),)
+    )
+    if not cursor_a.fetchone():
+        alertas.append(("warning", "💪 Sin registro de salud hoy"))
+    conn_a.close()
+
+# Cita matrimonial hoy
+conn_a = sqlite3.connect(DB_PATH, timeout=30)
+cursor_a = conn_a.cursor()
+cursor_a.execute("""
+    SELECT titulo, hora FROM matrimonio_citas
+    WHERE fecha = ?
+      AND estado_planificacion IN ('Confirmada', 'Planeando')
+    LIMIT 1
+""", (hoy.isoformat(),))
+cita_hoy = cursor_a.fetchone()
+conn_a.close()
+if cita_hoy:
+    alertas.append(("info",
+        f"💑 Cita hoy: {cita_hoy[0][:25]} "
+        f"{'— ' + cita_hoy[1][:5] if cita_hoy[1] else ''}"
+    ))
+
+# Sobres financieros
+try:
+    from app.database import calcular_sobres
+    sobres_alert = calcular_sobres(hoy.month, hoy.year)
+    for key, sobre in sobres_alert['sobres'].items():
+        if sobre['pct_usado'] >= 100:
+            alertas.append(("error",
+                f"🔴 Sobre {sobre['nombre'][:20]} AGOTADO"
+            ))
+        elif sobre['pct_usado'] >= 80:
+            alertas.append(("warning",
+                f"🟡 Sobre {sobre['nombre'][:20]} al {sobre['pct_usado']:.0f}%"
+            ))
+except Exception:
+    pass
+
+# Hábitos
+if completados_hoy == total_hoy and total_hoy > 0:
+    alertas.append(("success", "🎉 ¡Todos los hábitos completados hoy!"))
+elif hora_actual >= 22 and completados_hoy < total_hoy:
+    alertas.append(("warning",
+        f"⚡ {completados_hoy}/{total_hoy} hábitos completados — ¡quedan pendientes!"
+    ))
+
+# Renderizar en una fila compacta
+if alertas:
+    for tipo, mensaje in alertas:
+        if tipo == "success":
+            st.success(mensaje)
+        elif tipo == "warning":
+            st.warning(mensaje)
+        elif tipo == "error":
+            st.error(mensaje)
+        else:
+            st.info(mensaje)
+
+st.divider()
 
 # ═══════════════════════════════════════════════════════════════
 # SECCIÓN 1: HÁBITOS DIARIOS — CRUD COMPLETO
@@ -634,8 +917,8 @@ if 'hab_editando'      not in st.session_state:
     st.session_state.hab_editando      = None
 
 # Cargar datos
-configs_hab = get_habitos_config()
-habitos     = get_habitos_hoy()
+configs_hab = configs_hab_alert
+habitos     = habitos_alert
 
 # ── Botón gestionar ────────────────────────────────────────────
 col_tit_h, col_btn_h = st.columns([5, 1])
@@ -888,12 +1171,6 @@ for i, cfg in enumerate(configs_hab):
             st.rerun()
 
 # ── Progreso ───────────────────────────────────────────────────
-completados_hoy = sum(
-    1 for cfg in configs_hab
-    if habitos.get(cfg['clave'], {}).get('completado')
-)
-total_hoy = len(configs_hab)
-
 st.progress(
     completados_hoy / total_hoy if total_hoy else 0,
     text=f"Hábitos completados: {completados_hoy}/{total_hoy}"
@@ -1087,32 +1364,13 @@ with col_chat:
                 st.info(respuesta)
 
 with col_alertas:
-    st.markdown("**🔔 Alertas programadas**")
-    
-    hora_actual = datetime.now().hour
-    minuto_actual = datetime.now().minute
-    
-    # Alertas con fallback automático
-    if hora_actual == 5 and minuto_actual < 30:
-        st.success("🌅 **05:00** - Tiempo de devocional. ¡Dios primero!")
-    
-    elif hora_actual == 6 and minuto_actual < 15:
-        st.warning("⏰ **06:00** - Deep Work de código. ¡Modo foco!")
-    
-    elif hora_actual == 20 and minuto_actual >= 30:
-        alerta = generar_alerta_matrimonio("día de trabajo normal")
-        st.error(f"💑 **20:30** - {alerta}")
-
-    elif completados_hoy == 4:
-        st.success("🎉 ¡Todos los hábitos completados hoy!")
-
-    elif completados_hoy >= 2:
-        st.info(f"⚡ {completados_hoy}/4 hábitos completados")
-    
+    st.markdown("**🔔 Estado del día**")
+    total_alertas = len([a for a in alertas if a[0] in ['warning','error']])
+    if total_alertas == 0:
+        st.success("✅ Todo en orden hoy")
     else:
-        st.caption("Sin alertas activas en este momento")
-        
-    st.caption("Próximamente: Alertas reales con cron jobs")
+        st.warning(f"⚠️ {total_alertas} alertas pendientes")
+    st.caption(f"Hora actual: {datetime.now().strftime('%H:%M')}")
 
 # ═══════════════════════════════════════════════════════════════
 # FOOTER
