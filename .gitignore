@@ -1,13 +1,14 @@
-@"
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 venv/
 .env
 
 # Streamlit
 .streamlit/
+.streamlit/secrets.toml
 
 # Datos (opcional: incluir o excluir según prefieras)
 # data/mission.db
@@ -15,7 +16,32 @@ venv/
 # IDE
 .vscode/
 .idea/
-"@ | Out-File -Encoding UTF8 .gitignore
 
 .env
 *.env
+
+credentials_fit.json
+token_fit.json
+
+# Credenciales — NUNCA al repo
+.env
+credentials_fit.json
+token_fit.json
+app/.ai_state.json
+
+# Base de datos local
+data/
+*.db
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Temporales
+biblioteca_temp/
+*.log
