@@ -4,27 +4,16 @@ __pycache__/
 *.pyc
 *$py.class
 venv/
-.env
+.venv/
 
-# Streamlit
-.streamlit/
-.streamlit/secrets.toml
-
-# Datos (opcional: incluir o excluir según prefieras)
-# data/mission.db
-
-# IDE
-.vscode/
-.idea/
-
+# Variables de entorno
 .env
 *.env
 
-credentials_fit.json
-token_fit.json
+# Streamlit — solo ignorar secrets, NO toda la carpeta
+.streamlit/secrets.toml
 
-# Credenciales — NUNCA al repo
-.env
+# Credenciales Google — NUNCA al repo
 credentials_fit.json
 token_fit.json
 app/.ai_state.json
@@ -33,14 +22,9 @@ app/.ai_state.json
 data/
 *.db
 
-# Python
-__pycache__/
-*.pyc
-venv/
-.venv/
-
-# Streamlit
-.streamlit/secrets.toml
+# IDE
+.vscode/
+.idea/
 
 # Temporales
 biblioteca_temp/
