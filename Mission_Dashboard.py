@@ -4,8 +4,7 @@ Sistema de gestión integral: Teología, Programación, Finanzas y Matrimonio
 """
 
 import streamlit as st
-from datetime import timedelta
-from app.timezone_config import date, datetime, hoy, ahora, iso_ahora
+from datetime import datetime, date, timedelta
 import sys
 from pathlib import Path
 
@@ -164,7 +163,7 @@ def get_todos_habitos_config() -> list:
 
 def get_habitos_hoy() -> dict:
     """Estado de hábitos del día — inicializa filas faltantes."""
-    hoy = hoy()
+    hoy = date.today().isoformat()
 
     for h in get_habitos_config():
         ejecutar("""
@@ -184,8 +183,8 @@ def get_habitos_hoy() -> dict:
 
 def toggle_habito(clave: str):
     """Alterna completado/pendiente de un hábito."""
-    hoy      = hoy()
-    hora_now = iso_ahora()
+    hoy      = date.today().isoformat()
+    hora_now = datetime.now().strftime("%H:%M")
 
     rows  = ejecutar("""
         SELECT completado FROM habitos_diarios_v2
@@ -268,7 +267,7 @@ def restaurar_habitos_default():
 def get_metricas_modulos() -> dict:
     """Lee datos de todos los módulos usando ejecutar()."""
     metricas = {}
-    hoy = hoy()
+    hoy = date.today()
 
     # ── FINANZAS ─────────────────────────────────────────────
     try:
@@ -429,7 +428,7 @@ def get_metricas_modulos() -> dict:
 
 def get_sidebar_data() -> dict:
     """Consolida todas las queries del sidebar."""
-    hoy = hoy()
+    hoy = date.today()
 
     # Racha devocional
     fechas_dev = ejecutar(
@@ -542,8 +541,8 @@ configs_hab = get_habitos_config()
 habitos     = get_habitos_hoy()
 metricas    = get_metricas_modulos()
 sb_data     = get_sidebar_data()
-hoy         = hoy()
-hora_actual = iso_ahora()
+hoy         = date.today()
+hora_actual = datetime.now().hour
 a_data      = get_alertas_data(hoy)
 
 # Desempacar sidebar
@@ -571,7 +570,7 @@ with st.sidebar:
             👤 {st.session_state.user_name}
         </p>
         <p style="color:#8b949e; margin:0; font-size:0.75rem;">
-            {iso_ahora()}
+            {datetime.now().strftime('%A, %d de %B')}
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1043,7 +1042,7 @@ with col_alertas:
         st.success("✅ Todo en orden hoy")
     else:
         st.warning(f"⚠️ {total_alertas} alertas pendientes")
-    st.caption(f"Hora actual: {iso_ahora()}")
+    st.caption(f"Hora actual: {datetime.now().strftime('%H:%M')}")
 
 # ═══════════════════════════════════════════════════════════════
 # FOOTER
