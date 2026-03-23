@@ -12,33 +12,13 @@ from pathlib import Path
 # PATH
 # ═══════════════════════════════════════════════════════════════
 BASE_DIR = Path(__file__).parent.resolve()
-sys.path.insert(0, str(BASE_DIR))
+sys.path.insert(0, str(BASE_DIR / "app"))
 
 from app.database import (
     init_database,
     calcular_sobres,
     ejecutar,          # ← reemplaza todos los sqlite3.connect()
 )
-
-try:
-    from app.database import ejecutar
-except (ImportError, AttributeError):
-    import sqlite3
-    _DB = BASE_DIR / "data" / "mission.db"
-
-    def ejecutar(sql: str, params: list = None, fetchall: bool = False):
-        conn = sqlite3.connect(str(_DB), timeout=30)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        try:
-            cursor.execute(sql, params or [])
-            if fetchall:
-                return [dict(r) for r in cursor.fetchall()]
-            conn.commit()
-            return cursor.lastrowid
-        finally:
-            conn.close()
-            
 from app.ai_client import (
     chat_simple,
     estado_gemini,
