@@ -93,11 +93,6 @@ def get_fit_service():
         return None
 
 
-def fit_configurado() -> bool:
-    """Verifica si Google Fit está configurado sin abrir browser."""
-    return CREDENTIALS_FILE.exists()
-
-
 def fit_autenticado() -> bool:
     """Verifica si hay credenciales válidas — Secrets o disco."""
     # Verificar desde Streamlit Secrets
@@ -105,13 +100,16 @@ def fit_autenticado() -> bool:
         import streamlit as st
         if "google_fit_token" in st.secrets:
             token_data = dict(st.secrets["google_fit_token"])
-            if token_data.get("refresh_token"):
+            refresh = token_data.get("refresh_token")
+            print(f"[GoogleFit] refresh_token en secrets: {bool(refresh)}")
+            if refresh:
                 return True
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[GoogleFit] Error leyendo secrets: {e}")
 
     # Verificar desde disco (local)
     if not TOKEN_FILE.exists():
+        print("[GoogleFit] Sin token_fit.json en disco")
         return False
     try:
         from google.oauth2.credentials import Credentials
@@ -121,8 +119,23 @@ def fit_autenticado() -> bool:
             creds.refresh(Request())
             TOKEN_FILE.write_text(creds.to_json())
         return creds.valid
-    except Exception:
+    except Exception as e:
+        print(f"[GoogleFit] Error disco: {e}")
         return False
+
+def fit_configurado() -> bool:
+    """Verifica si Google Fit está configurado — Secrets o disco."""
+    # En producción verificar secrets
+    try:
+        import streamlit as st
+        if "google_fit_token" in st.secrets:
+            print("[GoogleFit] fit_configurado: True (secrets)")
+            return True
+    except Exception:
+        pass
+    # En local verificar archivo
+    print(f"[GoogleFit] fit_configurado: {CREDENTIALS_FILE.exists()} (disco)")
+    return CREDENTIALS_FILE.exists()
 
 # ═══════════════════════════════════════════════════════════════
 # HELPERS DE TIEMPO
