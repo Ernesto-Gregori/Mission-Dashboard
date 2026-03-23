@@ -979,19 +979,10 @@ import streamlit as st
 @st.cache_data(ttl=30)
 def ejecutar_cached(sql: str, params: tuple = ()) -> list:
     """
-    Versión cacheada para SELECT frecuentes.
-    - params debe ser TUPLA (no lista) para ser hashable
-    - ttl=30 → refresca cada 30 segundos automáticamente
-    - NUNCA usar para INSERT / UPDATE / DELETE
-    
-    Uso en cualquier página:
-        from app.database import ejecutar_cached
-        rows = ejecutar_cached(
-            "SELECT * FROM libros WHERE estado = ?",
-            ("leyendo",)   # ← tupla
-        )
+    SELECT cacheado — params como TUPLA, siempre retorna list.
+    NUNCA usar para INSERT / UPDATE / DELETE.
     """
-    return ejecutar(sql, list(params), fetchall=True)
+    return ejecutar(sql, list(params), fetchall=True) or []
 
 def migrar_local_a_turso():
     """

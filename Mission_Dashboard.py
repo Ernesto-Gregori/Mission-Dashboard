@@ -1,28 +1,28 @@
 """
 🏠 Mission Dashboard - Control de Mando Personal
-Sistema de gestión integral: Teología, Programación, Finanzas y Matrimonio
 """
 
 import streamlit as st
-from datetime import datetime, date, timedelta
+from datetime import timedelta
 import sys
 from pathlib import Path
 
-# ═══════════════════════════════════════════════════════════════
-# PATH
-# ═══════════════════════════════════════════════════════════════
+# ── PATH ──────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(BASE_DIR / "app"))
 
 from app.database import (
     init_database,
     calcular_sobres,
-    ejecutar,          # ← reemplaza todos los sqlite3.connect()
+    ejecutar,
+    ejecutar_cached,
 )
-from app.ai_client import (
-    chat_simple,
-    estado_gemini,
-    verificar_conexion,
+from app.ai_client import chat_simple, estado_gemini, verificar_conexion
+from app.timezone_config import (
+    date, datetime,           # re-exportados — todo el código existente funciona
+    hoy as _hoy,              # función con zona horaria
+    ahora as _ahora,          # función con zona horaria
+    TZ_NAME,
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -86,22 +86,17 @@ _init_gemini()
 init_database()
 
 # ═══════════════════════════════════════════════════════════════
-# CSS PERSONALIZADO - DARK MODE
+# CSS
 # ═══════════════════════════════════════════════════════════════
 def load_css():
     st.markdown("""
     <style>
         :root {
-            --bg-primary: #0d1117;
-            --bg-secondary: #161b22;
-            --bg-tertiary: #21262d;
-            --text-primary: #f0f6fc;
-            --text-secondary: #8b949e;
-            --accent-gold: #e3b341;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --accent-purple: #a371f7;
-            --accent-red: #f85149;
+            --bg-primary: #0d1117; --bg-secondary: #161b22;
+            --bg-tertiary: #21262d; --text-primary: #f0f6fc;
+            --text-secondary: #8b949e; --accent-gold: #e3b341;
+            --accent-blue: #58a6ff; --accent-green: #3fb950;
+            --accent-purple: #a371f7; --accent-red: #f85149;
         }
         .stApp { background-color: var(--bg-primary); }
         [data-testid="stSidebar"] {
@@ -112,17 +107,13 @@ def load_css():
         .mission-card {
             background-color: var(--bg-secondary);
             border: 1px solid var(--bg-tertiary);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            transition: border-color 0.2s ease;
+            border-radius: 12px; padding: 1.5rem;
+            margin-bottom: 1rem; transition: border-color 0.2s ease;
         }
         .mission-card:hover { border-color: var(--accent-blue); }
         .stButton > button {
-            background-color: var(--bg-tertiary);
-            color: var(--text-primary);
-            border: 1px solid var(--bg-tertiary);
-            border-radius: 8px;
+            background-color: var(--bg-tertiary); color: var(--text-primary);
+            border: 1px solid var(--bg-tertiary); border-radius: 8px;
         }
         .stButton > button:hover { border-color: var(--accent-blue); }
         [data-testid="stMetricValue"] { color: var(--accent-gold) !important; }
@@ -135,61 +126,72 @@ load_css()
 # ═══════════════════════════════════════════════════════════════
 # ESTADO DE SESIÓN
 # ═══════════════════════════════════════════════════════════════
-if 'user_name' not in st.session_state:
+if "user_name" not in st.session_state:
     st.session_state.user_name = "Ernesto Gregori"
 
 # ═══════════════════════════════════════════════════════════════
-# FUNCIONES DE BD — todas usan ejecutar()
+# HELPERS DE TIEMPO — zona horaria correcta
+# ═══════════════════════════════════════════════════════════════
+
+def _hoy_iso() -> str:
+    return _hoy().isoformat()
+
+def _ahora_hora() -> int:
+    return _ahora().hour
+
+def _ahora_str() -> str:
+    return _ahora().strftime("%H:%M")
+
+def _ahora_fecha_str() -> str:
+    return _ahora().strftime("%A, %d de %B")
+
+# ═══════════════════════════════════════════════════════════════
+# FUNCIONES DE BD
 # ═══════════════════════════════════════════════════════════════
 
 def get_habitos_config() -> list:
-    """Lee el catálogo de hábitos activos."""
-    return ejecutar("""
+    return ejecutar_cached("""
         SELECT id, clave, label, emoji, hora, activo, orden
         FROM habitos_config
         WHERE activo = 1
         ORDER BY orden, id
-    """, fetchall=True) or []
+    """) or []
 
 
 def get_todos_habitos_config() -> list:
-    """Lee TODOS los hábitos (activos e inactivos) — para panel gestión."""
-    return ejecutar("""
+    return ejecutar_cached("""
         SELECT id, clave, label, emoji, hora, activo, orden
         FROM habitos_config
         ORDER BY orden, id
-    """, fetchall=True) or []
+    """) or []
 
 
 def get_habitos_hoy() -> dict:
-    """Estado de hábitos del día — inicializa filas faltantes."""
-    hoy = date.today().isoformat()
-
+    hoy_iso = _hoy_iso()
     for h in get_habitos_config():
         ejecutar("""
             INSERT OR IGNORE INTO habitos_diarios_v2
                 (fecha, habito_clave, completado)
             VALUES (?, ?, 0)
-        """, [hoy, h["clave"]])
+        """, [hoy_iso, h["clave"]])
 
     rows = ejecutar("""
         SELECT habito_clave, completado, hora_completado, fecha
         FROM habitos_diarios_v2
         WHERE fecha = ?
-    """, [hoy], fetchall=True) or []
+    """, [hoy_iso], fetchall=True) or []
 
     return {r["habito_clave"]: r for r in rows}
 
 
 def toggle_habito(clave: str):
-    """Alterna completado/pendiente de un hábito."""
-    hoy      = date.today().isoformat()
-    hora_now = datetime.now().strftime("%H:%M")
+    hoy_iso  = _hoy_iso()
+    hora_now = _ahora_str()
 
-    rows  = ejecutar("""
+    rows = ejecutar("""
         SELECT completado FROM habitos_diarios_v2
         WHERE fecha = ? AND habito_clave = ?
-    """, [hoy, clave], fetchall=True)
+    """, [hoy_iso, clave], fetchall=True)
 
     nuevo = 0 if (rows and rows[0]["completado"]) else 1
     hora  = hora_now if nuevo else None
@@ -202,16 +204,12 @@ def toggle_habito(clave: str):
         DO UPDATE SET
             completado      = excluded.completado,
             hora_completado = excluded.hora_completado
-    """, [hoy, clave, nuevo, hora])
+    """, [hoy_iso, clave, nuevo, hora])
 
 
 def agregar_habito(label: str, emoji: str, hora: str) -> bool:
-    """Crea un nuevo hábito en el catálogo."""
     clave = label.lower().strip().replace(" ", "_")[:20]
-    rows  = ejecutar(
-        "SELECT MAX(orden) AS m FROM habitos_config",
-        fetchall=True
-    )
+    rows  = ejecutar("SELECT MAX(orden) AS m FROM habitos_config", fetchall=True)
     max_ord = (rows[0]["m"] or 0) if rows else 0
     try:
         ejecutar("""
@@ -225,39 +223,24 @@ def agregar_habito(label: str, emoji: str, hora: str) -> bool:
 
 
 def editar_habito(clave: str, label: str, emoji: str, hora: str) -> bool:
-    """Edita label/emoji/hora de un hábito existente."""
     ejecutar("""
-        UPDATE habitos_config
-        SET label = ?, emoji = ?, hora = ?
-        WHERE clave = ?
+        UPDATE habitos_config SET label=?, emoji=?, hora=? WHERE clave=?
     """, [label, emoji, hora, clave])
     return True
 
 
 def eliminar_habito(clave: str) -> bool:
-    """Desactiva un hábito (preserva historial)."""
-    ejecutar(
-        "UPDATE habitos_config SET activo = 0 WHERE clave = ?",
-        [clave]
-    )
+    ejecutar("UPDATE habitos_config SET activo=0 WHERE clave=?", [clave])
     return True
 
 
 def reactivar_habito(clave: str):
-    """Reactiva un hábito desactivado."""
-    ejecutar(
-        "UPDATE habitos_config SET activo = 1 WHERE clave = ?",
-        [clave]
-    )
+    ejecutar("UPDATE habitos_config SET activo=1 WHERE clave=?", [clave])
 
 
 def restaurar_habitos_default():
-    """Reactiva los 4 hábitos fijos."""
     for clave in ["devocional", "codigo", "lectura", "calistenia"]:
-        ejecutar(
-            "UPDATE habitos_config SET activo = 1 WHERE clave = ?",
-            [clave]
-        )
+        ejecutar("UPDATE habitos_config SET activo=1 WHERE clave=?", [clave])
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -265,13 +248,13 @@ def restaurar_habitos_default():
 # ═══════════════════════════════════════════════════════════════
 
 def get_metricas_modulos() -> dict:
-    """Lee datos de todos los módulos usando ejecutar()."""
     metricas = {}
-    hoy = date.today()
+    hoy      = _hoy()
+    hoy_iso  = hoy.isoformat()
 
     # ── FINANZAS ─────────────────────────────────────────────
     try:
-        datos = calcular_sobres(hoy.month, hoy.year)
+        datos         = calcular_sobres(hoy.month, hoy.year)
         total_gastado = datos["total_gastado"]
         ingreso       = datos["ingreso"]
         pct           = int(total_gastado / ingreso * 100) if ingreso > 0 else 0
@@ -292,70 +275,59 @@ def get_metricas_modulos() -> dict:
     # ── DEEP WORK ─────────────────────────────────────────────
     try:
         lunes = (hoy - timedelta(days=hoy.weekday())).isoformat()
-        rows  = ejecutar("""
+        rows  = ejecutar_cached("""
             SELECT
                 COUNT(*) AS total,
-                SUM(CASE WHEN estado = 'Completado' THEN 1 ELSE 0 END) AS completados
-            FROM sesiones_completadas
-            WHERE fecha >= ?
-        """, [lunes], fetchall=True)
+                SUM(CASE WHEN estado='Completado' THEN 1 ELSE 0 END) AS completados
+            FROM sesiones_completadas WHERE fecha >= ?
+        """, (lunes,))
         r = rows[0] if rows else {"total": 0, "completados": 0}
         total_dw = r["total"] or 0
         comp_dw  = r["completados"] or 0
         metricas["deep_work"] = {
-            "completados": comp_dw,
-            "total":       total_dw,
-            "pct":         int(comp_dw / total_dw * 100) if total_dw > 0 else 0,
+            "completados": comp_dw, "total": total_dw,
+            "pct": int(comp_dw / total_dw * 100) if total_dw > 0 else 0,
         }
     except Exception:
         metricas["deep_work"] = {"completados": 0, "total": 0, "pct": 0}
 
     # ── BIBLIOTECA ────────────────────────────────────────────
     try:
-        total_libros = (ejecutar(
-            "SELECT COUNT(*) AS n FROM libros", fetchall=True
+        total_libros = (ejecutar_cached(
+            "SELECT COUNT(*) AS n FROM libros"
         ) or [{"n": 0}])[0]["n"] or 0
 
-        rows = ejecutar("""
+        rows = ejecutar_cached("""
             SELECT titulo, pagina_actual, total_paginas
-            FROM libros WHERE estado = 'leyendo'
+            FROM libros WHERE estado='leyendo'
             ORDER BY actualizado_en DESC LIMIT 1
-        """, fetchall=True)
+        """)
         leyendo = rows[0] if rows else None
-
         if leyendo and leyendo["total_paginas"]:
             pct_libro   = int((leyendo["pagina_actual"] or 0) / leyendo["total_paginas"] * 100)
             libro_texto = f"{leyendo['titulo'][:28]}... • {pct_libro}%"
         else:
             libro_texto = "Sin libro activo"
-
         metricas["biblioteca"] = {"total": total_libros, "leyendo": libro_texto}
     except Exception:
         metricas["biblioteca"] = {"total": 0, "leyendo": "Sin datos"}
 
     # ── TEOLOGÍA ──────────────────────────────────────────────
     try:
-        rows = ejecutar("""
-            SELECT COUNT(*) AS total, MAX(fecha) AS ultimo
-            FROM devocionales
-        """, fetchall=True)
+        rows = ejecutar_cached("SELECT COUNT(*) AS total, MAX(fecha) AS ultimo FROM devocionales")
         r         = rows[0] if rows else {"total": 0, "ultimo": "—"}
         total_teo = r["total"] or 0
         ultimo    = r["ultimo"] or "—"
 
-        fechas_teo = ejecutar(
-            "SELECT fecha FROM devocionales ORDER BY fecha DESC",
-            fetchall=True
-        ) or []
+        fechas_teo = ejecutar_cached("SELECT fecha FROM devocionales ORDER BY fecha DESC")
         racha = 0
         check = hoy
-        for row in fechas_teo:
+        for row in (fechas_teo or []):
             if row["fecha"] == check.isoformat():
                 racha += 1
                 check -= timedelta(days=1)
             else:
                 break
-
         metricas["teologia"] = {"total": total_teo, "ultimo": ultimo, "racha": racha}
     except Exception:
         metricas["teologia"] = {"total": 0, "ultimo": "—", "racha": 0}
@@ -365,7 +337,7 @@ def get_metricas_modulos() -> dict:
         rows = ejecutar("""
             SELECT energia_manana, hizo_ejercicio, productividad_percibida
             FROM registros_salud WHERE fecha = ?
-        """, [hoy.isoformat()], fetchall=True)
+        """, [hoy_iso], fetchall=True)
         sal = rows[0] if rows else None
         metricas["salud"] = {
             "energia":       (sal["energia_manana"] or 0) if sal else 0,
@@ -380,12 +352,10 @@ def get_metricas_modulos() -> dict:
     try:
         rows = ejecutar("""
             SELECT titulo, fecha, hora FROM matrimonio_citas
-            WHERE fecha >= ?
-              AND estado_planificacion NOT IN ('Cancelada', 'Completada')
+            WHERE fecha >= ? AND estado_planificacion NOT IN ('Cancelada','Completada')
             ORDER BY fecha, hora LIMIT 1
-        """, [hoy.isoformat()], fetchall=True)
+        """, [hoy_iso], fetchall=True)
         prox = rows[0] if rows else None
-
         if prox:
             dias       = (datetime.strptime(prox["fecha"], "%Y-%m-%d").date() - hoy).days
             label      = "Hoy" if dias == 0 else f"En {dias}d"
@@ -393,26 +363,25 @@ def get_metricas_modulos() -> dict:
         else:
             prox_texto = "Sin citas próximas"
 
-        rows_mes = ejecutar("""
+        rows_mes = ejecutar_cached("""
             SELECT COUNT(*) AS n FROM matrimonio_citas
             WHERE strftime('%Y-%m', fecha) = ?
               AND estado_planificacion = 'Completada'
-        """, [hoy.strftime("%Y-%m")], fetchall=True)
+        """, (hoy.strftime("%Y-%m"),))
         citas_mes = (rows_mes[0]["n"] or 0) if rows_mes else 0
-
         metricas["matrimonio"] = {"proxima": prox_texto, "citas_mes": citas_mes}
     except Exception:
         metricas["matrimonio"] = {"proxima": "Sin datos", "citas_mes": 0}
 
     # ── SANDBOX ───────────────────────────────────────────────
     try:
-        ideas = (ejecutar("""
+        ideas = (ejecutar_cached("""
             SELECT COUNT(*) AS n FROM sandbox_ideas
-            WHERE estado NOT IN ('Completado', 'Abandonado')
-        """, fetchall=True) or [{"n": 0}])[0]["n"] or 0
+            WHERE estado NOT IN ('Completado','Abandonado')
+        """) or [{"n": 0}])[0]["n"] or 0
 
-        snips = (ejecutar(
-            "SELECT COUNT(*) AS n FROM sandbox_snippets", fetchall=True
+        snips = (ejecutar_cached(
+            "SELECT COUNT(*) AS n FROM sandbox_snippets"
         ) or [{"n": 0}])[0]["n"] or 0
 
         metricas["sandbox"] = {"ideas_activas": ideas, "snippets": snips}
@@ -423,17 +392,15 @@ def get_metricas_modulos() -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════
-# DATOS SIDEBAR — una sola función consolidada
+# SIDEBAR DATA
 # ═══════════════════════════════════════════════════════════════
 
 def get_sidebar_data() -> dict:
-    """Consolida todas las queries del sidebar."""
-    hoy = date.today()
+    hoy     = _hoy()
+    hoy_iso = hoy.isoformat()
 
-    # Racha devocional
-    fechas_dev = ejecutar(
-        "SELECT fecha FROM devocionales ORDER BY fecha DESC LIMIT 30",
-        fetchall=True
+    fechas_dev = ejecutar_cached(
+        "SELECT fecha FROM devocionales ORDER BY fecha DESC LIMIT 30"
     ) or []
     racha_dev = 0
     check = hoy
@@ -444,15 +411,12 @@ def get_sidebar_data() -> dict:
         else:
             break
 
-    # Racha hábitos
-    hab_rows = ejecutar("""
-        SELECT fecha,
-               COUNT(*) AS total,
-               SUM(completado) AS completados
+    hab_rows = ejecutar_cached("""
+        SELECT fecha, COUNT(*) AS total, SUM(completado) AS completados
         FROM habitos_diarios_v2
         GROUP BY fecha
         ORDER BY fecha DESC LIMIT 30
-    """, fetchall=True) or []
+    """) or []
     racha_hab = 0
     check_hab = hoy
     for row in hab_rows:
@@ -463,66 +427,57 @@ def get_sidebar_data() -> dict:
         else:
             break
 
-    # Próxima cita
     citas = ejecutar("""
         SELECT titulo, fecha, hora FROM matrimonio_citas
-        WHERE fecha >= ?
-          AND estado_planificacion IN ('Confirmada', 'Planeando')
+        WHERE fecha >= ? AND estado_planificacion IN ('Confirmada','Planeando')
         ORDER BY fecha, hora LIMIT 1
-    """, [hoy.isoformat()], fetchall=True)
-    proxima_cita = citas[0] if citas else None
+    """, [hoy_iso], fetchall=True)
 
-    # Finanzas
-    ing_rows   = ejecutar("""
-        SELECT monto_total FROM ingreso_mensual
-        WHERE mes = ? AND anio = ?
-    """, [hoy.month, hoy.year], fetchall=True)
+    ing_rows = ejecutar_cached("""
+        SELECT monto_total FROM ingreso_mensual WHERE mes=? AND anio=?
+    """, (hoy.month, hoy.year))
     ingreso_sb = (ing_rows[0]["monto_total"] or 0) if ing_rows else 0
 
-    gasto_rows = ejecutar("""
+    gasto_rows = ejecutar_cached("""
         SELECT SUM(monto) AS total FROM gastos_sobres
         WHERE strftime('%Y-%m', fecha) = ?
-    """, [hoy.strftime("%Y-%m")], fetchall=True)
+    """, (hoy.strftime("%Y-%m"),))
     gastado_sb = (gasto_rows[0]["total"] or 0) if gasto_rows else 0
 
     return {
         "racha_dev":    racha_dev,
         "racha_hab":    racha_hab,
-        "proxima_cita": proxima_cita,
+        "proxima_cita": citas[0] if citas else None,
         "ingreso":      ingreso_sb,
         "gastado":      gastado_sb,
     }
 
 
 # ═══════════════════════════════════════════════════════════════
-# DATOS DE ALERTAS — una sola función consolidada
+# ALERTAS DATA
 # ═══════════════════════════════════════════════════════════════
 
-def get_alertas_data(hoy: date) -> dict:
-    """Consolida todas las queries del bloque de alertas."""
+def get_alertas_data(hoy_iso: str) -> dict:
     dev = ejecutar(
-        "SELECT id FROM devocionales WHERE fecha = ?",
-        [hoy.isoformat()], fetchall=True
+        "SELECT id FROM devocionales WHERE fecha=?",
+        [hoy_iso], fetchall=True
     )
-
     dw = ejecutar("""
         SELECT COUNT(*) AS total,
-               SUM(CASE WHEN estado = 'Completado' THEN 1 ELSE 0 END) AS comp
-        FROM sesiones_completadas WHERE fecha = ?
-    """, [hoy.isoformat()], fetchall=True)
+               SUM(CASE WHEN estado='Completado' THEN 1 ELSE 0 END) AS comp
+        FROM sesiones_completadas WHERE fecha=?
+    """, [hoy_iso], fetchall=True)
     dw_row = dw[0] if dw else {"total": 0, "comp": 0}
 
     sal = ejecutar(
-        "SELECT id FROM registros_salud WHERE fecha = ?",
-        [hoy.isoformat()], fetchall=True
+        "SELECT id FROM registros_salud WHERE fecha=?",
+        [hoy_iso], fetchall=True
     )
-
     cita = ejecutar("""
         SELECT titulo, hora FROM matrimonio_citas
-        WHERE fecha = ?
-          AND estado_planificacion IN ('Confirmada', 'Planeando')
+        WHERE fecha=? AND estado_planificacion IN ('Confirmada','Planeando')
         LIMIT 1
-    """, [hoy.isoformat()], fetchall=True)
+    """, [hoy_iso], fetchall=True)
 
     return {
         "devocional_hoy": len(dev) > 0,
@@ -534,25 +489,25 @@ def get_alertas_data(hoy: date) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════
-# CARGAR TODOS LOS DATOS
+# CARGAR DATOS — con zona horaria correcta
 # ═══════════════════════════════════════════════════════════════
+
+hoy         = _hoy()          # ← zona horaria local
+hoy_iso     = _hoy_iso()
+hora_actual = _ahora_hora()   # ← hora local
 
 configs_hab = get_habitos_config()
 habitos     = get_habitos_hoy()
 metricas    = get_metricas_modulos()
 sb_data     = get_sidebar_data()
-hoy         = date.today()
-hora_actual = datetime.now().hour
-a_data      = get_alertas_data(hoy)
+a_data      = get_alertas_data(hoy_iso)
 
-# Desempacar sidebar
 racha_dev    = sb_data["racha_dev"]
 racha_hab    = sb_data["racha_hab"]
 proxima_cita = sb_data["proxima_cita"]
 ingreso_sb   = sb_data["ingreso"]
 gastado_sb   = sb_data["gastado"]
 
-# Progreso hábitos
 completados_hoy = sum(
     1 for cfg in configs_hab
     if habitos.get(cfg["clave"], {}).get("completado")
@@ -566,17 +521,16 @@ total_hoy = len(configs_hab)
 with st.sidebar:
     st.markdown(f"""
     <div style="padding:0.5rem;">
-        <p style="color:#f0f6fc; margin:0; font-weight:600;">
+        <p style="color:#f0f6fc;margin:0;font-weight:600;">
             👤 {st.session_state.user_name}
         </p>
-        <p style="color:#8b949e; margin:0; font-size:0.75rem;">
-            {datetime.now().strftime('%A, %d de %B')}
+        <p style="color:#8b949e;margin:0;font-size:0.75rem;">
+            {_ahora_fecha_str()} · {TZ_NAME}
         </p>
     </div>
     """, unsafe_allow_html=True)
     st.divider()
 
-    # ── Rachas ───────────────────────────────────────────────
     st.markdown("**🔥 Rachas activas**")
     color_dev = "#3fb950" if racha_dev >= 7 else "#e3b341" if racha_dev >= 3 else "#f85149"
     color_hab = "#3fb950" if racha_hab >= 7 else "#e3b341" if racha_hab >= 3 else "#f85149"
@@ -602,7 +556,6 @@ with st.sidebar:
         """, unsafe_allow_html=True)
     st.divider()
 
-    # ── Próxima cita ─────────────────────────────────────────
     st.markdown("**💑 Próxima cita**")
     if proxima_cita:
         dias_cita  = (datetime.strptime(proxima_cita["fecha"], "%Y-%m-%d").date() - hoy).days
@@ -619,7 +572,6 @@ with st.sidebar:
         st.caption("Sin citas programadas")
     st.divider()
 
-    # ── Finanzas ─────────────────────────────────────────────
     st.markdown("**💰 Finanzas del mes**")
     if ingreso_sb > 0:
         pct_sb    = int(gastado_sb / ingreso_sb * 100)
@@ -639,7 +591,6 @@ with st.sidebar:
         st.caption("⚠️ Sin ingreso registrado")
     st.divider()
 
-    # ── Estado IA ────────────────────────────────────────────
     st.markdown("**🤖 Estado IA**")
     estado_ia = estado_gemini()
     if not estado_ia.get("api_key_configurada"):
@@ -664,19 +615,19 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
     st.divider()
-    st.caption("v1.0 • Python + Streamlit")
+    st.caption(f"v1.0 • Python + Streamlit • {TZ_NAME}")
 
 # ═══════════════════════════════════════════════════════════════
-# HEADER PRINCIPAL
+# HEADER
 # ═══════════════════════════════════════════════════════════════
 
 st.markdown("""
-<h1 style="margin-bottom: 0.25rem;">Control de Mando</h1>
-<p style="color: #8b949e; margin-top: 0;">Dashboard integral de vida</p>
+<h1 style="margin-bottom:0.25rem;">Control de Mando</h1>
+<p style="color:#8b949e;margin-top:0;">Dashboard integral de vida</p>
 """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════
-# ALERTAS INTELIGENTES
+# ALERTAS
 # ═══════════════════════════════════════════════════════════════
 
 alertas = []
@@ -704,12 +655,11 @@ if a_data["cita_hoy"]:
         f"{' — ' + hora_c[:5] if hora_c else ''}"
     ))
 
-# Sobres financieros
 try:
     sobres_alert = calcular_sobres(hoy.month, hoy.year)
     for key, sobre in sobres_alert["sobres"].items():
         if sobre["pct_usado"] >= 100:
-            alertas.append(("error",  f"🔴 Sobre {sobre['nombre'][:20]} AGOTADO"))
+            alertas.append(("error",   f"🔴 Sobre {sobre['nombre'][:20]} AGOTADO"))
         elif sobre["pct_usado"] >= 80:
             alertas.append(("warning", f"🟡 Sobre {sobre['nombre'][:20]} al {sobre['pct_usado']:.0f}%"))
 except Exception:
@@ -718,22 +668,15 @@ except Exception:
 if completados_hoy == total_hoy and total_hoy > 0:
     alertas.append(("success", "🎉 ¡Todos los hábitos completados hoy!"))
 elif hora_actual >= 22 and completados_hoy < total_hoy:
-    alertas.append(("warning", f"⚡ {completados_hoy}/{total_hoy} hábitos completados — ¡quedan pendientes!"))
+    alertas.append(("warning", f"⚡ {completados_hoy}/{total_hoy} hábitos completados"))
 
 for tipo, mensaje in alertas:
-    if tipo == "success":
-        st.success(mensaje)
-    elif tipo == "warning":
-        st.warning(mensaje)
-    elif tipo == "error":
-        st.error(mensaje)
-    else:
-        st.info(mensaje)
+    getattr(st, tipo)(mensaje)
 
 st.divider()
 
 # ═══════════════════════════════════════════════════════════════
-# SECCIÓN 1: HÁBITOS DIARIOS — CRUD COMPLETO
+# HÁBITOS DIARIOS
 # ═══════════════════════════════════════════════════════════════
 
 st.subheader("📋 Hábitos del día")
@@ -753,28 +696,21 @@ with col_btn_h:
         st.session_state.hab_editando = None
         st.rerun()
 
-# ── PANEL GESTIÓN ─────────────────────────────────────────────
 if st.session_state.modo_gestion_hab:
     with st.container():
         st.markdown("#### ⚙️ Gestión de hábitos")
-
-        # Agregar nuevo
         st.markdown("**➕ Nuevo hábito**")
         col_n1, col_n2, col_n3, col_n4 = st.columns([3, 1, 2, 1])
-        with col_n1:
-            nh_label = st.text_input("Nombre", placeholder="Ej: Meditación", key="nh_label")
-        with col_n2:
-            nh_emoji = st.text_input("Emoji", value="⭐", max_chars=2, key="nh_emoji")
-        with col_n3:
-            nh_hora = st.text_input("Hora", placeholder="07:00", key="nh_hora")
+        with col_n1: nh_label = st.text_input("Nombre", placeholder="Ej: Meditación", key="nh_label")
+        with col_n2: nh_emoji = st.text_input("Emoji", value="⭐", max_chars=2, key="nh_emoji")
+        with col_n3: nh_hora  = st.text_input("Hora",  placeholder="07:00", key="nh_hora")
         with col_n4:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("➕ Agregar", use_container_width=True, key="btn_nh"):
                 if not nh_label.strip():
                     st.error("⚠️ Nombre requerido")
                 else:
-                    ok = agregar_habito(nh_label, nh_emoji, nh_hora)
-                    if ok:
+                    if agregar_habito(nh_label, nh_emoji, nh_hora):
                         st.success(f"✅ '{nh_label}' creado")
                         st.rerun()
                     else:
@@ -782,69 +718,54 @@ if st.session_state.modo_gestion_hab:
 
         st.divider()
         st.markdown("**📋 Hábitos activos:**")
-
-        # Lista TODOS los hábitos — get_todos_habitos_config() ya usa ejecutar()
         todos_configs = get_todos_habitos_config()
 
         for hc in todos_configs:
-            col_e, col_em, col_lab, col_hor, col_est, col_ed, col_del = \
-                st.columns([0.5, 0.5, 2, 1.5, 1, 0.8, 0.8])
-
-            with col_e:  st.caption(hc["emoji"])
-            with col_em: st.caption("🟢" if hc["activo"] else "⚪")
+            col_e,col_em,col_lab,col_hor,col_est,col_ed,col_del = \
+                st.columns([0.5,0.5,2,1.5,1,0.8,0.8])
+            with col_e:   st.caption(hc["emoji"])
+            with col_em:  st.caption("🟢" if hc["activo"] else "⚪")
             with col_lab: st.caption(f"**{hc['label']}**")
             with col_hor: st.caption(hc["hora"])
             with col_est: st.caption("Activo" if hc["activo"] else "Inactivo")
-
             with col_ed:
-                if st.button("✏️", key=f"ed_h_{hc['clave']}",
-                             use_container_width=True, help="Editar"):
+                if st.button("✏️", key=f"ed_h_{hc['clave']}", use_container_width=True):
                     st.session_state.hab_editando = hc["clave"]
                     st.rerun()
-
             with col_del:
                 icono = "🗑️" if hc["activo"] else "♻️"
-                ayuda = "Desactivar" if hc["activo"] else "Reactivar"
-                if st.button(icono, key=f"del_h_{hc['clave']}",
-                             use_container_width=True, help=ayuda):
+                if st.button(icono, key=f"del_h_{hc['clave']}", use_container_width=True,
+                             help="Desactivar" if hc["activo"] else "Reactivar"):
                     if hc["activo"]:
                         st.session_state[f"confirm_del_h_{hc['clave']}"] = True
                     else:
-                        reactivar_habito(hc["clave"])   # ← usa ejecutar()
+                        reactivar_habito(hc["clave"])
                         st.success(f"♻️ '{hc['label']}' reactivado")
                         st.rerun()
 
-            # Confirmar eliminación
             if st.session_state.get(f"confirm_del_h_{hc['clave']}"):
-                c1, c2, c3 = st.columns([3, 1, 1])
-                with c1:
-                    st.warning(f"⚠️ ¿Desactivar *{hc['label']}*? (historial conservado)")
+                c1, c2, c3 = st.columns([3,1,1])
+                with c1: st.warning(f"⚠️ ¿Desactivar *{hc['label']}*?")
                 with c2:
-                    if st.button("🗑️ Sí", key=f"cfd_h_{hc['clave']}",
-                                 use_container_width=True):
+                    if st.button("🗑️ Sí", key=f"cfd_h_{hc['clave']}", use_container_width=True):
                         eliminar_habito(hc["clave"])
                         st.session_state[f"confirm_del_h_{hc['clave']}"] = False
-                        st.success(f"✅ '{hc['label']}' desactivado")
                         st.rerun()
                 with c3:
-                    if st.button("✖", key=f"cnf_h_{hc['clave']}",
-                                 use_container_width=True):
+                    if st.button("✖", key=f"cnf_h_{hc['clave']}", use_container_width=True):
                         st.session_state[f"confirm_del_h_{hc['clave']}"] = False
                         st.rerun()
 
-            # Formulario edición inline
             if st.session_state.hab_editando == hc["clave"]:
                 with st.form(f"form_edit_h_{hc['clave']}"):
                     st.markdown(f"#### ✏️ Editando: {hc['label']}")
-                    col_f1, col_f2, col_f3 = st.columns([3, 1, 2])
+                    col_f1,col_f2,col_f3 = st.columns([3,1,2])
                     with col_f1: e_label = st.text_input("Nombre", value=hc["label"])
-                    with col_f2: e_emoji = st.text_input("Emoji", value=hc["emoji"], max_chars=2)
-                    with col_f3: e_hora  = st.text_input("Hora",  value=hc["hora"])
+                    with col_f2: e_emoji = st.text_input("Emoji",  value=hc["emoji"], max_chars=2)
+                    with col_f3: e_hora  = st.text_input("Hora",   value=hc["hora"])
                     col_sg, col_sc = st.columns(2)
                     with col_sg:
-                        if st.form_submit_button("💾 Guardar",
-                                                  use_container_width=True,
-                                                  type="primary"):
+                        if st.form_submit_button("💾 Guardar", use_container_width=True, type="primary"):
                             if not e_label.strip():
                                 st.error("⚠️ Nombre requerido")
                             else:
@@ -860,12 +781,11 @@ if st.session_state.modo_gestion_hab:
         st.divider()
         if st.button("♻️ Restaurar hábitos por defecto"):
             restaurar_habitos_default()
-            st.success("✅ Hábitos por defecto restaurados")
+            st.success("✅ Restaurados")
             st.rerun()
-
     st.divider()
 
-# ── TARJETAS DE HÁBITOS ───────────────────────────────────────
+# ── TARJETAS ──────────────────────────────────────────────────
 n_cols = min(len(configs_hab), 6) if configs_hab else 4
 cols_h = st.columns(n_cols)
 
@@ -873,16 +793,15 @@ for i, cfg in enumerate(configs_hab):
     clave      = cfg["clave"]
     completado = habitos.get(clave, {}).get("completado", 0)
     hora_ok    = habitos.get(clave, {}).get("hora_completado", "")
-    color_b = "#3fb950" if completado else "#30363d"
-    color_f = "#0f2d0f" if completado else "#161b22"
-    simbolo = "✅"       if completado else "○"
-    color_s = "#3fb950" if completado else "#8b949e"
-
+    color_b    = "#3fb950" if completado else "#30363d"
+    color_f    = "#0f2d0f" if completado else "#161b22"
+    simbolo    = "✅"       if completado else "○"
+    color_s    = "#3fb950" if completado else "#8b949e"
+    hora_tag   = (
+        f'<div style="color:#3fb950;font-size:0.7rem;">✓ {hora_ok}</div>'
+        if hora_ok else ""
+    )
     with cols_h[i % n_cols]:
-        hora_tag = (
-            f'<div style="color:#3fb950;font-size:0.7rem;">✓ {hora_ok}</div>'
-            if hora_ok else ""
-        )
         st.markdown(f"""
         <div style="background:{color_f};border:1px solid {color_b};
                     border-radius:12px;padding:1rem;
@@ -894,7 +813,6 @@ for i, cfg in enumerate(configs_hab):
             {hora_tag}
         </div>
         """, unsafe_allow_html=True)
-
         if st.button(
             "✓ Hecho" if completado else "Marcar ✓",
             key=f"hab_{clave}",
@@ -911,7 +829,7 @@ st.progress(
 st.divider()
 
 # ═══════════════════════════════════════════════════════════════
-# SECCIÓN 2: MÓDULOS
+# MÓDULOS
 # ═══════════════════════════════════════════════════════════════
 
 st.subheader("🗂️ Módulos del Sistema")
@@ -919,7 +837,7 @@ mod_col1, mod_col2 = st.columns(2)
 
 with mod_col1:
     fin = metricas["finanzas"]
-    sin_ingreso_txt = " · ⚠️ Registra ingreso en Finanzas" if fin.get("sin_ingreso") else ""
+    sin_txt = " · ⚠️ Registra ingreso en Finanzas" if fin.get("sin_ingreso") else ""
     st.markdown(f"""
     <div class="mission-card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -927,10 +845,9 @@ with mod_col1:
             <span style="color:{fin['color']};font-size:0.875rem;">{fin['semaforo']} {fin['pct']}% usado</span>
         </div>
         <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">
-            Gastado: ${fin['gastos']:,.0f} / Ingreso: ${fin['presupuesto']:,.0f}{sin_ingreso_txt}
+            Gastado: ${fin['gastos']:,.0f} / Ingreso: ${fin['presupuesto']:,.0f}{sin_txt}
         </p>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
     dw = metricas["deep_work"]
     st.markdown(f"""
@@ -940,8 +857,7 @@ with mod_col1:
             <span style="color:#58a6ff;font-size:0.875rem;">{dw['completados']}/{dw['total']} bloques esta semana</span>
         </div>
         <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">Tasa de éxito: {dw['pct']}%</p>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
     teo = metricas["teologia"]
     st.markdown(f"""
@@ -951,8 +867,7 @@ with mod_col1:
             <span style="color:#a371f7;font-size:0.875rem;">{teo['total']} entradas · 🔥{teo['racha']} días</span>
         </div>
         <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">Último devocional: {teo['ultimo']}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
 with mod_col2:
     bib = metricas["biblioteca"]
@@ -963,8 +878,7 @@ with mod_col2:
             <span style="color:#e3b341;font-size:0.875rem;">{bib['total']} libros</span>
         </div>
         <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">📖 {bib['leyendo']}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
     sal = metricas["salud"]
     sal_texto = (
@@ -980,8 +894,7 @@ with mod_col2:
             <span style="color:#f85149;font-size:0.875rem;">Energía: {sal['energia']}/10</span>
         </div>
         <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">{sal_texto}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
     mat = metricas["matrimonio"]
     st.markdown(f"""
@@ -991,8 +904,7 @@ with mod_col2:
             <span style="color:#ff69b4;font-size:0.875rem;">{mat['citas_mes']} citas este mes</span>
         </div>
         <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">📅 {mat['proxima']}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
     sand = metricas["sandbox"]
     st.markdown(f"""
@@ -1002,8 +914,7 @@ with mod_col2:
             <span style="color:#58a6ff;font-size:0.875rem;">{sand['ideas_activas']} ideas activas</span>
         </div>
         <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">🧩 {sand['snippets']} snippets guardados</p>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════
 # SECRETARIA IA
@@ -1025,24 +936,22 @@ with col_chat:
     else:
         if not conectado:
             st.warning("⚠️ Modo offline — usando respuestas predefinidas")
-
         prompt_usuario = st.text_input(
             "Pregunta a tu secretaria:",
             placeholder="Ej: ¿Qué pasaje leer hoy?"
         )
         if prompt_usuario:
             with st.spinner("Pensando..."):
-                respuesta = chat_simple(prompt_usuario)
-                st.info(respuesta)
+                st.info(chat_simple(prompt_usuario))
 
 with col_alertas:
     st.markdown("**🔔 Estado del día**")
-    total_alertas = len([a for a in alertas if a[0] in ["warning", "error"]])
+    total_alertas = len([a for a in alertas if a[0] in ["warning","error"]])
     if total_alertas == 0:
         st.success("✅ Todo en orden hoy")
     else:
         st.warning(f"⚠️ {total_alertas} alertas pendientes")
-    st.caption(f"Hora actual: {datetime.now().strftime('%H:%M')}")
+    st.caption(f"🕐 {_ahora_str()} {TZ_NAME}")
 
 # ═══════════════════════════════════════════════════════════════
 # FOOTER
