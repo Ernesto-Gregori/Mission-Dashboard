@@ -7,7 +7,6 @@ from datetime import datetime, date
 from pathlib import Path
 import os
 import json
-
 import libsql
 
 # ═════════════════════════════════════════════════════════
@@ -672,214 +671,105 @@ def init_database():
 
 
 # ═════════════════════════════════════════════════════════════════
-# FUNCIONES CRUD PARA GASTOS
+# CRUD GASTOS — migrado a ejecutar()
 # ═════════════════════════════════════════════════════════════════
 
-def guardar_ingreso(mes: int, anio: int, monto: float, notas: str = "") -> bool:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
+def guardar_ingreso(mes: int, anio: int,
+                   monto: float, notas: str = "") -> bool:
     try:
-        cursor.execute("""
+        ejecutar("""
             INSERT INTO ingreso_mensual (mes, anio, monto_total, notas)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(mes, anio)
             DO UPDATE SET monto_total = ?, notas = ?
-        """, (mes, anio, monto, notas, monto, notas))
-        conn.commit()
+        """, [mes, anio, monto, notas, monto, notas])
         return True
     except Exception as e:
         print(f"Error guardando ingreso: {e}")
         return False
-    finally:
-        conn.close()
+
 
 def obtener_ingreso(mes: int, anio: int) -> float:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
-    cursor.execute("""
+    rows = ejecutar("""
         SELECT monto_total FROM ingreso_mensual
         WHERE mes = ? AND anio = ?
-    """, (mes, anio))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else 0.0
+    """, [mes, anio], fetchall=True)
+    return rows[0]["monto_total"] if rows else 0.0
+
 
 def agregar_gasto_sobre(fecha, sobre: str, subcategoria: str,
                         descripcion: str, monto: float,
                         es_fijo: bool = False, notas: str = "") -> int:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
-    cursor.execute("""
+    return ejecutar("""
         INSERT INTO gastos_sobres
             (fecha, sobre, subcategoria, descripcion, monto, es_fijo, notas)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (str(fecha), sobre, subcategoria, descripcion, monto, es_fijo, notas))
-    gasto_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return gasto_id
+    """, [str(fecha), sobre, subcategoria,
+          descripcion, monto, int(es_fijo), notas])
+    # ejecutar() retorna lastrowid cuando fetchall=False
 
-def obtener_gastos_sobre(mes=None, anio=None, sobre=None, limite=100) -> list:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    query = "SELECT * FROM gastos_sobres WHERE 1=1"
+
+def obtener_gastos_sobre(mes=None, anio=None,
+                         sobre=None, limite=100) -> list:
+    query  = "SELECT * FROM gastos_sobres WHERE 1=1"
     params = []
-    
+
     if mes and anio:
-        query += """ AND strftime('%m', fecha) = ? 
-                    AND strftime('%Y', fecha) = ?"""
+        query += (
+            " AND strftime('%m', fecha) = ?"
+            " AND strftime('%Y', fecha) = ?"
+        )
         params.extend([f"{mes:02d}", str(anio)])
+
     if sobre:
         query += " AND sobre = ?"
         params.append(sobre)
-    
+
     query += " ORDER BY fecha DESC, creado_en DESC LIMIT ?"
     params.append(limite)
-    
-    cursor.execute(query, params)
-    gastos = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return gastos
+
+    return ejecutar(query, params, fetchall=True)
+
 
 def actualizar_gasto_sobre(gasto_id: int, **kwargs) -> bool:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
-    try:
-        campos_permitidos = {
-            'fecha', 'sobre', 'subcategoria',
-            'descripcion', 'monto', 'es_fijo', 'notas'
-        }
-        campos = {
-            k: (str(v) if k == 'fecha' else v)
-            for k, v in kwargs.items()
-            if k in campos_permitidos and v is not None
-        }
-        if not campos:
-            return False
-        set_clause = ", ".join(f"{k} = ?" for k in campos)
-        cursor.execute(
-            f"UPDATE gastos_sobres SET {set_clause} WHERE id = ?",
-            list(campos.values()) + [gasto_id]
-        )
-        conn.commit()
-        return cursor.rowcount > 0
-    finally:
-        conn.close()
+    campos_permitidos = {
+        'fecha', 'sobre', 'subcategoria',
+        'descripcion', 'monto', 'es_fijo', 'notas'
+    }
+    campos = {
+        k: (str(v) if k == 'fecha' else v)
+        for k, v in kwargs.items()
+        if k in campos_permitidos and v is not None
+    }
+    if not campos:
+        return False
+
+    set_clause = ", ".join(f"{k} = ?" for k in campos)
+    ejecutar(
+        f"UPDATE gastos_sobres SET {set_clause} WHERE id = ?",
+        list(campos.values()) + [gasto_id]
+    )
+    return True   # ejecutar() lanza excepción si falla
+
 
 def eliminar_gasto_sobre(gasto_id: int) -> bool:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM gastos_sobres WHERE id = ?", (gasto_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    finally:
-        conn.close()
+    ejecutar(
+        "DELETE FROM gastos_sobres WHERE id = ?",
+        [gasto_id]
+    )
+    return True
 
-def calcular_sobres(mes: int, anio: int) -> dict:
-    """
-    Calcula el estado de los 3 sobres.
-    Lógica: llenar en orden según ingreso disponible.
-    """
-    ingreso = obtener_ingreso(mes, anio)
-    gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=500)
-    
-    sobres = {}
-    ingreso_restante = ingreso
-    
-    for key, config in SOBRES_CONFIG.items():
-        gastos_sobre = [g for g in gastos if g['sobre'] == key]
-        gastado = sum(g['monto'] for g in gastos_sobre)
-        
-        # Presupuesto ideal según % del ingreso
-        presupuesto_ideal = ingreso * config['pct']
-        
-        # Lógica de llenado en orden
-        presupuesto_real = min(presupuesto_ideal, max(0, ingreso_restante))
-        ingreso_restante -= presupuesto_ideal
-        
-        disponible = presupuesto_real - gastado
-        pct_usado = (gastado / presupuesto_real * 100) if presupuesto_real > 0 else 0
-        
-        # Desglose por subcategoría
-        por_subcat = {}
-        for g in gastos_sobre:
-            sub = g['subcategoria']
-            if sub not in por_subcat:
-                por_subcat[sub] = 0
-            por_subcat[sub] += g['monto']
-        
-        # Separar fijos y variables (solo Supervivencia)
-        fijos = sum(g['monto'] for g in gastos_sobre if g['es_fijo'])
-        variables = gastado - fijos
-        
-        sobres[key] = {
-            **config,
-            'gastado': gastado,
-            'presupuesto': presupuesto_real,
-            'presupuesto_ideal': presupuesto_ideal,
-            'disponible': disponible,
-            'pct_usado': pct_usado,
-            'gastos': gastos_sobre,
-            'cantidad_gastos': len(gastos_sobre),
-            'sobre_lleno': presupuesto_real >= presupuesto_ideal,
-            'por_subcat': por_subcat,
-            'fijos': fijos,
-            'variables': variables,
-        }
-    
-    # Calcular excedente
-    excedente = ingreso - sum(
-        SOBRES_CONFIG[k]['pct'] for k in SOBRES_CONFIG
-    ) * ingreso
-    
-    return {
-        'ingreso': ingreso,
-        'mes': mes,
-        'anio': anio,
-        'total_gastado': sum(g['monto'] for g in gastos),
-        'total_disponible': ingreso - sum(g['monto'] for g in gastos),
-        'pct_global': (
-            sum(g['monto'] for g in gastos) / ingreso * 100
-        ) if ingreso > 0 else 0,
-        'sobres': sobres,
-        'excedente': excedente,
-        'sin_ingreso': ingreso == 0,
-    }
 
 def obtener_tipos_bloque() -> list:
-    """
-    Obtiene los tipos únicos ya usados en BD
-    más los defaults, sin duplicados.
-    """
     defaults = ['Instituto', 'Programacion', 'Biblioteca', 'Personal']
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("""
+        rows = ejecutar("""
             SELECT DISTINCT tipo FROM bloques_fijos
             WHERE tipo IS NOT NULL
             ORDER BY tipo
-        """)
-        en_bd = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        # Unir defaults + los que ya existen en BD sin duplicar
-        todos = list(dict.fromkeys(defaults + en_bd))
-        return todos
+        """, fetchall=True)
+        en_bd = [r["tipo"] for r in rows]
+        return list(dict.fromkeys(defaults + en_bd))
     except Exception:
         return defaults
 
@@ -909,6 +799,46 @@ def usar_turso() -> bool:
     url, token = _get_turso_config()
     return bool(url and token)
 
+# ═════════════════════════════════════════════════════════════════
+# HELPER INTERNO — conexión unificada
+# ═════════════════════════════════════════════════════════════════
+
+def _conn():
+    """
+    Devuelve (connection, is_turso).
+    Uso interno para operaciones que necesitan
+    múltiples statements en una sola conexión.
+    """
+    if usar_turso():
+        url, token = _get_turso_config()
+        conn = libsql.connect(url, auth_token=token)
+        return conn, True
+    else:
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.row_factory = sqlite3.Row
+        return conn, False
+
+
+def _fetchall_cursor(cursor, is_turso: bool) -> list[dict]:
+    """
+    Convierte rows de Turso o SQLite a lista de dicts.
+    """
+    rows = cursor.fetchall()
+    if not rows:
+        return []
+
+    if is_turso:
+        # libsql: cursor.description existe igual que sqlite3
+        cols = [d[0] for d in cursor.description]
+        return [dict(zip(cols, row)) for row in rows]
+    else:
+        # sqlite3.Row ya soporta dict()
+        return [dict(r) for r in rows]
+
+# ─────────────────────────────────────────────────────────────────
+# WRAPPER PÚBLICO
+# ─────────────────────────────────────────────────────────────────
 def ejecutar(sql: str, params: list = None, fetchall: bool = False):
     """
     Wrapper unificado — usa Turso en producción, SQLite en local.
