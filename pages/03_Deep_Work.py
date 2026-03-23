@@ -3,14 +3,19 @@
 """
 
 import streamlit as st
-from datetime import datetime, date, timedelta
+from datetime import timedelta
 import json
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from app.database import init_database, ejecutar, obtener_tipos_bloque
+from app.database import init_database, ejecutar, ejecutar_cached, obtener_tipos_bloque
 from app.ai_client import chat_simple, api_key_configurada
+from app.timezone_config import (
+    date, datetime,
+    hoy as _hoy,
+    ahora as _ahora,
+)
 
 st.set_page_config(
     page_title="Deep Work | Mission Dashboard",
@@ -27,21 +32,15 @@ init_database()
 st.markdown("""
 <style>
     .bloque-card {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 12px;
-        padding: 1rem;
-        margin-bottom: 0.75rem;
+        background-color: #161b22; border: 1px solid #30363d;
+        border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem;
     }
     .bloque-pendiente  { border-left: 4px solid #8b949e; }
     .bloque-completado { border-left: 4px solid #3fb950; opacity: 0.8; }
     .bloque-parcial    { border-left: 4px solid #e3b341; }
     .hora-badge {
-        background: #21262d;
-        padding: 0.25rem 0.75rem;
-        border-radius: 6px;
-        font-family: monospace;
-        font-size: 0.875rem;
+        background: #21262d; padding: 0.25rem 0.75rem;
+        border-radius: 6px; font-family: monospace; font-size: 0.875rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -65,11 +64,12 @@ SYSTEM_COACH = """Eres un coach de productividad cristiano para un estudiante de
 que también programa. Eres directo, práctico y motivador. Máximo 100 palabras por respuesta."""
 
 # ═══════════════════════════════════════════════════════════════
-# FUNCIONES DE BD — todas usan ejecutar()
+# FUNCIONES DE BD
 # ═══════════════════════════════════════════════════════════════
 
 @st.cache_data(ttl=60)
 def obtener_bloques_fijos() -> list:
+    # Mantiene su propio cache de 60s — más agresivo que ejecutar_cached
     return ejecutar(
         "SELECT * FROM bloques_fijos WHERE activo = 1 ORDER BY hora_inicio",
         fetchall=True,
@@ -77,9 +77,8 @@ def obtener_bloques_fijos() -> list:
 
 
 def obtener_todos_bloques() -> list:
-    return ejecutar(
-        "SELECT * FROM bloques_fijos ORDER BY activo DESC, hora_inicio",
-        fetchall=True,
+    return ejecutar_cached(
+        "SELECT * FROM bloques_fijos ORDER BY activo DESC, hora_inicio"
     ) or []
 
 
@@ -100,17 +99,17 @@ def registrar_sesion(fecha: str, bloque_id: int,
             (fecha, bloque_fijo_id, estado, notas)
         VALUES (?, ?, ?, ?)
     """, [fecha, bloque_id, estado, notas])
-    obtener_bloques_fijos.clear()
+    obtener_bloques_fijos.clear()   # invalida cache tras escritura
 
 
 def obtener_sesiones_semana(fecha_inicio: str, fecha_fin: str) -> list:
-    return ejecutar("""
+    return ejecutar_cached("""
         SELECT sc.*, bf.nombre, bf.tipo, bf.hora_inicio, bf.hora_fin
         FROM sesiones_completadas sc
         JOIN bloques_fijos bf ON sc.bloque_fijo_id = bf.id
         WHERE sc.fecha BETWEEN ? AND ?
         ORDER BY sc.fecha, bf.hora_inicio
-    """, [fecha_inicio, fecha_fin], fetchall=True) or []
+    """, (fecha_inicio, fecha_fin)) or []
 
 
 def crear_bloque(nombre: str, hora_inicio: str, hora_fin: str,
@@ -139,23 +138,17 @@ def actualizar_bloque(bloque_id: int, nombre: str, hora_inicio: str,
 
 
 def desactivar_bloque(bloque_id: int) -> None:
-    ejecutar(
-        "UPDATE bloques_fijos SET activo = 0 WHERE id = ?",
-        [bloque_id]
-    )
+    ejecutar("UPDATE bloques_fijos SET activo = 0 WHERE id = ?", [bloque_id])
     obtener_bloques_fijos.clear()
 
 
 def reactivar_bloque(bloque_id: int) -> None:
-    ejecutar(
-        "UPDATE bloques_fijos SET activo = 1 WHERE id = ?",
-        [bloque_id]
-    )
+    ejecutar("UPDATE bloques_fijos SET activo = 1 WHERE id = ?", [bloque_id])
     obtener_bloques_fijos.clear()
 
 
 # ═══════════════════════════════════════════════════════════════
-# HELPERS IA
+# HELPER IA
 # ═══════════════════════════════════════════════════════════════
 
 def _construir_resumen_semana(sesiones: list) -> str:
@@ -176,7 +169,7 @@ def _construir_resumen_semana(sesiones: list) -> str:
         if s["estado"] == "Completado":
             por_tipo[tipo]["completados"] += 1
 
-    resumen  = (
+    resumen = (
         f"Semana: {total} bloques. "
         f"Completados: {completados}, Parciales: {parciales}, "
         f"No realizados: {no_realizados}.\n"
@@ -185,11 +178,9 @@ def _construir_resumen_semana(sesiones: list) -> str:
         f"{tipo}: {v['completados']}/{v['total']}"
         for tipo, v in por_tipo.items()
     )
-
     notas = [s["notas"] for s in sesiones if s.get("notas") and len(s["notas"]) > 10]
     if notas:
         resumen += f"\nNotas del usuario: {' | '.join(notas[:3])}"
-
     return resumen
 
 
@@ -207,7 +198,9 @@ st.caption("Bloques de tiempo para enfoque profundo")
 with st.sidebar:
     st.header("📅 Fecha de trabajo")
     fecha_seleccionada = st.date_input(
-        "Seleccionar fecha", value=date.today(), key="fecha_deep_work"
+        "Seleccionar fecha",
+        value=_hoy(),              # ← zona horaria local
+        key="fecha_deep_work"
     )
     dia_semana = fecha_seleccionada.weekday()
     st.info(f"**{DIAS_NOMBRES[dia_semana]}** {fecha_seleccionada.strftime('%d/%m/%Y')}")
@@ -260,10 +253,11 @@ with tab_hoy:
             else:
                 clase_css, emoji = "bloque-pendiente",  "○"
 
-            h_ini      = datetime.strptime(bloque["hora_inicio"], "%H:%M")
-            h_fin      = datetime.strptime(bloque["hora_fin"],    "%H:%M")
-            dur_min    = int((h_fin - h_ini).total_seconds() / 60)
-            key_base   = f"{bloque['id']}_{fecha_str}"
+            # datetime.strptime sigue funcionando — re-exportado desde timezone_config
+            h_ini   = datetime.strptime(bloque["hora_inicio"], "%H:%M")
+            h_fin   = datetime.strptime(bloque["hora_fin"],    "%H:%M")
+            dur_min = int((h_fin - h_ini).total_seconds() / 60)
+            key_base = f"{bloque['id']}_{fecha_str}"
 
             col_info, col_accion = st.columns([4, 1])
 
@@ -405,12 +399,14 @@ with tab_ia:
     if not api_key_configurada():
         st.warning("⚠️ Coach IA en modo offline — respuestas predefinidas disponibles.")
 
-    lunes_ia   = fecha_seleccionada - timedelta(days=fecha_seleccionada.weekday())
-    domingo_ia = lunes_ia + timedelta(days=6)
+    lunes_ia         = fecha_seleccionada - timedelta(days=fecha_seleccionada.weekday())
+    domingo_ia       = lunes_ia + timedelta(days=6)
     sesiones_ia      = obtener_sesiones_semana(lunes_ia.isoformat(), domingo_ia.isoformat())
     resumen_semana   = _construir_resumen_semana(sesiones_ia)
 
-    st.caption(f"Analizando semana: {lunes_ia.strftime('%d/%m')} – {domingo_ia.strftime('%d/%m/%Y')}")
+    st.caption(
+        f"Analizando semana: {lunes_ia.strftime('%d/%m')} – {domingo_ia.strftime('%d/%m/%Y')}"
+    )
 
     col_datos, col_chat = st.columns([1, 2])
 
@@ -418,8 +414,8 @@ with tab_ia:
         st.markdown("**📊 Datos de la semana**")
 
         if sesiones_ia:
-            total_ia    = len(sesiones_ia)
-            comp_ia     = len([s for s in sesiones_ia if s["estado"] == "Completado"])
+            total_ia = len(sesiones_ia)
+            comp_ia  = len([s for s in sesiones_ia if s["estado"] == "Completado"])
             st.metric("Completados", f"{comp_ia}/{total_ia}")
             st.progress(comp_ia / total_ia if total_ia > 0 else 0)
 
@@ -526,12 +522,12 @@ with tab_config:
             with col_hi:
                 nuevo_inicio = st.text_input("Hora inicio *", placeholder="06:15")
             with col_hf:
-                nuevo_fin = st.text_input("Hora fin *", placeholder="07:15")
+                nuevo_fin = st.text_input("Hora fin *",    placeholder="07:15")
             with col_col:
                 nuevo_color_label = st.selectbox("Color", list(COLORES.keys()))
 
             st.markdown("**Días de la semana *:**")
-            cols_dias  = st.columns(7)
+            cols_dias   = st.columns(7)
             nuevos_dias = []
             for i, dia in enumerate(DIAS_LABELS):
                 with cols_dias[i]:
@@ -544,9 +540,7 @@ with tab_config:
                     "💾 Crear bloque", use_container_width=True, type="primary"
                 )
             with col_c:
-                cancel_nuevo = st.form_submit_button(
-                    "✖ Cancelar", use_container_width=True
-                )
+                cancel_nuevo = st.form_submit_button("✖ Cancelar", use_container_width=True)
 
             if cancel_nuevo:
                 st.session_state.mostrar_form_nuevo = False
@@ -590,15 +584,15 @@ with tab_config:
     st.markdown(f"**{len(activos)} bloques activos · {len(inactivos)} inactivos**")
 
     for b in todos:
-        dias      = json.loads(b["dias_semana"])
-        dias_txt  = ", ".join(DIAS_LABELS[d - 1] for d in dias)
-        h_ini     = datetime.strptime(b["hora_inicio"], "%H:%M")
-        h_fin     = datetime.strptime(b["hora_fin"],    "%H:%M")
-        dur_min   = int((h_fin - h_ini).total_seconds() / 60)
-        activo    = bool(b["activo"])
-        badge_txt = "● Activo" if activo else "○ Inactivo"
-        badge_col = "#3fb950"  if activo else "#8b949e"
-        opacidad  = "1"        if activo else "0.45"
+        dias     = json.loads(b["dias_semana"])
+        dias_txt = ", ".join(DIAS_LABELS[d - 1] for d in dias)
+        h_ini    = datetime.strptime(b["hora_inicio"], "%H:%M")
+        h_fin    = datetime.strptime(b["hora_fin"],    "%H:%M")
+        dur_min  = int((h_fin - h_ini).total_seconds() / 60)
+        activo   = bool(b["activo"])
+        badge_txt = "● Activo"  if activo else "○ Inactivo"
+        badge_col = "#3fb950"   if activo else "#8b949e"
+        opacidad  = "1"         if activo else "0.45"
 
         col_card, col_editar, col_del = st.columns([5, 1, 1])
 
@@ -676,7 +670,7 @@ with tab_config:
                 with col_ehi:
                     edit_inicio = st.text_input("Hora inicio", value=b["hora_inicio"])
                 with col_ehf:
-                    edit_fin = st.text_input("Hora fin", value=b["hora_fin"])
+                    edit_fin    = st.text_input("Hora fin",    value=b["hora_fin"])
                 with col_ecol:
                     color_label_actual = next(
                         (k for k, v in COLORES.items() if v == b["color"]),
@@ -688,7 +682,7 @@ with tab_config:
                     )
 
                 st.markdown("**Días:**")
-                cols_ed  = st.columns(7)
+                cols_ed   = st.columns(7)
                 edit_dias = []
                 for i, dia in enumerate(DIAS_LABELS):
                     with cols_ed[i]:

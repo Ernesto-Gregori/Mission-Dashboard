@@ -3,7 +3,7 @@
 """
 
 import streamlit as st
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 import json
 import sys
 from pathlib import Path
@@ -12,6 +12,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from app.database import (
     init_database,
     ejecutar,
+    ejecutar_cached,
     obtener_ingreso,
     calcular_sobres,
 )
@@ -22,6 +23,12 @@ from app.google_calendar import (
     eliminar_evento_google,
     calendar_disponible,
     sincronizar_bloques_semana,
+)
+from app.timezone_config import (
+    date, datetime,
+    hoy as _hoy,
+    ahora as _ahora,
+    iso_ahora,
 )
 
 st.set_page_config(
@@ -49,8 +56,7 @@ Máximo 120 palabras."""
 # ═══════════════════════════════════════════════════════════════
 
 def obtener_lunes_semana(fecha=None):
-    """Retorna el lunes de la semana de la fecha dada."""
-    f = fecha or date.today()
+    f = fecha or _hoy()
     return f - timedelta(days=f.weekday())
 
 
@@ -109,7 +115,7 @@ def guardar_bitacora(datos: dict) -> bool:
             datos.get("frase_favorita", ""),
             datos.get("pendientes_soltar", ""),
             datos.get("reflexion_semana", ""),
-            datetime.now().isoformat(),
+            iso_ahora(),                          # ← zona horaria local
         ])
         return True
     except Exception as e:
@@ -120,17 +126,16 @@ def guardar_bitacora(datos: dict) -> bool:
 def obtener_bitacora(semana_inicio: str) -> dict | None:
     rows = ejecutar(
         "SELECT * FROM bitacora_semanal WHERE semana_inicio = ?",
-        [semana_inicio],
-        fetchall=True,
+        [semana_inicio], fetchall=True,
     )
     return rows[0] if rows else None
 
 
 def obtener_bitacoras_recientes(limite: int = 10) -> list:
-    return ejecutar("""
+    return ejecutar_cached("""
         SELECT * FROM bitacora_semanal
         ORDER BY semana_inicio DESC LIMIT ?
-    """, [limite], fetchall=True) or []
+    """, (limite,)) or []
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -138,36 +143,27 @@ def obtener_bitacoras_recientes(limite: int = 10) -> list:
 # ═══════════════════════════════════════════════════════════════
 
 def obtener_eventos_semana(lunes: date, domingo: date) -> list:
-    # Citas matrimoniales
     citas = ejecutar("""
-        SELECT fecha,
-               hora          AS hora_inicio,
-               titulo,
-               tipo_cita     AS tipo,
-               estado_planificacion,
-               COALESCE(ambito, 'Matrimonio') AS ambito,
-               '#a371f7'     AS color,
-               NULL          AS google_id
+        SELECT fecha, hora AS hora_inicio, titulo,
+               tipo_cita AS tipo, estado_planificacion,
+               COALESCE(ambito,'Matrimonio') AS ambito,
+               '#a371f7' AS color, NULL AS google_id
         FROM matrimonio_citas
         WHERE fecha >= ? AND fecha <= ?
         ORDER BY fecha, hora
     """, [lunes.isoformat(), domingo.isoformat()], fetchall=True) or []
 
-    # Eventos locales
     locales = ejecutar("""
         SELECT fecha, hora_inicio, titulo, tipo,
-               ''   AS estado_planificacion,
-               tipo AS ambito,
+               '' AS estado_planificacion, tipo AS ambito,
                color, google_id
         FROM eventos_calendario
         WHERE fecha >= ? AND fecha <= ?
         ORDER BY fecha, hora_inicio
     """, [lunes.isoformat(), domingo.isoformat()], fetchall=True) or []
 
-    # Nombres de bloques fijos (para filtrar duplicados de Google)
-    bloques_rows = ejecutar(
-        "SELECT nombre FROM bloques_fijos WHERE activo = 1",
-        fetchall=True,
+    bloques_rows = ejecutar_cached(
+        "SELECT nombre FROM bloques_fijos WHERE activo = 1"
     ) or []
     nombres_bloques = {r["nombre"] for r in bloques_rows}
 
@@ -177,7 +173,7 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
 
     google_eventos = []
     if calendar_disponible():
-        eventos_gc = obtener_eventos_google(lunes, domingo)
+        eventos_gc    = obtener_eventos_google(lunes, domingo)
         google_eventos = [
             e for e in eventos_gc
             if e.get("google_id") not in google_ids_sincronizados
@@ -185,22 +181,16 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
         ]
 
     todos = citas + locales + google_eventos
-
-    def _sort_key(e):
-        return (e.get("fecha", ""), e.get("hora_inicio") or "23:59")
-
-    todos.sort(key=_sort_key)
+    todos.sort(key=lambda e: (e.get("fecha",""), e.get("hora_inicio") or "23:59"))
     return todos
 
 
 def obtener_deepwork_semana(lunes: date, domingo: date) -> list:
-    """Trae bloques programados de la semana con su estado."""
     resultado = []
-
     for i in range(7):
         dia        = lunes + timedelta(days=i)
         dia_iso    = dia.isoformat()
-        dia_numero = dia.weekday() + 1   # 1=Lun … 7=Dom
+        dia_numero = dia.weekday() + 1
 
         bloques = ejecutar("""
             SELECT b.id, b.nombre, b.color, b.tipo,
@@ -216,10 +206,8 @@ def obtener_deepwork_semana(lunes: date, domingo: date) -> list:
             dias = json.loads(b["dias_semana"])
             if dia_numero not in dias:
                 continue
-
             estado     = b["estado"] or "Pendiente"
             completado = 1 if estado == "Completado" else 0
-
             resultado.append({
                 "fecha":         dia_iso,
                 "bloque_nombre": b["nombre"],
@@ -249,47 +237,35 @@ def obtener_salud_semana(lunes: date, domingo: date) -> list:
     return ejecutar("""
         SELECT fecha, horas_sueno,
                energia_manana AS nivel_energia,
-               hizo_ejercicio,
-               productividad_percibida
+               hizo_ejercicio, productividad_percibida
         FROM registros_salud
         WHERE fecha BETWEEN ? AND ?
         ORDER BY fecha
     """, [lunes.isoformat(), domingo.isoformat()], fetchall=True) or []
 
 
-def obtener_libro_activo() -> dict | None:
-    rows = ejecutar("""
-        SELECT titulo, autor, pagina_actual, total_paginas
-        FROM libros
-        WHERE estado = 'leyendo'
-        ORDER BY actualizado_en DESC LIMIT 1
-    """, fetchall=True)
-    return rows[0] if rows else None
-
-
 def obtener_libros_leyendo() -> list:
-    return ejecutar("""
+    return ejecutar_cached("""
         SELECT titulo, autor, pagina_actual, total_paginas
         FROM libros WHERE estado = 'leyendo'
         ORDER BY actualizado_en DESC
-    """, fetchall=True) or []
+    """) or []
 
 
 # ═══════════════════════════════════════════════════════════════
-# FUNCIONES — RACHAS
+# FUNCIONES — RACHAS  (usan _hoy() en lugar de date.today())
 # ═══════════════════════════════════════════════════════════════
 
 def calcular_racha_devocional() -> int:
-    fechas_rows = ejecutar(
-        "SELECT fecha FROM devocionales ORDER BY fecha DESC LIMIT 30",
-        fetchall=True,
+    fechas_rows = ejecutar_cached(
+        "SELECT fecha FROM devocionales ORDER BY fecha DESC LIMIT 30"
     ) or []
     fechas = [
         datetime.strptime(r["fecha"], "%Y-%m-%d").date()
         for r in fechas_rows
     ]
     racha = 0
-    hoy   = date.today()
+    hoy   = _hoy()
     for i, f in enumerate(sorted(fechas, reverse=True)):
         if f == hoy - timedelta(days=i):
             racha += 1
@@ -299,20 +275,19 @@ def calcular_racha_devocional() -> int:
 
 
 def calcular_racha_ejercicio() -> int:
-    fechas_rows = ejecutar("""
+    fechas_rows = ejecutar_cached("""
         SELECT fecha FROM registros_salud
         WHERE hizo_ejercicio = 1
         ORDER BY fecha DESC LIMIT 30
-    """, fetchall=True) or []
+    """) or []
     fechas = [
         datetime.strptime(r["fecha"], "%Y-%m-%d").date()
         for r in fechas_rows
     ]
     if not fechas:
         return 0
-
+    hoy_lun = _hoy() - timedelta(days=_hoy().weekday())
     semanas  = {f - timedelta(days=f.weekday()) for f in fechas}
-    hoy_lun  = date.today() - timedelta(days=date.today().weekday())
     racha    = 0
     for i in range(52):
         if (hoy_lun - timedelta(weeks=i)) in semanas:
@@ -323,17 +298,17 @@ def calcular_racha_ejercicio() -> int:
 
 
 def calcular_racha_deepwork() -> int:
-    fechas_rows = ejecutar("""
+    fechas_rows = ejecutar_cached("""
         SELECT DISTINCT fecha FROM sesiones_completadas
         WHERE estado = 'Completado'
         ORDER BY fecha DESC LIMIT 30
-    """, fetchall=True) or []
+    """) or []
     fechas = [
         datetime.strptime(r["fecha"], "%Y-%m-%d").date()
         for r in fechas_rows
     ]
     racha = 0
-    hoy   = date.today()
+    hoy   = _hoy()
     for i, f in enumerate(sorted(fechas, reverse=True)):
         if f == hoy - timedelta(days=i):
             racha += 1
@@ -362,44 +337,30 @@ def guardar_evento(datos: dict) -> int:
     google_id = None
     if calendar_disponible():
         google_id = crear_evento_google(datos)
-
     return ejecutar("""
         INSERT INTO eventos_calendario
             (fecha, hora_inicio, hora_fin, titulo, descripcion,
              tipo, color, google_id, fuente)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
-        datos["fecha"],
-        datos.get("hora_inicio"),
-        datos.get("hora_fin"),
-        datos["titulo"],
-        datos.get("descripcion", ""),
-        datos.get("tipo", "Personal"),
-        datos.get("color", "#58a6ff"),
-        google_id,
-        "local",
-    ])   # ejecutar() retorna lastrowid
+        datos["fecha"], datos.get("hora_inicio"), datos.get("hora_fin"),
+        datos["titulo"], datos.get("descripcion", ""),
+        datos.get("tipo", "Personal"), datos.get("color", "#58a6ff"),
+        google_id, "local",
+    ])
 
 
 def eliminar_evento(evento_id: int) -> bool:
-    """Elimina evento local y de Google Calendar si aplica."""
     rows = ejecutar(
         "SELECT google_id FROM eventos_calendario WHERE id = ?",
         [evento_id], fetchall=True,
     )
     google_id = rows[0]["google_id"] if rows else None
-
     ejecutar("DELETE FROM eventos_calendario WHERE id = ?", [evento_id])
-
     if google_id and calendar_disponible():
         eliminar_evento_google(google_id)
-
     return True
 
-
-# ═══════════════════════════════════════════════════════════════
-# HELPER — presupuesto cita automático
-# ═══════════════════════════════════════════════════════════════
 
 def _presupuesto_cita_auto(citas_mat: list) -> float:
     if not citas_mat:
@@ -466,8 +427,9 @@ with st.sidebar:
 
     st.divider()
 
-    hora_actual = datetime.now().hour
-    if hora_actual >= 20 and date.today().weekday() == 6:
+    # Hora local para alertas de sidebar
+    hora_actual = _ahora().hour
+    if hora_actual >= 20 and _hoy().weekday() == 6:
         st.warning("🌙 Domingo 20:30 — Vaciado mental")
 
     if api_key_configurada():
@@ -488,7 +450,6 @@ tab_cal, tab_bitacora, tab_historial_bit = st.tabs([
 with tab_cal:
     st.subheader("📅 Vista semanal unificada")
 
-    # Navegación de semana
     col_nav1, col_nav2, col_nav3 = st.columns([1, 3, 1])
     with col_nav1:
         if st.button("◀ Anterior", use_container_width=True):
@@ -507,7 +468,6 @@ with tab_cal:
         if st.button("Siguiente ▶", use_container_width=True):
             st.session_state.cal_offset = st.session_state.get("cal_offset", 0) + 1
 
-    # Sincronización Deep Work → Google Calendar
     clave_sync = f"sync_dw_{lunes_sel.isoformat()}"
     if calendar_disponible() and clave_sync not in st.session_state:
         with st.spinner("Sincronizando bloques con Google Calendar..."):
@@ -532,35 +492,29 @@ with tab_cal:
 
     # Formulario nuevo evento
     if st.session_state.get("mostrar_form_evento"):
+        COLORES_TIPO = {
+            "Lectura":    "#e3b341",
+            "Personal":   "#58a6ff",
+            "Ministerio": "#a371f7",
+            "Salud":      "#3fb950",
+            "Estudio":    "#f0883e",
+            "Otro":       "#8b949e",
+        }
         with st.expander("➕ Agregar evento al calendario", expanded=True):
             with st.form("form_nuevo_evento", clear_on_submit=True):
                 col_fe1, col_fe2 = st.columns(2)
                 with col_fe1:
-                    fecha_ev  = st.date_input("Fecha", value=date.today(), key="ev_fecha")
-                    titulo_ev = st.text_input("Título *", placeholder="Ej: Lectura biblioteca", key="ev_titulo")
-                    tipo_ev   = st.selectbox(
-                        "Tipo",
-                        ["Lectura", "Personal", "Ministerio", "Salud", "Estudio", "Otro"],
-                        key="ev_tipo",
-                    )
+                    fecha_ev  = st.date_input("Fecha", value=_hoy(), key="ev_fecha")
+                    titulo_ev = st.text_input("Título *",
+                        placeholder="Ej: Lectura biblioteca", key="ev_titulo")
+                    tipo_ev   = st.selectbox("Tipo",
+                        ["Lectura","Personal","Ministerio","Salud","Estudio","Otro"],
+                        key="ev_tipo")
                 with col_fe2:
-                    hora_ini = st.time_input(
-                        "Hora inicio", key="ev_hora_ini",
-                        value=datetime.strptime("19:30", "%H:%M").time(),
-                    )
-                    hora_fin = st.time_input(
-                        "Hora fin", key="ev_hora_fin",
-                        value=datetime.strptime("21:00", "%H:%M").time(),
-                    )
-                    COLORES_TIPO = {
-                        "Lectura":    "#e3b341",
-                        "Personal":   "#58a6ff",
-                        "Ministerio": "#a371f7",
-                        "Salud":      "#3fb950",
-                        "Estudio":    "#f0883e",
-                        "Otro":       "#8b949e",
-                    }
-
+                    hora_ini = st.time_input("Hora inicio", key="ev_hora_ini",
+                        value=datetime.strptime("19:30", "%H:%M").time())
+                    hora_fin = st.time_input("Hora fin", key="ev_hora_fin",
+                        value=datetime.strptime("21:00", "%H:%M").time())
                 desc_ev = st.text_area("Descripción (opcional)", height=60, key="ev_desc")
 
                 col_guardar, col_cancelar = st.columns(2)
@@ -588,38 +542,32 @@ with tab_cal:
 
     st.divider()
 
-    # Cargar datos de la semana
+    # Datos de la semana
     eventos   = obtener_eventos_semana(lunes_sel, domingo_sel)
     dw_ses    = obtener_deepwork_semana(lunes_sel, domingo_sel)
     devos     = obtener_devocionales_semana(lunes_sel, domingo_sel)
     salud_sem = obtener_salud_semana(lunes_sel, domingo_sel)
 
-    # Índices por fecha
     eventos_x_fecha = {}
     for e in eventos:
         eventos_x_fecha.setdefault(e["fecha"], []).append(e)
-
     dw_x_fecha = {}
     for s in dw_ses:
         dw_x_fecha.setdefault(s["fecha"], []).append(s)
-
     devo_x_fecha  = {d["fecha"]: d for d in devos}
     salud_x_fecha = {s["fecha"]: s for s in salud_sem}
 
-    # Leyenda
-    col_l1, col_l2, col_l3, col_l4, col_l5, col_l6 = st.columns(6)
+    col_l1,col_l2,col_l3,col_l4,col_l5,col_l6 = st.columns(6)
     col_l1.caption("✝️ Devocional")
     col_l2.caption("⏱️ Deep Work")
     col_l3.caption("💑 Matrimonio")
     col_l4.caption("📚 Lectura")
     col_l5.caption("💪 Ejercicio")
     col_l6.caption("🔵 Personal")
-
     st.markdown("")
 
-    # Renderizar 7 días
     cols_dias = st.columns(7)
-    hoy = date.today()
+    hoy = _hoy()   # ← zona horaria local
 
     COLORES_AMBITO = {
         "Matrimonio": ("#a371f7", "#1a1229", "💑"),
@@ -635,9 +583,8 @@ with tab_cal:
         dia     = lunes_sel + timedelta(days=i)
         dia_iso = dia.isoformat()
         es_hoy  = dia == hoy
-
         bg_header = "#0d2818" if es_hoy else "#161b22"
-        border_c  = "#3fb950" if es_hoy  else "#30363d"
+        border_c  = "#3fb950" if es_hoy else "#30363d"
 
         with col:
             st.html(f"""
@@ -709,13 +656,12 @@ with tab_cal:
             padding:0.2rem 0.4rem;font-size:0.65rem;
             color:{color_en};">⚡ {energia}/10</div>""")
 
-    # Resumen + gestionar eventos
     st.divider()
     col_res, col_gest = st.columns([2, 1])
 
     with col_res:
         st.markdown("### 📊 Resumen de la semana")
-        col_r1, col_r2, col_r3, col_r4, col_r5 = st.columns(5)
+        col_r1,col_r2,col_r3,col_r4,col_r5 = st.columns(5)
         col_r1.metric("✝️ Devocionales", f"{len(devos)}/7")
         col_r2.metric("⏱️ Deep Work",
             len([s for s in dw_ses if s.get("completado") == 1]))
@@ -754,13 +700,13 @@ with tab_bitacora:
 
     col_bs1, col_bs2 = st.columns([2, 1])
     with col_bs1:
-        fecha_bit_sel  = st.date_input(
+        fecha_bit_sel = st.date_input(
             "Semana (selecciona cualquier día)",
             value=obtener_lunes_semana(),
             key="fecha_bitacora",
         )
-        lunes_bit_sel  = obtener_lunes_semana(fecha_bit_sel)
-        domingo_bit    = lunes_bit_sel + timedelta(days=6)
+        lunes_bit_sel = obtener_lunes_semana(fecha_bit_sel)
+        domingo_bit   = lunes_bit_sel + timedelta(days=6)
         st.caption(
             f"Semana: {lunes_bit_sel.strftime('%d/%m/%Y')} "
             f"— {domingo_bit.strftime('%d/%m/%Y')}"
@@ -774,7 +720,6 @@ with tab_bitacora:
 
     bit = obtener_bitacora(lunes_bit_sel.isoformat()) or {}
 
-    # Datos automáticos
     mes_bit      = lunes_bit_sel.month
     anio_bit     = lunes_bit_sel.year
     ingreso_auto = obtener_ingreso(mes_bit, anio_bit)
@@ -792,7 +737,6 @@ with tab_bitacora:
 
     eventos_bit_auto = obtener_eventos_semana(lunes_bit_sel, domingo_bit)
     citas_mat_auto   = [e for e in eventos_bit_auto if e.get("ambito") == "Matrimonio"]
-    presup_cita_auto = _presupuesto_cita_auto(citas_mat_auto)
 
     racha_dev_auto = calcular_racha_devocional()
     racha_ej_auto  = calcular_racha_ejercicio()
@@ -805,101 +749,72 @@ with tab_bitacora:
 
     col_v1, col_v2, col_v3 = st.columns(3)
     with col_v1:
-        v1 = st.text_area("🥇 Victoria #1", value=bit.get("victoria_1", ""),
+        v1 = st.text_area("🥇 Victoria #1", value=bit.get("victoria_1",""),
             height=100, placeholder="Ej: Entregar proyecto de programación", key="bit_v1")
     with col_v2:
-        v2 = st.text_area("🥈 Victoria #2", value=bit.get("victoria_2", ""),
+        v2 = st.text_area("🥈 Victoria #2", value=bit.get("victoria_2",""),
             height=100, placeholder="Ej: Completar capítulo de Hermenéutica", key="bit_v2")
     with col_v3:
-        v3 = st.text_area("🥉 Victoria #3", value=bit.get("victoria_3", ""),
+        v3 = st.text_area("🥉 Victoria #3", value=bit.get("victoria_3",""),
             height=100, placeholder="Ej: Cita de calidad con esposa", key="bit_v3")
 
     # ── Sección 2: Monitor Financiero ────────────────────────
     st.markdown("---")
     st.markdown("### 💰 2. Monitor Financiero")
-    st.caption("Sistema de Cascada, Cimiento y Propósito")
 
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        ingreso_default = float(bit.get("ingreso_actual") or ingreso_auto or 0)
-        ingreso = st.number_input(
-            "Ingreso actual $", min_value=0.0, step=100.0,
-            value=ingreso_default, key="bit_ingreso",
-        )
-        sobre_sup = st.checkbox(
-            "✅ Sobre de Supervivencia (60-70%) llenado",
-            value=bool(bit.get("sobre_supervivencia", 0)),
-            key="bit_sobre_sup",
-        )
+        ingreso = st.number_input("Ingreso actual $", min_value=0.0, step=100.0,
+            value=float(bit.get("ingreso_actual") or ingreso_auto or 0),
+            key="bit_ingreso")
+        sobre_sup = st.checkbox("✅ Sobre de Supervivencia (60-70%) llenado",
+            value=bool(bit.get("sobre_supervivencia", 0)), key="bit_sobre_sup")
     with col_f2:
-        aporte_trans = st.number_input(
-            "Aporte Fondo Transición (Meta $400) $",
-            min_value=0.0, step=50.0,
-            value=float(bit.get("aporte_transicion") or 0),
-            key="bit_aporte",
-        )
-        presup_cita = st.number_input(
-            "Presupuesto cita con esposa $",
-            min_value=0.0, step=50.0,
-            value=float(bit.get("presupuesto_cita") or 0),
-            key="bit_presup_cita",
-        )
+        aporte_trans = st.number_input("Aporte Fondo Transición $", min_value=0.0,
+            step=50.0, value=float(bit.get("aporte_transicion") or 0), key="bit_aporte")
+        presup_cita = st.number_input("Presupuesto cita con esposa $", min_value=0.0,
+            step=50.0, value=float(bit.get("presupuesto_cita") or 0), key="bit_presup_cita")
     with col_f3:
-        gasto_pausado = st.text_input(
-            "⚠️ Gasto/sobre a pausar esta semana (opcional)",
-            value=bit.get("gasto_pausado", ""),
-            placeholder="Ej: Extras / Entretenimiento",
-            key="bit_gasto_pausado",
-        )
+        gasto_pausado = st.text_input("⚠️ Gasto/sobre a pausar (opcional)",
+            value=bit.get("gasto_pausado",""), key="bit_gasto_pausado")
 
     st.markdown("**🚦 Estado del Semáforo:**")
     col_sf1, col_sf2, col_sf3 = st.columns(3)
     opciones_sem = ["verde", "amarillo", "rojo"]
     with col_sf1:
         sem_sup = st.selectbox("Supervivencia", opciones_sem,
-            index=opciones_sem.index(bit.get("semaforo_superv", "verde")),
+            index=opciones_sem.index(bit.get("semaforo_superv","verde")),
             format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}",
             key="bit_sem_sup")
     with col_sf2:
         sem_aho = st.selectbox("Ahorros", opciones_sem,
-            index=opciones_sem.index(bit.get("semaforo_ahorros", "verde")),
+            index=opciones_sem.index(bit.get("semaforo_ahorros","verde")),
             format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}",
             key="bit_sem_aho")
     with col_sf3:
         sem_ext = st.selectbox("Extras", opciones_sem,
-            index=opciones_sem.index(bit.get("semaforo_extras", "verde")),
+            index=opciones_sem.index(bit.get("semaforo_extras","verde")),
             format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}",
             key="bit_sem_ext")
 
     # ── Sección 3: Cita ──────────────────────────────────────
     st.markdown("---")
     st.markdown("### 💑 3. Diseño de Cita y Conexión")
-    st.caption("Calidad relacional sin importar el presupuesto")
 
     eventos_bit  = obtener_eventos_semana(lunes_bit_sel, domingo_bit)
     citas_mat    = [e for e in eventos_bit if e.get("ambito") == "Matrimonio"]
 
     if citas_mat and not bit.get("actividad_cita"):
-        st.info(
-            f"💡 Tienes programado: **{citas_mat[0]['titulo']}** "
-            f"el {citas_mat[0]['fecha']}"
-        )
+        st.info(f"💡 Tienes programado: **{citas_mat[0]['titulo']}** el {citas_mat[0]['fecha']}")
 
     col_cit1, col_cit2 = st.columns(2)
     with col_cit1:
-        act_cita = st.text_input(
-            "Actividad elegida",
-            value=bit.get("actividad_cita", "") or
-                  (citas_mat[0]["titulo"] if citas_mat else ""),
-            placeholder="Cena en casa, salida al parque...",
-            key="bit_act_cita",
-        )
+        act_cita = st.text_input("Actividad elegida",
+            value=bit.get("actividad_cita","") or (citas_mat[0]["titulo"] if citas_mat else ""),
+            placeholder="Cena en casa, salida al parque...", key="bit_act_cita")
     with col_cit2:
-        costo_cita = st.number_input(
-            "Costo estimado $", min_value=0.0, step=50.0,
-            value=float(bit.get("costo_cita") or 0),
-            key="bit_costo_cita",
-        )
+        costo_cita = st.number_input("Costo estimado $", min_value=0.0, step=50.0,
+            value=float(bit.get("costo_cita") or 0), key="bit_costo_cita")
 
     if sem_ext == "rojo" and costo_cita > 0:
         st.warning("⚠️ Semáforo extras en 🔴 — considera una cita en casa")
@@ -910,7 +825,7 @@ with tab_bitacora:
     st.markdown("---")
     st.markdown("### 📚 4. Log de Lectura y Conocimiento")
 
-    libros_leyendo = obtener_libros_leyendo()   # usa ejecutar() ✅
+    libros_leyendo = obtener_libros_leyendo()
 
     col_lib1, col_lib2 = st.columns(2)
     with col_lib1:
@@ -937,33 +852,21 @@ with tab_bitacora:
                 f"pág. {pag_default} / {total_pag} ({pct_libro}%)"
             )
             st.progress(pct_libro / 100)
-            libro_bit = (
-                f"{libro_activo_sel['titulo']} — "
-                f"{libro_activo_sel['autor'] or ''}"
-            )
+            libro_bit = f"{libro_activo_sel['titulo']} — {libro_activo_sel['autor'] or ''}"
         else:
             pag_default = 0
             st.info("📚 No hay libros en lectura activa")
-            libro_bit = st.text_input(
-                "Libro actual",
-                value=bit.get("libro_actual", ""),
-                placeholder="Título del libro...",
-                key="bit_libro",
-            )
+            libro_bit = st.text_input("Libro actual",
+                value=bit.get("libro_actual",""),
+                placeholder="Título del libro...", key="bit_libro")
 
-        pag_bit = st.number_input(
-            "Página actual", min_value=0, step=1,
-            value=int(bit.get("pagina_actual") or pag_default),
-            key="bit_pag",
-        )
+        pag_bit = st.number_input("Página actual", min_value=0, step=1,
+            value=int(bit.get("pagina_actual") or pag_default), key="bit_pag")
+
     with col_lib2:
-        frase_bit = st.text_area(
-            "✨ Frase favorita de la semana",
-            value=bit.get("frase_favorita", ""),
-            height=120,
-            placeholder="La frase que más te impactó...",
-            key="bit_frase",
-        )
+        frase_bit = st.text_area("✨ Frase favorita de la semana",
+            value=bit.get("frase_favorita",""), height=120,
+            placeholder="La frase que más te impactó...", key="bit_frase")
 
     # ── Sección 5: Vaciado Mental ─────────────────────────────
     st.markdown("---")
@@ -972,21 +875,13 @@ with tab_bitacora:
 
     col_vm1, col_vm2 = st.columns(2)
     with col_vm1:
-        pendientes = st.text_area(
-            "📤 Pendientes para 'Soltar'",
-            value=bit.get("pendientes_soltar", ""),
-            height=120,
-            placeholder="Escribe todo lo que está en tu mente...",
-            key="bit_pendientes",
-        )
+        pendientes = st.text_area("📤 Pendientes para 'Soltar'",
+            value=bit.get("pendientes_soltar",""), height=120,
+            placeholder="Escribe todo lo que está en tu mente...", key="bit_pendientes")
     with col_vm2:
-        reflexion = st.text_area(
-            "💭 Reflexión de la semana",
-            value=bit.get("reflexion_semana", ""),
-            height=120,
-            placeholder="¿Cómo fue la semana?\n¿Qué aprendiste?\n¿Por qué dar gracias?",
-            key="bit_reflexion",
-        )
+        reflexion = st.text_area("💭 Reflexión de la semana",
+            value=bit.get("reflexion_semana",""), height=120,
+            placeholder="¿Cómo fue la semana?\n¿Qué aprendiste?", key="bit_reflexion")
 
     # ── Datos automáticos ────────────────────────────────────
     st.markdown("---")
@@ -996,7 +891,7 @@ with tab_bitacora:
     dw_bit    = obtener_deepwork_semana(lunes_bit_sel, domingo_bit)
     salud_bit = obtener_salud_semana(lunes_bit_sel, domingo_bit)
 
-    col_a1, col_a2, col_a3, col_a4, col_a5 = st.columns(5)
+    col_a1,col_a2,col_a3,col_a4,col_a5 = st.columns(5)
     col_a1.metric("✝️ Devocionales", f"{len(devos_bit)}/7",
         delta="✅" if len(devos_bit) >= 5 else "⚠️")
     col_a2.metric("⏱️ Deep Work",
@@ -1018,14 +913,14 @@ with tab_bitacora:
 
     if not sobres_data["sin_ingreso"]:
         st.markdown("**💰 Estado financiero automático:**")
-        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-        col_f1.metric("Ingreso",  f"${sobres_data['ingreso']:,.0f}")
-        col_f2.metric("Gastado",  f"${sobres_data['total_gastado']:,.0f}",
+        col_fa1,col_fa2,col_fa3,col_fa4 = st.columns(4)
+        col_fa1.metric("Ingreso",       f"${sobres_data['ingreso']:,.0f}")
+        col_fa2.metric("Gastado",       f"${sobres_data['total_gastado']:,.0f}",
             f"{sobres_data['pct_global']:.0f}%")
-        col_f3.metric("Supervivencia",
+        col_fa3.metric("Supervivencia",
             f"{sobres_data['sobres']['Supervivencia']['pct_usado']:.0f}%",
             SEMAFOROS[semaforo_sup_auto])
-        col_f4.metric("Disponible", f"${sobres_data['total_disponible']:,.0f}")
+        col_fa4.metric("Disponible",    f"${sobres_data['total_disponible']:,.0f}")
 
     # ── Guardar ──────────────────────────────────────────────
     st.markdown("---")
@@ -1035,25 +930,25 @@ with tab_bitacora:
         if st.button("💾 Guardar bitácora", use_container_width=True,
                      type="primary", key="btn_guardar_bit"):
             ok = guardar_bitacora({
-                "semana_inicio":      lunes_bit_sel.isoformat(),
-                "victoria_1":         v1,
-                "victoria_2":         v2,
-                "victoria_3":         v3,
-                "ingreso_actual":     ingreso,
+                "semana_inicio":       lunes_bit_sel.isoformat(),
+                "victoria_1":          v1,
+                "victoria_2":          v2,
+                "victoria_3":          v3,
+                "ingreso_actual":      ingreso,
                 "sobre_supervivencia": 1 if sobre_sup else 0,
-                "aporte_transicion":  aporte_trans,
-                "presupuesto_cita":   presup_cita,
-                "semaforo_superv":    sem_sup,
-                "semaforo_ahorros":   sem_aho,
-                "semaforo_extras":    sem_ext,
-                "gasto_pausado":      gasto_pausado,
-                "actividad_cita":     act_cita,
-                "costo_cita":         costo_cita,
-                "libro_actual":       libro_bit,
-                "pagina_actual":      pag_bit,
-                "frase_favorita":     frase_bit,
-                "pendientes_soltar":  pendientes,
-                "reflexion_semana":   reflexion,
+                "aporte_transicion":   aporte_trans,
+                "presupuesto_cita":    presup_cita,
+                "semaforo_superv":     sem_sup,
+                "semaforo_ahorros":    sem_aho,
+                "semaforo_extras":     sem_ext,
+                "gasto_pausado":       gasto_pausado,
+                "actividad_cita":      act_cita,
+                "costo_cita":          costo_cita,
+                "libro_actual":        libro_bit,
+                "pagina_actual":       pag_bit,
+                "frase_favorita":      frase_bit,
+                "pendientes_soltar":   pendientes,
+                "reflexion_semana":    reflexion,
             })
             if ok:
                 st.success("✅ Bitácora guardada correctamente")
@@ -1063,14 +958,14 @@ with tab_bitacora:
         if st.button("🤖 Análisis completo IA", use_container_width=True,
                      type="primary", key="btn_ia_completo"):
             bitacoras_historial = obtener_bitacoras_recientes(8)
-            dw_completados = len([s for s in dw_bit if s.get("completado") == 1])
-            victorias_txt  = [v for v in [v1, v2, v3] if v]
+            dw_completados      = len([s for s in dw_bit if s.get("completado") == 1])
+            victorias_txt       = [v for v in [v1, v2, v3] if v]
 
             historial_txt = ""
             if len(bitacoras_historial) > 1:
                 historial_txt = "\nHISTORIAL ÚLTIMAS SEMANAS:\n"
                 for b in bitacoras_historial[1:4]:
-                    vs = [b.get(f"victoria_{i}", "") for i in range(1, 4)]
+                    vs = [b.get(f"victoria_{i}","") for i in range(1,4)]
                     historial_txt += (
                         f"  {b['semana_inicio']}: "
                         f"{len([v for v in vs if v])} victorias | "
@@ -1082,16 +977,16 @@ with tab_bitacora:
                         historial_txt += f"  Reflexión: {b['reflexion_semana'][:80]}\n"
 
             prompt = f"""
-Analiza esta bitácora semanal de forma completa:
+Analiza esta bitácora semanal:
 
 VICTORIAS PLANIFICADAS:
 {chr(10).join(f'{i+1}. {v}' for i,v in enumerate(victorias_txt)) or 'No definidas'}
 
 DATOS REALES:
 - Devocionales: {len(devos_bit)}/7
-- Deep Work completados: {dw_completados}
+- Deep Work: {dw_completados}
 - Ejercicios: {len([s for s in salud_bit if s.get('hizo_ejercicio')])}
-- Energía promedio: {prom_e:.1f}/10
+- Energía: {prom_e:.1f}/10
 - Rachas: devocional {racha_dev_auto}d, ejercicio {racha_ej_auto}sem, DW {racha_dw_auto}d
 
 FINANZAS:
@@ -1101,11 +996,11 @@ FINANZAS:
 REFLEXIÓN: {reflexion or 'Sin reflexión aún'}
 {historial_txt}
 
-Responde en 4 secciones cortas (máx 200 palabras total):
-🏆 VICTORIAS: ¿Cuáles se lograron? ¿Qué faltó?
+Responde en 4 secciones (máx 200 palabras total):
+🏆 VICTORIAS: ¿Cuáles se lograron?
 🔍 PATRÓN: Una observación del historial
 ⚖️ BALANCE: Lo más positivo y lo más preocupante
-🚀 PRÓXIMA SEMANA: 2 acciones concretas + versículo
+🚀 PRÓXIMA SEMANA: 2 acciones + versículo
 """
             with st.spinner("Analizando tu semana..."):
                 st.info(chat_simple(prompt, contexto=SYSTEM_AGENDA))
@@ -1124,7 +1019,7 @@ with tab_historial_bit:
     else:
         semanas_opciones = [b["semana_inicio"] for b in bitacoras]
         semana_sel = st.selectbox(
-            "Seleccionar semana para análisis",
+            "Seleccionar semana",
             options=semanas_opciones,
             format_func=lambda x: (
                 f"Semana del {x} al "
@@ -1143,7 +1038,7 @@ with tab_historial_bit:
             s_aho = SEMAFOROS.get(bit_sel.get("semaforo_ahorros", "verde"), "🟢")
             s_ext = SEMAFOROS.get(bit_sel.get("semaforo_extras",  "verde"), "🟢")
 
-            victorias_sel    = [bit_sel.get(f"victoria_{i}", "") for i in range(1, 4)]
+            victorias_sel    = [bit_sel.get(f"victoria_{i}","") for i in range(1,4)]
             victorias_ok_sel = [v for v in victorias_sel if v]
 
             with st.expander("📋 Ver bitácora completa", expanded=False):
@@ -1175,7 +1070,6 @@ with tab_historial_bit:
                         st.markdown("**💭 Reflexión:**")
                         st.caption(bit_sel["reflexion_semana"][:300])
 
-            # Datos reales de esa semana
             devos_sel   = obtener_devocionales_semana(lun_sel, dom_sel)
             dw_sel      = obtener_deepwork_semana(lun_sel, dom_sel)
             salud_sel   = obtener_salud_semana(lun_sel, dom_sel)
@@ -1189,17 +1083,15 @@ with tab_historial_bit:
             )
 
             st.markdown("**📊 Datos reales de esa semana:**")
-            col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
+            col_m1,col_m2,col_m3,col_m4,col_m5 = st.columns(5)
             col_m1.metric("✝️ Devocionales", f"{len(devos_sel)}/7")
-            col_m2.metric("⏱️ Deep Work", dw_comp_sel)
-            col_m3.metric("💪 Ejercicios", ej_sel)
-            col_m4.metric("💑 Eventos", len(eventos_sel))
+            col_m2.metric("⏱️ Deep Work",    dw_comp_sel)
+            col_m3.metric("💪 Ejercicios",   ej_sel)
+            col_m4.metric("💑 Eventos",      len(eventos_sel))
             col_m5.metric("⚡ Energía",
                 f"{prom_e_sel:.1f}/10" if prom_e_sel else "—")
 
             st.divider()
-
-            # Análisis IA
             st.markdown("### 🤖 Análisis IA de esta semana")
             if not api_key_configurada():
                 st.warning("⚠️ IA en modo offline")
@@ -1213,7 +1105,7 @@ with tab_historial_bit:
                 if otras:
                     hist = "\nHISTORIAL OTRAS SEMANAS:\n"
                     for b in otras:
-                        vs_b = [b.get(f"victoria_{i}", "") for i in range(1, 4)]
+                        vs_b = [b.get(f"victoria_{i}","") for i in range(1,4)]
                         hist += (
                             f"  {b['semana_inicio']}: "
                             f"{len([v for v in vs_b if v])} victorias | "
@@ -1225,52 +1117,34 @@ with tab_historial_bit:
                             hist += f"  → {b['reflexion_semana'][:80]}\n"
                 return f"""
 SEMANA: {semana_sel} — {dom_sel.strftime('%d/%m/%Y')}
-
-VICTORIAS PLANIFICADAS:
-{vs}
-
-DATOS REALES:
-- Devocionales: {len(devos_sel)}/7
-- Deep Work completados: {dw_comp_sel}
-- Ejercicios: {ej_sel}
-- Energía promedio: {prom_e_sel:.1f}/10
-
-FINANZAS:
-- Ingreso: ${bit_sel.get('ingreso_actual') or 0:,.0f}
-- Semáforo: Sup {bit_sel.get('semaforo_superv','?')} | Ahorros {bit_sel.get('semaforo_ahorros','?')} | Extras {bit_sel.get('semaforo_extras','?')}
-
+VICTORIAS:\n{vs}
+DATOS: Devocionales {len(devos_sel)}/7 | DW {dw_comp_sel} | Ej {ej_sel} | Energía {prom_e_sel:.1f}/10
+FINANZAS: ${bit_sel.get('ingreso_actual') or 0:,.0f} | Sup {bit_sel.get('semaforo_superv','?')} | Aho {bit_sel.get('semaforo_ahorros','?')} | Ext {bit_sel.get('semaforo_extras','?')}
 REFLEXIÓN: {bit_sel.get('reflexion_semana') or 'Sin reflexión'}
 {hist}"""
 
             col_ia1, col_ia2 = st.columns(2)
-
             with col_ia1:
                 if st.button("🏆 Victorias vs Resultados",
                              use_container_width=True, key="btn_hist_victorias"):
-                    prompt = f"""
-Evalúa cada victoria planificada contra los datos reales:
-{_ctx_semana_sel()}
-Para cada victoria da: ✅ Lograda / ⚠️ Parcial / ❌ No lograda
-Explica brevemente por qué. Máximo 120 palabras.
-"""
                     with st.spinner("Analizando victorias..."):
-                        st.info(chat_simple(prompt, contexto=SYSTEM_AGENDA))
+                        st.info(chat_simple(
+                            f"Evalúa victorias vs datos reales:\n{_ctx_semana_sel()}\n"
+                            f"Para cada victoria: ✅/⚠️/❌. Máx 120 palabras.",
+                            contexto=SYSTEM_AGENDA
+                        ))
 
                 if st.button("⚖️ Balance vida-fe-familia-finanzas",
                              use_container_width=True, key="btn_hist_balance"):
-                    citas_mat_sel = len([
-                        e for e in eventos_sel if e.get("ambito") == "Matrimonio"
-                    ])
-                    prompt = f"""
-Califica del 1-10 cada área:
-✝️ FE: {len(devos_sel)}/7 devocionales
-💪 CUERPO: {ej_sel} ejercicios, energía {prom_e_sel:.1f}/10
-💑 FAMILIA: {citas_mat_sel} citas matrimoniales
-💰 FINANZAS: Sup {bit_sel.get('semaforo_superv','?')} | Aho {bit_sel.get('semaforo_ahorros','?')} | Ext {bit_sel.get('semaforo_extras','?')}
-¿Qué área necesitaba más atención? Máximo 120 palabras.
-"""
+                    citas_mat_sel = len([e for e in eventos_sel if e.get("ambito") == "Matrimonio"])
                     with st.spinner("Analizando balance..."):
-                        st.info(chat_simple(prompt, contexto=SYSTEM_AGENDA))
+                        st.info(chat_simple(
+                            f"Califica 1-10 cada área:\n"
+                            f"✝️ FE: {len(devos_sel)}/7 | 💪 CUERPO: {ej_sel} ej, {prom_e_sel:.1f}/10\n"
+                            f"💑 FAMILIA: {citas_mat_sel} citas | 💰 SUP:{bit_sel.get('semaforo_superv','?')}\n"
+                            f"¿Qué área necesitaba más atención? Máx 120 palabras.",
+                            contexto=SYSTEM_AGENDA
+                        ))
 
             with col_ia2:
                 if st.button("🔍 Patrones históricos",
@@ -1278,47 +1152,34 @@ Califica del 1-10 cada área:
                     if len(bitacoras) < 3:
                         st.warning("Necesitas al menos 3 semanas registradas.")
                     else:
-                        prompt = f"""
-Detecta patrones comparando esta semana con el historial:
-{_ctx_semana_sel()}
-1. ¿Qué funciona consistentemente?
-2. ¿Qué falla de forma recurrente?
-3. ¿Alguna correlación interesante entre áreas?
-Máximo 120 palabras.
-"""
                         with st.spinner("Detectando patrones..."):
-                            st.info(chat_simple(prompt, contexto=SYSTEM_AGENDA))
+                            st.info(chat_simple(
+                                f"Detecta patrones:\n{_ctx_semana_sel()}\n"
+                                f"1. ¿Qué funciona? 2. ¿Qué falla? 3. ¿Correlaciones? Máx 120 palabras.",
+                                contexto=SYSTEM_AGENDA
+                            ))
 
                 if st.button("🚀 Sugerencias semana siguiente",
                              use_container_width=True, key="btn_hist_siguiente"):
                     semana_sig = lun_sel + timedelta(weeks=1)
-                    prompt = f"""
-Basándote en esta semana, sugiere para la siguiente ({semana_sig.strftime('%d/%m/%Y')}):
-{_ctx_semana_sel()}
-1. Las 3 victorias sugeridas para la próxima semana
-2. 1 hábito a reforzar y 1 área a mejorar
-3. Alerta financiera si aplica
-4. Versículo de dirección
-Máximo 150 palabras.
-"""
-                    with st.spinner("Planificando semana siguiente..."):
-                        st.info(chat_simple(prompt, contexto=SYSTEM_AGENDA))
+                    with st.spinner("Planificando..."):
+                        st.info(chat_simple(
+                            f"Sugiere para {semana_sig.strftime('%d/%m/%Y')}:\n{_ctx_semana_sel()}\n"
+                            f"1. 3 victorias 2. Hábito a reforzar 3. Alerta financiera 4. Versículo. Máx 150 palabras.",
+                            contexto=SYSTEM_AGENDA
+                        ))
 
             st.divider()
             if st.button("🤖 Análisis completo integrado",
                          use_container_width=True, type="primary",
                          key="btn_hist_completo"):
-                prompt = f"""
-Análisis ejecutivo completo:
-{_ctx_semana_sel()}
-Responde en 4 secciones (máx 200 palabras total):
-🏆 VICTORIAS: ¿Cuáles se lograron?
-🔍 PATRÓN: Una observación del historial
-⚖️ BALANCE: Lo más positivo y lo más preocupante
-🚀 PRÓXIMA SEMANA: 2 acciones + versículo
-"""
                 with st.spinner("Generando análisis completo..."):
-                    st.info(chat_simple(prompt, contexto=SYSTEM_AGENDA))
+                    st.info(chat_simple(
+                        f"Análisis ejecutivo:\n{_ctx_semana_sel()}\n"
+                        f"4 secciones (máx 200 palabras):\n"
+                        f"🏆 VICTORIAS 🔍 PATRÓN ⚖️ BALANCE 🚀 PRÓXIMA SEMANA + versículo",
+                        contexto=SYSTEM_AGENDA
+                    ))
 
         st.divider()
         st.markdown("### 📋 Todas las semanas")
@@ -1328,16 +1189,12 @@ Responde en 4 secciones (máx 200 palabras total):
             s_sup = SEMAFOROS.get(b.get("semaforo_superv",  "verde"), "🟢")
             s_aho = SEMAFOROS.get(b.get("semaforo_ahorros", "verde"), "🟢")
             s_ext = SEMAFOROS.get(b.get("semaforo_extras",  "verde"), "🟢")
-            vs_ok = [v for v in [b.get(f"victoria_{i}", "") for i in range(1, 4)] if v]
+            vs_ok = [v for v in [b.get(f"victoria_{i}","") for i in range(1,4)] if v]
             st.caption(
                 f"📅 {lun_b.strftime('%d/%m')}—{dom_b.strftime('%d/%m/%Y')} · "
-                f"💰 {s_sup}{s_aho}{s_ext} · "
-                f"🏆 {len(vs_ok)} victorias · "
+                f"💰 {s_sup}{s_aho}{s_ext} · 🏆 {len(vs_ok)} victorias · "
                 f"{'📝 ' + b['reflexion_semana'][:60] + '...' if b.get('reflexion_semana') else '—'}"
             )
 
 st.divider()
-st.caption(
-    "📅 Agenda · Calendario unificado · "
-    "Bitácora semanal · Abrir lunes 18:00"
-)
+st.caption("📅 Agenda · Calendario unificado · Bitácora semanal · Abrir lunes 18:00")

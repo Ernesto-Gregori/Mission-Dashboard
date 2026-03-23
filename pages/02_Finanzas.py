@@ -3,7 +3,7 @@
 """
 
 import streamlit as st
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 import sys
 from pathlib import Path
 
@@ -14,8 +14,14 @@ from app.database import (
     agregar_gasto_sobre, obtener_gastos_sobre,
     actualizar_gasto_sobre, eliminar_gasto_sobre,
     calcular_sobres, SOBRES_CONFIG,
+    ejecutar_cached,
 )
 from app.ai_client import chat_simple, api_key_configurada
+from app.timezone_config import (
+    date, datetime,
+    hoy as _hoy,
+    ahora as _ahora,
+)
 
 st.set_page_config(
     page_title="Finanzas | Mission Dashboard",
@@ -60,30 +66,21 @@ Excedentes van al Sobre 2. Práctico, bíblico, máx 150 palabras."""
 st.markdown("""
 <style>
     .sobre-card {
-        background: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 12px;
-        padding: 1.25rem;
-        margin-bottom: 1rem;
+        background: #161b22; border: 1px solid #30363d;
+        border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;
     }
     .sobre-1 { border-left: 6px solid #f85149; }
     .sobre-2 { border-left: 6px solid #3fb950; }
     .sobre-3 { border-left: 6px solid #58a6ff; }
     .ingreso-banner {
         background: linear-gradient(135deg, #161b22, #1c2128);
-        border: 1px solid #e3b341;
-        border-radius: 12px;
-        padding: 1.25rem;
-        margin-bottom: 1.5rem;
+        border: 1px solid #e3b341; border-radius: 12px;
+        padding: 1.25rem; margin-bottom: 1.5rem;
     }
     .subcat-tag {
-        display: inline-block;
-        background: #21262d;
-        border-radius: 6px;
-        padding: 0.15rem 0.5rem;
-        font-size: 0.72rem;
-        color: #8b949e;
-        margin-right: 0.3rem;
+        display: inline-block; background: #21262d;
+        border-radius: 6px; padding: 0.15rem 0.5rem;
+        font-size: 0.72rem; color: #8b949e; margin-right: 0.3rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -95,19 +92,20 @@ st.markdown("""
 with st.sidebar:
     st.header("📅 Período")
     col_m, col_a = st.columns(2)
+
+    hoy = _hoy()   # ← zona horaria local, una sola vez
+
     with col_m:
         mes_actual = st.selectbox(
             "Mes", range(1, 13),
-            index=date.today().month - 1,
+            index=hoy.month - 1,
             format_func=lambda x: [
                 "Ene","Feb","Mar","Abr","May","Jun",
                 "Jul","Ago","Sep","Oct","Nov","Dic"
             ][x-1]
         )
     with col_a:
-        anio_actual = st.number_input(
-            "Año", 2024, 2030, date.today().year
-        )
+        anio_actual = st.number_input("Año", 2024, 2030, hoy.year)
 
     st.divider()
     st.header("💵 Ingreso del mes")
@@ -129,8 +127,8 @@ with st.sidebar:
         st.divider()
         st.markdown("**📊 Distribución sugerida:**")
         st.markdown(f"🔴 Supervivencia (65%): `${nuevo_ingreso * 0.65:,.0f}`")
-        st.markdown(f"🟢 Futuro/Hogar (20%): `${nuevo_ingreso * 0.20:,.0f}`")
-        st.markdown(f"🔵 Ministerio (15%): `${nuevo_ingreso * 0.15:,.0f}`")
+        st.markdown(f"🟢 Futuro/Hogar (20%):  `${nuevo_ingreso * 0.20:,.0f}`")
+        st.markdown(f"🔵 Ministerio (15%):    `${nuevo_ingreso * 0.15:,.0f}`")
 
     st.divider()
     if api_key_configurada():
@@ -221,13 +219,13 @@ with tab_resumen:
 
         if not resumen['sin_ingreso']:
             if sobre['sobre_lleno']:
-                estado_txt, estado_color = "✅ Sobre completo",    '#3fb950'
+                estado_txt, estado_color = "✅ Sobre completo", '#3fb950'
             elif sobre['presupuesto'] == 0:
-                estado_txt, estado_color = "⚠️ Sin fondos",        '#f85149'
+                estado_txt, estado_color = "⚠️ Sin fondos",    '#f85149'
             else:
-                estado_txt, estado_color = "○ Sobre parcial",      '#e3b341'
+                estado_txt, estado_color = "○ Sobre parcial",  '#e3b341'
         else:
-            estado_txt, estado_color     = "— Sin ingreso",        '#8b949e'
+            estado_txt, estado_color     = "— Sin ingreso",    '#8b949e'
 
         color_disp = '#3fb950' if sobre['disponible'] >= 0 else '#f85149'
         pct_int    = int(sobre['pct'] * 100)
@@ -298,10 +296,10 @@ with tab_resumen:
             lleno        = asignado >= presup_ideal
 
             with cols_ord[i]:
-                bg_c     = '#0f2d0f' if lleno else '#1c2128'
-                brd_c    = sobre['color'] if lleno else '#30363d'
-                txt_c    = '#3fb950' if lleno else '#e3b341'
-                est_ord  = '✅ Completo' if lleno else f"${asignado:,.0f} / ${presup_ideal:,.0f}"
+                bg_c    = '#0f2d0f' if lleno else '#1c2128'
+                brd_c   = sobre['color'] if lleno else '#30363d'
+                txt_c   = '#3fb950' if lleno else '#e3b341'
+                est_ord = '✅ Completo' if lleno else f"${asignado:,.0f} / ${presup_ideal:,.0f}"
                 st.markdown(f"""
 <div style="text-align:center;padding:0.75rem;background:{bg_c};
             border-radius:8px;border:1px solid {brd_c};height:120px;
@@ -347,7 +345,9 @@ with tab_nuevo:
         col_fecha, col_sobre = st.columns(2)
         with col_fecha:
             fecha_gasto = st.date_input(
-                "Fecha *", value=date.today(), max_value=date.today()
+                "Fecha *",
+                value=_hoy(),               # ← zona horaria local
+                max_value=_hoy()            # ← zona horaria local
             )
         with col_sobre:
             sobre_sel = st.selectbox(
@@ -382,9 +382,7 @@ with tab_nuevo:
                 "Monto ($MXN) *", min_value=0.01, step=50.0, format="%.2f"
             )
         with col_notas:
-            notas = st.text_input(
-                "Notas (opcional)", placeholder="Detalles adicionales..."
-            )
+            notas = st.text_input("Notas (opcional)", placeholder="Detalles adicionales...")
 
         if monto > 0 and not resumen['sin_ingreso']:
             disp_sobre = resumen['sobres'][sobre_sel]['disponible']
@@ -436,7 +434,7 @@ with tab_historial:
         limite_h = st.slider("Mostrar últimos:", 10, 100, 30)
 
     gastos_h = obtener_gastos_sobre(
-        mes=mes_actual  if solo_mes else None,
+        mes=mes_actual   if solo_mes else None,
         anio=anio_actual if solo_mes else None,
         sobre=None if filtro_sobre == "Todos" else filtro_sobre,
         limite=limite_h
@@ -496,11 +494,12 @@ with tab_ia:
         st.warning("⚠️ IA en modo offline — respuestas predefinidas")
 
     def _ctx_ia(r: dict) -> str:
+        dia_local = _hoy().day          # ← día local
         lineas = [
             f"Mes: {r['mes']}/{r['anio']}",
             f"Ingreso registrado: ${r['ingreso']:,.0f} MXN",
             f"Total gastado hasta hoy: ${r['total_gastado']:,.0f} MXN",
-            f"Días transcurridos del mes: {date.today().day}/30",
+            f"Días transcurridos del mes: {dia_local}/30",
             "",
             "Estado real de cada sobre:",
         ]
@@ -522,7 +521,7 @@ with tab_ia:
     # ── Proyección ────────────────────────────────────────────
     st.markdown("### 📈 Proyección al fin de mes")
 
-    dias   = date.today().day
+    dias   = _hoy().day                 # ← día local
     factor = (30 / dias) if dias > 0 else 1
 
     cols_p = st.columns(3)
@@ -542,7 +541,10 @@ with tab_ia:
             s['nombre'] for s in resumen['sobres'].values()
             if s['gastado'] * factor > s['presupuesto']
         ]
-        prompt = f"Analiza la situación financiera:\n\n{_ctx_ia(resumen)}\n\nProyección ({date.today().day} días):\n"
+        prompt = (
+            f"Analiza la situación financiera:\n\n{_ctx_ia(resumen)}\n\n"
+            f"Proyección ({_hoy().day} días):\n"
+        )
         for key, sobre in resumen['sobres'].items():
             proy = sobre['gastado'] * factor
             dif  = sobre['presupuesto'] - proy
@@ -551,7 +553,7 @@ with tab_ia:
                 f"proyectado ${proy:,.0f} de ${sobre['presupuesto']:,.0f} "
                 f"({'⚠️ EXCEDE' if dif < 0 else '✅ OK'})"
             )
-        prompt += f"\n\nSobres en riesgo: {riesgo or 'Ninguno'}\n\nDa 2 observaciones reales y 1 acción concreta."
+        prompt += f"\n\nSobres en riesgo: {riesgo or 'Ninguno'}\n\nDa 2 observaciones y 1 acción concreta."
         with st.spinner("Analizando..."):
             st.info(chat_simple(prompt, contexto=SYSTEM_FINANZAS))
 
