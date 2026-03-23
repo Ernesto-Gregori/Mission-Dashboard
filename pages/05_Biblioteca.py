@@ -489,139 +489,181 @@ with tab_cargar:
                     st.session_state._ia_procesando = False  # ← limpiar flag
                     st.rerun()
     
-    elif st.session_state.metadatos_propuestos:
-        st.markdown("### Paso 3: Revisar y confirmar")
-        
-        meta = st.session_state.metadatos_propuestos
-        
-        confianza = meta.get('confianza_ia', 5)
-        color_conf = "#3fb950" if confianza >= 7 else "#e3b341" if confianza >= 5 else "#f85149"
-        
-        # Mostrar preview de etiquetas sugeridas por IA
-        temas_preview   = parsear_lista(meta.get('temas_clave', []))
-        subcats_preview = parsear_lista(meta.get('subcategorias', []))
-        
-        if temas_preview or subcats_preview:
-            st.markdown("**🤖 Etiquetas sugeridas por IA:**")
-            todas_preview = temas_preview + subcats_preview
-            badges = " ".join(
-                f"<span style='background:#0d1117; color:#e3b341; "
-                f"border:1px solid #e3b341; border-radius:20px; "
-                f"padding:0.15rem 0.6rem; font-size:0.75rem; "
-                f"margin-right:0.3rem;'>✨ {tag}</span>"
-                for tag in todas_preview[:10]
+        elif st.session_state.metadatos_propuestos:
+            st.markdown("### Paso 3: Revisar y confirmar")
+
+            meta = st.session_state.metadatos_propuestos
+
+            confianza  = meta.get('confianza_ia') or meta.get('confianza_extraccion') or 5
+            color_conf = (
+                "#3fb950" if confianza >= 7 else
+                "#e3b341" if confianza >= 5 else
+                "#f85149"
             )
-            st.markdown(badges, unsafe_allow_html=True)
-            st.markdown("")
 
-        st.markdown(f"""
-        <div style="background: #161b22; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span>🤖 Confianza de la IA:</span>
-                <span style="color: {color_conf}; font-weight: bold;">{confianza}/10</span>
+            # ── Preview etiquetas IA ───────────────────────────────
+            temas_preview   = parsear_lista(meta.get('temas_clave', []))
+            subcats_preview = parsear_lista(meta.get('subcategorias', []))
+            todas_preview   = temas_preview + subcats_preview
+
+            if todas_preview:
+                st.markdown("**🤖 Etiquetas sugeridas por IA:**")
+                badges = " ".join(
+                    f"<span style='background:#0d1117; color:#e3b341; "
+                    f"border:1px solid #e3b341; border-radius:20px; "
+                    f"padding:0.15rem 0.6rem; font-size:0.75rem; "
+                    f"margin-right:0.3rem;'>✨ {tag}</span>"
+                    for tag in todas_preview[:10]
+                )
+                st.markdown(badges, unsafe_allow_html=True)
+                st.markdown("")
+
+            # ── Barra de confianza ────────────────────────────────
+            st.markdown(f"""
+            <div style="background:#161b22; padding:1rem;
+                        border-radius:8px; margin-bottom:1rem;">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span>🤖 Confianza de la IA:</span>
+                    <span style="color:{color_conf}; font-weight:bold;">
+                        {confianza}/10
+                    </span>
+                </div>
+                <div style="background:#21262d; height:6px;
+                            border-radius:3px; margin-top:0.5rem;">
+                    <div style="background:{color_conf};
+                                width:{confianza * 10}%; height:100%;
+                                border-radius:3px;"></div>
+                </div>
             </div>
-            <div style="background: #21262d; height: 6px; border-radius: 3px; margin-top: 0.5rem;">
-                <div style="background: {color_conf}; width: {confianza * 10}%; height: 100%; border-radius: 3px;"></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        with st.form("revisar_metadatos"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                titulo_final = st.text_input("Título *", value=meta.get('titulo', ''))
-                autor_final = st.text_input("Autor", value=meta.get('autor', ''))
-                isbn_final = st.text_input("ISBN", value=meta.get('isbn', '') or '')
-                editorial_final = st.text_input("Editorial", value=meta.get('editorial', '') or '')
-            
-            with col2:
-                categoria_final = st.selectbox(
-                    "Categoría principal",
-                    ["Teologia", "Programacion", "Matrimonio", "Filosofia", "Liderazgo", "Historia", "Otros"],
-                    index=["Teologia", "Programacion", "Matrimonio", "Filosofia", "Liderazgo", "Historia", "Otros"].index(meta.get('categoria_principal', 'Otros')) if meta.get('categoria_principal') in ["Teologia", "Programacion", "Matrimonio", "Filosofia", "Liderazgo", "Historia", "Otros"] else 6
-                )
-                anio_final = st.number_input("Año", min_value=1000, max_value=2030, value=meta.get('anio_publicacion') or 2020)
-                paginas_final = st.number_input("Total páginas", min_value=1, value=meta.get('total_paginas') or 100)
-            
-            descripcion_final = st.text_area("Descripción / Sinopsis", value=meta.get('descripcion', ''), height=100)
+            """, unsafe_allow_html=True)
 
-            # ── NUEVO: Etiquetas ──────────────────────────────
-            st.markdown("**🏷️ Etiquetas y temas clave**")
-            st.caption("Separadas por comas — la IA las sugiere, tú las editas")
-            
-            col_tags1, col_tags2 = st.columns(2)
-            with col_tags1:
-                # Convertir lista a string para editar
-                temas_ia = parsear_lista(meta.get('temas_clave', []))
-                temas_str = st.text_input(
-                    "Temas clave",
-                    value=", ".join(temas_ia),
-                    placeholder="Ej: gracia, soteriología, reforma"
-                )
-            with col_tags2:
-                subcats_ia = parsear_lista(meta.get('subcategorias', []))
-                subcats_str = st.text_input(
-                    "Subcategorías",
-                    value=", ".join(subcats_ia),
-                    placeholder="Ej: Teología Sistemática, Hermenéutica"
-                )
-            
-                        # ── Etiquetas — definir ANTES del submit ──────────
-            temas_str  = ""  # ya definido arriba en st.text_input
-            subcats_str = "" # ya definido arriba en st.text_input
-            
-            col_guardar, col_cancelar = st.columns(2)
-            with col_guardar:
-                guardar = st.form_submit_button(
-                    "✅ Guardar en biblioteca",
-                    use_container_width=True,
-                    type="primary"
-                )
-            with col_cancelar:
-                cancelar = st.form_submit_button(
-                    "❌ Cancelar",
-                    use_container_width=True
+            # ── FORMULARIO ────────────────────────────────────────
+            with st.form("revisar_metadatos", clear_on_submit=False):
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    titulo_final = st.text_input(
+                        "Título *",
+                        value=meta.get('titulo') or ''
+                    )
+                    autor_final = st.text_input(
+                        "Autor",
+                        value=meta.get('autor') or ''
+                    )
+                    isbn_final = st.text_input(
+                        "ISBN",
+                        value=meta.get('isbn') or ''
+                    )
+                    editorial_final = st.text_input(
+                        "Editorial",
+                        value=meta.get('editorial') or ''
+                    )
+
+                with col2:
+                    cats = ["Teologia", "Programacion", "Matrimonio",
+                            "Filosofia", "Liderazgo", "Historia", "Otros"]
+                    cat_actual = meta.get('categoria_principal', 'Otros')
+                    cat_idx    = cats.index(cat_actual) if cat_actual in cats else 6
+
+                    categoria_final = st.selectbox(
+                        "Categoría principal", cats, index=cat_idx
+                    )
+                    anio_final = st.number_input(
+                        "Año", min_value=1000, max_value=2030,
+                        value=int(meta.get('anio_publicacion') or 2020)
+                    )
+                    paginas_final = st.number_input(
+                        "Total páginas", min_value=1,
+                        value=int(meta.get('total_paginas') or 100)
+                    )
+
+                descripcion_final = st.text_area(
+                    "Descripción / Sinopsis",
+                    value=meta.get('descripcion') or '',
+                    height=100
                 )
 
-            if guardar:
-                # Convertir strings a listas
-                temas_final   = [t.strip() for t in temas_str.split(',')   if t.strip()]
-                subcats_final = [s.strip() for s in subcats_str.split(',') if s.strip()]
+                # ── Etiquetas — SIN reasignar a "" ────────────────
+                st.markdown("**🏷️ Etiquetas y temas clave**")
+                st.caption("Separadas por comas — la IA las sugiere, tú las editas")
 
-                metadatos_finales = {
-                    'titulo':              titulo_final,
-                    'autor':               autor_final,
-                    'isbn':                isbn_final,
-                    'editorial':           editorial_final,
-                    'anio_publicacion':    anio_final,
-                    'categoria_principal': categoria_final,
-                    'total_paginas':       paginas_final,
-                    'descripcion':         descripcion_final,
-                    'temas_clave':         temas_final,
-                    'subcategorias':       subcats_final,
-                    **{k: v for k, v in meta.items()
-                       if k not in [
-                           'titulo', 'autor', 'isbn', 'editorial',
-                           'anio_publicacion', 'categoria_principal',
-                           'total_paginas', 'descripcion', 'indice',
-                           'temas_clave', 'subcategorias'
-                       ]}
-                }
+                col_t1, col_t2 = st.columns(2)
+                with col_t1:
+                    temas_str = st.text_input(
+                        "Temas clave",
+                        value=", ".join(parsear_lista(meta.get('temas_clave', []))),
+                        placeholder="Ej: gracia, soteriología, reforma"
+                    )
+                with col_t2:
+                    subcats_str = st.text_input(
+                        "Subcategorías",
+                        value=", ".join(parsear_lista(meta.get('subcategorias', []))),
+                        placeholder="Ej: Teología Sistemática, Hermenéutica"
+                    )
 
-                guardar_metadatos_ia(
-                    st.session_state.libro_en_proceso,
-                    metadatos_finales
-                )
-                st.session_state.libro_en_proceso    = None
-                st.session_state.metadatos_propuestos = None
-                st.success("✅ Libro catalogado correctamente")
-                st.rerun()
+                # ── Botones dentro del form ────────────────────────
+                col_guardar, col_cancelar = st.columns(2)
+                with col_guardar:
+                    guardar = st.form_submit_button(
+                        "✅ Guardar en biblioteca",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                with col_cancelar:
+                    cancelar = st.form_submit_button(
+                        "❌ Cancelar",
+                        use_container_width=True
+                    )
 
-            if cancelar:
-                st.session_state.libro_en_proceso    = None
-                st.session_state.metadatos_propuestos = None
-                st.rerun()
+                # ── Lógica guardar ────────────────────────────────
+                if guardar:
+                    if not titulo_final.strip():
+                        st.error("⚠️ El título es obligatorio")
+                    else:
+                        temas_final   = [t.strip() for t in temas_str.split(',')
+                                        if t.strip()]
+                        subcats_final = [s.strip() for s in subcats_str.split(',')
+                                        if s.strip()]
+
+                        metadatos_finales = {
+                            'titulo':              titulo_final.strip(),
+                            'autor':               autor_final.strip(),
+                            'isbn':                isbn_final.strip(),
+                            'editorial':           editorial_final.strip(),
+                            'anio_publicacion':    int(anio_final),
+                            'categoria_principal': categoria_final,
+                            'total_paginas':       int(paginas_final),
+                            'descripcion':         descripcion_final.strip(),
+                            'temas_clave':         temas_final,
+                            'subcategorias':       subcats_final,
+                            'autores_adicionales': meta.get('autores_adicionales', []),
+                            'notas_bibliotecaria': meta.get('notas_bibliotecaria', ''),
+                            'fuente_metadatos':    meta.get('fuente_metadatos', 'IA'),
+                            'confianza_ia':        confianza,
+                        }
+
+                        guardar_metadatos_ia(
+                            st.session_state.libro_en_proceso,
+                            metadatos_finales
+                        )
+
+                        # Limpiar session state
+                        st.session_state.libro_en_proceso    = None
+                        st.session_state.metadatos_propuestos = None
+                        st.session_state._ia_procesando       = False
+                        st.session_state.pop('pdf_contenido', None)
+
+                        st.success("✅ Libro catalogado correctamente")
+                        st.rerun()
+
+                # ── Lógica cancelar ───────────────────────────────
+                if cancelar:
+                    st.session_state.libro_en_proceso     = None
+                    st.session_state.metadatos_propuestos  = None
+                    st.session_state._ia_procesando        = False
+                    st.session_state.pop('pdf_contenido', None)
+                    st.rerun()
 
 # ═══════════════════════════════════════════════════════════════
 # TAB 2: CATÁLOGO - SIN HTML, SOLO COMPONENTES NATIVOS
