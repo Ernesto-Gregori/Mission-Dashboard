@@ -88,21 +88,21 @@ def _registrar_error_429(delay: int = 60):
     _guardar_estado()
     print(f"[AI] Rate limit. Bloqueado {delay}s.")
 
-def _llamar_ai(prompt: str, system: str = "") -> Optional[str]:
-    """Wrapper central — toda llamada pasa por aquí."""
+def _llamar_ai(prompt: str, system: str = "",
+               max_tokens: int = 500) -> Optional[str]:
     if not _hay_cuota() or not client:
         return None
-    
+
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    
+
     try:
         response = client.chat.completions.create(
             model=MODELO,
             messages=messages,
-            max_tokens=500,
+            max_tokens=max_tokens,  # ← usa el parámetro
         )
         _registrar_llamada()
         return response.choices[0].message.content

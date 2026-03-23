@@ -276,6 +276,8 @@ if 'metadatos_propuestos' not in st.session_state:
     st.session_state.metadatos_propuestos = None
 if 'libro_para_resaltar' not in st.session_state:
     st.session_state.libro_para_resaltar = None
+if '_ia_procesando'        not in st.session_state:  # ← NUEVO
+    st.session_state._ia_procesando        = False
 
 # ═══════════════════════════════════════════════════════════════
 # SIDEBAR
@@ -451,36 +453,41 @@ with tab_cargar:
                     st.success("✅ Libro guardado")
                     st.rerun()
     
-    elif st.session_state.libro_en_proceso and not st.session_state.metadatos_propuestos:
-        st.markdown("### Paso 2: Bibliotecaria IA analizando...")
-        
-        libro = obtener_libro(st.session_state.libro_en_proceso)
-        
-        # Verificar si hay conexión
-        if not verificar_conexion():
-            st.warning("⚠️ Bibliotecaria IA no disponible. Usando extracción básica.")
-            # Fallback a extracción simple del nombre
-            metadatos = {
-                'titulo': libro['nombre_archivo'].replace('.pdf', '').replace('_', ' ').title(),
-                'autor': 'Desconocido',
-                'categoria_principal': 'Otros',
-                'descripcion': 'Extracción automática no disponible. Por favor completa manualmente.',
-                'total_paginas': 0,
-                'confianza_extraccion': 1,
-                'fuente_metadatos': 'Manual_Fallback'
-            }
-            st.session_state.metadatos_propuestos = metadatos
-            st.rerun()
-        
-        with st.spinner("🔍 Bibliotecaria analizando PDF..."):
-            
-            metadatos = extraer_metadatos_libro(
-                st.session_state.get('pdf_contenido', b""),
-                libro['nombre_archivo']
-            )
-            
-            st.session_state.metadatos_propuestos = metadatos
-            st.rerun()
+                elif st.session_state.libro_en_proceso and not st.session_state.metadatos_propuestos:
+                    st.markdown("### Paso 2: Bibliotecaria IA analizando...")
+
+                    libro = obtener_libro(st.session_state.libro_en_proceso)
+
+                    # ── GUARD: evitar re-ejecución mientras ya está procesando ──
+                    if st.session_state.get('_ia_procesando'):
+                        st.info("⏳ Análisis en curso... espera un momento")
+                        st.stop()  # ← detiene el script sin rerun
+
+                    # Marcar como en proceso ANTES de llamar a la IA
+                    st.session_state._ia_procesando = True
+
+                    if not verificar_conexion():
+                        st.warning("⚠️ Bibliotecaria IA no disponible. Usando extracción básica.")
+                        metadatos = {
+                            'titulo': libro['nombre_archivo'].replace('.pdf', '').replace('_', ' ').title(),
+                            'autor': 'Desconocido',
+                            'categoria_principal': 'Otros',
+                            'descripcion': 'Extracción automática no disponible. Por favor completa manualmente.',
+                            'total_paginas': 0,
+                            'confianza_extraccion': 1,
+                            'fuente_metadatos': 'Manual_Fallback'
+                        }
+                    else:
+                        with st.spinner("🔍 Bibliotecaria analizando PDF..."):
+                            metadatos = extraer_metadatos_libro(
+                                st.session_state.get('pdf_contenido', b""),
+                                libro['nombre_archivo']
+                            )
+
+                    # Guardar resultado y limpiar flag ANTES del rerun
+                    st.session_state.metadatos_propuestos = metadatos
+                    st.session_state._ia_procesando = False  # ← limpiar flag
+                    st.rerun()
     
     elif st.session_state.metadatos_propuestos:
         st.markdown("### Paso 3: Revisar y confirmar")
