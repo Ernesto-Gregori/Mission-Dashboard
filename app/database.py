@@ -7,7 +7,16 @@ from datetime import datetime, date
 from pathlib import Path
 import os
 import json
-import libsql
+try:
+    import libsql_experimental as libsql
+    _LIBSQL_OK = True
+except ImportError:
+    try:
+        import libsql
+        _LIBSQL_OK = True
+    except ImportError:
+        libsql     = None
+        _LIBSQL_OK = False
 
 # ═════════════════════════════════════════════════════════
 # ADAPTADOR SQLITE PARA PYTHON 3.12+ (evita DeprecationWarning)
@@ -804,12 +813,7 @@ def usar_turso() -> bool:
 # ═════════════════════════════════════════════════════════════════
 
 def _conn():
-    """
-    Devuelve (connection, is_turso).
-    Uso interno para operaciones que necesitan
-    múltiples statements en una sola conexión.
-    """
-    if usar_turso():
+    if _LIBSQL_OK and usar_turso():
         url, token = _get_turso_config()
         conn = libsql.connect(url, auth_token=token)
         return conn, True
@@ -843,7 +847,8 @@ def ejecutar(sql: str, params: list = None, fetchall: bool = False):
     """
     Wrapper unificado — usa Turso en producción, SQLite en local.
     """
-    if usar_turso():
+    # ── Turso (solo si libsql está disponible Y configurado) ──
+    if _LIBSQL_OK and usar_turso():
         url, token = _get_turso_config()
         conn_turso = libsql.connect(url, auth_token=token)
         cursor_t   = conn_turso.cursor()
@@ -853,18 +858,19 @@ def ejecutar(sql: str, params: list = None, fetchall: bool = False):
             return [dict(zip(cols, row)) for row in cursor_t.fetchall()]
         conn_turso.commit()
         return cursor_t.lastrowid
-    else:
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        try:
-            cursor.execute(sql, params or [])
-            if fetchall:
-                return [dict(r) for r in cursor.fetchall()]
-            conn.commit()
-            return cursor.lastrowid
-        finally:
-            conn.close()
+
+    # ── SQLite local (fallback siempre disponible) ─────────────
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, params or [])
+        if fetchall:
+            return [dict(r) for r in cursor.fetchall()]
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
 
 def migrar_local_a_turso():
     """
