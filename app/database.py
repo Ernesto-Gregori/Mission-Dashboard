@@ -812,33 +812,7 @@ def usar_turso() -> bool:
 # HELPER INTERNO — conexión unificada
 # ═════════════════════════════════════════════════════════════════
 
-def _conn():
-    if _LIBSQL_OK and usar_turso():
-        url, token = _get_turso_config()
-        conn = libsql.connect(url, auth_token=token)
-        return conn, True
-    else:
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.row_factory = sqlite3.Row
-        return conn, False
 
-
-def _fetchall_cursor(cursor, is_turso: bool) -> list[dict]:
-    """
-    Convierte rows de Turso o SQLite a lista de dicts.
-    """
-    rows = cursor.fetchall()
-    if not rows:
-        return []
-
-    if is_turso:
-        # libsql: cursor.description existe igual que sqlite3
-        cols = [d[0] for d in cursor.description]
-        return [dict(zip(cols, row)) for row in rows]
-    else:
-        # sqlite3.Row ya soporta dict()
-        return [dict(r) for r in rows]
 
 # ─────────────────────────────────────────────────────────────────
 # WRAPPER PÚBLICO
