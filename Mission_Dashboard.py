@@ -925,24 +925,33 @@ st.subheader("🤖 Secretaria IA")
 col_chat, col_alertas = st.columns([2, 1])
 
 with col_chat:
-    st.markdown("**💬 Chat rápido**")
-    estado_actual = estado_gemini()
-    key_ok    = estado_actual.get("api_key_configurada")
-    conectado = estado_actual.get("conectado")
+    # Inicializar estado del chat (una vez)
+    if "ia_respuesta" not in st.session_state:
+        st.session_state.ia_respuesta = None
+    if "ia_prompt_enviado" not in st.session_state:
+        st.session_state.ia_prompt_enviado = ""
 
-    if not key_ok:
-        st.warning("⚠️ Groq no configurada")
-        st.info("Añade `GROQ_API_KEY=tu_key` al archivo `.env`")
-    else:
-        if not conectado:
-            st.warning("⚠️ Modo offline — usando respuestas predefinidas")
-        prompt_usuario = st.text_input(
-            "Pregunta a tu secretaria:",
-            placeholder="Ej: ¿Qué pasaje leer hoy?"
-        )
-        if prompt_usuario:
+    prompt_usuario = st.text_input(
+        "Pregunta a tu secretaria:",
+        placeholder="Ej: ¿Qué pasaje leer hoy?",
+        key="chat_input"
+    )
+    col_send, _ = st.columns([1, 3])
+    with col_send:
+        enviar = st.button("➤ Enviar", use_container_width=True, type="primary")
+
+    if enviar and prompt_usuario.strip():
+        if prompt_usuario != st.session_state.ia_prompt_enviado:
             with st.spinner("Pensando..."):
-                st.info(chat_simple(prompt_usuario))
+                st.session_state.ia_respuesta = chat_simple(prompt_usuario)
+                st.session_state.ia_prompt_enviado = prompt_usuario
+
+    if st.session_state.ia_respuesta:
+        st.info(st.session_state.ia_respuesta)
+        if st.button("🗑️ Limpiar", key="btn_limpiar_chat"):
+            st.session_state.ia_respuesta = None
+            st.session_state.ia_prompt_enviado = ""
+            st.rerun()
 
 with col_alertas:
     st.markdown("**🔔 Estado del día**")
