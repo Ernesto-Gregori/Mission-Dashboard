@@ -1,76 +1,102 @@
 """
-ai_client.py - Integración con Groq (reemplaza gemini_client.py)
+ai_client.py - Integración con Groq — compatible Streamlit Cloud
+Fixes:
+  1. Lee GROQ_API_KEY desde st.secrets (producción) con fallback a .env (local)
+  2. Estado en memoria (no filesystem) — Streamlit Cloud es efímero
+  3. verificar_conexion() sin llamada real a la API
+  4. client inicializado lazy para no fallar en import
 """
 
 import os
-import json
 import time
+import json
 from typing import Optional, Dict, List
 from datetime import datetime, date
 from pathlib import Path
-from groq import Groq
-from dotenv import load_dotenv
 
-load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# ── Dotenv solo en local ──────────────────────────────────────
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-MODELO = "llama-3.3-70b-versatile"  # Mejor modelo gratuito de Groq
+# ═══════════════════════════════════════════════════════════════
+# LEER API KEY — st.secrets (Cloud) con fallback a .env (local)
+# ═══════════════════════════════════════════════════════════════
 
-_ESTADO_FILE = Path(__file__).parent / ".ai_state.json"
-
-# ═══════════════════════════════════════════════
-# ESTADO PERSISTENTE
-# ═══════════════════════════════════════════════
-
-def _cargar_estado() -> dict:
+def _get_api_key() -> str:
+    """
+    Orden de prioridad:
+      1. st.secrets["GROQ_API_KEY"]  ← Streamlit Cloud
+      2. os.environ["GROQ_API_KEY"]  ← .env local / variable de entorno
+    """
+    # 1. Intentar st.secrets (solo disponible cuando Streamlit está corriendo)
     try:
-        if _ESTADO_FILE.exists():
-            return json.loads(_ESTADO_FILE.read_text())
-    except Exception:
-        pass
-    return {"bloqueado_hasta": 0.0, "llamadas_hoy": 0, "fecha": str(date.today())}
-
-def _guardar_estado():
-    try:
-        _ESTADO_FILE.write_text(json.dumps({
-            "bloqueado_hasta": _estado["bloqueado_hasta"],
-            "llamadas_hoy": _estado["llamadas_hoy"],
-            "fecha": str(_estado["fecha_contador"]),
-        }))
+        import streamlit as st
+        key = st.secrets.get("GROQ_API_KEY", "")
+        if key:
+            return key
     except Exception:
         pass
 
-_persistido = _cargar_estado()
+    # 2. Fallback a variable de entorno (.env local)
+    return os.getenv("GROQ_API_KEY", "")
+
+
+MODELO = "llama-3.3-70b-versatile"
+
+# ═══════════════════════════════════════════════════════════════
+# ESTADO EN MEMORIA — no depende del filesystem
+# (Streamlit Cloud resetea el disco en cada redeployment)
+# ═══════════════════════════════════════════════════════════════
+
 _estado = {
-    "llamadas_hoy": _persistido.get("llamadas_hoy", 0),
-    "fecha_contador": date.fromisoformat(_persistido.get("fecha", str(date.today()))),
-    "conexion_ok": None,
-    "conexion_ts": 0.0,
-    "conexion_ttl": 600,       # Cache 10 min — Groq es estable
-    "bloqueado_hasta": _persistido.get("bloqueado_hasta", 0.0),
+    "llamadas_hoy":    0,
+    "fecha_contador":  date.today(),
+    "conexion_ok":     None,   # None = no verificado aún
+    "conexion_ts":     0.0,
+    "conexion_ttl":    600,    # 10 min de cache
+    "bloqueado_hasta": 0.0,
 }
 
-_MAX_LLAMADAS_DIA = 400        # Groq permite 14,400 — usamos 400 de margen
+_MAX_LLAMADAS_DIA = 400
 
-client = None
-if GROQ_API_KEY:
+# ═══════════════════════════════════════════════════════════════
+# CLIENT LAZY — se inicializa la primera vez que se necesita
+# ═══════════════════════════════════════════════════════════════
+
+_client = None
+
+def _get_client():
+    """Retorna el cliente Groq, inicializándolo si es necesario."""
+    global _client
+    if _client is not None:
+        return _client
+
+    api_key = _get_api_key()
+    if not api_key:
+        return None
+
     try:
-        client = Groq(api_key=GROQ_API_KEY)
+        from groq import Groq
+        _client = Groq(api_key=api_key)
+        return _client
     except Exception as e:
         print(f"[AI] Error inicializando Groq: {e}")
+        return None
 
-# ═══════════════════════════════════════════════
-# HELPERS
-# ═══════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+# HELPERS INTERNOS
+# ═══════════════════════════════════════════════════════════════
 
 def _reiniciar_si_nuevo_dia():
     hoy = date.today()
     if _estado["fecha_contador"] != hoy:
-        _estado["llamadas_hoy"] = 0
-        _estado["fecha_contador"] = hoy
+        _estado["llamadas_hoy"]    = 0
+        _estado["fecha_contador"]  = hoy
         _estado["bloqueado_hasta"] = 0.0
-        _estado["conexion_ok"] = None
-        _guardar_estado()
+        _estado["conexion_ok"]     = None
 
 def _hay_cuota() -> bool:
     _reiniciar_si_nuevo_dia()
@@ -80,17 +106,23 @@ def _hay_cuota() -> bool:
 
 def _registrar_llamada():
     _estado["llamadas_hoy"] += 1
-    _guardar_estado()
 
-def _registrar_error_429(delay: int = 60):
+def _registrar_error_429(delay: int = 65):
     _estado["bloqueado_hasta"] = time.time() + delay
-    _estado["conexion_ok"] = False
-    _guardar_estado()
+    _estado["conexion_ok"]     = False
     print(f"[AI] Rate limit. Bloqueado {delay}s.")
 
-def _llamar_ai(prompt: str, system: str = "",
-               max_tokens: int = 500) -> Optional[str]:
-    if not _hay_cuota() or not client:
+def _llamar_ai(
+    prompt: str,
+    system: str = "",
+    max_tokens: int = 500,
+) -> Optional[str]:
+    """Llama a Groq. Retorna texto o None si falla."""
+    if not _hay_cuota():
+        return None
+
+    client = _get_client()
+    if not client:
         return None
 
     messages = []
@@ -102,87 +134,115 @@ def _llamar_ai(prompt: str, system: str = "",
         response = client.chat.completions.create(
             model=MODELO,
             messages=messages,
-            max_tokens=max_tokens,  # ← usa el parámetro
+            max_tokens=max_tokens,
         )
         _registrar_llamada()
+        # Marcar conexión como ok al primer éxito
+        _estado["conexion_ok"] = True
+        _estado["conexion_ts"] = time.time()
         return response.choices[0].message.content
+
     except Exception as e:
         err = str(e)
         if "429" in err or "rate_limit" in err.lower():
             _registrar_error_429(65)
-        print(f"[AI] Error: {err[:80]}")
+        else:
+            # Otro error de red / auth — no bloquear indefinidamente
+            _estado["conexion_ok"] = False
+            _estado["conexion_ts"] = time.time()
+        print(f"[AI] Error: {err[:120]}")
         return None
 
-# ═══════════════════════════════════════════════
-# API PÚBLICA (mismos nombres que gemini_client)
-# ═══════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+# API PÚBLICA
+# ═══════════════════════════════════════════════════════════════
 
 def api_key_configurada() -> bool:
-    if not GROQ_API_KEY:
-        return False
-    return len(GROQ_API_KEY) > 20
+    key = _get_api_key()
+    return bool(key) and len(key) > 20
 
 def verificar_conexion(forzar: bool = False) -> bool:
-    if not api_key_configurada() or not client:
+    """
+    Verifica si la API key está configurada y el cliente se puede crear.
+    NO hace una llamada real a la API — evita loop de verificación.
+    La conexión real se confirma en el primer chat_simple() exitoso.
+    """
+    if not api_key_configurada():
         return False
-    
-    ahora = time.time()
+
+    ahora         = time.time()
     cache_vigente = (ahora - _estado["conexion_ts"]) < _estado["conexion_ttl"]
-    
+
+    # Si ya tenemos un resultado cacheado y no forzamos, usarlo
     if not forzar and _estado["conexion_ok"] is not None and cache_vigente:
         return _estado["conexion_ok"]
-    
-    if not _hay_cuota():
-        return False
-    
-    resultado = _llamar_ai("OK") is not None
+
+    # Verificación ligera: ¿el cliente se puede crear?
+    client = _get_client()
+    resultado = client is not None
+
     _estado["conexion_ok"] = resultado
     _estado["conexion_ts"] = ahora
     return resultado
 
 def estado_gemini() -> Dict:
-    """Mantiene el nombre para no cambiar app.py."""
+    """Mantiene el nombre original para no cambiar main.py."""
     _reiniciar_si_nuevo_dia()
+
     bloqueado = time.time() < _estado["bloqueado_hasta"]
     sin_cuota = _estado["llamadas_hoy"] >= _MAX_LLAMADAS_DIA
-    conectado = _estado["conexion_ok"] is True and not bloqueado
-    
-    if conectado:
-        modo = "online"
+    key_ok    = api_key_configurada()
+
+    # conexion_ok None significa "no verificado" — asumimos True si hay key
+    conexion_real = _estado["conexion_ok"]
+    conectado = key_ok and not bloqueado and not sin_cuota and (
+        conexion_real is not False  # None o True → consideramos conectado
+    )
+
+    if not key_ok:
+        modo = "offline_sin_key"
     elif bloqueado:
         modo = "offline_rate_limited"
     elif sin_cuota:
         modo = "offline_sin_cuota"
-    elif not api_key_configurada():
-        modo = "offline_sin_key"
+    elif conectado:
+        modo = "online"
     else:
         modo = "offline_sin_verificar"
-    
+
     return {
-        "api_key_configurada": api_key_configurada(),
-        "conectado": conectado,
-        "llamadas_hoy": _estado["llamadas_hoy"],
-        "max_llamadas": _MAX_LLAMADAS_DIA,
-        "restantes": max(0, _MAX_LLAMADAS_DIA - _estado["llamadas_hoy"]),
-        "modo": modo,
+        "api_key_configurada": key_ok,
+        "conectado":           conectado,
+        "llamadas_hoy":        _estado["llamadas_hoy"],
+        "max_llamadas":        _MAX_LLAMADAS_DIA,
+        "restantes":           max(0, _MAX_LLAMADAS_DIA - _estado["llamadas_hoy"]),
+        "modo":                modo,
     }
 
-# ═══════════════════════════════════════════════
-# FALLBACKS (igual que antes)
-# ═══════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+# FALLBACKS
+# ═══════════════════════════════════════════════════════════════
 
 FALLBACKS = {
-    "resumen_semanal": "🌟 Modo offline activo. Revisa tus hábitos manualmente hoy.",
-    "alerta_matrimonio": "⏰ Son las 20:30. Guarda las pantallas — tiempo sagrado en 30 min. 💑",
-    "analisis_salud": "📊 Sigue registrando para ver patrones. Prioriza 7+ horas de sueño.",
-    "chat_bienvenida": "¡Hola! Estoy en modo offline. Vuelve en unos minutos.",
-    "sugerencia_devocional": "📖 Salmo 119:9-16 — ¿Cómo guardas tus caminos hoy?",
+    "resumen_semanal":        "🌟 Modo offline activo. Revisa tus hábitos manualmente hoy.",
+    "alerta_matrimonio":      "⏰ Son las 20:30. Guarda las pantallas — tiempo sagrado en 30 min. 💑",
+    "analisis_salud":         "📊 Sigue registrando para ver patrones. Prioriza 7+ horas de sueño.",
+    "chat_bienvenida":        "🤖 Sin respuesta de la IA. Verifica la API key en Secrets.",
+    "sugerencia_devocional":  "📖 Salmo 119:9-16 — ¿Cómo guardas tus caminos hoy?",
 }
 
 def _fallback(tipo: str) -> str:
     return FALLBACKS.get(tipo, "🤖 Modo offline activo.")
 
-SYSTEM_MISION = "Eres la Secretaria IA de Mission Dashboard, asistente personal cristiano para teología, programación, finanzas y matrimonio. Responde en español, de forma breve y práctica."
+# ═══════════════════════════════════════════════════════════════
+# FUNCIONES DE NEGOCIO
+# ═══════════════════════════════════════════════════════════════
+
+SYSTEM_MISION = (
+    "Eres la Secretaria IA de Mission Dashboard, asistente personal cristiano "
+    "para teología, programación, finanzas y matrimonio. "
+    "Responde en español, de forma breve y práctica."
+)
 
 def chat_simple(mensaje: str, contexto: str = "") -> str:
     resultado = _llamar_ai(mensaje, system=SYSTEM_MISION)
@@ -190,15 +250,17 @@ def chat_simple(mensaje: str, contexto: str = "") -> str:
 
 def generar_resumen_semanal(*args, **kwargs) -> str:
     resultado = _llamar_ai(
-        "Genera un resumen motivacional semanal. Incluye: victorias posibles, área de mejora y un versículo bíblico. Máximo 200 palabras. Usa markdown.",
-        system=SYSTEM_MISION
+        "Genera un resumen motivacional semanal. Incluye: victorias posibles, "
+        "área de mejora y un versículo bíblico. Máximo 200 palabras. Usa markdown.",
+        system=SYSTEM_MISION,
     )
     return resultado or _fallback("resumen_semanal")
 
 def generar_alerta_matrimonio(contexto: str = "") -> str:
     resultado = _llamar_ai(
-        "Genera una alerta cariñosa para las 20:30 recordando preparar tiempo en pareja a las 21:00. Breve y con una acción concreta.",
-        system=SYSTEM_MISION
+        "Genera una alerta cariñosa para las 20:30 recordando preparar tiempo "
+        "en pareja a las 21:00. Breve y con una acción concreta.",
+        system=SYSTEM_MISION,
     )
     return resultado or _fallback("alerta_matrimonio")
 
@@ -206,56 +268,42 @@ def analizar_patron_salud(registros: List[Dict]) -> str:
     if len(registros) < 4:
         return "Datos insuficientes. Sigue registrando tu rutina."
     resultado = _llamar_ai(
-        f"Analiza correlación ejercicio-productividad: {json.dumps(registros[:5])}. Máximo 3 oraciones.",
-        system=SYSTEM_MISION
+        f"Analiza correlación ejercicio-productividad: {json.dumps(registros[:5])}. "
+        "Máximo 3 oraciones.",
+        system=SYSTEM_MISION,
     )
     return resultado or _fallback("analisis_salud")
 
 def sugerir_lectura_devocional(tema: str = "", pasaje: str = "") -> str:
     resultado = _llamar_ai(
-        f"Sugiere un pasaje bíblico relacionado con: '{tema}'. Incluye referencia y una pregunta de reflexión. Máximo 100 palabras.",
-        system=SYSTEM_MISION
+        f"Sugiere un pasaje bíblico relacionado con: '{tema}'. "
+        "Incluye referencia y una pregunta de reflexión. Máximo 100 palabras.",
+        system=SYSTEM_MISION,
     )
     return resultado or _fallback("sugerencia_devocional")
 
 def extraer_metadatos_libro(contenido_pdf: bytes, nombre_archivo: str) -> Dict:
-    """
-    Extrae metadatos reales del PDF usando pdfplumber + Groq.
-    Si falla, usa el nombre del archivo como fallback.
-    """
-    texto_extraido = ""
-    
-    # ── Extraer texto real con pdfplumber ───────────────────
+    """Extrae metadatos reales del PDF usando pdfplumber + Groq."""
+    texto_extraido   = ""
+    total_paginas_real = 0
+
     try:
-        import pdfplumber
-        import io
-        
+        import pdfplumber, io
         with pdfplumber.open(io.BytesIO(contenido_pdf)) as pdf:
-            paginas_a_leer = min(5, len(pdf.pages))  # Solo primeras 5 páginas
+            total_paginas_real = len(pdf.pages)
             partes = []
-            
-            for i in range(paginas_a_leer):
-                pagina = pdf.pages[i]
-                texto = pagina.extract_text()
+            for i in range(min(5, total_paginas_real)):
+                texto = pdf.pages[i].extract_text()
                 if texto:
                     partes.append(texto.strip())
-            
             texto_extraido = "\n\n".join(partes)
-            total_paginas_real = len(pdf.pages)
-            
-        print(f"[PDF] Extraídas {paginas_a_leer} páginas, {len(texto_extraido)} caracteres")
-        
+        print(f"[PDF] {min(5, total_paginas_real)} páginas, {len(texto_extraido)} chars")
     except Exception as e:
         print(f"[PDF] Error extrayendo texto: {e}")
-        texto_extraido = ""
-        total_paginas_real = 0
-    
-    # ── Limitar texto para no exceder tokens de Groq ────────
-    # Groq acepta ~6000 tokens/min — 3000 caracteres es seguro
+
     texto_para_ia = texto_extraido[:3000] if texto_extraido else f"Nombre del archivo: {nombre_archivo}"
-    
-    # ── Enviar a Groq para análisis ─────────────────────────
-    prompt = f"""Analiza este libro y extrae sus metadatos. 
+
+    prompt = f"""Analiza este libro y extrae sus metadatos.
 
 TEXTO DEL LIBRO (primeras páginas):
 {texto_para_ia}
@@ -269,149 +317,125 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni explicaciones:
     "categoria_principal": "una de: Teologia/Programacion/Matrimonio/Filosofia/Liderazgo/Historia/Otros",
     "descripcion": "resumen del libro en 2-3 oraciones basado en el contenido real",
     "editorial": "editorial si aparece, sino null",
-    "anio_publicacion": año como número si aparece sino null,
+    "anio_publicacion": "año como número si aparece sino null",
     "total_paginas": {total_paginas_real if total_paginas_real > 0 else "null"},
     "temas_clave": ["tema1", "tema2", "tema3"],
-    "confianza_extraccion": número del 1 al 10 según qué tan seguro estás
+    "confianza_extraccion": "número del 1 al 10"
 }}"""
 
     resultado = _llamar_ai(prompt)
-    
+
     if resultado:
         try:
-            # Limpiar posible markdown que Groq agregue
             texto_limpio = resultado.strip()
             if "```" in texto_limpio:
                 texto_limpio = texto_limpio.split("```")[1]
                 if texto_limpio.startswith("json"):
                     texto_limpio = texto_limpio[4:]
-            
+
             metadatos = json.loads(texto_limpio.strip())
-            
-            # Garantizar campos obligatorios
             metadatos.setdefault("titulo", nombre_archivo.replace(".pdf", "").replace("_", " ").title())
             metadatos.setdefault("autor", "Desconocido")
             metadatos.setdefault("categoria_principal", "Otros")
             metadatos.setdefault("descripcion", "Sin descripción")
             metadatos.setdefault("temas_clave", [])
-            metadatos["fuente_metadatos"] = "IA"
-            metadatos["fecha_extraccion"] = datetime.now().isoformat()
-            
-            # Asegurar total_paginas del PDF real
+            metadatos["fuente_metadatos"]  = "IA"
+            metadatos["fecha_extraccion"]  = datetime.now().isoformat()
             if total_paginas_real > 0:
                 metadatos["total_paginas"] = total_paginas_real
-            
             return metadatos
-            
+
         except json.JSONDecodeError as e:
-            print(f"[AI] Error parseando JSON: {e}")
-            print(f"[AI] Respuesta recibida: {resultado[:200]}")
-    
-    # ── Fallback si todo falla ───────────────────────────────
+            print(f"[AI] Error parseando JSON: {e} | resp: {resultado[:200]}")
+
     return {
-        "titulo": nombre_archivo.replace(".pdf", "").replace("_", " ").title(),
-        "autor": "Desconocido",
-        "categoria_principal": "Otros",
-        "descripcion": "No se pudo extraer descripción automáticamente.",
-        "total_paginas": total_paginas_real,
-        "temas_clave": [],
+        "titulo":               nombre_archivo.replace(".pdf", "").replace("_", " ").title(),
+        "autor":                "Desconocido",
+        "categoria_principal":  "Otros",
+        "descripcion":          "No se pudo extraer descripción automáticamente.",
+        "total_paginas":        total_paginas_real,
+        "temas_clave":          [],
         "confianza_extraccion": 1,
-        "fuente_metadatos": "IA",
+        "fuente_metadatos":     "IA",
     }
 
 def buscar_metadatos_isbn(isbn: str) -> dict:
-    """
-    Busca metadatos de un libro por ISBN.
-    Orden: Open Library → Google Books → Groq completa huecos.
-    """
+    """Busca metadatos por ISBN: Open Library → Google Books → Groq."""
+    import re
     import requests
-    
-    metadatos = {}
-    isbn_limpio = isbn.replace('-', '').replace(' ', '').strip()
-    
+
+    metadatos   = {}
+    isbn_limpio = isbn.replace("-", "").replace(" ", "").strip()
+
     # ── 1. Open Library ──────────────────────────────────────
     try:
-        url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn_limpio}&format=json&jscmd=data"
+        url  = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn_limpio}&format=json&jscmd=data"
         resp = requests.get(url, timeout=8)
         if resp.status_code == 200:
             data = resp.json()
-            key = f"ISBN:{isbn_limpio}"
+            key  = f"ISBN:{isbn_limpio}"
             if key in data:
                 libro = data[key]
-                metadatos['titulo']          = libro.get('title', '')
-                metadatos['subtitulo']       = libro.get('subtitle', '')
-                metadatos['editorial']       = (libro.get('publishers') or [{}])[0].get('name', '')
-                metadatos['total_paginas']   = libro.get('number_of_pages', 0)
-                metadatos['isbn']            = isbn_limpio
-                
-                # Año de publicación
-                fecha = libro.get('publish_date', '')
+                metadatos["titulo"]       = libro.get("title", "")
+                metadatos["subtitulo"]    = libro.get("subtitle", "")
+                metadatos["editorial"]    = (libro.get("publishers") or [{}])[0].get("name", "")
+                metadatos["total_paginas"]= libro.get("number_of_pages", 0)
+                metadatos["isbn"]         = isbn_limpio
+                fecha = libro.get("publish_date", "")
                 if fecha:
-                    import re
-                    anio_match = re.search(r'\d{4}', fecha)
-                    metadatos['anio_publicacion'] = int(anio_match.group()) if anio_match else None
-                
-                # Autores
-                autores = libro.get('authors', [])
+                    m = re.search(r"\d{4}", fecha)
+                    metadatos["anio_publicacion"] = int(m.group()) if m else None
+                autores = libro.get("authors", [])
                 if autores:
-                    metadatos['autor'] = autores[0].get('name', '')
+                    metadatos["autor"] = autores[0].get("name", "")
                     if len(autores) > 1:
-                        metadatos['autores_adicionales'] = [a.get('name','') for a in autores[1:]]
-                
-                # Temas
-                subjects = libro.get('subjects', [])
+                        metadatos["autores_adicionales"] = [a.get("name", "") for a in autores[1:]]
+                subjects = libro.get("subjects", [])
                 if subjects:
-                    metadatos['temas_clave'] = [
-                        s.get('name', s) if isinstance(s, dict) else str(s)
+                    metadatos["temas_clave"] = [
+                        s.get("name", s) if isinstance(s, dict) else str(s)
                         for s in subjects[:8]
                     ]
-                
-                print(f"[ISBN] Open Library: {metadatos.get('titulo','')}")
+                print(f"[ISBN] Open Library: {metadatos.get('titulo', '')}")
     except Exception as e:
         print(f"[ISBN] Open Library error: {e}")
-    
-    # ── 2. Google Books (completa huecos) ─────────────────────
+
+    # ── 2. Google Books ───────────────────────────────────────
     try:
-        url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn_limpio}"
+        url  = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn_limpio}"
         resp = requests.get(url, timeout=8)
         if resp.status_code == 200:
-            data = resp.json()
-            items = data.get('items', [])
+            data  = resp.json()
+            items = data.get("items", [])
             if items:
-                info = items[0].get('volumeInfo', {})
-                
-                # Solo completar lo que falta
-                if not metadatos.get('titulo'):
-                    metadatos['titulo'] = info.get('title', '')
-                if not metadatos.get('autor'):
-                    autores = info.get('authors', [])
-                    metadatos['autor'] = autores[0] if autores else ''
+                info = items[0].get("volumeInfo", {})
+                if not metadatos.get("titulo"):
+                    metadatos["titulo"] = info.get("title", "")
+                if not metadatos.get("autor"):
+                    autores = info.get("authors", [])
+                    metadatos["autor"] = autores[0] if autores else ""
                     if len(autores) > 1:
-                        metadatos['autores_adicionales'] = autores[1:]
-                if not metadatos.get('editorial'):
-                    metadatos['editorial'] = info.get('publisher', '')
-                if not metadatos.get('anio_publicacion'):
-                    fecha = info.get('publishedDate', '')
+                        metadatos["autores_adicionales"] = autores[1:]
+                if not metadatos.get("editorial"):
+                    metadatos["editorial"] = info.get("publisher", "")
+                if not metadatos.get("anio_publicacion"):
+                    fecha = info.get("publishedDate", "")
                     if fecha:
-                        import re
-                        anio_match = re.search(r'\d{4}', fecha)
-                        metadatos['anio_publicacion'] = int(anio_match.group()) if anio_match else None
-                if not metadatos.get('total_paginas'):
-                    metadatos['total_paginas'] = info.get('pageCount', 0)
-                if not metadatos.get('descripcion'):
-                    metadatos['descripcion'] = info.get('description', '')[:500]
-                if not metadatos.get('temas_clave'):
-                    metadatos['temas_clave'] = info.get('categories', [])
-                
-                # Idioma
-                metadatos['idioma'] = info.get('language', 'es')
-                
-                print(f"[ISBN] Google Books: {metadatos.get('titulo','')}")
+                        m = re.search(r"\d{4}", fecha)
+                        metadatos["anio_publicacion"] = int(m.group()) if m else None
+                if not metadatos.get("total_paginas"):
+                    metadatos["total_paginas"] = info.get("pageCount", 0)
+                if not metadatos.get("descripcion"):
+                    metadatos["descripcion"] = info.get("description", "")[:500]
+                if not metadatos.get("temas_clave"):
+                    metadatos["temas_clave"] = info.get("categories", [])
+                metadatos["idioma"] = info.get("language", "es")
+                print(f"[ISBN] Google Books: {metadatos.get('titulo', '')}")
     except Exception as e:
         print(f"[ISBN] Google Books error: {e}")
-    
-    # ── 3. Groq completa y categoriza ─────────────────────────
-    if metadatos.get('titulo'):
+
+    # ── 3. Groq — categoriza y completa ──────────────────────
+    if metadatos.get("titulo"):
         try:
             prompt = f"""Dados estos metadatos de un libro, completa y mejora la información:
 
@@ -424,68 +448,51 @@ Temas actuales: {metadatos.get('temas_clave', [])}
 Responde SOLO en JSON válido sin texto adicional:
 {{
   "categoria_principal": "una de: Teologia, Programacion, Matrimonio, Filosofia, Liderazgo, Historia, Otros",
-  "descripcion_mejorada": "descripción clara y útil de 2-3 oraciones si la actual es pobre",
-  "temas_clave": ["lista", "de", "temas", "relevantes", "máximo 6"],
-  "subcategorias": ["subcategorías", "específicas", "máximo 3"],
+  "descripcion_mejorada": "descripción clara y útil de 2-3 oraciones",
+  "temas_clave": ["lista", "de", "temas", "máximo 6"],
+  "subcategorias": ["subcategorías", "máximo 3"],
   "confianza_ia": 8
 }}"""
-            
             respuesta = _llamar_ai(prompt, max_tokens=400)
             if respuesta:
-                import re, json
-                json_match = re.search(r'\{.*\}', respuesta, re.DOTALL)
+                json_match = re.search(r"\{.*\}", respuesta, re.DOTALL)
                 if json_match:
                     extra = json.loads(json_match.group())
-                    metadatos['categoria_principal'] = extra.get('categoria_principal', 'Otros')
-                    metadatos['subcategorias']       = extra.get('subcategorias', [])
-                    metadatos['confianza_ia']        = extra.get('confianza_ia', 7)
-                    
-                    # Mejorar descripción si Groq la tiene mejor
-                    if extra.get('descripcion_mejorada') and len(extra['descripcion_mejorada']) > len(metadatos.get('descripcion', '')):
-                        metadatos['descripcion'] = extra['descripcion_mejorada']
-                    
-                    # Combinar temas
-                    temas_extra = extra.get('temas_clave', [])
-                    temas_existentes = metadatos.get('temas_clave', [])
-                    metadatos['temas_clave'] = list(dict.fromkeys(temas_existentes + temas_extra))[:8]
-                    
-                    print(f"[ISBN] Groq completó: categoría={metadatos['categoria_principal']}")
+                    metadatos["categoria_principal"] = extra.get("categoria_principal", "Otros")
+                    metadatos["subcategorias"]       = extra.get("subcategorias", [])
+                    metadatos["confianza_ia"]        = extra.get("confianza_ia", 7)
+                    if extra.get("descripcion_mejorada") and len(extra["descripcion_mejorada"]) > len(metadatos.get("descripcion", "")):
+                        metadatos["descripcion"] = extra["descripcion_mejorada"]
+                    temas = list(dict.fromkeys(metadatos.get("temas_clave", []) + extra.get("temas_clave", [])))
+                    metadatos["temas_clave"] = temas[:8]
         except Exception as e:
             print(f"[ISBN] Groq error: {e}")
     else:
-        # Título no encontrado — Groq intenta con solo el ISBN
         try:
             prompt = f"""El ISBN {isbn_limpio} no está en las APIs públicas.
 Basándote en tu conocimiento, ¿conoces este libro?
 Si lo conoces responde en JSON, si no responde {{"desconocido": true}}:
 {{
-  "titulo": "",
-  "autor": "",
-  "editorial": "",
-  "anio_publicacion": 0,
-  "categoria_principal": "",
-  "descripcion": "",
-  "temas_clave": [],
-  "subcategorias": [],
-  "confianza_ia": 3
+  "titulo": "", "autor": "", "editorial": "",
+  "anio_publicacion": 0, "categoria_principal": "",
+  "descripcion": "", "temas_clave": [],
+  "subcategorias": [], "confianza_ia": 3
 }}"""
             respuesta = _llamar_ai(prompt, max_tokens=300)
             if respuesta:
-                import re, json
-                json_match = re.search(r'\{.*\}', respuesta, re.DOTALL)
+                json_match = re.search(r"\{.*\}", respuesta, re.DOTALL)
                 if json_match:
                     data = json.loads(json_match.group())
-                    if not data.get('desconocido'):
+                    if not data.get("desconocido"):
                         metadatos.update(data)
-                        print(f"[ISBN] Groq conoce el libro: {metadatos.get('titulo','')}")
         except Exception as e:
             print(f"[ISBN] Groq fallback error: {e}")
-    
-    metadatos['isbn']            = isbn_limpio
-    metadatos['fuente_metadatos'] = 'ISBN'
-    metadatos.setdefault('confianza_ia', 5)
-    metadatos.setdefault('temas_clave', [])
-    metadatos.setdefault('subcategorias', [])
-    metadatos.setdefault('autores_adicionales', [])
-    
+
+    metadatos["isbn"]             = isbn_limpio
+    metadatos["fuente_metadatos"] = "ISBN"
+    metadatos.setdefault("confianza_ia", 5)
+    metadatos.setdefault("temas_clave", [])
+    metadatos.setdefault("subcategorias", [])
+    metadatos.setdefault("autores_adicionales", [])
+
     return metadatos

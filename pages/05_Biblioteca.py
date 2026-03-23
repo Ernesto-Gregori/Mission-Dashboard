@@ -5,19 +5,24 @@ Flujo: Subir → IA procesa → Revisar → Guardar → Agregar resaltados
 
 import sys
 from pathlib import Path
-from datetime import date, datetime
+from datetime import timedelta
 import json
 import hashlib
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from app.database import init_database, ejecutar
+from app.database import init_database, ejecutar, ejecutar_cached
 from app.ai_client import (
     extraer_metadatos_libro,
     buscar_metadatos_isbn,
     verificar_conexion,
     estado_gemini,
     api_key_configurada,
+)
+from app.timezone_config import (
+    date, datetime,
+    hoy as _hoy,
+    iso_ahora,
 )
 
 import streamlit as st
@@ -58,7 +63,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════
-# FUNCIONES DB — todas usan ejecutar()
+# HELPERS
 # ═══════════════════════════════════════════════════════════════
 
 def parsear_lista(valor) -> list:
@@ -73,6 +78,10 @@ def parsear_lista(valor) -> list:
         return []
 
 
+# ═══════════════════════════════════════════════════════════════
+# FUNCIONES DB
+# ═══════════════════════════════════════════════════════════════
+
 def agregar_libro_por_procesar(nombre_archivo: str, ruta: str,
                                 tamano: float, formato: str,
                                 hash_archivo: str) -> int:
@@ -86,7 +95,7 @@ def agregar_libro_por_procesar(nombre_archivo: str, ruta: str,
              tamano_mb, formato, hash_archivo, estado)
         VALUES (?, ?, ?, ?, ?, ?, 'por_procesar')
     """, [titulo_temp, nombre_archivo, ruta,
-          tamano, formato, hash_archivo])
+          float(tamano), formato, hash_archivo])
 
 
 def obtener_libro(libro_id: int) -> dict | None:
@@ -141,37 +150,41 @@ def obtener_libros_por_estado(estado=None, categoria=None,
 
 
 def guardar_metadatos_ia(libro_id: int, metadatos: dict) -> None:
+    """
+    FIX Turso: todos los campos se convierten a tipos primitivos
+    (str / int / float) antes de enviar — nunca objetos Python nativos.
+    """
     for campo in ["subcategorias", "temas_clave", "autores_adicionales"]:
         valor = metadatos.get(campo)
         if isinstance(valor, list):
-            metadatos[campo] = json.dumps(valor)
-        elif valor is None:
+            metadatos[campo] = json.dumps(valor, ensure_ascii=False)
+        elif not isinstance(valor, str):
             metadatos[campo] = json.dumps([])
 
     campos = {
-        "titulo":              metadatos.get("titulo"),
-        "autor":               metadatos.get("autor"),
-        "isbn":                metadatos.get("isbn"),
-        "editorial":           metadatos.get("editorial"),
-        "anio_publicacion":    metadatos.get("anio_publicacion"),
-        "categoria_principal": metadatos.get("categoria_principal"),
-        "total_paginas":       metadatos.get("total_paginas"),
-        "descripcion":         metadatos.get("descripcion"),
-        "subcategorias":       metadatos.get("subcategorias", json.dumps([])),
-        "temas_clave":         metadatos.get("temas_clave",   json.dumps([])),
-        "autores_adicionales": metadatos.get("autores_adicionales", json.dumps([])),
-        "notas_bibliotecaria": metadatos.get("notas_bibliotecaria", ""),
-        "fuente_metadatos":    metadatos.get("fuente_metadatos", "IA"),
-        "confianza_ia":        metadatos.get("confianza_ia", 5),
+        "titulo":              str(metadatos.get("titulo") or ""),
+        "autor":               str(metadatos.get("autor") or ""),
+        "isbn":                str(metadatos.get("isbn") or ""),
+        "editorial":           str(metadatos.get("editorial") or ""),
+        "anio_publicacion":    int(metadatos.get("anio_publicacion") or 0),
+        "categoria_principal": str(metadatos.get("categoria_principal") or "Otros"),
+        "total_paginas":       int(metadatos.get("total_paginas") or 0),
+        "descripcion":         str(metadatos.get("descripcion") or ""),
+        "subcategorias":       metadatos.get("subcategorias", "[]"),
+        "temas_clave":         metadatos.get("temas_clave",   "[]"),
+        "autores_adicionales": metadatos.get("autores_adicionales", "[]"),
+        "notas_bibliotecaria": str(metadatos.get("notas_bibliotecaria") or ""),
+        "fuente_metadatos":    str(metadatos.get("fuente_metadatos") or "IA"),
+        "confianza_ia":        int(metadatos.get("confianza_ia") or 5),
         "estado":              "catalogado",
         "revisado_manual":     1,
-        "actualizado_en":      datetime.now().isoformat(),
+        "actualizado_en":      iso_ahora(),   # ← zona horaria local, str ISO
     }
 
     set_clause = ", ".join(f"{k} = ?" for k in campos)
     ejecutar(
         f"UPDATE libros SET {set_clause} WHERE id = ?",
-        list(campos.values()) + [libro_id]
+        list(campos.values()) + [int(libro_id)]
     )
 
 
@@ -182,13 +195,13 @@ def actualizar_progreso(libro_id: int, pagina_actual: int,
             UPDATE libros
             SET pagina_actual = ?, estado = ?, actualizado_en = ?
             WHERE id = ?
-        """, [pagina_actual, estado, datetime.now().isoformat(), libro_id])
+        """, [int(pagina_actual), estado, iso_ahora(), int(libro_id)])
     else:
         ejecutar("""
             UPDATE libros
             SET pagina_actual = ?, actualizado_en = ?
             WHERE id = ?
-        """, [pagina_actual, datetime.now().isoformat(), libro_id])
+        """, [int(pagina_actual), iso_ahora(), int(libro_id)])
 
 
 def agregar_resaltado(libro_id: int, pagina: int, texto_resaltado: str,
@@ -199,27 +212,28 @@ def agregar_resaltado(libro_id: int, pagina: int, texto_resaltado: str,
             (libro_id, pagina, texto_resaltado,
              color_etiqueta, nota_personal, texto_contexto)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, [libro_id, pagina, texto_resaltado,
-          color_etiqueta, nota_personal, texto_contexto])
+    """, [int(libro_id), int(pagina),
+          str(texto_resaltado), str(color_etiqueta),
+          str(nota_personal or ""), str(texto_contexto or "")])
 
 
 def obtener_resaltados(libro_id: int, color: str = None) -> list:
     if color:
-        return ejecutar("""
+        return ejecutar_cached("""
             SELECT * FROM resaltados
             WHERE libro_id = ? AND color_etiqueta = ?
             ORDER BY pagina, creado_en
-        """, [libro_id, color], fetchall=True) or []
-    return ejecutar("""
+        """, (int(libro_id), color)) or []
+    return ejecutar_cached("""
         SELECT * FROM resaltados
         WHERE libro_id = ?
         ORDER BY pagina, creado_en
-    """, [libro_id], fetchall=True) or []
+    """, (int(libro_id),)) or []
 
 
 def eliminar_libro(libro_id: int) -> None:
-    ejecutar("DELETE FROM resaltados WHERE libro_id = ?", [libro_id])
-    ejecutar("DELETE FROM libros WHERE id = ?",           [libro_id])
+    ejecutar("DELETE FROM resaltados WHERE libro_id = ?", [int(libro_id)])
+    ejecutar("DELETE FROM libros WHERE id = ?",           [int(libro_id)])
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -296,7 +310,7 @@ with tab_cargar:
             horizontal=True
         )
 
-        # ── PDF ───────────────────────────────────────────
+        # ── PDF ───────────────────────────────────────────────
         if metodo == "Subir PDF":
             archivo = st.file_uploader(
                 "Seleccionar archivo", type=["pdf", "epub", "mobi"]
@@ -333,7 +347,7 @@ with tab_cargar:
                     st.session_state.libro_en_proceso = libro_id
                     st.rerun()
 
-        # ── ISBN ──────────────────────────────────────────
+        # ── ISBN ──────────────────────────────────────────────
         elif metodo == "ISBN":
             st.markdown("### 📖 Buscar por ISBN")
             col_i1, col_i2 = st.columns([3, 1])
@@ -359,7 +373,7 @@ with tab_cargar:
                     if metadatos_isbn.get("titulo"):
                         libro_id = agregar_libro_por_procesar(
                             f"{metadatos_isbn['titulo']}.isbn",
-                            f"isbn://{isbn_limpio}", 0, "Otro",
+                            f"isbn://{isbn_limpio}", 0.0, "Otro",
                             f"isbn_{isbn_limpio}"
                         )
                         st.session_state.libro_en_proceso     = libro_id
@@ -368,7 +382,7 @@ with tab_cargar:
                     else:
                         st.error(f"❌ ISBN `{isbn_limpio}` no encontrado.")
 
-        # ── Manual ────────────────────────────────────────
+        # ── Manual ────────────────────────────────────────────
         elif metodo == "Manual":
             with st.form("manual_entry"):
                 titulo    = st.text_input("Título *")
@@ -383,19 +397,21 @@ with tab_cargar:
                 with col_p:
                     paginas = st.number_input("Total páginas", min_value=1, value=200)
                 descripcion = st.text_area("Descripción")
-                submitted   = st.form_submit_button("💾 Guardar", use_container_width=True)
+                submitted   = st.form_submit_button(
+                    "💾 Guardar", use_container_width=True
+                )
 
                 if submitted and titulo.strip():
                     libro_id = agregar_libro_por_procesar(
-                        f"{titulo}.manual", "manual", 0,
+                        f"{titulo}.manual", "manual", 0.0,
                         "Otro", f"manual_{titulo[:10]}"
                     )
                     guardar_metadatos_ia(libro_id, {
-                        "titulo":              titulo,
-                        "autor":               autor or "Desconocido",
+                        "titulo":              titulo.strip(),
+                        "autor":               autor.strip() or "Desconocido",
                         "categoria_principal": categoria,
                         "descripcion":         descripcion,
-                        "total_paginas":       paginas,
+                        "total_paginas":       int(paginas),
                         "fuente_metadatos":    "Manual",
                         "confianza_ia":        10,
                         "subcategorias":       [],
@@ -478,7 +494,8 @@ with tab_cargar:
     <span>🤖 Confianza IA: </span>
     <strong style="color:{color_c};">{confianza}/10</strong>
     <div style="background:#21262d;height:6px;border-radius:3px;margin-top:0.5rem;">
-        <div style="background:{color_c};width:{confianza*10}%;height:100%;border-radius:3px;"></div>
+        <div style="background:{color_c};width:{confianza*10}%;
+                    height:100%;border-radius:3px;"></div>
     </div>
 </div>
         """, unsafe_allow_html=True)
@@ -498,10 +515,14 @@ with tab_cargar:
                     "Categoría", cats,
                     index=cats.index(cat_val) if cat_val in cats else 6
                 )
-                anio_f    = st.number_input("Año", min_value=1000, max_value=2030,
-                                            value=int(meta.get("anio_publicacion") or 2020))
-                paginas_f = st.number_input("Total páginas", min_value=1,
-                                            value=int(meta.get("total_paginas") or 100))
+                anio_f    = st.number_input(
+                    "Año", min_value=1000, max_value=2030,
+                    value=int(meta.get("anio_publicacion") or 2020)
+                )
+                paginas_f = st.number_input(
+                    "Total páginas", min_value=1,
+                    value=int(meta.get("total_paginas") or 100)
+                )
 
             desc_f = st.text_area("Descripción",
                                   value=meta.get("descripcion") or "", height=100)
@@ -519,14 +540,16 @@ with tab_cargar:
                     value=", ".join(parsear_lista(meta.get("subcategorias", [])))
                 )
 
-            col_g, col_c = st.columns(2)
+            col_g, col_c2 = st.columns(2)
             with col_g:
                 guardar = st.form_submit_button(
                     "✅ Guardar en biblioteca",
                     use_container_width=True, type="primary"
                 )
-            with col_c:
-                cancelar = st.form_submit_button("❌ Cancelar", use_container_width=True)
+            with col_c2:
+                cancelar = st.form_submit_button(
+                    "❌ Cancelar", use_container_width=True
+                )
 
             if guardar:
                 if not titulo_f.strip():
@@ -543,7 +566,7 @@ with tab_cargar:
                             "categoria_principal": categoria_f,
                             "total_paginas":       int(paginas_f),
                             "descripcion":         desc_f.strip(),
-                            "temas_clave":  [t.strip() for t in temas_f.split(",") if t.strip()],
+                            "temas_clave":  [t.strip() for t in temas_f.split(",")  if t.strip()],
                             "subcategorias":[s.strip() for s in subcats_f.split(",") if s.strip()],
                             "autores_adicionales": meta.get("autores_adicionales", []),
                             "notas_bibliotecaria": meta.get("notas_bibliotecaria", ""),
@@ -625,9 +648,9 @@ with tab_catalogo:
         st.session_state.filtros_prev = filtros_key
 
     libros, total = obtener_libros_por_estado(
-        estado=None if filtro_estado    == "Todos" else filtro_estado,
+        estado=None    if filtro_estado    == "Todos" else filtro_estado,
         categoria=None if filtro_categoria == "Todas" else filtro_categoria,
-        color=None if filtro_color      == "Todos" else filtro_color,
+        color=None     if filtro_color     == "Todos" else filtro_color,
         busqueda=busqueda,
         pagina=st.session_state.cat_pagina,
         por_pagina=por_pagina,
@@ -645,8 +668,8 @@ with tab_catalogo:
     else:
         st.caption("Sin resultados")
 
-    ESTADOS_LIBRO  = ["por_procesar","catalogado","leyendo","pausado","completado","abandonado"]
-    EMOJI_ESTADO   = {
+    ESTADOS_LIBRO = ["por_procesar","catalogado","leyendo","pausado","completado","abandonado"]
+    EMOJI_ESTADO  = {
         "por_procesar":"⏳","catalogado":"📚",
         "leyendo":"🔥","pausado":"⏸️",
         "completado":"✅","abandonado":"🗑️"
@@ -707,7 +730,7 @@ with tab_catalogo:
                         nueva_pagina = st.number_input(
                             "Página actual", min_value=0,
                             max_value=total_pags or 9999,
-                            value=pag_actual, key=f"pag_{key_base}"
+                            value=int(pag_actual), key=f"pag_{key_base}"
                         )
                         nuevo_estado = st.selectbox(
                             "Estado", ESTADOS_LIBRO,
@@ -735,24 +758,30 @@ with tab_catalogo:
                                 isbn_e      = st.text_input("ISBN",
                                     value=libro.get("isbn") or "")
                             with col_e2:
-                                cat_val_e   = libro.get("categoria_principal", "Otros")
+                                cat_val_e   = libro.get("categoria_principal","Otros")
                                 categoria_e = st.selectbox(
                                     "Categoría", CATS_LIBRO,
                                     index=CATS_LIBRO.index(cat_val_e)
                                     if cat_val_e in CATS_LIBRO else 6
                                 )
-                                anio_e    = st.number_input("Año", min_value=1000,
-                                    max_value=2030,
-                                    value=int(libro.get("anio_publicacion") or 2020))
-                                paginas_e = st.number_input("Total páginas",
-                                    min_value=1,
-                                    value=int(libro.get("total_paginas") or 100))
+                                anio_e    = st.number_input(
+                                    "Año", min_value=1000, max_value=2030,
+                                    value=int(libro.get("anio_publicacion") or 2020)
+                                )
+                                paginas_e = st.number_input(
+                                    "Total páginas", min_value=1,
+                                    value=int(libro.get("total_paginas") or 100)
+                                )
                             desc_e    = st.text_area("Descripción",
                                 value=libro.get("descripcion") or "", height=80)
-                            temas_e   = st.text_input("Temas clave (separados por coma)",
-                                value=", ".join(parsear_lista(libro.get("temas_clave"))))
-                            subcats_e = st.text_input("Subcategorías (separadas por coma)",
-                                value=", ".join(parsear_lista(libro.get("subcategorias"))))
+                            temas_e   = st.text_input(
+                                "Temas clave (separados por coma)",
+                                value=", ".join(parsear_lista(libro.get("temas_clave")))
+                            )
+                            subcats_e = st.text_input(
+                                "Subcategorías (separadas por coma)",
+                                value=", ".join(parsear_lista(libro.get("subcategorias")))
+                            )
 
                             if st.form_submit_button("💾 Guardar cambios",
                                                      use_container_width=True,
@@ -766,12 +795,14 @@ with tab_catalogo:
                                         actualizado_en=?
                                     WHERE id=?
                                 """, [
-                                    titulo_e, autor_e, editorial_e, isbn_e,
-                                    categoria_e, anio_e, paginas_e, desc_e,
-                                    json.dumps([t.strip() for t in temas_e.split(",") if t.strip()]),
+                                    str(titulo_e), str(autor_e),
+                                    str(editorial_e), str(isbn_e),
+                                    str(categoria_e), int(anio_e),
+                                    int(paginas_e), str(desc_e),
+                                    json.dumps([t.strip() for t in temas_e.split(",")   if t.strip()]),
                                     json.dumps([s.strip() for s in subcats_e.split(",") if s.strip()]),
-                                    datetime.now().isoformat(),
-                                    libro["id"],
+                                    iso_ahora(),    # ← str ISO local
+                                    int(libro["id"]),
                                 ])
                                 st.success("✅ Libro actualizado")
                                 st.rerun()
@@ -835,9 +866,10 @@ with tab_catalogo:
 
         col_goto, _ = st.columns([1, 3])
         with col_goto:
-            goto = st.number_input("Ir a página", min_value=1,
-                                   max_value=total_paginas,
-                                   value=pag_act, step=1, key="goto_pag")
+            goto = st.number_input(
+                "Ir a página", min_value=1, max_value=total_paginas,
+                value=pag_act, step=1, key="goto_pag"
+            )
             if st.button("Ir →", use_container_width=True, key="btn_goto"):
                 st.session_state.cat_pagina = goto
                 st.rerun()
@@ -902,15 +934,15 @@ with tab_leyendo:
                 with st.expander("📖 Actualizar progreso"):
                     nueva_pag = st.number_input(
                         "Página actual", min_value=0,
-                        max_value=total, value=pag_actual,
+                        max_value=int(total), value=int(pag_actual),
                         key=f"npag_{key_b}"
                     )
                     nueva_pag_slider = st.slider(
                         "O usa el slider", min_value=0,
-                        max_value=total, value=pag_actual,
+                        max_value=int(total), value=int(pag_actual),
                         key=f"slid_{key_b}"
                     )
-                    pag_guardar = max(nueva_pag, nueva_pag_slider)
+                    pag_guardar  = max(nueva_pag, nueva_pag_slider)
                     nuevo_estado = st.selectbox(
                         "Estado",
                         ["leyendo","pausado","completado","abandonado"],
@@ -932,8 +964,8 @@ with tab_leyendo:
                 with st.expander("🎨 Agregar resaltado"):
                     key_r  = f"res_{libro['id']}"
                     pag_r  = st.number_input(
-                        "Página", min_value=1, max_value=total,
-                        value=pag_actual or 1, key=f"pres_{key_r}"
+                        "Página", min_value=1, max_value=int(total),
+                        value=int(pag_actual) or 1, key=f"pres_{key_r}"
                     )
                     color_r = st.selectbox(
                         "Color / Tipo",
@@ -1031,8 +1063,8 @@ with tab_resaltados:
             with st.form("nuevo_resaltado", clear_on_submit=True):
                 pagina_res = st.number_input(
                     "Página", min_value=1,
-                    max_value=libro_actual["total_paginas"] or 9999,
-                    value=libro_actual["pagina_actual"] or 1
+                    max_value=int(libro_actual["total_paginas"] or 9999),
+                    value=int(libro_actual["pagina_actual"] or 1)
                 )
                 color_res = st.selectbox(
                     "Color / Tipo",
@@ -1044,7 +1076,7 @@ with tab_resaltados:
                     format_func=lambda x: x[1],
                     key="color_res"
                 )[0]
-                texto_res   = st.text_area("Texto resaltado *",
+                texto_res    = st.text_area("Texto resaltado *",
                     placeholder="Copia aquí el texto...", height=100)
                 contexto_res = st.text_area("Contexto (opcional)",
                     placeholder="Párrafo completo...", height=80)
@@ -1066,7 +1098,8 @@ with tab_resaltados:
 
         with col_lista:
             st.markdown(
-                f"### 📑 Resaltados de: **{libro_actual['titulo'] or 'Sin título'}**"
+                f"### 📑 Resaltados de: "
+                f"**{libro_actual['titulo'] or 'Sin título'}**"
             )
             filtro_c = st.selectbox(
                 "Filtrar por color",
@@ -1091,9 +1124,7 @@ with tab_resaltados:
                     "Azul":"🔵","Rosa":"🩷","Morado":"🟣"
                 }
                 for (color, cantidad), col in zip(por_color.items(), cols_stat):
-                    col.metric(
-                        f"{EMOJIS_RES.get(color,'⚪')} {color}", cantidad
-                    )
+                    col.metric(f"{EMOJIS_RES.get(color,'⚪')} {color}", cantidad)
 
                 st.divider()
                 for res in resaltados:

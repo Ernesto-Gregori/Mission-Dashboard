@@ -3,14 +3,20 @@
 """
 
 import streamlit as st
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 import sys
 import json
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from app.database import init_database, ejecutar
+from app.database import init_database, ejecutar, ejecutar_cached
 from app.ai_client import chat_simple, api_key_configurada
+from app.timezone_config import (
+    date, datetime,
+    hoy as _hoy,
+    ahora as _ahora,
+    iso_ahora,
+)
 
 st.set_page_config(
     page_title="Teología | Mission Dashboard",
@@ -64,9 +70,9 @@ CATEGORIAS_ORACION = [
     'Instituto', 'Ministerio', 'Otros'
 ]
 EMOJIS_CAT = {
-    'Personal':   '👤', 'Familia':    '👨‍👩‍👧',
-    'Matrimonio': '💑', 'Instituto':  '🏫',
-    'Ministerio': '⛪', 'Otros':      '🌐',
+    'Personal': '👤', 'Familia': '👨‍👩‍👧',
+    'Matrimonio': '💑', 'Instituto': '🏫',
+    'Ministerio': '⛪', 'Otros': '🌐',
 }
 EMOJIS_ESTADO = {
     'Activo': '🔴', 'En_espera': '🟡',
@@ -85,6 +91,12 @@ def guardar_devocional(fecha, pasaje_ref, pasaje_texto, observacion,
                        interpretacion, aplicacion, conexion_inst,
                        conexion_sit, oracion, duracion,
                        version_bib="NVI") -> None:
+    """
+    FIX CRÍTICO: fecha se convierte a str ISO antes de enviar a Turso.
+    Turso/libsql rechaza objetos date nativos de Python → ValueError.
+    """
+    fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
+
     ejecutar("""
         INSERT OR REPLACE INTO devocionales (
             fecha, pasaje_referencia, pasaje_texto, version_biblia,
@@ -93,24 +105,33 @@ def guardar_devocional(fecha, pasaje_ref, pasaje_texto, observacion,
             oracion_escrita, duracion_minutos
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
-        fecha, pasaje_ref, pasaje_texto, version_bib,
-        observacion, interpretacion, aplicacion,
-        conexion_inst, conexion_sit, oracion, duracion,
+        fecha_iso,       # ← str, no date object
+        str(pasaje_ref or ""),
+        str(pasaje_texto or ""),
+        str(version_bib or "NVI"),
+        str(observacion or ""),
+        str(interpretacion or ""),
+        str(aplicacion or ""),
+        str(conexion_inst or ""),
+        str(conexion_sit or ""),
+        str(oracion or ""),
+        int(duracion or 30),
     ])
 
 
 def obtener_devocional(fecha) -> dict | None:
+    fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
     rows = ejecutar(
         "SELECT * FROM devocionales WHERE fecha = ?",
-        [str(fecha)], fetchall=True,
+        [fecha_iso], fetchall=True,
     )
     return rows[0] if rows else None
 
 
 def obtener_devocionales_recientes(limite: int = 7) -> list:
-    return ejecutar("""
+    return ejecutar_cached("""
         SELECT * FROM devocionales ORDER BY fecha DESC LIMIT ?
-    """, [limite], fetchall=True) or []
+    """, (limite,)) or []
 
 
 def calcular_racha() -> int:
@@ -123,7 +144,7 @@ def calcular_racha() -> int:
     ]
     fechas.sort(reverse=True)
     racha = 0
-    hoy   = date.today()
+    hoy   = _hoy()          # ← zona horaria local
     for i, fecha in enumerate(fechas):
         if fecha == hoy - timedelta(days=i):
             racha += 1
@@ -180,19 +201,16 @@ def actualizar_estado_pedido(pedido_id: int, nuevo_estado: str,
         nuevo_estado,
         nota_respuesta,
         fecha_respuesta or (
-            date.today().isoformat()
+            _hoy().isoformat()          # ← zona horaria local
             if nuevo_estado == "Respondido" else None
         ),
-        datetime.now().isoformat(),
+        iso_ahora(),                    # ← zona horaria local
         pedido_id,
     ])
 
 
 def eliminar_pedido(pedido_id: int) -> None:
-    ejecutar(
-        "DELETE FROM pedidos_oracion WHERE id = ?",
-        [pedido_id]
-    )
+    ejecutar("DELETE FROM pedidos_oracion WHERE id = ?", [pedido_id])
 
 
 def editar_pedido(pedido_id: int, titulo: str, descripcion: str,
@@ -210,7 +228,7 @@ def editar_pedido(pedido_id: int, titulo: str, descripcion: str,
     """, [
         titulo, descripcion, categoria, urgencia,
         json.dumps(dias_oracion),
-        datetime.now().isoformat(),
+        iso_ahora(),                    # ← zona horaria local
         pedido_id,
     ])
 
@@ -244,8 +262,9 @@ with st.sidebar:
         st.success(f"¡Excelente disciplina! {racha_actual} días 🔥")
 
     st.divider()
-    ayer      = date.today() - timedelta(days=1)
-    dev_ayer  = obtener_devocional(ayer)
+
+    ayer     = _hoy() - timedelta(days=1)   # ← zona horaria local
+    dev_ayer = obtener_devocional(ayer)
     if dev_ayer:
         st.markdown("**📅 Ayer:**")
         st.caption(dev_ayer["pasaje_referencia"])
@@ -269,7 +288,7 @@ tab_hoy, tab_historial, tab_oracion, tab_metodo = st.tabs([
 # ═══════════════════════════════════════════════════════════════
 
 with tab_hoy:
-    fecha_hoy            = date.today()
+    fecha_hoy            = _hoy()              # ← zona horaria local
     devocional_existente = obtener_devocional(fecha_hoy)
 
     if devocional_existente:
@@ -294,15 +313,17 @@ with tab_hoy:
                     st.warning("📝 Texto del pasaje no guardado.")
 
                 for campo, label in [
-                    ("observacion",      "🔍 Observación"),
-                    ("interpretacion",   "💡 Interpretación"),
-                    ("aplicacion",       "🎯 Aplicación"),
-                    ("conexion_instituto","🏫 Conexión Instituto"),
-                    ("conexion_situacion","🌍 Situación actual"),
+                    ("observacion",        "🔍 Observación"),
+                    ("interpretacion",     "💡 Interpretación"),
+                    ("aplicacion",         "🎯 Aplicación"),
+                    ("conexion_instituto", "🏫 Conexión Instituto"),
+                    ("conexion_situacion", "🌍 Situación actual"),
                 ]:
                     if devocional_existente.get(campo):
-                        with st.expander(label, expanded=campo in
-                                         ["observacion","interpretacion","aplicacion"]):
+                        with st.expander(
+                            label,
+                            expanded=campo in ["observacion","interpretacion","aplicacion"]
+                        ):
                             st.write(devocional_existente[campo])
 
                 if devocional_existente.get("oracion_escrita"):
@@ -311,13 +332,13 @@ with tab_hoy:
     else:
         st.info("🌅 Buenos días. Tiempo para tu devocional de las 05:45")
 
-    # Formulario nuevo / edición
+    # ── Formulario nuevo / edición ────────────────────────────
     if not devocional_existente or st.session_state.get("editar_devocional"):
         datos = devocional_existente if st.session_state.get("editar_devocional") else {}
         if st.session_state.get("editar_devocional"):
             st.session_state["editar_devocional"] = False
 
-        with st.form("devocional_form", clear_on_submit=not devocional_existente):
+        with st.form("devocional_form", clear_on_submit=not bool(devocional_existente)):
             st.markdown("### 📝 Tu devocional de hoy")
 
             col_pasaje, col_version = st.columns([3, 1])
@@ -328,7 +349,7 @@ with tab_hoy:
                     placeholder="Ej: Salmo 23:1-6, Juan 3:16"
                 )
             with col_version:
-                versiones  = ["NVI", "RVR1960", "NLT", "ESV", "Otra"]
+                versiones   = ["NVI", "RVR1960", "NLT", "ESV", "Otra"]
                 version_bib = st.selectbox(
                     "Versión", versiones,
                     index=versiones.index(datos.get("version_biblia", "NVI"))
@@ -383,7 +404,7 @@ with tab_hoy:
             with col_dur:
                 duracion = st.number_input(
                     "Minutos", min_value=5, max_value=120,
-                    value=datos.get("duracion_minutos", 30)
+                    value=int(datos.get("duracion_minutos") or 30)
                 )
             with col_guardar:
                 submitted = st.form_submit_button(
@@ -392,11 +413,12 @@ with tab_hoy:
                 )
 
             if submitted:
-                if not pasaje_ref:
+                if not pasaje_ref.strip():
                     st.error("⚠️ El pasaje bíblico es obligatorio")
                 else:
                     guardar_devocional(
-                        fecha_hoy, pasaje_ref, pasaje_texto,
+                        fecha_hoy,      # str ISO via fecha_iso interno
+                        pasaje_ref, pasaje_texto,
                         observacion, interpretacion, aplicacion,
                         conexion_inst, conexion_sit, oracion,
                         duracion, version_bib
@@ -433,7 +455,7 @@ with tab_historial:
 </div>
                 """, unsafe_allow_html=True)
             with col_contenido:
-                aplicacion_txt = dev.get("aplicacion") or ""
+                aplicacion_txt     = dev.get("aplicacion") or ""
                 aplicacion_preview = (
                     aplicacion_txt[:120] + "..."
                     if len(aplicacion_txt) > 120
@@ -477,9 +499,9 @@ with tab_oracion:
             st.session_state.pedido_editando     = None
 
     todos_pedidos = obtener_pedidos()
-    activos     = [p for p in todos_pedidos if p["estado"] == "Activo"]
-    en_espera   = [p for p in todos_pedidos if p["estado"] == "En_espera"]
-    respondidos = [p for p in todos_pedidos if p["estado"] == "Respondido"]
+    activos       = [p for p in todos_pedidos if p["estado"] == "Activo"]
+    en_espera     = [p for p in todos_pedidos if p["estado"] == "En_espera"]
+    respondidos   = [p for p in todos_pedidos if p["estado"] == "Respondido"]
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     col_m1.metric("🔴 Activos",     len(activos))
@@ -492,9 +514,10 @@ with tab_oracion:
     if st.session_state.mostrar_form_pedido:
         st.markdown("### ➕ Nuevo pedido de oración")
         with st.form("form_nuevo_pedido", clear_on_submit=True):
-            titulo_p      = st.text_input("Título *", placeholder="Ej: Sabiduría para examen final")
+            titulo_p      = st.text_input("Título *",
+                placeholder="Ej: Sabiduría para examen final")
             descripcion_p = st.text_area("Descripción / Detalles", height=70,
-                                          placeholder="Contexto específico...")
+                placeholder="Contexto específico...")
             col_cat, col_urg = st.columns(2)
             with col_cat:
                 categoria_p = st.selectbox("Categoría", CATEGORIAS_ORACION)
@@ -536,7 +559,7 @@ with tab_oracion:
     # ── Filtro ────────────────────────────────────────────────
     filtro_est = st.segmented_control(
         "Mostrar",
-        options=["Todos", "Activo", "En_espera", "Respondido", "Archivado"],
+        options=["Todos","Activo","En_espera","Respondido","Archivado"],
         default="Todos", key="filtro_pedidos"
     )
     pedidos_filtrados = (
@@ -547,6 +570,8 @@ with tab_oracion:
     if not pedidos_filtrados:
         st.info("🙏 No hay pedidos en esta categoría")
 
+    hoy_local = _hoy()   # ← una sola vez
+
     for p in pedidos_filtrados:
         emoji_cat   = EMOJIS_CAT.get(p["categoria"], "🌐")
         emoji_est   = EMOJIS_ESTADO.get(p["estado"], "○")
@@ -555,11 +580,11 @@ with tab_oracion:
         color_borde = {1:"#30363d",2:"#58a6ff",3:"#e3b341",
                        4:"#f0883e",5:"#f85149"}.get(p["urgencia"],"#30363d")
         opacidad    = "0.6" if p["estado"] != "Activo" else "1"
-        estado_txt  = p["estado"].replace("_", " ")
+        estado_txt  = p["estado"].replace("_"," ")
 
         try:
             dias_orando = (
-                date.today() -
+                hoy_local -                             # ← zona horaria local
                 datetime.strptime(p["fecha_inicio"], "%Y-%m-%d").date()
             ).days
         except Exception:
@@ -686,7 +711,7 @@ with tab_oracion:
 
                 eest = st.selectbox(
                     "Estado",
-                    ["Activo", "En_espera", "Respondido", "Archivado"],
+                    ["Activo","En_espera","Respondido","Archivado"],
                     index=["Activo","En_espera","Respondido","Archivado"]
                     .index(p["estado"])
                     if p["estado"] in
@@ -727,7 +752,7 @@ with tab_oracion:
         st.markdown("### 📋 Lista para orar ahora")
         st.caption("Pedidos activos para después de tu devocional")
 
-        dia_hoy    = date.today().weekday() + 1
+        dia_hoy    = hoy_local.weekday() + 1   # ← zona horaria local
         hoy_active = []
         otros      = []
 
@@ -744,8 +769,8 @@ with tab_oracion:
         if hoy_active:
             st.markdown(f"**🗓️ Para orar HOY ({DIAS_SEMANA[dia_hoy-1]}):**")
             for i, p in enumerate(hoy_active):
-                emoji_c = EMOJIS_CAT.get(p["categoria"], "🌐")
-                urg_c   = URGENCIA_LABELS.get(p["urgencia"], "")
+                emoji_c  = EMOJIS_CAT.get(p["categoria"], "🌐")
+                urg_c    = URGENCIA_LABELS.get(p["urgencia"], "")
                 desc_div = (
                     f'<div style="color:#8b949e;font-size:0.8rem;'
                     f'margin-top:0.2rem;">↳ {p["descripcion"][:80]}</div>'
@@ -775,9 +800,7 @@ with tab_oracion:
                         if dias_p else "Sin días"
                     )
                     emoji_c = EMOJIS_CAT.get(p["categoria"], "🌐")
-                    st.caption(
-                        f"🙏 {emoji_c} **{p['titulo']}** — Ora: {dias_txt}"
-                    )
+                    st.caption(f"🙏 {emoji_c} **{p['titulo']}** — Ora: {dias_txt}")
 
         st.caption(
             f"📊 {len(hoy_active)} para orar hoy · "

@@ -3,15 +3,20 @@
 """
 
 import streamlit as st
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 import sys
 import json
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from app.database import init_database, ejecutar
+from app.database import init_database, ejecutar, ejecutar_cached
 from app.ai_client import chat_simple, api_key_configurada
 from app.google_fit import obtener_datos_dia, fit_configurado, fit_autenticado
+from app.timezone_config import (
+    date, datetime,
+    hoy as _hoy,
+    iso_ahora,
+)
 
 st.set_page_config(
     page_title="Salud | Mission Dashboard",
@@ -42,12 +47,23 @@ DIAS_NOMBRES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domi
 DIAS_CORTOS  = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]
 
 # ═══════════════════════════════════════════════════════════════
-# FUNCIONES DB — todas usan ejecutar()
+# FUNCIONES DB
 # ═══════════════════════════════════════════════════════════════
 
 def guardar_registro_salud(fecha, datos: dict) -> None:
-    zonas    = datos.get("zonas_musculares", [])
-    sesiones = datos.get("sesiones_json", [])
+    """
+    FIX Turso: fecha → str ISO, todos los numéricos → int/float,
+    None se deja como None (Turso acepta NULL pero no objetos Python).
+    """
+    fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
+    zonas     = datos.get("zonas_musculares", [])
+    sesiones  = datos.get("sesiones_json",    [])
+
+    def _int(v):
+        return int(v) if v is not None else None
+
+    def _float(v):
+        return float(v) if v is not None else None
 
     campos = [
         "fecha", "horas_sueno", "calidad_sueno", "hora_dormir", "hora_despertar",
@@ -58,27 +74,27 @@ def guardar_registro_salud(fecha, datos: dict) -> None:
         "fuente_datos", "productividad_percibida",
     ]
     valores = [
-        fecha,
-        datos.get("horas_sueno"),
-        datos.get("calidad_sueno"),
-        datos.get("hora_dormir"),
-        datos.get("hora_despertar"),
-        datos.get("energia_manana"),
-        datos.get("energia_tarde"),
-        datos.get("energia_noche"),
-        datos.get("hizo_ejercicio"),
-        datos.get("tipo_ejercicio"),
-        datos.get("duracion_minutos"),
-        datos.get("intensidad"),
-        datos.get("notas_ejercicio"),
+        fecha_iso,                                          # str
+        _float(datos.get("horas_sueno")),
+        _int(datos.get("calidad_sueno")),
+        str(datos.get("hora_dormir")  or ""),
+        str(datos.get("hora_despertar") or ""),
+        _int(datos.get("energia_manana")),
+        _int(datos.get("energia_tarde")),
+        _int(datos.get("energia_noche")),
+        1 if datos.get("hizo_ejercicio") else 0,            # int 0/1
+        str(datos.get("tipo_ejercicio") or "") or None,
+        _int(datos.get("duracion_minutos")),
+        _int(datos.get("intensidad")),
+        str(datos.get("notas_ejercicio") or "") or None,
         json.dumps(zonas)    if isinstance(zonas, list)    else zonas,
         json.dumps(sesiones) if isinstance(sesiones, list) else sesiones,
-        datos.get("calorias_fit"),
-        datos.get("pasos_fit"),
-        datos.get("fc_promedio_fit"),
-        datos.get("fc_maxima_fit"),
-        datos.get("fuente_datos", "manual"),
-        datos.get("productividad_percibida"),
+        _float(datos.get("calorias_fit")),
+        _int(datos.get("pasos_fit")),
+        _int(datos.get("fc_promedio_fit")),
+        _int(datos.get("fc_maxima_fit")),
+        str(datos.get("fuente_datos") or "manual"),
+        _int(datos.get("productividad_percibida")),
     ]
     ejecutar(
         f"""INSERT OR REPLACE INTO registros_salud
@@ -89,19 +105,20 @@ def guardar_registro_salud(fecha, datos: dict) -> None:
 
 
 def obtener_registro_salud(fecha) -> dict | None:
+    fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
     rows = ejecutar(
         "SELECT * FROM registros_salud WHERE fecha = ?",
-        [str(fecha)], fetchall=True,
+        [fecha_iso], fetchall=True,
     )
     return rows[0] if rows else None
 
 
 def obtener_registros_rango(dias: int = 14) -> list:
-    fecha_desde = (date.today() - timedelta(days=dias)).isoformat()
-    return ejecutar("""
+    fecha_desde = (_hoy() - timedelta(days=dias)).isoformat()  # ← local
+    return ejecutar_cached("""
         SELECT * FROM registros_salud
         WHERE fecha >= ? ORDER BY fecha DESC
-    """, [fecha_desde], fetchall=True) or []
+    """, (fecha_desde,)) or []
 
 
 def calcular_promedios(registros: list) -> dict:
@@ -130,9 +147,9 @@ def analizar_correlacion_simple(registros: list) -> tuple:
     if len(registros) < 4:
         return None, "Se necesitan al menos 4 días de datos"
 
-    por_fecha       = {r["fecha"]: r for r in registros}
-    ejercicio_si    = []
-    ejercicio_no    = []
+    por_fecha    = {r["fecha"]: r for r in registros}
+    ejercicio_si = []
+    ejercicio_no = []
 
     for r in registros:
         fecha = datetime.strptime(r["fecha"], "%Y-%m-%d").date()
@@ -159,12 +176,14 @@ def analizar_correlacion_simple(registros: list) -> tuple:
 
 
 # ═══════════════════════════════════════════════════════════════
-# HELPERS IA
+# HELPER IA
 # ═══════════════════════════════════════════════════════════════
 
 def _construir_contexto_completo(registros: list, stats: dict) -> str:
     if not registros or not stats:
         return "Sin datos de salud registrados aún."
+
+    hoy_local = _hoy()   # ← local
 
     lineas = [
         f"Período: últimos {stats['total_dias']} días",
@@ -193,12 +212,11 @@ def _construir_contexto_completo(registros: list, stats: dict) -> str:
         if sin_trabajar:
             lineas.append(f"Zonas sin trabajar: {', '.join(sin_trabajar)}")
 
-    hoy          = date.today()
-    inicio_sem   = hoy - timedelta(days=hoy.weekday())
-    inicio_ant   = inicio_sem - timedelta(days=7)
-    sem_act      = [r for r in registros if r["fecha"] >= inicio_sem.isoformat()]
-    sem_ant      = [r for r in registros
-                    if inicio_ant.isoformat() <= r["fecha"] < inicio_sem.isoformat()]
+    inicio_sem = hoy_local - timedelta(days=hoy_local.weekday())
+    inicio_ant = inicio_sem - timedelta(days=7)
+    sem_act    = [r for r in registros if r["fecha"] >= inicio_sem.isoformat()]
+    sem_ant    = [r for r in registros
+                  if inicio_ant.isoformat() <= r["fecha"] < inicio_sem.isoformat()]
     if sem_act and sem_ant:
         sa = calcular_promedios(sem_act)
         an = calcular_promedios(sem_ant)
@@ -210,14 +228,16 @@ def _construir_contexto_completo(registros: list, stats: dict) -> str:
 
     suenos = [r["horas_sueno"] for r in registros if r.get("horas_sueno")]
     if suenos:
-        lineas.append(f"Noches con <7h sueño: {sum(1 for s in suenos if s < 7)}/{len(suenos)}")
+        lineas.append(
+            f"Noches con <7h sueño: {sum(1 for s in suenos if s < 7)}/{len(suenos)}"
+        )
 
     for r in registros[:3]:
-        ej = (f"✓ {r.get('tipo_ejercicio','ejercicio')} {r.get('duracion_minutos',0)}min"
-              if r["hizo_ejercicio"] else "✗ sin ejercicio")
+        ej    = (f"✓ {r.get('tipo_ejercicio','ejercicio')} {r.get('duracion_minutos',0)}min"
+                 if r["hizo_ejercicio"] else "✗ sin ejercicio")
         notas = r.get("notas_ejercicio") or ""
         zonas_hoy = [z for z in ZONAS_LISTA if z in notas]
-        z_str = f" [{', '.join(zonas_hoy)}]" if zonas_hoy else ""
+        z_str     = f" [{', '.join(zonas_hoy)}]" if zonas_hoy else ""
         lineas.append(
             f"  {r['fecha']}: {ej}{z_str}, "
             f"sueño {r.get('horas_sueno') or '-'}h, "
@@ -245,11 +265,11 @@ with st.sidebar:
 
     if stats_semana:
         col1, col2 = st.columns(2)
-        col1.metric("Ejercicios",    f"{stats_semana['dias_ejercicio']}/7")
-        col2.metric("Energía mañana",f"{stats_semana['avg_energia_manana']:.1f}/10")
+        col1.metric("Ejercicios",     f"{stats_semana['dias_ejercicio']}/7")
+        col2.metric("Energía mañana", f"{stats_semana['avg_energia_manana']:.1f}/10")
         st.progress(stats_semana["avg_energia_manana"] / 10, text="Energía promedio")
-        st.metric("Sueño promedio",  f"{stats_semana['avg_sueno']:.1f}h")
-        st.metric("Productividad",   f"{stats_semana['avg_productividad']:.1f}/10")
+        st.metric("Sueño promedio",   f"{stats_semana['avg_sueno']:.1f}h")
+        st.metric("Productividad",    f"{stats_semana['avg_productividad']:.1f}/10")
     else:
         st.info("📝 Comienza a registrar hoy")
 
@@ -272,7 +292,7 @@ tab_hoy, tab_historial, tab_analisis, tab_ia = st.tabs([
 # ═══════════════════════════════════════════════════════════════
 
 with tab_hoy:
-    fecha_hoy  = date.today()
+    fecha_hoy  = _hoy()                        # ← zona horaria local
     dia_semana = fecha_hoy.weekday()
 
     st.subheader(f"{DIAS_NOMBRES[dia_semana]} {fecha_hoy.strftime('%d/%m/%Y')}")
@@ -334,7 +354,7 @@ with tab_hoy:
         col1, col2 = st.columns(2)
         with col1:
             hora_dormir_str = val("hora_dormir", "22:00")
-            if not isinstance(hora_dormir_str, str):
+            if not isinstance(hora_dormir_str, str) or not hora_dormir_str:
                 hora_dormir_str = "22:00"
             hora_dormir = st.time_input(
                 "Hora de dormir",
@@ -342,7 +362,7 @@ with tab_hoy:
                 key="td_dormir"
             )
             hora_despertar_str = val("hora_despertar", "05:30")
-            if not isinstance(hora_despertar_str, str):
+            if not isinstance(hora_despertar_str, str) or not hora_despertar_str:
                 hora_despertar_str = "05:30"
             hora_despertar = st.time_input(
                 "Hora de despertar",
@@ -351,12 +371,15 @@ with tab_hoy:
             )
             horas_fit = val("horas_sueno", None)
             if horas_fit:
-                horas_sueno = horas_fit
+                horas_sueno = float(horas_fit)
                 st.metric("Horas dormidas (Google Fit)", f"{horas_sueno:.1f}h")
                 st.caption("⚡ Dato real de Google Fit")
             else:
-                dormir     = datetime.combine(date.today(), hora_dormir)
-                despertar  = datetime.combine(date.today() + timedelta(days=1), hora_despertar)
+                # combine usa date objects — _hoy() devuelve date compatible
+                dormir    = datetime.combine(fecha_hoy, hora_dormir)
+                despertar = datetime.combine(
+                    fecha_hoy + timedelta(days=1), hora_despertar
+                )
                 horas_sueno = (despertar - dormir).total_seconds() / 3600
                 st.metric("Horas dormidas (calculado)", f"{horas_sueno:.1f}h")
         with col2:
@@ -390,8 +413,8 @@ with tab_hoy:
         sesiones_ejercicio = []
 
         if hizo_ejercicio:
-            sesiones_fit      = fit.get("sesiones_fit", [])
-            n_def             = max(1, len(sesiones_fit))
+            sesiones_fit = fit.get("sesiones_fit", [])
+            n_def        = max(1, len(sesiones_fit))
 
             if "n_sesiones" not in st.session_state:
                 st.session_state.n_sesiones = n_def
@@ -415,26 +438,27 @@ with tab_hoy:
 
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
-                    tipo_def = fit_s.get("tipo", "Calistenia")
-                    idx_tipo = (TIPOS_EJERCICIO.index(tipo_def)
-                                if tipo_def in TIPOS_EJERCICIO else 0)
+                    tipo_def  = fit_s.get("tipo", "Calistenia")
+                    idx_tipo  = (TIPOS_EJERCICIO.index(tipo_def)
+                                 if tipo_def in TIPOS_EJERCICIO else 0)
                     tipo      = st.selectbox("Tipo", TIPOS_EJERCICIO,
                                              index=idx_tipo, key=f"tipo_s{i}")
                     duracion  = st.number_input("Duración (min)",
-                                               min_value=5, max_value=240,
-                                               value=int(fit_s.get("duracion_min", 60)),
-                                               step=5, key=f"dur_s{i}")
+                                                min_value=5, max_value=240,
+                                                value=int(fit_s.get("duracion_min", 60)),
+                                                step=5, key=f"dur_s{i}")
                     intensidad = st.slider("Intensidad", 1, 10, 5, key=f"int_s{i}")
                 with col_s2:
-                    zonas    = st.multiselect("Zona muscular", ZONAS_LISTA,
-                                              default=[], key=f"zona_s{i}")
-                    notas_s  = st.text_area("Notas de la sesión",
-                                            placeholder="Series, reps...",
-                                            height=100, key=f"notas_s{i}")
+                    zonas   = st.multiselect("Zona muscular", ZONAS_LISTA,
+                                             default=[], key=f"zona_s{i}")
+                    notas_s = st.text_area("Notas de la sesión",
+                                           placeholder="Series, reps...",
+                                           height=100, key=f"notas_s{i}")
 
                 sesiones_ejercicio.append({
-                    "tipo": tipo, "duracion": duracion,
-                    "intensidad": intensidad, "zonas": zonas, "notas": notas_s,
+                    "tipo": tipo, "duracion": int(duracion),
+                    "intensidad": int(intensidad),
+                    "zonas": zonas, "notas": notas_s,
                 })
                 if i < st.session_state.n_sesiones - 1:
                     st.divider()
@@ -461,7 +485,7 @@ with tab_hoy:
 
         if hizo_ejercicio and sesiones_ejercicio:
             tipo_principal      = sesiones_ejercicio[0]["tipo"]
-            duracion_total      = sum(s["duracion"] for s in sesiones_ejercicio)
+            duracion_total      = sum(s["duracion"]   for s in sesiones_ejercicio)
             intensidad_promedio = round(
                 sum(s["intensidad"] for s in sesiones_ejercicio) /
                 len(sesiones_ejercicio)
@@ -480,25 +504,25 @@ with tab_hoy:
             notas_consolidadas = ""
 
         guardar_registro_salud(fecha_hoy, {
-            "horas_sueno":          round(horas_sueno, 1),
-            "calidad_sueno":        calidad_sueno,
-            "hora_dormir":          hora_dormir.strftime("%H:%M"),
-            "hora_despertar":       hora_despertar.strftime("%H:%M"),
-            "energia_manana":       energia_manana,
-            "energia_tarde":        energia_tarde,
-            "energia_noche":        energia_noche,
-            "hizo_ejercicio":       1 if hizo_ejercicio else 0,
-            "tipo_ejercicio":       tipo_principal,
-            "duracion_minutos":     duracion_total,
-            "intensidad":           intensidad_promedio,
-            "notas_ejercicio":      notas_consolidadas,
-            "zonas_musculares":     todas_zonas,
-            "sesiones_json":        sesiones_ejercicio,
-            "calorias_fit":         fit.get("calorias") if fit else None,
-            "pasos_fit":            fit.get("pasos")    if fit else None,
-            "fc_promedio_fit":      fit.get("fc_promedio") if fit else None,
-            "fc_maxima_fit":        fit.get("fc_maxima")   if fit else None,
-            "fuente_datos":         "mixto" if fit else "manual",
+            "horas_sueno":             round(horas_sueno, 1),
+            "calidad_sueno":           calidad_sueno,
+            "hora_dormir":             hora_dormir.strftime("%H:%M"),
+            "hora_despertar":          hora_despertar.strftime("%H:%M"),
+            "energia_manana":          energia_manana,
+            "energia_tarde":           energia_tarde,
+            "energia_noche":           energia_noche,
+            "hizo_ejercicio":          1 if hizo_ejercicio else 0,
+            "tipo_ejercicio":          tipo_principal,
+            "duracion_minutos":        duracion_total,
+            "intensidad":              intensidad_promedio,
+            "notas_ejercicio":         notas_consolidadas,
+            "zonas_musculares":        todas_zonas,
+            "sesiones_json":           sesiones_ejercicio,
+            "calorias_fit":            fit.get("calorias")    if fit else None,
+            "pasos_fit":               fit.get("pasos")       if fit else None,
+            "fc_promedio_fit":         fit.get("fc_promedio") if fit else None,
+            "fc_maxima_fit":           fit.get("fc_maxima")   if fit else None,
+            "fuente_datos":            "mixto" if fit else "manual",
             "productividad_percibida": productividad,
         })
         st.session_state.pop("n_sesiones", None)
@@ -540,21 +564,25 @@ with tab_historial:
 
         st.markdown("### 📊 Tendencias")
         df = pd.DataFrame([{
-            "Fecha":            r["fecha"],
-            "Sueño (h)":        r["horas_sueno"] or 0,
-            "Energía mañana":   r["energia_manana"] or 0,
-            "Energía tarde":    r["energia_tarde"]  or 0,
-            "Productividad":    r["productividad_percibida"] or 0,
-            "Ejercicio":        10 if r["hizo_ejercicio"] else 0,
+            "Fecha":          r["fecha"],
+            "Sueño (h)":      r["horas_sueno"] or 0,
+            "Energía mañana": r["energia_manana"] or 0,
+            "Energía tarde":  r["energia_tarde"]  or 0,
+            "Productividad":  r["productividad_percibida"] or 0,
+            "Ejercicio":      10 if r["hizo_ejercicio"] else 0,
         } for r in reversed(registros)])
 
-        tab_g1, tab_g2, tab_g3 = st.tabs(["😴 Sueño","⚡ Energía","📈 Productividad"])
+        tab_g1, tab_g2, tab_g3 = st.tabs(
+            ["😴 Sueño","⚡ Energía","📈 Productividad"]
+        )
         with tab_g1:
             st.line_chart(df.set_index("Fecha")[["Sueño (h)"]])
             prom = df["Sueño (h)"].mean()
             c    = "🟢" if prom >= 7 else "🟡" if prom >= 6 else "🔴"
-            st.caption(f"{c} Promedio: {prom:.1f}h — "
-                       f"{'Óptimo' if prom>=7 else 'Mejorable' if prom>=6 else 'Insuficiente'}")
+            st.caption(
+                f"{c} Promedio: {prom:.1f}h — "
+                f"{'Óptimo' if prom>=7 else 'Mejorable' if prom>=6 else 'Insuficiente'}"
+            )
         with tab_g2:
             st.line_chart(df.set_index("Fecha")[["Energía mañana","Energía tarde"]])
         with tab_g3:
@@ -567,10 +595,10 @@ with tab_historial:
         st.markdown("### 📋 Detalle por día")
 
         for r in registros:
-            fecha_r   = datetime.strptime(r["fecha"], "%Y-%m-%d").date()
-            dia_n     = DIAS_CORTOS[fecha_r.weekday()]
-            sueno     = r["horas_sueno"]
-            color_s   = "🟢" if sueno and sueno >= 7 else "🟡" if sueno and sueno >= 6 else "🔴"
+            fecha_r = datetime.strptime(r["fecha"], "%Y-%m-%d").date()
+            dia_n   = DIAS_CORTOS[fecha_r.weekday()]
+            sueno   = r["horas_sueno"]
+            color_s = "🟢" if sueno and sueno >= 7 else "🟡" if sueno and sueno >= 6 else "🔴"
 
             col_d1,col_d2,col_d3,col_d4,col_d5 = st.columns([1,2,2,2,2])
             with col_d1:
@@ -578,11 +606,13 @@ with tab_historial:
             with col_d2:
                 st.metric("Ejercicio", "🏋️" if r["hizo_ejercicio"] else "❌")
             with col_d3:
-                st.metric("Sueño", f"{color_s} {sueno:.1f}h" if sueno else "-")
+                st.metric("Sueño",
+                    f"{color_s} {sueno:.1f}h" if sueno else "-")
             with col_d4:
                 st.metric("Energía", f"{r['energia_manana'] or '-'}/10")
             with col_d5:
-                st.metric("Productividad", f"{r['productividad_percibida'] or '-'}/10")
+                st.metric("Productividad",
+                    f"{r['productividad_percibida'] or '-'}/10")
 
             if r["hizo_ejercicio"] or r.get("notas_ejercicio"):
                 with st.expander("Ver detalle"):
@@ -627,16 +657,16 @@ with tab_analisis:
         import pandas as pd
 
         df_an = pd.DataFrame([{
-            "fecha":           r["fecha"],
-            "dia_semana":      datetime.strptime(r["fecha"], "%Y-%m-%d").weekday(),
-            "horas_sueno":     r["horas_sueno"] or 0,
-            "calidad_sueno":   r["calidad_sueno"] or 0,
-            "energia_manana":  r["energia_manana"] or 0,
-            "energia_tarde":   r["energia_tarde"]  or 0,
-            "productividad":   r["productividad_percibida"] or 0,
-            "hizo_ejercicio":  bool(r["hizo_ejercicio"]),
+            "fecha":              r["fecha"],
+            "dia_semana":         datetime.strptime(r["fecha"], "%Y-%m-%d").weekday(),
+            "horas_sueno":        r["horas_sueno"] or 0,
+            "calidad_sueno":      r["calidad_sueno"] or 0,
+            "energia_manana":     r["energia_manana"] or 0,
+            "energia_tarde":      r["energia_tarde"]  or 0,
+            "productividad":      r["productividad_percibida"] or 0,
+            "hizo_ejercicio":     bool(r["hizo_ejercicio"]),
             "duracion_ejercicio": r["duracion_minutos"] or 0,
-            "notas":           r.get("notas_ejercicio") or "",
+            "notas":              r.get("notas_ejercicio") or "",
         } for r in registros_30])
 
         # 1. Correlación ejercicio → productividad
@@ -647,8 +677,10 @@ with tab_analisis:
             st.warning(f"⚠️ {error}")
         else:
             col1, col2, col3 = st.columns(3)
-            col1.metric("Con ejercicio", f"{resultado['promedio_con_ejercicio']:.1f}/10")
-            col2.metric("Sin ejercicio", f"{resultado['promedio_sin_ejercicio']:.1f}/10")
+            col1.metric("Con ejercicio",
+                f"{resultado['promedio_con_ejercicio']:.1f}/10")
+            col2.metric("Sin ejercicio",
+                f"{resultado['promedio_sin_ejercicio']:.1f}/10")
             with col3:
                 color = "#3fb950" if resultado["diferencia"] > 0 else "#f85149"
                 st.markdown(f"""
@@ -660,7 +692,10 @@ with tab_analisis:
 </div>""", unsafe_allow_html=True)
 
             if resultado["diferencia"] > 1:
-                st.success(f"✅ Confirmado: ejercicio mejora tu productividad {resultado['pct_mejora']:.0f}%")
+                st.success(
+                    f"✅ Confirmado: ejercicio mejora tu productividad "
+                    f"{resultado['pct_mejora']:.0f}%"
+                )
             elif resultado["diferencia"] > 0:
                 st.info("📈 Tendencia positiva — sigue registrando para confirmar")
             else:
@@ -685,6 +720,7 @@ with tab_analisis:
                 dif_s = s_bueno - s_malo
                 col_s3.metric("Diferencia", f"{dif_s:+.1f} pts",
                     delta_color="normal" if dif_s > 0 else "inverse")
+                df_sueno = df_sueno.copy()
                 df_sueno["cat"] = df_sueno["horas_sueno"].apply(
                     lambda x: "≥7h (óptimo)" if x >= 7 else "<7h (insuficiente)"
                 )
@@ -714,8 +750,14 @@ with tab_analisis:
         if not patron.empty:
             mejor = patron["energia_manana"].idxmax()
             peor  = patron["energia_manana"].idxmin()
-            st.success(f"🌟 Mejor día: **{mejor}** ({patron.loc[mejor,'energia_manana']:.1f}/10)")
-            st.warning(f"⚠️ Peor día: **{peor}** ({patron.loc[peor,'energia_manana']:.1f}/10) — ¿Qué pasa ese día?")
+            st.success(
+                f"🌟 Mejor día: **{mejor}** "
+                f"({patron.loc[mejor,'energia_manana']:.1f}/10)"
+            )
+            st.warning(
+                f"⚠️ Peor día: **{peor}** "
+                f"({patron.loc[peor,'energia_manana']:.1f}/10) — ¿Qué pasa ese día?"
+            )
 
         st.divider()
 
@@ -736,7 +778,10 @@ with tab_analisis:
             st.bar_chart(df_z.set_index("Zona"))
             st.success(f"💪 Zona más trabajada: **{df_z.iloc[0]['Zona']}**")
             if len(df_z) > 1:
-                st.info(f"⚖️ Zona menos trabajada: **{df_z.iloc[-1]['Zona']}** — considera balancear")
+                st.info(
+                    f"⚖️ Zona menos trabajada: "
+                    f"**{df_z.iloc[-1]['Zona']}** — considera balancear"
+                )
             sin_trabajar = [z for z in ZONAS_LISTA
                             if z not in zonas_trabajadas and z != "Cuerpo completo"]
             if sin_trabajar:
@@ -752,19 +797,19 @@ with tab_analisis:
         if len(df_prod) >= 3:
             st.line_chart(df_prod.set_index("fecha")[["productividad"]])
 
-            hoy_an      = date.today()
-            ini_sem     = hoy_an - timedelta(days=hoy_an.weekday())
-            ini_ant     = ini_sem - timedelta(days=7)
-            p_act       = df_an[df_an["fecha"] >= ini_sem.isoformat()]["productividad"].mean()
-            p_ant       = df_an[
+            hoy_an  = _hoy()                                # ← local
+            ini_sem = hoy_an - timedelta(days=hoy_an.weekday())
+            ini_ant = ini_sem - timedelta(days=7)
+            p_act   = df_an[df_an["fecha"] >= ini_sem.isoformat()]["productividad"].mean()
+            p_ant   = df_an[
                 (df_an["fecha"] >= ini_ant.isoformat()) &
                 (df_an["fecha"] <  ini_sem.isoformat())
             ]["productividad"].mean()
 
             if not pd.isna(p_act) and not pd.isna(p_ant):
                 col_p1, col_p2, col_p3 = st.columns(3)
-                col_p1.metric("Esta semana",    f"{p_act:.1f}/10")
-                col_p2.metric("Semana anterior",f"{p_ant:.1f}/10")
+                col_p1.metric("Esta semana",     f"{p_act:.1f}/10")
+                col_p2.metric("Semana anterior", f"{p_ant:.1f}/10")
                 delta = p_act - p_ant
                 col_p3.metric("Cambio", f"{delta:+.1f}",
                     delta_color="normal" if delta >= 0 else "inverse")
@@ -779,23 +824,25 @@ with tab_ia:
     if not api_key_configurada():
         st.warning("⚠️ IA en modo offline — respuestas predefinidas disponibles.")
 
-    registros_ia    = obtener_registros_rango(14)
-    stats_ia        = calcular_promedios(registros_ia)
+    registros_ia      = obtener_registros_rango(14)
+    stats_ia          = calcular_promedios(registros_ia)
     resultado_corr, _ = analizar_correlacion_simple(obtener_registros_rango(30))
-    contexto        = _construir_contexto_completo(registros_ia, stats_ia)
+    contexto          = _construir_contexto_completo(registros_ia, stats_ia)
 
     if stats_ia:
         col1,col2,col3,col4 = st.columns(4)
-        col1.metric("Ejercicios",    f"{stats_ia['dias_ejercicio']}/{stats_ia['total_dias']}")
+        col1.metric("Ejercicios",
+            f"{stats_ia['dias_ejercicio']}/{stats_ia['total_dias']}")
         col2.metric("Energía prom.", f"{stats_ia['avg_energia_manana']:.1f}/10")
         col3.metric("Sueño prom.",   f"{stats_ia['avg_sueno']:.1f}h")
         col4.metric("Productividad", f"{stats_ia['avg_productividad']:.1f}/10")
 
     # Comparativa semanas
-    hoy_ia     = date.today()
+    hoy_ia     = _hoy()                                     # ← local
     ini_sem_ia = hoy_ia - timedelta(days=hoy_ia.weekday())
     ini_ant_ia = ini_sem_ia - timedelta(days=7)
-    sem_act    = [r for r in registros_ia if r["fecha"] >= ini_sem_ia.isoformat()]
+    sem_act    = [r for r in registros_ia
+                  if r["fecha"] >= ini_sem_ia.isoformat()]
     sem_ant    = [r for r in registros_ia
                   if ini_ant_ia.isoformat() <= r["fecha"] < ini_sem_ia.isoformat()]
 
@@ -817,7 +864,8 @@ with tab_ia:
 
     # Resumen semanal
     st.markdown("### 📊 Resumen semanal con insights")
-    if st.button("🤖 Generar resumen semanal", key="btn_resumen", use_container_width=True):
+    if st.button("🤖 Generar resumen semanal", key="btn_resumen",
+                 use_container_width=True):
         with st.spinner("Generando resumen..."):
             st.info(chat_simple(
                 f"Genera un resumen semanal de salud con insights accionables.\n\n"
@@ -845,7 +893,8 @@ with tab_ia:
             "Semana actual vs semana anterior",
         ], key="sel_correlacion")
     with col_c2:
-        if st.button("🔬 Analizar correlación", key="btn_corr", use_container_width=True):
+        if st.button("🔬 Analizar correlación", key="btn_corr",
+                     use_container_width=True):
             extra = ""
             if resultado_corr:
                 extra = (
@@ -874,11 +923,13 @@ with tab_ia:
             "Rutina de movilidad entre sesiones",
         ], key="sel_recuperacion")
     with col_r2:
-        if st.button("💪 Consejo de recuperación", key="btn_rec", use_container_width=True):
+        if st.button("💪 Consejo de recuperación", key="btn_rec",
+                     use_container_width=True):
             with st.spinner("Analizando recuperación..."):
                 st.info(chat_simple(
                     f"Solicitud: {tipo_rec}\n\nHistorial:\n{contexto}\n\n"
-                    f"Considera: calistenia miércoles 16:30, instituto lun-vie 08:00-12:30.",
+                    f"Considera: calistenia miércoles 16:30, "
+                    f"instituto lun-vie 08:00-12:30.",
                     contexto=SYSTEM_SALUD
                 ))
 
@@ -904,7 +955,8 @@ with tab_ia:
             st.metric("Tu sueño real promedio", f"{stats_ia['avg_sueno']:.1f}h",
                 "✓ Suficiente" if stats_ia["avg_sueno"] >= 7 else "⚠ Insuficiente")
     with col_s2:
-        if st.button("💡 Recomendaciones personalizadas", key="btn_sueno", use_container_width=True):
+        if st.button("💡 Recomendaciones personalizadas", key="btn_sueno",
+                     use_container_width=True):
             with st.spinner("Generando recomendaciones..."):
                 st.info(chat_simple(
                     f"Situación: {prob_sueno}\n"
@@ -927,17 +979,18 @@ with tab_ia:
             "Motivación para no saltarme el miércoles",
             "Rutina corta (30 min)",
         ], key="sel_calistenia")
-        nivel = st.select_slider("Tu nivel",
+        nivel     = st.select_slider("Tu nivel",
             options=["Principiante","Básico","Intermedio"],
             value="Básico", key="sl_nivel")
         ultimo_ej = next((r for r in registros_ia if r["hizo_ejercicio"]), None)
         if ultimo_ej:
             st.caption(f"Último entreno: {ultimo_ej['fecha']}")
     with col_ca2:
-        if st.button("🏋️ Consejo del coach", key="btn_calistenia", use_container_width=True):
+        if st.button("🏋️ Consejo del coach", key="btn_calistenia",
+                     use_container_width=True):
             ultimo_info = ""
             if ultimo_ej:
-                notas_ej = ultimo_ej.get("notas_ejercicio") or ""
+                notas_ej    = ultimo_ej.get("notas_ejercicio") or ""
                 ultimo_info = (
                     f"Último entrenamiento: {ultimo_ej['fecha']}, "
                     f"{ultimo_ej.get('tipo_ejercicio','calistenia')} "
@@ -950,7 +1003,8 @@ with tab_ia:
                 st.info(chat_simple(
                     f"Solicitud: {tipo_ses}\nNivel: {nivel}\n{ultimo_info}\n\n"
                     f"Contexto:\n{contexto}\n\n"
-                    f"Da consejos para calistenia en casa, horario miércoles 16:30-18:30.",
+                    f"Da consejos para calistenia en casa, "
+                    f"horario miércoles 16:30-18:30.",
                     contexto=SYSTEM_SALUD
                 ))
 
