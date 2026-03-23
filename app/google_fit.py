@@ -30,21 +30,44 @@ SCOPES = [
 # ═══════════════════════════════════════════════════════════════
 
 def _get_credentials():
-    """Obtiene credenciales OAuth2, abriendo browser si es necesario."""
+    """
+    Obtiene credenciales OAuth2.
+    - Producción: lee desde Streamlit Secrets
+    - Local: usa token_fit.json del disco
+    """
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
 
     creds = None
 
-    # Cargar token guardado
+    # ── Intentar desde Streamlit Secrets (producción) ────────
+    try:
+        import streamlit as st
+        if "google_fit_token" in st.secrets:
+            token_data = dict(st.secrets["google_fit_token"])
+            creds = Credentials(
+                token=token_data.get("token"),
+                refresh_token=token_data.get("refresh_token"),
+                token_uri=token_data.get("token_uri"),
+                client_id=token_data.get("client_id"),
+                client_secret=token_data.get("client_secret"),
+                scopes=token_data.get("scopes"),
+            )
+            if not creds.valid and creds.refresh_token:
+                creds.refresh(Request())
+            return creds
+    except Exception as e:
+        print(f"[GoogleFit] No secrets disponibles: {e}")
+
+    # ── Cargar desde disco (local) ───────────────────────────
     if TOKEN_FILE.exists():
         creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
 
-    # Si no hay token válido, autenticar
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            TOKEN_FILE.write_text(creds.to_json())
         else:
             if not CREDENTIALS_FILE.exists():
                 return None
@@ -52,9 +75,7 @@ def _get_credentials():
                 str(CREDENTIALS_FILE), SCOPES
             )
             creds = flow.run_local_server(port=0)
-
-        # Guardar token para próximas veces
-        TOKEN_FILE.write_text(creds.to_json())
+            TOKEN_FILE.write_text(creds.to_json())
 
     return creds
 
@@ -78,7 +99,18 @@ def fit_configurado() -> bool:
 
 
 def fit_autenticado() -> bool:
-    """Verifica si ya hay un token guardado válido."""
+    """Verifica si hay credenciales válidas — Secrets o disco."""
+    # Verificar desde Streamlit Secrets
+    try:
+        import streamlit as st
+        if "google_fit_token" in st.secrets:
+            token_data = dict(st.secrets["google_fit_token"])
+            if token_data.get("refresh_token"):
+                return True
+    except Exception:
+        pass
+
+    # Verificar desde disco (local)
     if not TOKEN_FILE.exists():
         return False
     try:
