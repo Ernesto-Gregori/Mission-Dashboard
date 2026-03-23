@@ -12,7 +12,7 @@ from pathlib import Path
 # PATH
 # ═══════════════════════════════════════════════════════════════
 BASE_DIR = Path(__file__).parent.resolve()
-sys.path.insert(0, str(BASE_DIR / "app"))
+sys.path.insert(0, str(BASE_DIR))
 
 from app.database import (
     init_database,
