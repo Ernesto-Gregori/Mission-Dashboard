@@ -887,8 +887,14 @@ def obtener_tipos_bloque() -> list:
 # CAPA DE COMPATIBILIDAD SQLITE / TURSO
 # ═════════════════════════════════════════════════════════════════
 
+import functools
+
+@functools.lru_cache(maxsize=1)
 def _get_turso_config():
-    """Obtiene configuración de Turso desde .env o Streamlit Secrets."""
+    """
+    Lee secrets UNA SOLA VEZ y cachea el resultado.
+    lru_cache(maxsize=1) = singleton — nunca vuelve a leer secrets.
+    """
     url   = None
     token = None
     try:
@@ -904,25 +910,57 @@ def _get_turso_config():
         token = os.getenv("TURSO_TOKEN")
     return url, token
 
+
+@functools.lru_cache(maxsize=1)
 def usar_turso() -> bool:
-    """Retorna True si Turso está configurado."""
+    """Cacheado — evalúa UNA SOLA VEZ si Turso está disponible."""
     url, token = _get_turso_config()
     return bool(url and token)
 
+
+# Conexión global a Turso — se crea una vez, se reutiliza siempre
+_turso_conn = None
+
+def _get_turso_conn():
+    """
+    Retorna la conexión global a Turso.
+    La crea solo la primera vez (patrón singleton).
+    """
+    global _turso_conn
+    if _turso_conn is None:
+        url, token = _get_turso_config()
+        _turso_conn = libsql.connect(url, auth_token=token)
+    return _turso_conn
+
+
 def ejecutar(sql: str, params: list = None, fetchall: bool = False):
     """
-    Wrapper unificado — usa Turso en producción, SQLite en local.
+    Wrapper unificado optimizado.
+    - Turso: reutiliza conexión persistente (no abre una nueva cada vez)
+    - SQLite: igual que antes
     """
     if usar_turso():
-        url, token = _get_turso_config()
-        conn_turso = libsql.connect(url, auth_token=token)
-        cursor_t   = conn_turso.cursor()
-        cursor_t.execute(sql, params or [])
-        if fetchall:
-            cols = [d[0] for d in cursor_t.description]
-            return [dict(zip(cols, row)) for row in cursor_t.fetchall()]
-        conn_turso.commit()
-        return cursor_t.lastrowid
+        try:
+            conn   = _get_turso_conn()          # ← conexión ya abierta
+            cursor = conn.cursor()
+            cursor.execute(sql, params or [])
+            if fetchall:
+                cols = [d[0] for d in cursor.description]
+                return [dict(zip(cols, row)) for row in cursor.fetchall()]
+            conn.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            # Si la conexión murió, resetear y reintentar una vez
+            global _turso_conn
+            _turso_conn = None
+            conn   = _get_turso_conn()
+            cursor = conn.cursor()
+            cursor.execute(sql, params or [])
+            if fetchall:
+                cols = [d[0] for d in cursor.description]
+                return [dict(zip(cols, row)) for row in cursor.fetchall()]
+            conn.commit()
+            return cursor.lastrowid
     else:
         conn = sqlite3.connect(DB_PATH, timeout=30)
         conn.row_factory = sqlite3.Row
@@ -935,6 +973,25 @@ def ejecutar(sql: str, params: list = None, fetchall: bool = False):
             return cursor.lastrowid
         finally:
             conn.close()
+
+import streamlit as st
+
+@st.cache_data(ttl=30)
+def ejecutar_cached(sql: str, params: tuple = ()) -> list:
+    """
+    Versión cacheada para SELECT frecuentes.
+    - params debe ser TUPLA (no lista) para ser hashable
+    - ttl=30 → refresca cada 30 segundos automáticamente
+    - NUNCA usar para INSERT / UPDATE / DELETE
+    
+    Uso en cualquier página:
+        from app.database import ejecutar_cached
+        rows = ejecutar_cached(
+            "SELECT * FROM libros WHERE estado = ?",
+            ("leyendo",)   # ← tupla
+        )
+    """
+    return ejecutar(sql, list(params), fetchall=True)
 
 def migrar_local_a_turso():
     """

@@ -29,3 +29,5 @@ data/
 # Temporales
 biblioteca_temp/
 *.log
+
+pyrightconfig.json
