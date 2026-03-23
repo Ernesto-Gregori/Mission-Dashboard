@@ -330,340 +330,363 @@ tab_cargar, tab_catalogo, tab_leyendo, tab_resaltados = st.tabs([
 
 with tab_cargar:
     st.subheader("Cargar nuevo libro")
-    
-    if not st.session_state.libro_en_proceso:
-        st.markdown("### Paso 1: Seleccionar archivo")
-        
-        metodo = st.radio("Método de entrada", ["Subir PDF", "ISBN", "Manual"], horizontal=True)
-        
+
+    # ── Inicializar flags ──────────────────────────────────
+    if 'libro_en_proceso'     not in st.session_state:
+        st.session_state.libro_en_proceso     = None
+    if 'metadatos_propuestos' not in st.session_state:
+        st.session_state.metadatos_propuestos = None
+    if '_ia_procesando'       not in st.session_state:
+        st.session_state._ia_procesando       = False
+
+    # ══════════════════════════════════════════════════════
+    # PASO 1 — Sin libro en proceso
+    # ══════════════════════════════════════════════════════
+    if (not st.session_state.libro_en_proceso
+            and not st.session_state.metadatos_propuestos):
+
+        metodo = st.radio(
+            "Método de entrada",
+            ["Subir PDF", "ISBN", "Manual"],
+            horizontal=True
+        )
+
+        # ── PDF ───────────────────────────────────────────
         if metodo == "Subir PDF":
-            archivo = st.file_uploader("Seleccionar archivo", type=['pdf', 'epub', 'mobi'])
-            
-            # ✅ CÓDIGO CORREGIDO
+            archivo = st.file_uploader(
+                "Seleccionar archivo", type=['pdf', 'epub', 'mobi']
+            )
+
             if archivo:
-                contenido = archivo.getvalue()
-                st.session_state['pdf_contenido'] = contenido
+                contenido    = archivo.getvalue()
                 hash_archivo = hashlib.md5(contenido).hexdigest()[:16]
-                
-                # obtener_libros_por_estado() retorna (lista, total) — desempacar correctamente
-                existentes, _ = obtener_libros_por_estado()
+
+                # Verificar duplicado via ejecutar()
+                from app.database import ejecutar
+                existentes = ejecutar(
+                    "SELECT id, titulo, nombre_archivo, hash_archivo FROM libros",
+                    [], fetchall=True
+                ) or []
+
                 duplicado = next(
                     (l for l in existentes
-                    if l.get('hash_archivo') and l['hash_archivo'] == hash_archivo),
+                     if l.get('hash_archivo') and
+                     l['hash_archivo'] == hash_archivo),
                     None
                 )
-                
+
                 if duplicado:
-                    st.error(f"⚠️ Este archivo ya existe: **{duplicado['titulo'] or duplicado['nombre_archivo']}**")
+                    st.error(
+                        f"⚠️ Este archivo ya existe: "
+                        f"**{duplicado.get('titulo') or duplicado.get('nombre_archivo')}**"
+                    )
                 else:
                     extension = archivo.name.split('.')[-1].upper()
-                    tamano = len(contenido) / (1024 * 1024)
-                    ruta_temp = f"./biblioteca_temp/{archivo.name}"
-                    
+                    tamano    = len(contenido) / (1024 * 1024)
+
                     libro_id = agregar_libro_por_procesar(
-                        archivo.name, ruta_temp, round(tamano, 2), extension, hash_archivo
+                        archivo.name,
+                        f"./biblioteca_temp/{archivo.name}",
+                        round(tamano, 2),
+                        extension,
+                        hash_archivo
                     )
-                    
+
+                    # Guardar PDF en session_state
+                    st.session_state.pdf_contenido    = contenido
                     st.session_state.libro_en_proceso = libro_id
                     st.rerun()
-        
+
+        # ── ISBN ──────────────────────────────────────────
         elif metodo == "ISBN":
             st.markdown("### 📖 Buscar por ISBN")
-            st.caption("Busca en Open Library + Google Books + Groq")
-            
-            col_isbn1, col_isbn2 = st.columns([3, 1])
-            with col_isbn1:
+            col_i1, col_i2 = st.columns([3, 1])
+            with col_i1:
                 isbn_input = st.text_input(
                     "ISBN (10 o 13 dígitos)",
-                    placeholder="Ej: 9780802806529 o 0-8028-0652-9",
+                    placeholder="Ej: 9780802806529",
                     key="isbn_input"
                 )
-            with col_isbn2:
+            with col_i2:
                 st.markdown("<br>", unsafe_allow_html=True)
                 buscar_isbn = st.button(
                     "🔍 Buscar",
                     use_container_width=True,
-                    type="primary",
-                    key="btn_buscar_isbn"
+                    type="primary"
                 )
-            
+
             if buscar_isbn and isbn_input:
-                isbn_limpio = isbn_input.replace('-', '').replace(' ', '').strip()
-                
+                isbn_limpio = isbn_input.replace('-','').replace(' ','').strip()
                 if len(isbn_limpio) not in [10, 13]:
                     st.error("⚠️ El ISBN debe tener 10 o 13 dígitos")
                 else:
-                    with st.spinner("🔍 Buscando en Open Library, Google Books y Groq..."):
+                    with st.spinner("🔍 Buscando..."):
                         metadatos_isbn = buscar_metadatos_isbn(isbn_limpio)
-                    
+
                     if metadatos_isbn.get('titulo'):
-                        st.success(f"✅ Libro encontrado: **{metadatos_isbn['titulo']}**")
-                        
-                        # Guardar en session_state para usar el flujo existente
                         libro_id = agregar_libro_por_procesar(
                             f"{metadatos_isbn['titulo']}.isbn",
-                            f"isbn://{isbn_limpio}",
-                            0,
-                            "Otro",
+                            f"isbn://{isbn_limpio}", 0, "Otro",
                             f"isbn_{isbn_limpio}"
                         )
-                        st.session_state.libro_en_proceso    = libro_id
+                        st.session_state.libro_en_proceso     = libro_id
                         st.session_state.metadatos_propuestos = metadatos_isbn
                         st.rerun()
                     else:
-                        st.error(
-                            f"❌ ISBN `{isbn_limpio}` no encontrado en ninguna fuente. "
-                            f"Intenta con el método Manual."
-                        )
-                        # Mostrar lo que sí se encontró parcialmente
-                        if any(metadatos_isbn.values()):
-                            st.caption("Datos parciales encontrados:")
-                            st.json(metadatos_isbn)
-        
+                        st.error(f"❌ ISBN `{isbn_limpio}` no encontrado.")
+
+        # ── Manual ────────────────────────────────────────
         elif metodo == "Manual":
             with st.form("manual_entry"):
-                titulo = st.text_input("Título *", placeholder="Nombre del libro")
-                autor = st.text_input("Autor", placeholder="Autor principal")
-                col_cat, col_pag = st.columns(2)
-                with col_cat:
-                    categoria = st.selectbox("Categoría", ["Teologia", "Programacion", "Matrimonio", "Filosofia", "Liderazgo", "Historia", "Otros"])
-                with col_pag:
-                    paginas = st.number_input("Total páginas", min_value=1, value=200)
-                
-                descripcion = st.text_area("Descripción / Sinopsis")
-                
-                submitted = st.form_submit_button("💾 Guardar básico", use_container_width=True)
-                
-                if submitted and titulo:
-                    metadatos = {
-                        'titulo': titulo,
-                        'autor': autor or 'Desconocido',
+                titulo    = st.text_input("Título *")
+                autor     = st.text_input("Autor")
+                col_c, col_p = st.columns(2)
+                with col_c:
+                    categoria = st.selectbox(
+                        "Categoría",
+                        ["Teologia","Programacion","Matrimonio",
+                         "Filosofia","Liderazgo","Historia","Otros"]
+                    )
+                with col_p:
+                    paginas = st.number_input(
+                        "Total páginas", min_value=1, value=200
+                    )
+                descripcion = st.text_area("Descripción")
+                submitted   = st.form_submit_button(
+                    "💾 Guardar", use_container_width=True
+                )
+
+                if submitted and titulo.strip():
+                    libro_id = agregar_libro_por_procesar(
+                        f"{titulo}.manual", "manual", 0, "Otro", f"manual_{titulo[:10]}"
+                    )
+                    guardar_metadatos_ia(libro_id, {
+                        'titulo':              titulo,
+                        'autor':               autor or 'Desconocido',
                         'categoria_principal': categoria,
-                        'descripcion': descripcion,
-                        'total_paginas': paginas,
-                        'fuente_metadatos': 'Manual',
-                        'confianza_ia': 10,
-                        'subcategorias': json.dumps([]),
-                        'temas_clave': json.dumps([]),
-                        'autores_adicionales': json.dumps([]),
+                        'descripcion':         descripcion,
+                        'total_paginas':       paginas,
+                        'fuente_metadatos':    'Manual',
+                        'confianza_ia':        10,
+                        'subcategorias':       [],
+                        'temas_clave':         [],
+                        'autores_adicionales': [],
                         'notas_bibliotecaria': 'Ingresado manualmente'
-                    }
-                    libro_id = agregar_libro_por_procesar(f"{titulo}.manual", "manual", 0, "Otro", "manual")
-                    guardar_metadatos_ia(libro_id, metadatos)
+                    })
                     st.success("✅ Libro guardado")
                     st.rerun()
-    
-                elif st.session_state.libro_en_proceso and not st.session_state.metadatos_propuestos:
-                    st.markdown("### Paso 2: Bibliotecaria IA analizando...")
 
-                    libro = obtener_libro(st.session_state.libro_en_proceso)
+    # ══════════════════════════════════════════════════════
+    # PASO 2 — Libro subido, IA analizando
+    # ══════════════════════════════════════════════════════
+    elif (st.session_state.libro_en_proceso
+          and not st.session_state.metadatos_propuestos):
 
-                    # ── GUARD: evitar re-ejecución mientras ya está procesando ──
-                    if st.session_state.get('_ia_procesando'):
-                        st.info("⏳ Análisis en curso... espera un momento")
-                        st.stop()  # ← detiene el script sin rerun
+        st.markdown("### ⏳ Paso 2: Bibliotecaria IA analizando...")
 
-                    # Marcar como en proceso ANTES de llamar a la IA
-                    st.session_state._ia_procesando = True
+        # Guard anti-bucle
+        if st.session_state._ia_procesando:
+            st.info("⏳ Análisis en curso, espera un momento...")
+            st.stop()
 
-                    if not verificar_conexion():
-                        st.warning("⚠️ Bibliotecaria IA no disponible. Usando extracción básica.")
-                        metadatos = {
-                            'titulo': libro['nombre_archivo'].replace('.pdf', '').replace('_', ' ').title(),
-                            'autor': 'Desconocido',
-                            'categoria_principal': 'Otros',
-                            'descripcion': 'Extracción automática no disponible. Por favor completa manualmente.',
-                            'total_paginas': 0,
-                            'confianza_extraccion': 1,
-                            'fuente_metadatos': 'Manual_Fallback'
-                        }
-                    else:
-                        with st.spinner("🔍 Bibliotecaria analizando PDF..."):
-                            metadatos = extraer_metadatos_libro(
-                                st.session_state.get('pdf_contenido', b""),
-                                libro['nombre_archivo']
-                            )
+        st.session_state._ia_procesando = True
 
-                    # Guardar resultado y limpiar flag ANTES del rerun
-                    st.session_state.metadatos_propuestos = metadatos
-                    st.session_state._ia_procesando = False  # ← limpiar flag
-                    st.rerun()
-    
-        elif st.session_state.metadatos_propuestos:
-            st.markdown("### Paso 3: Revisar y confirmar")
+        libro = obtener_libro(st.session_state.libro_en_proceso)
 
-            meta = st.session_state.metadatos_propuestos
+        if not libro:
+            st.error("❌ Error cargando libro. Intenta de nuevo.")
+            st.session_state.libro_en_proceso = None
+            st.session_state._ia_procesando   = False
+            st.rerun()
+        else:
+            with st.spinner("🔍 Analizando PDF con IA..."):
+                try:
+                    metadatos = extraer_metadatos_libro(
+                        st.session_state.get('pdf_contenido', b""),
+                        libro['nombre_archivo']
+                    )
+                except Exception as e:
+                    st.warning(f"⚠️ Error en IA: {e}. Usando fallback.")
+                    metadatos = {
+                        'titulo': (libro['nombre_archivo']
+                                   .replace('.pdf','')
+                                   .replace('_',' ').title()),
+                        'autor':               'Desconocido',
+                        'categoria_principal': 'Otros',
+                        'descripcion':         'Completa manualmente.',
+                        'total_paginas':       0,
+                        'confianza_ia':        1,
+                        'fuente_metadatos':    'Manual_Fallback',
+                        'temas_clave':         [],
+                        'subcategorias':       [],
+                    }
 
-            confianza  = meta.get('confianza_ia') or meta.get('confianza_extraccion') or 5
-            color_conf = (
-                "#3fb950" if confianza >= 7 else
-                "#e3b341" if confianza >= 5 else
-                "#f85149"
+            st.session_state.metadatos_propuestos = metadatos
+            st.session_state._ia_procesando        = False
+            st.rerun()
+
+    # ══════════════════════════════════════════════════════
+    # PASO 3 — Revisar y confirmar metadatos
+    # ══════════════════════════════════════════════════════
+    elif st.session_state.metadatos_propuestos:
+
+        st.markdown("### ✅ Paso 3: Revisar y confirmar")
+
+        meta       = st.session_state.metadatos_propuestos
+        confianza  = int(meta.get('confianza_ia') or
+                         meta.get('confianza_extraccion') or 5)
+        color_conf = ("#3fb950" if confianza >= 7 else
+                      "#e3b341" if confianza >= 5 else "#f85149")
+
+        # Preview etiquetas
+        todas_tags = (parsear_lista(meta.get('temas_clave', [])) +
+                      parsear_lista(meta.get('subcategorias', [])))
+        if todas_tags:
+            badges = " ".join(
+                f"<span style='background:#0d1117; color:#e3b341; "
+                f"border:1px solid #e3b341; border-radius:20px; "
+                f"padding:0.15rem 0.6rem; font-size:0.75rem; "
+                f"margin-right:0.3rem;'>✨ {t}</span>"
+                for t in todas_tags[:10]
+            )
+            st.markdown("**🤖 Etiquetas sugeridas:**")
+            st.markdown(badges, unsafe_allow_html=True)
+            st.markdown("")
+
+        # Barra confianza
+        st.markdown(f"""
+        <div style="background:#161b22; padding:1rem;
+                    border-radius:8px; margin-bottom:1rem;">
+            <span>🤖 Confianza IA: </span>
+            <strong style="color:{color_conf};">{confianza}/10</strong>
+            <div style="background:#21262d; height:6px;
+                        border-radius:3px; margin-top:0.5rem;">
+                <div style="background:{color_conf};
+                            width:{confianza*10}%; height:100%;
+                            border-radius:3px;"></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── FORMULARIO ────────────────────────────────────
+        with st.form("revisar_metadatos", clear_on_submit=False):
+
+            col1, col2 = st.columns(2)
+            with col1:
+                titulo_f    = st.text_input(
+                    "Título *", value=meta.get('titulo') or ''
+                )
+                autor_f     = st.text_input(
+                    "Autor", value=meta.get('autor') or ''
+                )
+                isbn_f      = st.text_input(
+                    "ISBN", value=meta.get('isbn') or ''
+                )
+                editorial_f = st.text_input(
+                    "Editorial", value=meta.get('editorial') or ''
+                )
+
+            with col2:
+                cats    = ["Teologia","Programacion","Matrimonio",
+                           "Filosofia","Liderazgo","Historia","Otros"]
+                cat_val = meta.get('categoria_principal','Otros')
+                cat_idx = cats.index(cat_val) if cat_val in cats else 6
+
+                categoria_f = st.selectbox(
+                    "Categoría", cats, index=cat_idx
+                )
+                anio_f = st.number_input(
+                    "Año", min_value=1000, max_value=2030,
+                    value=int(meta.get('anio_publicacion') or 2020)
+                )
+                paginas_f = st.number_input(
+                    "Total páginas", min_value=1,
+                    value=int(meta.get('total_paginas') or 100)
+                )
+
+            desc_f = st.text_area(
+                "Descripción",
+                value=meta.get('descripcion') or '',
+                height=100
             )
 
-            # ── Preview etiquetas IA ───────────────────────────────
-            temas_preview   = parsear_lista(meta.get('temas_clave', []))
-            subcats_preview = parsear_lista(meta.get('subcategorias', []))
-            todas_preview   = temas_preview + subcats_preview
-
-            if todas_preview:
-                st.markdown("**🤖 Etiquetas sugeridas por IA:**")
-                badges = " ".join(
-                    f"<span style='background:#0d1117; color:#e3b341; "
-                    f"border:1px solid #e3b341; border-radius:20px; "
-                    f"padding:0.15rem 0.6rem; font-size:0.75rem; "
-                    f"margin-right:0.3rem;'>✨ {tag}</span>"
-                    for tag in todas_preview[:10]
+            st.markdown("**🏷️ Etiquetas**")
+            col_t1, col_t2 = st.columns(2)
+            with col_t1:
+                temas_f = st.text_input(
+                    "Temas clave (separados por coma)",
+                    value=", ".join(
+                        parsear_lista(meta.get('temas_clave', []))
+                    )
                 )
-                st.markdown(badges, unsafe_allow_html=True)
-                st.markdown("")
-
-            # ── Barra de confianza ────────────────────────────────
-            st.markdown(f"""
-            <div style="background:#161b22; padding:1rem;
-                        border-radius:8px; margin-bottom:1rem;">
-                <div style="display:flex; align-items:center; gap:0.5rem;">
-                    <span>🤖 Confianza de la IA:</span>
-                    <span style="color:{color_conf}; font-weight:bold;">
-                        {confianza}/10
-                    </span>
-                </div>
-                <div style="background:#21262d; height:6px;
-                            border-radius:3px; margin-top:0.5rem;">
-                    <div style="background:{color_conf};
-                                width:{confianza * 10}%; height:100%;
-                                border-radius:3px;"></div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # ── FORMULARIO ────────────────────────────────────────
-            with st.form("revisar_metadatos", clear_on_submit=False):
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    titulo_final = st.text_input(
-                        "Título *",
-                        value=meta.get('titulo') or ''
+            with col_t2:
+                subcats_f = st.text_input(
+                    "Subcategorías (separadas por coma)",
+                    value=", ".join(
+                        parsear_lista(meta.get('subcategorias', []))
                     )
-                    autor_final = st.text_input(
-                        "Autor",
-                        value=meta.get('autor') or ''
-                    )
-                    isbn_final = st.text_input(
-                        "ISBN",
-                        value=meta.get('isbn') or ''
-                    )
-                    editorial_final = st.text_input(
-                        "Editorial",
-                        value=meta.get('editorial') or ''
-                    )
-
-                with col2:
-                    cats = ["Teologia", "Programacion", "Matrimonio",
-                            "Filosofia", "Liderazgo", "Historia", "Otros"]
-                    cat_actual = meta.get('categoria_principal', 'Otros')
-                    cat_idx    = cats.index(cat_actual) if cat_actual in cats else 6
-
-                    categoria_final = st.selectbox(
-                        "Categoría principal", cats, index=cat_idx
-                    )
-                    anio_final = st.number_input(
-                        "Año", min_value=1000, max_value=2030,
-                        value=int(meta.get('anio_publicacion') or 2020)
-                    )
-                    paginas_final = st.number_input(
-                        "Total páginas", min_value=1,
-                        value=int(meta.get('total_paginas') or 100)
-                    )
-
-                descripcion_final = st.text_area(
-                    "Descripción / Sinopsis",
-                    value=meta.get('descripcion') or '',
-                    height=100
                 )
 
-                # ── Etiquetas — SIN reasignar a "" ────────────────
-                st.markdown("**🏷️ Etiquetas y temas clave**")
-                st.caption("Separadas por comas — la IA las sugiere, tú las editas")
+            col_g, col_c = st.columns(2)
+            with col_g:
+                guardar = st.form_submit_button(
+                    "✅ Guardar en biblioteca",
+                    use_container_width=True,
+                    type="primary"
+                )
+            with col_c:
+                cancelar = st.form_submit_button(
+                    "❌ Cancelar",
+                    use_container_width=True
+                )
 
-                col_t1, col_t2 = st.columns(2)
-                with col_t1:
-                    temas_str = st.text_input(
-                        "Temas clave",
-                        value=", ".join(parsear_lista(meta.get('temas_clave', []))),
-                        placeholder="Ej: gracia, soteriología, reforma"
-                    )
-                with col_t2:
-                    subcats_str = st.text_input(
-                        "Subcategorías",
-                        value=", ".join(parsear_lista(meta.get('subcategorias', []))),
-                        placeholder="Ej: Teología Sistemática, Hermenéutica"
-                    )
-
-                # ── Botones dentro del form ────────────────────────
-                col_guardar, col_cancelar = st.columns(2)
-                with col_guardar:
-                    guardar = st.form_submit_button(
-                        "✅ Guardar en biblioteca",
-                        use_container_width=True,
-                        type="primary"
-                    )
-                with col_cancelar:
-                    cancelar = st.form_submit_button(
-                        "❌ Cancelar",
-                        use_container_width=True
-                    )
-
-                # ── Lógica guardar ────────────────────────────────
-                if guardar:
-                    if not titulo_final.strip():
-                        st.error("⚠️ El título es obligatorio")
-                    else:
-                        temas_final   = [t.strip() for t in temas_str.split(',')
-                                        if t.strip()]
-                        subcats_final = [s.strip() for s in subcats_str.split(',')
-                                        if s.strip()]
-
-                        metadatos_finales = {
-                            'titulo':              titulo_final.strip(),
-                            'autor':               autor_final.strip(),
-                            'isbn':                isbn_final.strip(),
-                            'editorial':           editorial_final.strip(),
-                            'anio_publicacion':    int(anio_final),
-                            'categoria_principal': categoria_final,
-                            'total_paginas':       int(paginas_final),
-                            'descripcion':         descripcion_final.strip(),
-                            'temas_clave':         temas_final,
-                            'subcategorias':       subcats_final,
-                            'autores_adicionales': meta.get('autores_adicionales', []),
-                            'notas_bibliotecaria': meta.get('notas_bibliotecaria', ''),
-                            'fuente_metadatos':    meta.get('fuente_metadatos', 'IA'),
-                            'confianza_ia':        confianza,
+            # ── Guardar ───────────────────────────────────
+            if guardar:
+                if not titulo_f.strip():
+                    st.error("⚠️ El título es obligatorio")
+                else:
+                    guardar_metadatos_ia(
+                        st.session_state.libro_en_proceso,
+                        {
+                            'titulo':              titulo_f.strip(),
+                            'autor':               autor_f.strip(),
+                            'isbn':                isbn_f.strip(),
+                            'editorial':           editorial_f.strip(),
+                            'anio_publicacion':    int(anio_f),
+                            'categoria_principal': categoria_f,
+                            'total_paginas':       int(paginas_f),
+                            'descripcion':         desc_f.strip(),
+                            'temas_clave':  [t.strip() for t in
+                                             temas_f.split(',') if t.strip()],
+                            'subcategorias':[s.strip() for s in
+                                             subcats_f.split(',') if s.strip()],
+                            'autores_adicionales': meta.get(
+                                'autores_adicionales', []
+                            ),
+                            'notas_bibliotecaria': meta.get(
+                                'notas_bibliotecaria', ''
+                            ),
+                            'fuente_metadatos': meta.get(
+                                'fuente_metadatos', 'IA'
+                            ),
+                            'confianza_ia': confianza,
                         }
-
-                        guardar_metadatos_ia(
-                            st.session_state.libro_en_proceso,
-                            metadatos_finales
-                        )
-
-                        # Limpiar session state
-                        st.session_state.libro_en_proceso    = None
-                        st.session_state.metadatos_propuestos = None
-                        st.session_state._ia_procesando       = False
-                        st.session_state.pop('pdf_contenido', None)
-
-                        st.success("✅ Libro catalogado correctamente")
-                        st.rerun()
-
-                # ── Lógica cancelar ───────────────────────────────
-                if cancelar:
+                    )
+                    # Limpiar todo
                     st.session_state.libro_en_proceso     = None
-                    st.session_state.metadatos_propuestos  = None
-                    st.session_state._ia_procesando        = False
+                    st.session_state.metadatos_propuestos = None
+                    st.session_state._ia_procesando       = False
                     st.session_state.pop('pdf_contenido', None)
+                    st.success("✅ ¡Libro catalogado!")
                     st.rerun()
+
+            # ── Cancelar ──────────────────────────────────
+            if cancelar:
+                st.session_state.libro_en_proceso     = None
+                st.session_state.metadatos_propuestos = None
+                st.session_state._ia_procesando       = False
+                st.session_state.pop('pdf_contenido', None)
+                st.rerun()
 
 # ═══════════════════════════════════════════════════════════════
 # TAB 2: CATÁLOGO - SIN HTML, SOLO COMPONENTES NATIVOS
