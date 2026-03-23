@@ -88,86 +88,85 @@ st.markdown("""
 # FUNCIONES DE BASE DE DATOS
 # ═══════════════════════════════════════════════════════════════
 
-def agregar_libro_por_procesar(nombre_archivo, ruta, tamano, formato, hash_archivo):
-    """Paso 1: Subir archivo, estado 'por_procesar'"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Usar nombre_archivo como título temporal (limpio)
-    titulo_temp = nombre_archivo.replace(f'.{formato.lower()}', '').replace('_', ' ').title()
-    
-    cursor.execute("""
-        INSERT INTO libros (titulo, nombre_archivo, ruta_archivo, tamano_mb, formato, hash_archivo, estado)
+def agregar_libro_por_procesar(nombre_archivo, ruta,
+                                tamano, formato, hash_archivo):
+    from app.database import ejecutar
+
+    titulo_temp = (nombre_archivo
+                   .replace(f'.{formato.lower()}', '')
+                   .replace('_', ' ')
+                   .title())
+
+    libro_id = ejecutar("""
+        INSERT INTO libros
+            (titulo, nombre_archivo, ruta_archivo,
+             tamano_mb, formato, hash_archivo, estado)
         VALUES (?, ?, ?, ?, ?, ?, 'por_procesar')
-    """, (titulo_temp, nombre_archivo, ruta, tamano, formato, hash_archivo))
-    
-    libro_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    """, [titulo_temp, nombre_archivo, ruta,
+          tamano, formato, hash_archivo])
+
     return libro_id
 
 def obtener_libro(libro_id):
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM libros WHERE id = ?", (libro_id,))
-    row = cursor.fetchone()
-    libro = dict(row) if row else None
-    conn.close()
-    return libro
+    from app.database import ejecutar
+    rows = ejecutar(
+        "SELECT * FROM libros WHERE id = ?",
+        [libro_id], fetchall=True
+    )
+    return rows[0] if rows else None
 
-def obtener_libros_por_estado(estado=None, categoria=None, 
+def obtener_libros_por_estado(estado=None, categoria=None,
                                color=None, busqueda="",
                                pagina=1, por_pagina=10):
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    from app.database import ejecutar
 
-    query  = "SELECT * FROM libros WHERE 1=1"
-    params = []
+    # ── Construir WHERE dinámico ───────────────────────────
+    conditions = ["1=1"]
+    params     = []
 
     if estado:
-        query += " AND estado = ?"
+        conditions.append("estado = ?")
         params.append(estado)
     if categoria:
-        query += " AND categoria_principal = ?"
+        conditions.append("categoria_principal = ?")
         params.append(categoria)
     if color:
-        query += " AND color_liquidtext = ?"
+        conditions.append("color_liquidtext = ?")
         params.append(color)
     if busqueda:
         termino = f"%{busqueda}%"
-        query += """
-            AND (
-                titulo        LIKE ? OR
-                autor         LIKE ? OR
-                descripcion   LIKE ? OR
-                temas_clave   LIKE ? OR
-                subcategorias LIKE ?
-            )
-        """
-        params.extend([termino] * 5)   # ← 5 campos ahora
+        conditions.append("""(
+            titulo        LIKE ? OR
+            autor         LIKE ? OR
+            descripcion   LIKE ? OR
+            temas_clave   LIKE ? OR
+            subcategorias LIKE ?
+        )""")
+        params.extend([termino] * 5)
 
-    # Total para paginación
-    count_query = query.replace("SELECT *", "SELECT COUNT(*)")
-    cursor.execute(count_query, params)
-    total = cursor.fetchone()[0]
+    where = " AND ".join(conditions)
 
-    # Paginación
+    # ── Total ──────────────────────────────────────────────
+    total_rows = ejecutar(
+        f"SELECT COUNT(*) as total FROM libros WHERE {where}",
+        params, fetchall=True
+    )
+    total = total_rows[0]['total'] if total_rows else 0
+
+    # ── Paginación ─────────────────────────────────────────
     offset = (pagina - 1) * por_pagina
-    query += " ORDER BY creado_en DESC LIMIT ? OFFSET ?"
-    params.extend([por_pagina, offset])
+    libros = ejecutar(
+        f"""SELECT * FROM libros WHERE {where}
+            ORDER BY creado_en DESC LIMIT ? OFFSET ?""",
+        params + [por_pagina, offset],
+        fetchall=True
+    )
 
-    cursor.execute(query, params)
-    libros = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-
-    return libros, total   # ← ahora retorna tupla
+    return libros, total
 
 def guardar_metadatos_ia(libro_id, metadatos):
     """Paso 3: Guardar metadatos revisados (después de previsualización)"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    from app.database import ejecutar
 
     # ── Convertir listas a JSON string antes de guardar ─────
     for campo_lista in ['subcategorias', 'temas_clave', 'autores_adicionales']:
@@ -176,60 +175,51 @@ def guardar_metadatos_ia(libro_id, metadatos):
             metadatos[campo_lista] = json.dumps(valor)
         elif valor is None:
             metadatos[campo_lista] = json.dumps([])
-    
+
     # Campos que actualizamos explícitamente
     campos_actualizar = {
-        'titulo': metadatos.get('titulo'),
-        'autor': metadatos.get('autor'),
-        'isbn': metadatos.get('isbn'),
-        'editorial': metadatos.get('editorial'),
-        'anio_publicacion': metadatos.get('anio_publicacion'),
+        'titulo':              metadatos.get('titulo'),
+        'autor':               metadatos.get('autor'),
+        'isbn':                metadatos.get('isbn'),
+        'editorial':           metadatos.get('editorial'),
+        'anio_publicacion':    metadatos.get('anio_publicacion'),
         'categoria_principal': metadatos.get('categoria_principal'),
-        'total_paginas': metadatos.get('total_paginas'),
-        'descripcion': metadatos.get('descripcion'),
-        'subcategorias': metadatos.get('subcategorias', json.dumps([])),
-        'temas_clave': metadatos.get('temas_clave', json.dumps([])),
+        'total_paginas':       metadatos.get('total_paginas'),
+        'descripcion':         metadatos.get('descripcion'),
+        'subcategorias':       metadatos.get('subcategorias', json.dumps([])),
+        'temas_clave':         metadatos.get('temas_clave', json.dumps([])),
         'autores_adicionales': metadatos.get('autores_adicionales', json.dumps([])),
         'notas_bibliotecaria': metadatos.get('notas_bibliotecaria', ''),
-        'fuente_metadatos': metadatos.get('fuente_metadatos', 'IA'),
-        'confianza_ia': metadatos.get('confianza_ia', 5),
-        'estado': 'catalogado',
-        'revisado_manual': 1,
-        'actualizado_en': datetime.now().isoformat()
+        'fuente_metadatos':    metadatos.get('fuente_metadatos', 'IA'),
+        'confianza_ia':        metadatos.get('confianza_ia', 5),
+        'estado':              'catalogado',
+        'revisado_manual':     1,
+        'actualizado_en':      datetime.now().isoformat()
     }
-    
-    # Construir query dinámicamente
+
+    # ── Construir query dinámicamente (igual que antes) ──────
     set_clause = ", ".join(f"{k} = ?" for k in campos_actualizar.keys())
-    valores = list(campos_actualizar.values())
-    
-    cursor.execute(
+    valores    = list(campos_actualizar.values())
+
+    ejecutar(
         f"UPDATE libros SET {set_clause} WHERE id = ?",
         valores + [libro_id]
     )
-    
-    conn.commit()
-    conn.close()
 
 def actualizar_progreso(libro_id, pagina_actual, estado=None):
-    """Actualiza la página actual y opcionalmente el estado del libro"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
+    from app.database import ejecutar
     if estado:
-        cursor.execute("""
-            UPDATE libros 
+        ejecutar("""
+            UPDATE libros
             SET pagina_actual = ?, estado = ?, actualizado_en = ?
             WHERE id = ?
-        """, (pagina_actual, estado, datetime.now().isoformat(), libro_id))
+        """, [pagina_actual, estado, datetime.now().isoformat(), libro_id])
     else:
-        cursor.execute("""
-            UPDATE libros 
+        ejecutar("""
+            UPDATE libros
             SET pagina_actual = ?, actualizado_en = ?
             WHERE id = ?
-        """, (pagina_actual, datetime.now().isoformat(), libro_id))
-    
-    conn.commit()
-    conn.close()
+        """, [pagina_actual, datetime.now().isoformat(), libro_id])
 
 def parsear_lista(valor) -> list:
     """Convierte JSON string o lista a lista limpia."""
@@ -243,37 +233,31 @@ def parsear_lista(valor) -> list:
     except Exception:
         return []
 
-def agregar_resaltado(libro_id, pagina, texto_resaltado, color_etiqueta, nota_personal="", texto_contexto=""):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO resaltados (libro_id, pagina, texto_resaltado, color_etiqueta, nota_personal, texto_contexto)
+def agregar_resaltado(libro_id, pagina, texto_resaltado,
+                      color_etiqueta, nota_personal="",
+                      texto_contexto=""):
+    from app.database import ejecutar
+    return ejecutar("""
+        INSERT INTO resaltados
+            (libro_id, pagina, texto_resaltado,
+             color_etiqueta, nota_personal, texto_contexto)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (libro_id, pagina, texto_resaltado, color_etiqueta, nota_personal, texto_contexto))
-    resaltado_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return resaltado_id
+    """, [libro_id, pagina, texto_resaltado,
+          color_etiqueta, nota_personal, texto_contexto])
 
 def obtener_resaltados(libro_id, color=None):
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
+    from app.database import ejecutar
     if color:
-        cursor.execute("""
-            SELECT * FROM resaltados WHERE libro_id = ? AND color_etiqueta = ?
+        return ejecutar("""
+            SELECT * FROM resaltados
+            WHERE libro_id = ? AND color_etiqueta = ?
             ORDER BY pagina, creado_en
-        """, (libro_id, color))
-    else:
-        cursor.execute("""
-            SELECT * FROM resaltados WHERE libro_id = ?
-            ORDER BY pagina, creado_en
-        """, (libro_id,))
-    
-    resaltados = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return resaltados
+        """, [libro_id, color], fetchall=True)
+    return ejecutar("""
+        SELECT * FROM resaltados
+        WHERE libro_id = ?
+        ORDER BY pagina, creado_en
+    """, [libro_id], fetchall=True)
 
 # ═══════════════════════════════════════════════════════════════
 # HEADER
@@ -353,13 +337,19 @@ with tab_cargar:
         if metodo == "Subir PDF":
             archivo = st.file_uploader("Seleccionar archivo", type=['pdf', 'epub', 'mobi'])
             
+            # ✅ CÓDIGO CORREGIDO
             if archivo:
                 contenido = archivo.getvalue()
                 st.session_state['pdf_contenido'] = contenido
                 hash_archivo = hashlib.md5(contenido).hexdigest()[:16]
                 
-                existentes = obtener_libros_por_estado()
-                duplicado = next((l for l in existentes if l['hash_archivo'] == hash_archivo), None)
+                # obtener_libros_por_estado() retorna (lista, total) — desempacar correctamente
+                existentes, _ = obtener_libros_por_estado()
+                duplicado = next(
+                    (l for l in existentes
+                    if l.get('hash_archivo') and l['hash_archivo'] == hash_archivo),
+                    None
+                )
                 
                 if duplicado:
                     st.error(f"⚠️ Este archivo ya existe: **{duplicado['titulo'] or duplicado['nombre_archivo']}**")
@@ -897,26 +887,23 @@ with tab_catalogo:
                                 if st.form_submit_button("💾 Guardar cambios",
                                                         use_container_width=True,
                                                         type="primary"):
-                                    conn_e = sqlite3.connect(DB_PATH, timeout=30)
-                                    cursor_e = conn_e.cursor()
-                                    cursor_e.execute("""
+                                    from app.database import ejecutar
+                                    ejecutar("""
                                         UPDATE libros SET
-                                            titulo = ?, autor = ?, editorial = ?, isbn = ?,
-                                            categoria_principal = ?, anio_publicacion = ?,
-                                            total_paginas = ?, descripcion = ?,
-                                            temas_clave = ?, subcategorias = ?,
-                                            actualizado_en = ?
-                                        WHERE id = ?
-                                    """, (
+                                            titulo=?, autor=?, editorial=?, isbn=?,
+                                            categoria_principal=?, anio_publicacion=?,
+                                            total_paginas=?, descripcion=?,
+                                            temas_clave=?, subcategorias=?,
+                                            actualizado_en=?
+                                        WHERE id=?
+                                    """, [
                                         titulo_e, autor_e, editorial_e, isbn_e,
                                         categoria_e, anio_e, paginas_e, desc_e,
                                         json.dumps([t.strip() for t in temas_e.split(',') if t.strip()]),
                                         json.dumps([s.strip() for s in subcats_e.split(',') if s.strip()]),
                                         datetime.now().isoformat(),
                                         libro['id']
-                                    ))
-                                    conn_e.commit()
-                                    conn_e.close()
+                                    ])
                                     st.success("✅ Libro actualizado")
                                     st.rerun()
                         
@@ -935,19 +922,15 @@ with tab_catalogo:
                                 if not confirmar_del:
                                     st.error("Marca la casilla de confirmación primero")
                                 else:
-                                    conn_d = sqlite3.connect(DB_PATH, timeout=30)
-                                    cursor_d = conn_d.cursor()
-                                    # Eliminar resaltados primero (FK)
-                                    cursor_d.execute(
+                                    from app.database import ejecutar
+                                    ejecutar(
                                         "DELETE FROM resaltados WHERE libro_id = ?",
-                                        (libro['id'],)
+                                        [libro['id']]
                                     )
-                                    cursor_d.execute(
+                                    ejecutar(
                                         "DELETE FROM libros WHERE id = ?",
-                                        (libro['id'],)
+                                        [libro['id']]
                                     )
-                                    conn_d.commit()
-                                    conn_d.close()
                                     st.success("🗑️ Libro eliminado")
                                     st.rerun()
 
