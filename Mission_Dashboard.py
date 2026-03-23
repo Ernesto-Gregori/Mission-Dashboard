@@ -16,6 +16,7 @@ sys.path.insert(0, str(BASE_DIR / "app"))
 
 from app.database import (
     init_database,
+    calcular_sobres,
     ejecutar,          # ← reemplaza todos los sqlite3.connect()
 )
 from app.ai_client import (
