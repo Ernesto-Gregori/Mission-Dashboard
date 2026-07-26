@@ -29,6 +29,9 @@ st.set_page_config(
     layout="wide"
 )
 
+from app.auth import require_auth
+require_auth()
+
 init_database()
 
 # ═══════════════════════════════════════════════════════════════
@@ -410,6 +413,7 @@ with tab_nuevo:
                     f"{SOBRES_CONFIG[sobre_sel]['nombre']} · ID: {nuevo_id}"
                 )
                 st.balloons()
+                st.rerun()
 
 # ═══════════════════════════════════════════════════════════════
 # TAB 3: HISTORIAL

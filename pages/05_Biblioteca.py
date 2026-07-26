@@ -33,6 +33,9 @@ st.set_page_config(
     layout="wide"
 )
 
+from app.auth import require_auth
+require_auth()
+
 init_database()
 
 # ═══════════════════════════════════════════════════════════════

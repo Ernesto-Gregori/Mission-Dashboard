@@ -17,6 +17,7 @@ from app.database import (
     ejecutar,
     ejecutar_cached,
 )
+from app.auth import require_auth, logout, panel_gestion_usuarios
 from app.ai_client import chat_simple, estado_gemini, verificar_conexion
 from app.timezone_config import (
     date, datetime,           # re-exportados — todo el código existente funciona
@@ -36,39 +37,9 @@ st.set_page_config(
 )
 
 # ═══════════════════════════════════════════════════════════════
-# 2. AUTENTICACIÓN
+# 2. AUTENTICACIÓN (usuario + contraseña, todas las rutas)
 # ═══════════════════════════════════════════════════════════════
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if not st.session_state.authenticated:
-    st.markdown("""
-        <style>
-            [data-testid="stSidebar"] {display: none !important;}
-            [data-testid="collapsedControl"] {display: none !important;}
-            section[data-testid="stSidebarNav"] {display: none !important;}
-            .stApp { background-color: #0d1117 !important; }
-            .stApp > div:first-child { background-color: #0d1117 !important; }
-        </style>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown("## 🏠 Mission Dashboard")
-        st.markdown("Acceso privado — solo usuarios autorizados")
-        pwd = st.text_input("Contraseña", type="password", key="pwd_input")
-        if st.button("Entrar", use_container_width=True, type="primary"):
-            try:
-                password_correcto = st.secrets.get("APP_PASSWORD", "")
-            except Exception:
-                password_correcto = ""
-            if pwd == password_correcto:
-                st.session_state.authenticated = True
-                st.rerun()
-            else:
-                st.error("❌ Contraseña incorrecta")
-    st.stop()
+require_auth()
 
 # ═══════════════════════════════════════════════════════════════
 # 3. Cache de IA
@@ -126,8 +97,9 @@ load_css()
 # ═══════════════════════════════════════════════════════════════
 # ESTADO DE SESIÓN
 # ═══════════════════════════════════════════════════════════════
-if "user_name" not in st.session_state:
-    st.session_state.user_name = "Ernesto Gregori"
+if "user_name" not in st.session_state or not st.session_state.user_name:
+    user = st.session_state.get("user") or {}
+    st.session_state.user_name = user.get("username") or "Usuario"
 
 # ═══════════════════════════════════════════════════════════════
 # HELPERS DE TIEMPO — zona horaria correcta
@@ -615,7 +587,11 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
     st.divider()
-    st.caption(f"v1.0 • Python + Streamlit • {TZ_NAME}")
+    user = st.session_state.get("user") or {}
+    st.caption(f"👤 {user.get('username', '—')} · {user.get('rol', '')}")
+    if st.button("🚪 Cerrar sesión", use_container_width=True):
+        logout()
+    st.caption(f"v1.1 • Python + Streamlit • {TZ_NAME}")
 
 # ═══════════════════════════════════════════════════════════════
 # HEADER
@@ -963,7 +939,7 @@ with col_alertas:
     st.caption(f"🕐 {_ahora_str()} {TZ_NAME}")
 
 # ═══════════════════════════════════════════════════════════════
-# FOOTER
+# FOOTER + SEGURIDAD
 # ═══════════════════════════════════════════════════════════════
 
 st.divider()
@@ -971,3 +947,8 @@ st.caption(
     f"Mission Dashboard • {hoy.strftime('%d/%m/%Y')} • "
     f"Construido con ❤️ y disciplina • {completados_hoy}/{total_hoy} hábitos hoy"
 )
+
+user = st.session_state.get("user") or {}
+if user.get("rol") == "admin":
+    with st.expander("🔐 Seguridad — gestionar usuarios"):
+        panel_gestion_usuarios()

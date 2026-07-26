@@ -8,7 +8,10 @@ from pathlib import Path
 import os
 import json
 
-import libsql
+try:
+    import libsql
+except ImportError:  # entorno local sin Turso
+    libsql = None
 
 # ═════════════════════════════════════════════════════════
 # ADAPTADOR SQLITE PARA PYTHON 3.12+ (evita DeprecationWarning)
@@ -665,130 +668,133 @@ def init_database():
         except Exception:
             pass  # Ya existe
 
+    # ═══════════════════════════════════════════════════════════
+    # TABLA: USUARIOS (auth local, hashes PBKDF2)
+    # ═══════════════════════════════════════════════════════════
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            username      TEXT    NOT NULL UNIQUE,
+            password_hash TEXT    NOT NULL,
+            salt          TEXT    NOT NULL,
+            rol           TEXT    NOT NULL DEFAULT 'admin'
+                              CHECK(rol IN ('admin', 'usuario')),
+            activo        BOOLEAN DEFAULT 1,
+            creado_en     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     init_sobres(cursor)
     conn.commit()
     conn.close()
-    # print(f"✅ Base de datos inicializada en: {DB_PATH}")
+    # Si Turso está activo, asegurar tablas críticas también allá
+    try:
+        ensure_remote_schema()
+    except NameError:
+        pass
 
 
 # ═════════════════════════════════════════════════════════════════
 # FUNCIONES CRUD PARA GASTOS
+# Todas pasan por ejecutar() → misma BD (SQLite local o Turso)
 # ═════════════════════════════════════════════════════════════════
 
 def guardar_ingreso(mes: int, anio: int, monto: float, notas: str = "") -> bool:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
     try:
-        cursor.execute("""
+        ejecutar("""
             INSERT INTO ingreso_mensual (mes, anio, monto_total, notas)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(mes, anio)
             DO UPDATE SET monto_total = ?, notas = ?
-        """, (mes, anio, monto, notas, monto, notas))
-        conn.commit()
+        """, [mes, anio, monto, notas, monto, notas])
         return True
     except Exception as e:
         print(f"Error guardando ingreso: {e}")
         return False
-    finally:
-        conn.close()
 
 def obtener_ingreso(mes: int, anio: int) -> float:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
-    cursor.execute("""
+    rows = ejecutar("""
         SELECT monto_total FROM ingreso_mensual
         WHERE mes = ? AND anio = ?
-    """, (mes, anio))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else 0.0
+    """, [mes, anio], fetchall=True) or []
+    return float(rows[0]["monto_total"]) if rows else 0.0
 
 def agregar_gasto_sobre(fecha, sobre: str, subcategoria: str,
                         descripcion: str, monto: float,
                         es_fijo: bool = False, notas: str = "") -> int:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
-    cursor.execute("""
+    return ejecutar("""
         INSERT INTO gastos_sobres
             (fecha, sobre, subcategoria, descripcion, monto, es_fijo, notas)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (str(fecha), sobre, subcategoria, descripcion, monto, es_fijo, notas))
-    gasto_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return gasto_id
+    """, [str(fecha), sobre, subcategoria, descripcion, monto,
+          1 if es_fijo else 0, notas])
 
 def obtener_gastos_sobre(mes=None, anio=None, sobre=None, limite=100) -> list:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
     query = "SELECT * FROM gastos_sobres WHERE 1=1"
     params = []
-    
+
     if mes and anio:
-        query += """ AND strftime('%m', fecha) = ? 
+        query += """ AND strftime('%m', fecha) = ?
                     AND strftime('%Y', fecha) = ?"""
         params.extend([f"{mes:02d}", str(anio)])
     if sobre:
         query += " AND sobre = ?"
         params.append(sobre)
-    
+
     query += " ORDER BY fecha DESC, creado_en DESC LIMIT ?"
     params.append(limite)
-    
-    cursor.execute(query, params)
-    gastos = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return gastos
+
+    return ejecutar(query, params, fetchall=True) or []
 
 def actualizar_gasto_sobre(gasto_id: int, **kwargs) -> bool:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
+    campos_permitidos = {
+        'fecha', 'sobre', 'subcategoria',
+        'descripcion', 'monto', 'es_fijo', 'notas'
+    }
+    campos = {}
+    for k, v in kwargs.items():
+        if k not in campos_permitidos or v is None:
+            continue
+        if k == 'fecha':
+            campos[k] = str(v)
+        elif k == 'es_fijo':
+            campos[k] = 1 if v else 0
+        else:
+            campos[k] = v
+    if not campos:
+        return False
+    set_clause = ", ".join(f"{k} = ?" for k in campos)
     try:
-        campos_permitidos = {
-            'fecha', 'sobre', 'subcategoria',
-            'descripcion', 'monto', 'es_fijo', 'notas'
-        }
-        campos = {
-            k: (str(v) if k == 'fecha' else v)
-            for k, v in kwargs.items()
-            if k in campos_permitidos and v is not None
-        }
-        if not campos:
-            return False
-        set_clause = ", ".join(f"{k} = ?" for k in campos)
-        cursor.execute(
+        ejecutar(
             f"UPDATE gastos_sobres SET {set_clause} WHERE id = ?",
             list(campos.values()) + [gasto_id]
         )
-        conn.commit()
-        return cursor.rowcount > 0
-    finally:
-        conn.close()
+        rows = ejecutar(
+            "SELECT id FROM gastos_sobres WHERE id = ?",
+            [gasto_id], fetchall=True
+        ) or []
+        return bool(rows)
+    except Exception as e:
+        print(f"Error actualizando gasto: {e}")
+        return False
 
 def eliminar_gasto_sobre(gasto_id: int) -> bool:
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM gastos_sobres WHERE id = ?", (gasto_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    finally:
-        conn.close()
+        antes = ejecutar(
+            "SELECT id FROM gastos_sobres WHERE id = ?",
+            [gasto_id], fetchall=True
+        ) or []
+        if not antes:
+            return False
+        ejecutar("DELETE FROM gastos_sobres WHERE id = ?", [gasto_id])
+        despues = ejecutar(
+            "SELECT id FROM gastos_sobres WHERE id = ?",
+            [gasto_id], fetchall=True
+        ) or []
+        return not despues
+    except Exception as e:
+        print(f"Error eliminando gasto: {e}")
+        return False
 
 def calcular_sobres(mes: int, anio: int) -> dict:
     """
@@ -868,18 +874,13 @@ def obtener_tipos_bloque() -> list:
     """
     defaults = ['Instituto', 'Programacion', 'Biblioteca', 'Personal']
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("""
+        rows = ejecutar("""
             SELECT DISTINCT tipo FROM bloques_fijos
             WHERE tipo IS NOT NULL
             ORDER BY tipo
-        """)
-        en_bd = [row[0] for row in cursor.fetchall()]
-        conn.close()
-        # Unir defaults + los que ya existen en BD sin duplicar
-        todos = list(dict.fromkeys(defaults + en_bd))
-        return todos
+        """, fetchall=True) or []
+        en_bd = [row["tipo"] for row in rows]
+        return list(dict.fromkeys(defaults + en_bd))
     except Exception:
         return defaults
 
@@ -914,6 +915,8 @@ def _get_turso_config():
 @functools.lru_cache(maxsize=1)
 def usar_turso() -> bool:
     """Cacheado — evalúa UNA SOLA VEZ si Turso está disponible."""
+    if libsql is None:
+        return False
     url, token = _get_turso_config()
     return bool(url and token)
 
@@ -984,6 +987,147 @@ def ejecutar_cached(sql: str, params: tuple = ()) -> list:
     """
     return ejecutar(sql, list(params), fetchall=True) or []
 
+
+def ensure_remote_schema():
+    """
+    Crea en Turso (o SQLite vía ejecutar) las tablas críticas
+    que Finanzas y Auth necesitan, si aún no existen.
+    """
+    if not usar_turso():
+        return
+
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS ingreso_mensual (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mes INTEGER NOT NULL,
+            anio INTEGER NOT NULL,
+            monto_total REAL NOT NULL DEFAULT 0,
+            notas TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(mes, anio)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS gastos_sobres (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha DATE NOT NULL,
+            sobre TEXT NOT NULL,
+            subcategoria TEXT NOT NULL,
+            descripcion TEXT NOT NULL,
+            monto REAL NOT NULL,
+            es_fijo BOOLEAN DEFAULT 0,
+            notas TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            rol TEXT NOT NULL DEFAULT 'admin',
+            activo BOOLEAN DEFAULT 1,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    ]
+    for sql in statements:
+        try:
+            ejecutar(sql)
+        except Exception as e:
+            print(f"ensure_remote_schema: {e}")
+
+
+# ═════════════════════════════════════════════════════════════════
+# USUARIOS / AUTH (hashes PBKDF2 — sin contraseñas en texto plano)
+# ═════════════════════════════════════════════════════════════════
+
+import hashlib
+import secrets as _secrets
+
+
+def _hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
+    if not salt:
+        salt = _secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        200_000,
+    )
+    return digest.hex(), salt
+
+
+def verificar_password(password: str, password_hash: str, salt: str) -> bool:
+    candidato, _ = _hash_password(password, salt)
+    return _secrets.compare_digest(candidato, password_hash)
+
+
+def contar_usuarios() -> int:
+    try:
+        rows = ejecutar(
+            "SELECT COUNT(*) AS n FROM usuarios WHERE activo = 1",
+            fetchall=True,
+        ) or []
+        return int(rows[0]["n"]) if rows else 0
+    except Exception:
+        return 0
+
+
+def crear_usuario(username: str, password: str, rol: str = "admin") -> tuple[bool, str]:
+    username = (username or "").strip().lower()
+    if len(username) < 3:
+        return False, "El usuario debe tener al menos 3 caracteres"
+    if len(password or "") < 6:
+        return False, "La contraseña debe tener al menos 6 caracteres"
+    if rol not in ("admin", "usuario"):
+        rol = "usuario"
+    existentes = ejecutar(
+        "SELECT id FROM usuarios WHERE username = ?",
+        [username], fetchall=True,
+    ) or []
+    if existentes:
+        return False, "Ese nombre de usuario ya existe"
+    password_hash, salt = _hash_password(password)
+    try:
+        ejecutar("""
+            INSERT INTO usuarios (username, password_hash, salt, rol, activo)
+            VALUES (?, ?, ?, ?, 1)
+        """, [username, password_hash, salt, rol])
+        return True, "Usuario creado"
+    except Exception as e:
+        return False, f"No se pudo crear: {e}"
+
+
+def autenticar_usuario(username: str, password: str) -> dict | None:
+    username = (username or "").strip().lower()
+    rows = ejecutar("""
+        SELECT id, username, password_hash, salt, rol, activo
+        FROM usuarios
+        WHERE username = ? AND activo = 1
+    """, [username], fetchall=True) or []
+    if not rows:
+        return None
+    u = rows[0]
+    if not verificar_password(password, u["password_hash"], u["salt"]):
+        return None
+    return {
+        "id": u["id"],
+        "username": u["username"],
+        "rol": u["rol"],
+    }
+
+
+def listar_usuarios() -> list:
+    return ejecutar("""
+        SELECT id, username, rol, activo, creado_en
+        FROM usuarios
+        ORDER BY id
+    """, fetchall=True) or []
+
+
 def migrar_local_a_turso():
     """
     Migra todos los datos de SQLite local a Turso.
@@ -1029,6 +1173,7 @@ def migrar_local_a_turso():
         'matrimonio_citas', 'matrimonio_notas', 'matrimonio_habitos',
         'habitos_config', 'habitos_diarios_v2', 'pedidos_oracion',
         'ingreso_mensual', 'gastos_sobres', 'eventos_calendario',
+        'usuarios',
     ]
 
     total = 0
