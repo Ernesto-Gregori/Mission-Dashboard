@@ -589,9 +589,11 @@ with st.sidebar:
     st.divider()
     user = st.session_state.get("user") or {}
     st.caption(f"👤 {user.get('username', '—')} · {user.get('rol', '')}")
+    if user.get("rol") == "admin":
+        st.page_link("pages/09_Usuarios.py", label="🔐 Crear / gestionar usuarios", icon="🔐")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
         logout()
-    st.caption(f"v1.1 • Python + Streamlit • {TZ_NAME}")
+    st.caption(f"v1.2 • Python + Streamlit • {TZ_NAME}")
 
 # ═══════════════════════════════════════════════════════════════
 # HEADER
@@ -950,5 +952,7 @@ st.caption(
 
 user = st.session_state.get("user") or {}
 if user.get("rol") == "admin":
-    with st.expander("🔐 Seguridad — gestionar usuarios"):
+    st.markdown("### 🔐 Usuarios")
+    st.page_link("pages/09_Usuarios.py", label="Ir a crear y gestionar usuarios", icon="🔐")
+    with st.expander("Gestionar aquí (rápido)", expanded=False):
         panel_gestion_usuarios()

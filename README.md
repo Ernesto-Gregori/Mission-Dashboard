@@ -15,8 +15,12 @@ Sistema de gestión de vida personal — uso privado.
 ## Seguridad
 - Login con **usuario + contraseña** en todas las páginas
 - Contraseñas con PBKDF2 (no texto plano)
-- Admin puede crear más usuarios desde el expander «Seguridad» del dashboard
-- Si ya tenías `APP_PASSWORD` en secrets y no hay usuarios, se crea `admin` automáticamente
+- **Crear usuarios:** menú lateral → **Usuarios** (solo rol admin)
+- Si ya tenías `APP_PASSWORD` en secrets y no hay usuarios, se crea `admin` automáticamente (entra con usuario `admin` + esa clave)
+
+## Hosting
+- Esta app es **Streamlit**. En Streamlit Cloud funciona tal cual.
+- **NiceGUI / Flet no corren en Streamlit Cloud** — haría falta otro hosting y reescribir la UI. Ver `DIAGNOSTICO.md`.
 
 ## Persistencia (importante)
 - Todas las escrituras (incluida **Finanzas**) pasan por `ejecutar()` → misma BD

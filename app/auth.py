@@ -84,8 +84,12 @@ def _pantalla_login():
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.markdown("## 🏠 Mission Dashboard")
         st.markdown("Acceso privado — solo usuarios autorizados")
+        st.caption(
+            "Si venías de la contraseña antigua en secrets, prueba usuario **admin** "
+            "y esa misma contraseña (`APP_PASSWORD`)."
+        )
         with st.form("login_form"):
-            username = st.text_input("Usuario")
+            username = st.text_input("Usuario", placeholder="admin")
             password = st.text_input("Contraseña", type="password")
             submitted = st.form_submit_button(
                 "Entrar", use_container_width=True, type="primary"
@@ -99,6 +103,11 @@ def _pantalla_login():
                     st.rerun()
                 else:
                     st.error("❌ Usuario o contraseña incorrectos")
+        st.markdown("---")
+        st.caption(
+            "¿Primera vez y no hay usuarios? Reinicia la app sin usuarios en BD "
+            "para ver la pantalla de creación. Luego usa el menú **Usuarios**."
+        )
     st.stop()
 
 
@@ -147,27 +156,32 @@ def panel_gestion_usuarios():
         st.warning("Solo el administrador puede gestionar usuarios.")
         return
 
-    st.subheader("👥 Usuarios")
+    st.subheader("👥 Usuarios registrados")
     usuarios = listar_usuarios()
     if usuarios:
         for u in usuarios:
-            estado = "activo" if u.get("activo") else "inactivo"
+            estado = "✅ activo" if u.get("activo") else "⏸️ inactivo"
             st.markdown(
-                f"- **{u['username']}** · {u.get('rol', 'usuario')} · {estado}"
+                f"- **{u['username']}** · rol `{u.get('rol', 'usuario')}` · {estado}"
             )
     else:
         st.caption("No hay usuarios registrados.")
 
     st.divider()
-    st.markdown("#### Crear usuario")
+    st.subheader("➕ Crear usuario nuevo")
+    st.caption("Mínimo 3 caracteres en el usuario y 6 en la contraseña.")
     with st.form("crear_usuario_form", clear_on_submit=True):
-        nuevo_user = st.text_input("Usuario nuevo")
+        nuevo_user = st.text_input("Usuario nuevo", placeholder="ej: esposa")
         nueva_pwd = st.text_input("Contraseña", type="password")
+        nueva_pwd2 = st.text_input("Repetir contraseña", type="password")
         rol = st.selectbox("Rol", ["usuario", "admin"])
-        if st.form_submit_button("Crear", type="primary"):
-            ok, msg = crear_usuario(nuevo_user, nueva_pwd, rol=rol)
-            if ok:
-                st.success(msg)
-                st.rerun()
+        if st.form_submit_button("Crear usuario", type="primary", use_container_width=True):
+            if nueva_pwd != nueva_pwd2:
+                st.error("Las contraseñas no coinciden")
             else:
-                st.error(msg)
+                ok, msg = crear_usuario(nuevo_user, nueva_pwd, rol=rol)
+                if ok:
+                    st.success(f"✅ {msg}: **{nuevo_user.strip().lower()}**")
+                    st.rerun()
+                else:
+                    st.error(msg)

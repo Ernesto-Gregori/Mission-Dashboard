@@ -57,7 +57,33 @@ Estado anterior:
 
 ---
 
-## 4. ¿Cuándo sí valdría Electron?
+## 4. ¿Dónde crear usuarios? (Streamlit actual)
+
+1. Entra con un usuario **admin** (si migraste desde secrets: usuario `admin` + tu `APP_PASSWORD`).
+2. En el menú lateral abre **Usuarios** (`pages/09_Usuarios.py`).
+3. O en la home: enlace «Crear / gestionar usuarios» (sidebar) / sección al final del dashboard.
+
+Si no ves esa página, redeploy/pull de `main` — el código viejo no la tenía.
+
+## 5. NiceGUI / Flet vs Streamlit Cloud
+
+**Streamlit Community Cloud NO ejecuta NiceGUI ni Flet.** Solo apps Streamlit.
+
+| Opción | ¿Sigue en Streamlit Cloud? | Qué implica |
+|--------|----------------------------|-------------|
+| Quedarte en Streamlit | Sí | Sin recargas “tipo app”, pero hosting igual |
+| Migrar a NiceGUI o Flet | **No** | Hay que hospedar en Railway, Fly.io, Render, VPS, etc. |
+| Electron | No (es escritorio) | Reescritura grande; no es hosting web |
+
+Si el sitio está en Streamlit Cloud hoy:
+
+- **Puedes** mejorar auth/finanzas ahí (lo que ya hicimos).
+- **No puedes** “cambiar solo el framework” y seguir en el mismo hosting Streamlit.
+- Para NiceGUI/Flet hay que **cambiar de hosting** y reescribir la UI (la capa `app/database.py`, IA y Google sí se reutilizan).
+
+Recomendación: mientras el deploy sea Streamlit Cloud, **seguir en Streamlit** y usar la página Usuarios. Valorar NiceGUI solo si aceptas mover el hosting.
+
+## 6. ¿Cuándo sí valdría Electron?
 
 Solo si necesitas:
 
@@ -69,13 +95,14 @@ Coste: reescribir frontend, auth, y capa de datos. La lógica de Python (IA, Goo
 
 ---
 
-## 5. Plan sugerido (prioridad)
+## 7. Plan sugerido (prioridad)
 
-1. ~~Unificar finanzas con `ejecutar()` / Turso~~ (este PR)
-2. ~~Auth real + proteger todas las páginas~~ (este PR)
-3. Confirmar en `.streamlit/secrets.toml` (o `.env`): `TURSO_URL`, `TURSO_TOKEN`, y opcionalmente migrar con `migrar_local_a_turso()`
-4. Reducir recargas molestas con más `st.form` en páginas grandes
-5. Evaluar NiceGUI/Flet solo si la UX de Streamlit sigue siendo insuficiente
+1. ~~Unificar finanzas con `ejecutar()` / Turso~~
+2. ~~Auth real + proteger todas las páginas~~
+3. ~~Página visible Usuarios~~
+4. Confirmar Turso / secrets y redeploy en Streamlit Cloud
+5. Reducir recargas con más `st.form`
+6. NiceGUI/Flet **solo** si cambias de hosting (no compatible con Streamlit Cloud)
 
 ---
 
