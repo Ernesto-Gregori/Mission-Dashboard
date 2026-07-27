@@ -93,12 +93,12 @@ def _panel_reconectar_google():
                 type="primary",
                 use_container_width=True,
             )
-        st.caption(
-            "Te lleva a Google → autorizas → vuelves a la app. "
-            "El token se guarda solo para tu usuario. "
-            "El aviso «Google no ha verificado esta aplicación» es normal "
-            "en modo Testing: pulsa Continuar / Avanzado."
-        )
+            st.caption(
+                "Te lleva a Google → autorizas → vuelves a la app. "
+                "El token se guarda solo para tu usuario. "
+                "El aviso «Google no ha verificado esta aplicación» es normal "
+                "en modo Testing: pulsa Continuar / Avanzado."
+            )
         else:
             st.error(err)
         st.divider()
