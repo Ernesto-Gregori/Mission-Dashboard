@@ -179,6 +179,17 @@ Dashboard y nav muestran solo módulos activos; se puede reconfigurar desde el e
 - Cifrar `oauth_tokens` at rest
 - Form/fragment en Salud «Hoy»
 
+## 15. OAuth web Google (Fit + Calendar)
+
+Flujo en Streamlit Cloud sin pegar JSON:
+
+1. Cliente OAuth tipo **Web** + `redirect_uri` = URL de la app
+2. Secrets `[google_oauth]` con `client_id`, `client_secret`, `redirect_uri`
+3. Salud → «Conectar con Google» → callback `?code=` → token en `oauth_tokens` del `user_id`
+4. Calendar reutiliza el mismo token (mismos scopes)
+
+Sigue gratis en Google Cloud para uso personal.
+
 ---
 
 ## Roadmap

@@ -18,6 +18,10 @@ from app.google_fit import (
     estado_google_fit,
     iniciar_oauth_local,
     guardar_token_desde_json,
+    crear_url_autorizacion_web,
+    procesar_oauth_callback,
+    oauth_web_disponible,
+    get_oauth_redirect_uri,
 )
 from app.timezone_config import (
     date, datetime,
@@ -34,6 +38,17 @@ st.set_page_config(
 from app.auth import require_auth
 from app.onboarding import require_onboarding, require_module
 require_auth()
+
+# Callback OAuth web (?code=) — tras login, antes de bloquear por módulo
+_oauth_result = procesar_oauth_callback()
+if _oauth_result is not None:
+    ok_cb, msg_cb = _oauth_result
+    if ok_cb:
+        st.success(msg_cb)
+        st.balloons()
+    else:
+        st.error(msg_cb)
+
 require_onboarding()
 require_module("salud")
 ensure_database()
@@ -60,12 +75,51 @@ DIAS_CORTOS  = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]
 
 
 def _panel_reconectar_google():
-    """UI para restaurar Google Fit sin perder el vínculo tras cada sleep."""
-    st.markdown("#### 🔗 Restaurar / vincular Google Fit")
+    """UI para vincular Google Fit/Calendar (OAuth web o fallbacks)."""
+    st.markdown("#### 🔗 Vincular Google Fit + Calendar")
     st.caption(
-        "En Streamlit Cloud el disco se borra al dormir. El token debe quedar en la "
-        "**base de datos (Turso)** o en secrets con `refresh_token`."
+        "El token queda en **tu cuenta** (tabla oauth_tokens). "
+        "Sirve para Fit y Calendar. En Cloud usa «Conectar con Google»."
     )
+
+    # ── Preferido: OAuth web ─────────────────────────────────
+    if oauth_web_disponible():
+        redirect = get_oauth_redirect_uri()
+        st.markdown("**Conectar con Google (recomendado)**")
+        if redirect:
+            st.caption(f"Redirect URI: `{redirect}`")
+        else:
+            st.warning(
+                "Configura `redirect_uri` en secrets `[google_oauth]` "
+                '(ej. `https://tu-app.streamlit.app/`)'
+            )
+        url, err = crear_url_autorizacion_web()
+        if url:
+            st.link_button(
+                "🔐 Conectar con Google",
+                url,
+                type="primary",
+                use_container_width=True,
+            )
+            st.caption(
+                "Te lleva a Google → autorizas → vuelves a la app. "
+                "El token se guarda solo para tu usuario."
+            )
+        else:
+            st.error(err)
+        st.divider()
+    else:
+        st.info(
+            "Para OAuth web en Streamlit Cloud, añade en secrets:\n\n"
+            "```toml\n"
+            "[google_oauth]\n"
+            'client_id = "….apps.googleusercontent.com"\n'
+            'client_secret = "…"\n'
+            'redirect_uri = "https://TU-APP.streamlit.app/"\n'
+            "```\n\n"
+            "En Google Cloud: cliente OAuth tipo **Aplicación web** "
+            "con esa redirect URI."
+        )
 
     tab_local, tab_pegar = st.tabs(["PC local (OAuth)", "Pegar token JSON"])
 
@@ -85,9 +139,8 @@ def _panel_reconectar_google():
 
     with tab_pegar:
         st.caption(
-            "1) En local genera `token_fit.json` con OAuth. "
-            "2) Copia TODO el JSON aquí. "
-            "3) Guardar — queda en BD y sobrevive al sleep."
+            "Respaldo: pega el JSON de un `token_fit.json` generado en local. "
+            "Se guarda en BD de **tu** usuario."
         )
         texto = st.text_area(
             "Contenido de token_fit.json",
@@ -363,21 +416,14 @@ with tab_hoy:
     if dia_semana == 2:
         st.info("🏋️ **Miércoles de Calistenia** • 16:30 - 18:30")
 
-    # ── Google Fit (token en BD para sobrevivir al sleep) ─────
+    # ── Google Fit (token en BD por usuario) ─────
     fit_st = estado_google_fit()
     if fit_st["autenticado"]:
         col_fit1, col_fit2, col_fit3 = st.columns([2.5, 1, 1])
         with col_fit1:
-            donde = []
-            if fit_st["en_bd"]:
-                donde.append("BD")
-            if fit_st["en_secrets"]:
-                donde.append("secrets")
-            if fit_st["en_disco"]:
-                donde.append("disco")
             st.success(
-                "✅ Google Fit conectado"
-                + (f" · token en {'+'.join(donde)}" if donde else "")
+                "✅ Google Fit/Calendar conectados"
+                + (" · token en BD" if fit_st.get("en_bd") else "")
             )
         with col_fit2:
             if st.button("🔄 Importar hoy", use_container_width=True):
@@ -387,14 +433,11 @@ with tab_hoy:
                     st.session_state["fit_fecha"] = fecha_hoy.isoformat()
                     st.rerun()
         with col_fit3:
-            with st.popover("⚙️ Token"):
-                st.caption(
-                    "Si la app se duerme, el token debe estar en la **BD** "
-                    "(Turso) o en secrets con refresh_token."
-                )
+            with st.popover("⚙️ Vincular"):
+                st.caption("Re-vincular o actualizar token de tu cuenta.")
                 _panel_reconectar_google()
     else:
-        st.warning("🔑 Google Fit no autenticado — hay que vincular / restaurar token")
+        st.warning("🔑 Google Fit no autenticado — vincula tu cuenta Google")
         if fit_st["error"]:
             st.error(fit_st["error"])
         _panel_reconectar_google()

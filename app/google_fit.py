@@ -119,17 +119,19 @@ def _load_token_from_db() -> Optional[dict]:
         return None
 
 
-def _save_token_dict(token_data: dict) -> bool:
+def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
     """Guarda token en BD por usuario (sobrevive sleep). Sin archivo global compartido."""
     global _ultimo_error_auth
     try:
         from app.database import ejecutar
         from app.tenant import try_uid
         _ensure_oauth_table()
-        user_id = try_uid()
+        if user_id is None:
+            user_id = try_uid()
         if user_id is None:
             _ultimo_error_auth = "Debes iniciar sesión para guardar el token de Google Fit"
             return False
+        user_id = int(user_id)
         payload = json.dumps(token_data)
         # Asegurar columna user_id
         try:
@@ -148,7 +150,8 @@ def _save_token_dict(token_data: dict) -> bool:
         try:
             from app.database import ejecutar
             from app.tenant import try_uid
-            user_id = try_uid()
+            if user_id is None:
+                user_id = try_uid()
             payload = json.dumps(token_data)
             ejecutar(
                 "DELETE FROM oauth_tokens WHERE provider = ? AND user_id = ?",
@@ -165,11 +168,8 @@ def _save_token_dict(token_data: dict) -> bool:
 
     # Disco opcional SOLO por usuario (evita compartir token entre cuentas)
     try:
-        from app.tenant import try_uid
-        uid_disk = try_uid()
-        if uid_disk is not None:
-            path = TOKEN_FILE.parent / f"token_fit_u{uid_disk}.json"
-            path.write_text(json.dumps(token_data, indent=2))
+        path = TOKEN_FILE.parent / f"token_fit_u{int(user_id)}.json"
+        path.write_text(json.dumps(token_data, indent=2))
     except Exception as e:
         print(f"[GoogleFit] Disco no escribible (ok si hay BD): {e}")
     return True
@@ -180,28 +180,43 @@ def _oauth_client_bootstrap() -> dict:
     out: dict = {}
     try:
         import streamlit as st
-        if "google_fit_token" in st.secrets:
-            m = st.secrets["google_fit_token"]
+        # Preferido: [google_oauth] (cliente Web)
+        if "google_oauth" in st.secrets:
+            m = st.secrets["google_oauth"]
             if m.get("client_id"):
                 out["client_id"] = m["client_id"]
             if m.get("client_secret"):
                 out["client_secret"] = m["client_secret"]
             if m.get("token_uri"):
                 out["token_uri"] = m["token_uri"]
+        # Compat: client_id/secret en [google_fit_token] (sin usar refresh_token)
+        if "google_fit_token" in st.secrets:
+            m = st.secrets["google_fit_token"]
+            out.setdefault("client_id", m.get("client_id"))
+            out.setdefault("client_secret", m.get("client_secret"))
+            out.setdefault("token_uri", m.get("token_uri"))
+        # Variables sueltas
+        out.setdefault("client_id", st.secrets.get("GOOGLE_OAUTH_CLIENT_ID", ""))
+        out.setdefault("client_secret", st.secrets.get("GOOGLE_OAUTH_CLIENT_SECRET", ""))
     except Exception:
         pass
+    # Env
+    out.setdefault("client_id", os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""))
+    out.setdefault("client_secret", os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", ""))
     if CREDENTIALS_FILE.exists():
         try:
             cred_file = json.loads(CREDENTIALS_FILE.read_text())
-            installed = cred_file.get("installed") or cred_file.get("web") or {}
-            out.setdefault("client_id", installed.get("client_id"))
-            out.setdefault("client_secret", installed.get("client_secret"))
+            # Preferir bloque "web" para redirect URI
+            block = cred_file.get("web") or cred_file.get("installed") or {}
+            out.setdefault("client_id", block.get("client_id"))
+            out.setdefault("client_secret", block.get("client_secret"))
             out.setdefault(
                 "token_uri",
-                installed.get("token_uri") or "https://oauth2.googleapis.com/token",
+                block.get("token_uri") or "https://oauth2.googleapis.com/token",
             )
         except Exception:
             pass
+    out.setdefault("token_uri", "https://oauth2.googleapis.com/token")
     return {k: v for k, v in out.items() if v}
 
 
@@ -331,6 +346,276 @@ def iniciar_oauth_local() -> tuple[bool, str]:
         return False, f"Error OAuth: {e}"
 
 
+# ═══════════════════════════════════════════════════════════════
+# OAUTH WEB (Streamlit Cloud — redirect URI, sin pegar JSON)
+# ═══════════════════════════════════════════════════════════════
+
+def get_oauth_redirect_uri() -> str:
+    """URI de retorno. Debe coincidir EXACTO con Google Cloud Console."""
+    try:
+        import streamlit as st
+        if "google_oauth" in st.secrets:
+            uri = (st.secrets["google_oauth"].get("redirect_uri") or "").strip()
+            if uri:
+                return uri
+        uri = (st.secrets.get("GOOGLE_OAUTH_REDIRECT_URI") or "").strip()
+        if uri:
+            return uri
+    except Exception:
+        pass
+    env = (os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or "").strip()
+    if env:
+        return env
+    # Auto-detect en Streamlit Cloud
+    try:
+        import streamlit as st
+        headers = getattr(st.context, "headers", None) or {}
+        host = headers.get("Host") or headers.get("host") or ""
+        proto = (
+            headers.get("X-Forwarded-Proto")
+            or headers.get("x-forwarded-proto")
+            or "https"
+        )
+        if host:
+            return f"{proto}://{host}/"
+    except Exception:
+        pass
+    return ""
+
+
+def oauth_web_disponible() -> bool:
+    """True si hay client_id/secret para el flujo web."""
+    c = _oauth_client_bootstrap()
+    return bool(c.get("client_id") and c.get("client_secret"))
+
+
+def _state_signing_key() -> bytes:
+    key = os.getenv("OAUTH_STATE_SECRET") or os.getenv("GROQ_API_KEY") or ""
+    try:
+        import streamlit as st
+        if not key:
+            key = st.secrets.get("OAUTH_STATE_SECRET") or st.secrets.get("GROQ_API_KEY") or ""
+        if not key and "google_oauth" in st.secrets:
+            key = st.secrets["google_oauth"].get("client_secret") or ""
+    except Exception:
+        pass
+    if not key:
+        key = "mission-dashboard-oauth-state"
+    return str(key).encode("utf-8")
+
+
+def _firmar_oauth_state(user_id: int) -> str:
+    import base64
+    import hashlib
+    import hmac
+    import secrets
+    import time
+
+    nonce = secrets.token_hex(8)
+    ts = int(time.time())
+    payload = f"{int(user_id)}:{ts}:{nonce}"
+    sig = hmac.new(_state_signing_key(), payload.encode(), hashlib.sha256).hexdigest()[:20]
+    raw = f"{payload}:{sig}"
+    return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+
+
+def _verificar_oauth_state(state: str, max_age_sec: int = 900) -> int | None:
+    """Devuelve user_id si el state es válido; None si no."""
+    import base64
+    import hashlib
+    import hmac
+    import time
+
+    if not state:
+        return None
+    try:
+        pad = "=" * (-len(state) % 4)
+        raw = base64.urlsafe_b64decode(state + pad).decode()
+        parts = raw.split(":")
+        if len(parts) != 4:
+            return None
+        user_s, ts_s, nonce, sig = parts
+        payload = f"{user_s}:{ts_s}:{nonce}"
+        expect = hmac.new(
+            _state_signing_key(), payload.encode(), hashlib.sha256
+        ).hexdigest()[:20]
+        if not hmac.compare_digest(expect, sig):
+            return None
+        ts = int(ts_s)
+        if abs(int(time.time()) - ts) > max_age_sec:
+            return None
+        return int(user_s)
+    except Exception:
+        return None
+
+
+def _build_web_flow(redirect_uri: str):
+    try:
+        from google_auth_oauthlib.flow import Flow
+    except ImportError:
+        return None, "Falta el paquete google-auth-oauthlib (pip install -r requirements.txt)"
+
+    client = _oauth_client_bootstrap()
+    if not client.get("client_id") or not client.get("client_secret"):
+        return None, "Falta client_id/client_secret (secrets [google_oauth] o credentials_fit.json)"
+    if not redirect_uri:
+        return None, (
+            "Falta redirect_uri. Añade en secrets: "
+            '[google_oauth] redirect_uri = "https://TU-APP.streamlit.app/"'
+        )
+    client_config = {
+        "web": {
+            "client_id": client["client_id"],
+            "client_secret": client["client_secret"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": client.get("token_uri") or "https://oauth2.googleapis.com/token",
+            "redirect_uris": [redirect_uri],
+        }
+    }
+    flow = Flow.from_client_config(client_config, scopes=SCOPES)
+    flow.redirect_uri = redirect_uri
+    return flow, ""
+
+
+def crear_url_autorizacion_web(user_id: int | None = None) -> tuple[str | None, str]:
+    """
+    Genera la URL de Google OAuth (consentimiento).
+    Retorna (url, error). url es None si falla.
+    """
+    from app.tenant import try_uid
+
+    uid_ = user_id if user_id is not None else try_uid()
+    if uid_ is None:
+        return None, "Debes iniciar sesión antes de vincular Google"
+    redirect_uri = get_oauth_redirect_uri()
+    flow, err = _build_web_flow(redirect_uri)
+    if not flow:
+        return None, err
+    state = _firmar_oauth_state(int(uid_))
+    try:
+        # offline + consent → refresh_token (necesario en Cloud)
+        auth_url, _ = flow.authorization_url(
+            access_type="offline",
+            prompt="consent",
+            state=state,
+        )
+        return auth_url, ""
+    except Exception as e:
+        return None, f"No se pudo crear URL OAuth: {e}"
+
+
+def procesar_oauth_callback() -> tuple[bool, str] | None:
+    """
+    Si la URL trae ?code=&state= (vuelta de Google), intercambia el code
+    y guarda el token en oauth_tokens del usuario del state.
+
+    Returns:
+      None — no hay callback que procesar
+      (True, msg) / (False, msg) — resultado del intercambio
+    """
+    global _ultimo_error_auth
+    try:
+        import streamlit as st
+    except Exception:
+        return None
+
+    try:
+        params = st.query_params
+        code = params.get("code")
+        state = params.get("state")
+        err = params.get("error")
+    except Exception:
+        return None
+
+    if err:
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        _ultimo_error_auth = f"Google OAuth: {err}"
+        return False, f"Google denegó el acceso: {err}"
+
+    if not code or not state:
+        return None
+
+    # Evitar procesar dos veces el mismo code en el mismo rerun loop
+    if st.session_state.get("_oauth_code_done") == code:
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        return None
+
+    user_from_state = _verificar_oauth_state(str(state))
+    if user_from_state is None:
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        return False, "State OAuth inválido o expirado. Vuelve a pulsar Conectar con Google."
+
+    from app.tenant import try_uid
+    session_uid = try_uid()
+    if session_uid is not None and int(session_uid) != int(user_from_state):
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        return False, (
+            "La cuenta con la que iniciaste sesión no coincide con la que "
+            "empezó el vínculo de Google. Entra con el mismo usuario e inténtalo de nuevo."
+        )
+
+    redirect_uri = get_oauth_redirect_uri()
+    flow, err = _build_web_flow(redirect_uri)
+    if not flow:
+        return False, err
+
+    try:
+        flow.fetch_token(code=str(code))
+        creds = flow.credentials
+        data = json.loads(creds.to_json())
+        # Asegurar client fields
+        bootstrap = _oauth_client_bootstrap()
+        data.setdefault("client_id", bootstrap.get("client_id"))
+        data.setdefault("client_secret", bootstrap.get("client_secret"))
+        data["scopes"] = _normalize_scopes(data.get("scopes") or SCOPES)
+        if not data.get("refresh_token"):
+            # A veces Google no lo reenvía si ya se dio consentimiento antes
+            existing = None
+            try:
+                from app.database import ejecutar
+                rows = ejecutar(
+                    "SELECT token_json FROM oauth_tokens WHERE user_id = ? AND provider = ?",
+                    [user_from_state, PROVIDER],
+                    fetchall=True,
+                ) or []
+                if rows:
+                    existing = json.loads(rows[0]["token_json"])
+            except Exception:
+                pass
+            if existing and existing.get("refresh_token"):
+                data["refresh_token"] = existing["refresh_token"]
+        if not _save_token_dict(data, user_id=user_from_state):
+            return False, "OAuth ok pero no se pudo guardar el token en BD."
+        st.session_state["_oauth_code_done"] = code
+        _ultimo_error_auth = ""
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        return True, (
+            "Google Fit/Calendar vinculados. Token guardado en tu cuenta (BD)."
+        )
+    except Exception as e:
+        _ultimo_error_auth = str(e)
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        return False, f"Error al intercambiar el código OAuth: {e}"
+
+
 def get_fit_service():
     """Retorna el servicio de Google Fit o None si no está configurado."""
     try:
@@ -355,30 +640,25 @@ def fit_autenticado() -> bool:
 
 
 def fit_configurado() -> bool:
-    """True si hay alguna fuente de credenciales (client o token)."""
-    if _load_token_from_db() or _load_token_from_secrets() or _load_token_from_disk():
+    """True si el usuario tiene token en BD o hay cliente OAuth listo para vincular."""
+    if _load_token_from_db():
         return True
-    try:
-        import streamlit as st
-        if "google_fit_token" in st.secrets:
-            return True
-    except Exception:
-        pass
-    return CREDENTIALS_FILE.exists()
+    return oauth_web_disponible() or CREDENTIALS_FILE.exists()
 
 
 def estado_google_fit() -> dict:
     """Resumen para la UI de Salud."""
     en_bd = bool(_load_token_from_db())
-    en_secrets = bool(_load_token_from_secrets())
-    en_disco = TOKEN_FILE.exists()
     ok = fit_autenticado()
+    redirect = get_oauth_redirect_uri()
     return {
         "configurado": fit_configurado(),
         "autenticado": ok,
         "en_bd": en_bd,
-        "en_secrets": en_secrets,
-        "en_disco": en_disco,
+        "en_secrets": False,  # ya no usamos refresh_token compartido
+        "en_disco": False,
+        "oauth_web": oauth_web_disponible(),
+        "redirect_uri": redirect,
         "error": get_ultimo_error_auth(),
         "credentials_file": CREDENTIALS_FILE.exists(),
     }

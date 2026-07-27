@@ -12,15 +12,30 @@ Sistema de gestión de vida personal — uso privado.
 3. `streamlit run Mission_Dashboard.py`
 4. En el primer arranque, crea tu usuario y contraseña (se guardan con hash en la BD)
 
-## Google Fit (importante en Streamlit Cloud)
-Al dormir la app, el disco se borra. El token OAuth se guarda en la tabla `oauth_tokens` (Turso/SQLite).
+## Google Fit + Calendar (OAuth por usuario)
+Cada usuario vincula **su** Google. El token vive en `oauth_tokens` (Turso/SQLite) y sirve para Fit y Calendar.
 
-1. En local: coloca `credentials_fit.json`, abre Salud → Conectar OAuth  
-2. O pega el JSON de `token_fit.json` en Salud → «Pegar token JSON»  
-3. Confirma que diga **token en BD**  
-4. Opcional: copia también el token a `.streamlit/secrets.toml` bajo `[google_fit_token]`
+### Opción A — OAuth web en Streamlit Cloud (recomendado)
+1. Google Cloud Console → APIs: activa **Fitness API** y **Google Calendar API**
+2. Credenciales → Crear cliente OAuth → tipo **Aplicación web**
+3. Authorized redirect URIs: `https://TU-APP.streamlit.app/` (exacto, con `/` final si así lo pones)
+4. En Streamlit Cloud → Secrets:
 
-Si Google Cloud OAuth está en modo **Testing**, el refresh_token puede expirar ~7 días: publica la app o re-vincula.
+```toml
+[google_oauth]
+client_id = "xxxxx.apps.googleusercontent.com"
+client_secret = "xxxxx"
+redirect_uri = "https://TU-APP.streamlit.app/"
+```
+
+5. Entra a la app → **Salud** → **Conectar con Google** → autoriza
+6. Debe decir «token en BD»
+
+Si OAuth está en modo **Testing**, el refresh puede caducar ~7 días: añade tu Gmail como test user o publica la app.
+
+### Opción B — Local / pegar JSON (respaldo)
+1. `credentials_fit.json` (Desktop) en local → Salud → OAuth local  
+2. O pega el JSON en Salud → «Pegar token JSON»
 
 ## Seguridad
 - Login con **usuario + contraseña** en todas las páginas
