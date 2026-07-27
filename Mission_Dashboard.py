@@ -577,10 +577,11 @@ with st.sidebar:
         st.caption("⚠️ Sin ingreso registrado")
     st.divider()
 
-    st.markdown("**🤖 Estado IA**")
+    st.markdown("**🤖 Estado IA (Groq)**")
     estado_ia = estado_gemini()
     if not estado_ia.get("api_key_configurada"):
-        st.error("❌ Sin API Key")
+        st.error("❌ Sin GROQ_API_KEY")
+        st.caption("Añádela en `.streamlit/secrets.toml` o `.env`")
     elif estado_ia.get("modo") == "offline_sin_cuota":
         st.warning("⚠️ Sin cuota hoy")
     else:
@@ -591,15 +592,23 @@ with st.sidebar:
         st.markdown(f"""
         <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:0.6rem;">
             <div style="display:flex;justify-content:space-between;">
-                <span style="color:#3fb950;font-size:0.75rem;">✅ Conectado</span>
+                <span style="color:#3fb950;font-size:0.75rem;">✅ Groq listo</span>
                 <span style="color:{color_ia};font-size:0.75rem;">{llamadas}/{max_llam}</span>
             </div>
             <div style="background:#21262d;border-radius:4px;height:6px;margin-top:0.4rem;">
                 <div style="background:{color_ia};width:{min(pct_ia,100)}%;height:100%;border-radius:4px;"></div>
             </div>
-            <div style="color:#8b949e;font-size:0.65rem;margin-top:0.3rem;">llamadas hoy</div>
+            <div style="color:#8b949e;font-size:0.65rem;margin-top:0.3rem;">llamadas hoy · llama-3.3-70b</div>
         </div>
         """, unsafe_allow_html=True)
+        if st.button("🧪 Probar Groq", use_container_width=True, key="btn_test_groq"):
+            from app.ai_client import probar_groq
+            with st.spinner("Probando..."):
+                r = probar_groq()
+            if r["ok"]:
+                st.success(r["mensaje"])
+            else:
+                st.error(r["mensaje"])
     st.divider()
     user = st.session_state.get("user") or {}
     st.caption(f"👤 {user.get('username', '—')} · {user.get('rol', '')}")

@@ -684,6 +684,17 @@ def init_database():
         )
     """)
 
+    # ═══════════════════════════════════════════════════════════
+    # TABLA: OAUTH_TOKENS (Google Fit/Calendar sobreviven al sleep)
+    # ═══════════════════════════════════════════════════════════
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS oauth_tokens (
+            provider       TEXT PRIMARY KEY,
+            token_json     TEXT NOT NULL,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     init_sobres(cursor)
     conn.commit()
     conn.close()
@@ -1083,12 +1094,31 @@ def ensure_remote_schema():
             creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS oauth_tokens (
+            provider TEXT PRIMARY KEY,
+            token_json TEXT NOT NULL,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
     ]
     for sql in statements:
         try:
             ejecutar(sql)
         except Exception as e:
             print(f"ensure_remote_schema: {e}")
+
+    # También en SQLite local (por si ensure_database ya corrió antes del ALTER)
+    try:
+        ejecutar("""
+            CREATE TABLE IF NOT EXISTS oauth_tokens (
+                provider TEXT PRIMARY KEY,
+                token_json TEXT NOT NULL,
+                actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    except Exception:
+        pass
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -1224,7 +1254,7 @@ def migrar_local_a_turso():
         'matrimonio_citas', 'matrimonio_notas', 'matrimonio_habitos',
         'habitos_config', 'habitos_diarios_v2', 'pedidos_oracion',
         'ingreso_mensual', 'gastos_sobres', 'eventos_calendario',
-        'usuarios',
+        'usuarios', 'oauth_tokens',
     ]
 
     total = 0

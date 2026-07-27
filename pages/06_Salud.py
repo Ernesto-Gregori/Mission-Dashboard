@@ -11,8 +11,13 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import ejecutar, ejecutar_cached
-from app.ai_client import chat_simple, api_key_configurada
-from app.google_fit import obtener_datos_dia, fit_configurado, fit_autenticado
+from app.ai_client import chat_simple, api_key_configurada, probar_groq
+from app.google_fit import (
+    obtener_datos_dia,
+    estado_google_fit,
+    iniciar_oauth_local,
+    guardar_token_desde_json,
+)
 from app.timezone_config import (
     date, datetime,
     hoy as _hoy,
@@ -48,6 +53,51 @@ TIPOS_EJERCICIO = [
 ]
 DIAS_NOMBRES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
 DIAS_CORTOS  = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]
+
+
+def _panel_reconectar_google():
+    """UI para restaurar Google Fit sin perder el vínculo tras cada sleep."""
+    st.markdown("#### 🔗 Restaurar / vincular Google Fit")
+    st.caption(
+        "En Streamlit Cloud el disco se borra al dormir. El token debe quedar en la "
+        "**base de datos (Turso)** o en secrets con `refresh_token`."
+    )
+
+    tab_local, tab_pegar = st.tabs(["PC local (OAuth)", "Pegar token JSON"])
+
+    with tab_local:
+        st.caption(
+            "Solo funciona si corres la app en tu computadora con "
+            "`credentials_fit.json`. Luego el token se guarda en BD."
+        )
+        if st.button("🔗 Abrir OAuth en navegador", key="btn_oauth_fit"):
+            with st.spinner("Esperando autorización de Google..."):
+                ok, msg = iniciar_oauth_local()
+            if ok:
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
+
+    with tab_pegar:
+        st.caption(
+            "1) En local genera `token_fit.json` con OAuth. "
+            "2) Copia TODO el JSON aquí. "
+            "3) Guardar — queda en BD y sobrevive al sleep."
+        )
+        texto = st.text_area(
+            "Contenido de token_fit.json",
+            height=160,
+            placeholder='{"token":"...","refresh_token":"...","client_id":"...", ...}',
+            key="paste_fit_token",
+        )
+        if st.button("💾 Guardar token en BD", type="primary", key="btn_save_fit_token"):
+            ok, msg = guardar_token_desde_json(texto)
+            if ok:
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
 
 # ═══════════════════════════════════════════════════════════════
 # FUNCIONES DB
@@ -278,9 +328,9 @@ with st.sidebar:
 
     st.divider()
     if api_key_configurada():
-        st.success("🤖 Coach IA activo")
+        st.success("🤖 Coach IA (Groq) activo")
     else:
-        st.caption("🤖 Coach IA en modo offline")
+        st.caption("🤖 Coach IA offline — falta GROQ_API_KEY")
 
 # ═══════════════════════════════════════════════════════════════
 # TABS
@@ -303,26 +353,41 @@ with tab_hoy:
     if dia_semana == 2:
         st.info("🏋️ **Miércoles de Calistenia** • 16:30 - 18:30")
 
-    # ── Google Fit ────────────────────────────────────────────
-    if not fit_configurado():
-        st.warning("⚠️ Google Fit no configurado")
-    elif not fit_autenticado():
-        st.info("🔑 Primera vez: necesitas autenticar con Google Fit")
-        if st.button("🔗 Conectar Google Fit", type="primary"):
-            with st.spinner("Abriendo navegador..."):
-                obtener_datos_dia(fecha_hoy)
-                st.rerun()
-    else:
-        col_fit1, col_fit2 = st.columns([3, 1])
+    # ── Google Fit (token en BD para sobrevivir al sleep) ─────
+    fit_st = estado_google_fit()
+    if fit_st["autenticado"]:
+        col_fit1, col_fit2, col_fit3 = st.columns([2.5, 1, 1])
         with col_fit1:
-            st.success("✅ Google Fit conectado")
+            donde = []
+            if fit_st["en_bd"]:
+                donde.append("BD")
+            if fit_st["en_secrets"]:
+                donde.append("secrets")
+            if fit_st["en_disco"]:
+                donde.append("disco")
+            st.success(
+                "✅ Google Fit conectado"
+                + (f" · token en {'+'.join(donde)}" if donde else "")
+            )
         with col_fit2:
             if st.button("🔄 Importar hoy", use_container_width=True):
                 with st.spinner("Obteniendo datos de Google Fit..."):
                     datos_imp = obtener_datos_dia(fecha_hoy)
                     st.session_state["datos_fit_hoy"] = datos_imp
-                    st.session_state["fit_fecha"]     = fecha_hoy.isoformat()
+                    st.session_state["fit_fecha"] = fecha_hoy.isoformat()
                     st.rerun()
+        with col_fit3:
+            with st.popover("⚙️ Token"):
+                st.caption(
+                    "Si la app se duerme, el token debe estar en la **BD** "
+                    "(Turso) o en secrets con refresh_token."
+                )
+                _panel_reconectar_google()
+    else:
+        st.warning("🔑 Google Fit no autenticado — hay que vincular / restaurar token")
+        if fit_st["error"]:
+            st.error(fit_st["error"])
+        _panel_reconectar_google()
 
     fit = {}
     if (st.session_state.get("fit_fecha") == fecha_hoy.isoformat()

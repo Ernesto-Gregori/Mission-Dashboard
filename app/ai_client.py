@@ -245,8 +245,41 @@ SYSTEM_MISION = (
 )
 
 def chat_simple(mensaje: str, contexto: str = "") -> str:
-    resultado = _llamar_ai(mensaje, system=SYSTEM_MISION)
+    """
+    Chat con Groq.
+    `contexto` = system prompt del módulo (Finanzas, Salud, Agenda, etc.).
+    Si viene vacío, usa SYSTEM_MISION.
+    """
+    system = (contexto or "").strip() or SYSTEM_MISION
+    resultado = _llamar_ai(mensaje, system=system)
     return resultado or _fallback("chat_bienvenida")
+
+
+def probar_groq() -> dict:
+    """Diagnóstico rápido de GROQ_API_KEY + una llamada mínima."""
+    info = {
+        "api_key_configurada": api_key_configurada(),
+        "modelo": MODELO,
+        "ok": False,
+        "mensaje": "",
+    }
+    if not info["api_key_configurada"]:
+        info["mensaje"] = "Falta GROQ_API_KEY en secrets o .env"
+        return info
+    resp = _llamar_ai(
+        "Responde solo: OK",
+        system="Eres un checker. Responde exactamente OK.",
+        max_tokens=8,
+    )
+    if resp and "OK" in resp.upper():
+        info["ok"] = True
+        info["mensaje"] = f"Groq responde ({MODELO})"
+    elif resp:
+        info["ok"] = True
+        info["mensaje"] = f"Groq respondió: {resp[:80]}"
+    else:
+        info["mensaje"] = "No hubo respuesta (cuota, red o clave inválida)"
+    return info
 
 def generar_resumen_semanal(*args, **kwargs) -> str:
     resultado = _llamar_ai(

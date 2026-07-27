@@ -109,7 +109,20 @@ Mitigaciones ya aplicadas (seguir en Streamlit):
 
 Streamlit **siempre** re-ejecuta el script en interacciones fuera de form/fragment; no se puede eliminar al 100% sin cambiar de framework.
 
-## 8. Plan sugerido (prioridad)
+## 8. Google Fit se desconecta al “dormir”
+
+Causa: Streamlit Cloud borra el disco → `token_fit.json` desaparece.  
+Si solo había access token en secrets (sin `refresh_token`), hay que volver a vincular.
+
+**Fix:** tokens en tabla `oauth_tokens` (Turso). Tras conectar una vez, debe decir «token en BD».
+
+También: apps OAuth en modo Testing de Google caducan el refresh ~7 días.
+
+## 9. Groq por módulo
+
+Bug corregido: `chat_simple(..., contexto=SYSTEM_X)` **ignoraba** el system prompt del módulo y siempre usaba el genérico. Ahora cada módulo (Finanzas, Salud, Agenda, Deep Work, etc.) envía su propio contexto a Groq.
+
+## 10. Plan sugerido (prioridad)
 
 1. ~~Unificar finanzas con `ejecutar()` / Turso~~
 2. ~~Auth real + proteger todas las páginas~~

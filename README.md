@@ -3,7 +3,7 @@ Sistema de gestión de vida personal — uso privado.
 
 ## Stack
 - Streamlit + SQLite → Turso (opcional)
-- Groq / Gemini IA
+- **Groq** IA (`llama-3.3-70b-versatile`)
 - Google Fit + Google Calendar OAuth2
 
 ## Setup local
@@ -11,6 +11,16 @@ Sistema de gestión de vida personal — uso privado.
 2. `pip install -r requirements.txt`
 3. `streamlit run Mission_Dashboard.py`
 4. En el primer arranque, crea tu usuario y contraseña (se guardan con hash en la BD)
+
+## Google Fit (importante en Streamlit Cloud)
+Al dormir la app, el disco se borra. El token OAuth se guarda en la tabla `oauth_tokens` (Turso/SQLite).
+
+1. En local: coloca `credentials_fit.json`, abre Salud → Conectar OAuth  
+2. O pega el JSON de `token_fit.json` en Salud → «Pegar token JSON»  
+3. Confirma que diga **token en BD**  
+4. Opcional: copia también el token a `.streamlit/secrets.toml` bajo `[google_fit_token]`
+
+Si Google Cloud OAuth está en modo **Testing**, el refresh_token puede expirar ~7 días: publica la app o re-vincula.
 
 ## Seguridad
 - Login con **usuario + contraseña** en todas las páginas

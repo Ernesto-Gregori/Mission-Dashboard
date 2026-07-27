@@ -1,6 +1,9 @@
 """
 google_fit.py - Integración con Google Fit API
-Obtiene sueño, ejercicio, pasos y frecuencia cardíaca
+Obtiene sueño, ejercicio, pasos y frecuencia cardíaca.
+
+Tokens OAuth se persisten en BD (Turso/SQLite) para sobrevivir
+cuando Streamlit Cloud se duerme o redeploya (el disco se borra).
 """
 
 import os
@@ -16,6 +19,7 @@ from typing import Optional, Dict, List
 BASE_DIR = Path(__file__).parent.parent
 CREDENTIALS_FILE = BASE_DIR / "credentials_fit.json"
 TOKEN_FILE = BASE_DIR / "token_fit.json"
+PROVIDER = "google_fit"
 
 SCOPES = [
     "https://www.googleapis.com/auth/fitness.sleep.read",
@@ -25,59 +29,251 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar",
 ]
 
+# Último error de auth (para mostrar en UI)
+_ultimo_error_auth: str = ""
+
+
+def get_ultimo_error_auth() -> str:
+    return _ultimo_error_auth or ""
+
+
 # ═══════════════════════════════════════════════════════════════
-# AUTENTICACIÓN
+# PERSISTENCIA DE TOKENS (BD → secrets → disco)
 # ═══════════════════════════════════════════════════════════════
+
+def _normalize_scopes(scopes) -> list:
+    if not scopes:
+        return list(SCOPES)
+    if isinstance(scopes, str):
+        s = scopes.strip()
+        if s.startswith("["):
+            try:
+                return list(json.loads(s))
+            except Exception:
+                pass
+        return [x.strip() for x in s.replace(",", " ").split() if x.strip()]
+    return list(scopes)
+
+
+def _token_dict_from_mapping(raw) -> dict:
+    """Convierte secrets AttrDict / dict / JSON str a dict plano."""
+    if raw is None:
+        return {}
+    if isinstance(raw, str):
+        return json.loads(raw)
+    try:
+        return dict(raw)
+    except Exception:
+        return {k: raw[k] for k in raw}
+
+
+def _creds_from_token_dict(token_data: dict):
+    from google.oauth2.credentials import Credentials
+    data = _token_dict_from_mapping(token_data)
+    if not data:
+        return None
+    return Credentials(
+        token=data.get("token"),
+        refresh_token=data.get("refresh_token"),
+        token_uri=data.get("token_uri") or "https://oauth2.googleapis.com/token",
+        client_id=data.get("client_id"),
+        client_secret=data.get("client_secret"),
+        scopes=_normalize_scopes(data.get("scopes")),
+    )
+
+
+def _ensure_oauth_table():
+    try:
+        from app.database import ejecutar
+        ejecutar("""
+            CREATE TABLE IF NOT EXISTS oauth_tokens (
+                provider TEXT PRIMARY KEY,
+                token_json TEXT NOT NULL,
+                actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    except Exception as e:
+        print(f"[GoogleFit] No se pudo asegurar tabla oauth_tokens: {e}")
+
+
+def _load_token_from_db() -> Optional[dict]:
+    try:
+        from app.database import ejecutar
+        _ensure_oauth_table()
+        rows = ejecutar(
+            "SELECT token_json FROM oauth_tokens WHERE provider = ?",
+            [PROVIDER],
+            fetchall=True,
+        ) or []
+        if not rows:
+            return None
+        return json.loads(rows[0]["token_json"])
+    except Exception as e:
+        print(f"[GoogleFit] Error leyendo token BD: {e}")
+        return None
+
+
+def _save_token_dict(token_data: dict) -> bool:
+    """Guarda token en BD (sobrevive sleep) y en disco si es posible."""
+    global _ultimo_error_auth
+    try:
+        from app.database import ejecutar
+        _ensure_oauth_table()
+        payload = json.dumps(token_data)
+        ejecutar("""
+            INSERT INTO oauth_tokens (provider, token_json, actualizado_en)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(provider) DO UPDATE SET
+                token_json = excluded.token_json,
+                actualizado_en = CURRENT_TIMESTAMP
+        """, [PROVIDER, payload])
+    except Exception as e:
+        print(f"[GoogleFit] Error guardando token en BD: {e}")
+        _ultimo_error_auth = f"No se pudo guardar token en BD: {e}"
+        return False
+
+    try:
+        TOKEN_FILE.write_text(json.dumps(token_data, indent=2))
+    except Exception as e:
+        # En Streamlit Cloud el disco puede fallar; BD basta
+        print(f"[GoogleFit] Disco no escribible (ok si hay BD): {e}")
+    return True
+
+
+def guardar_token_desde_json(texto: str) -> tuple[bool, str]:
+    """Importa un token OAuth pegado (JSON de token_fit.json)."""
+    try:
+        data = json.loads(texto.strip())
+    except json.JSONDecodeError as e:
+        return False, f"JSON inválido: {e}"
+    if not data.get("refresh_token") and not data.get("token"):
+        return False, "El JSON debe incluir refresh_token o token"
+    # Completar client_id/secret desde credentials o secrets si faltan
+    if not data.get("client_id") or not data.get("client_secret"):
+        bootstrap = _load_token_from_secrets() or {}
+        data.setdefault("client_id", bootstrap.get("client_id"))
+        data.setdefault("client_secret", bootstrap.get("client_secret"))
+        data.setdefault("token_uri", bootstrap.get("token_uri")
+                        or "https://oauth2.googleapis.com/token")
+        if CREDENTIALS_FILE.exists():
+            try:
+                cred_file = json.loads(CREDENTIALS_FILE.read_text())
+                installed = cred_file.get("installed") or cred_file.get("web") or {}
+                data.setdefault("client_id", installed.get("client_id"))
+                data.setdefault("client_secret", installed.get("client_secret"))
+            except Exception:
+                pass
+    data["scopes"] = _normalize_scopes(data.get("scopes") or SCOPES)
+    if _save_token_dict(data):
+        return True, "Token guardado en la base de datos. Ya no deberías re-vincular tras cada sleep."
+    return False, "No se pudo guardar el token"
+
+
+def _load_token_from_secrets() -> Optional[dict]:
+    try:
+        import streamlit as st
+        if "google_fit_token" not in st.secrets:
+            return None
+        return _token_dict_from_mapping(st.secrets["google_fit_token"])
+    except Exception as e:
+        print(f"[GoogleFit] Secrets no disponibles: {e}")
+        return None
+
+
+def _load_token_from_disk() -> Optional[dict]:
+    if not TOKEN_FILE.exists():
+        return None
+    try:
+        return json.loads(TOKEN_FILE.read_text())
+    except Exception as e:
+        print(f"[GoogleFit] Error leyendo disco: {e}")
+        return None
+
+
+def _refresh_and_persist(creds):
+    """Refresca access token y lo guarda en BD (clave para sobrevivir al sleep)."""
+    global _ultimo_error_auth
+    from google.auth.transport.requests import Request
+
+    if creds.valid:
+        return creds
+    if not creds.refresh_token:
+        _ultimo_error_auth = (
+            "No hay refresh_token. Vuelve a vincular Google y guarda el JSON completo."
+        )
+        return None
+    try:
+        creds.refresh(Request())
+        _save_token_dict(json.loads(creds.to_json()))
+        _ultimo_error_auth = ""
+        return creds
+    except Exception as e:
+        err = str(e)
+        _ultimo_error_auth = err
+        print(f"[GoogleFit] Refresh falló: {err}")
+        # invalid_grant suele ser app en Testing (token ~7 días) o revocado
+        if "invalid_grant" in err.lower():
+            _ultimo_error_auth = (
+                "Google revocó el refresh_token (app en modo Testing expira ~7 días, "
+                "o se revocó el acceso). Re-vincula y guarda el nuevo token en BD."
+            )
+        return None
+
 
 def _get_credentials():
     """
     Obtiene credenciales OAuth2.
-    - Producción: lee desde Streamlit Secrets
-    - Local: usa token_fit.json del disco
+    Orden: BD (Turso/SQLite) → Streamlit Secrets → token_fit.json
+    Tras refrescar, siempre se persiste en BD.
     """
-    from google.auth.transport.requests import Request
-    from google.oauth2.credentials import Credentials
+    global _ultimo_error_auth
+    token_data = (
+        _load_token_from_db()
+        or _load_token_from_secrets()
+        or _load_token_from_disk()
+    )
+    if not token_data:
+        _ultimo_error_auth = "Sin token. Conecta Google Fit o pega el JSON del token."
+        return None
+
+    creds = _creds_from_token_dict(token_data)
+    if not creds:
+        return None
+
+    if creds.valid:
+        # Migrar a BD si solo estaba en secrets/disco
+        if not _load_token_from_db():
+            _save_token_dict(json.loads(creds.to_json()))
+        return creds
+
+    return _refresh_and_persist(creds)
+
+
+def iniciar_oauth_local() -> tuple[bool, str]:
+    """
+    Flujo OAuth con navegador local (solo funciona en tu PC, no en Streamlit Cloud).
+    Guarda el token en BD + disco.
+    """
+    global _ultimo_error_auth
     from google_auth_oauthlib.flow import InstalledAppFlow
 
-    creds = None
-
-    # ── Intentar desde Streamlit Secrets (producción) ────────
+    if not CREDENTIALS_FILE.exists():
+        return False, (
+            "Falta credentials_fit.json en la raíz del proyecto. "
+            "Descárgalo desde Google Cloud Console (OAuth client Desktop)."
+        )
     try:
-        import streamlit as st
-        if "google_fit_token" in st.secrets:
-            token_data = dict(st.secrets["google_fit_token"])
-            creds = Credentials(
-                token=token_data.get("token"),
-                refresh_token=token_data.get("refresh_token"),
-                token_uri=token_data.get("token_uri"),
-                client_id=token_data.get("client_id"),
-                client_secret=token_data.get("client_secret"),
-                scopes=token_data.get("scopes"),
-            )
-            if not creds.valid and creds.refresh_token:
-                creds.refresh(Request())
-            return creds
+        flow = InstalledAppFlow.from_client_secrets_file(
+            str(CREDENTIALS_FILE), SCOPES
+        )
+        creds = flow.run_local_server(port=0)
+        data = json.loads(creds.to_json())
+        if _save_token_dict(data):
+            return True, "Google conectado y token guardado en la base de datos."
+        return False, "OAuth ok pero no se pudo persistir el token."
     except Exception as e:
-        print(f"[GoogleFit] No secrets disponibles: {e}")
-
-    # ── Cargar desde disco (local) ───────────────────────────
-    if TOKEN_FILE.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            TOKEN_FILE.write_text(creds.to_json())
-        else:
-            if not CREDENTIALS_FILE.exists():
-                return None
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(CREDENTIALS_FILE), SCOPES
-            )
-            creds = flow.run_local_server(port=0)
-            TOKEN_FILE.write_text(creds.to_json())
-
-    return creds
+        _ultimo_error_auth = str(e)
+        return False, f"Error OAuth: {e}"
 
 
 def get_fit_service():
@@ -94,48 +290,43 @@ def get_fit_service():
 
 
 def fit_autenticado() -> bool:
-    """Verifica si hay credenciales válidas — Secrets o disco."""
-    # Verificar desde Streamlit Secrets
+    """True si hay refresh_token usable (BD, secrets o disco) o access token válido."""
     try:
-        import streamlit as st
-        if "google_fit_token" in st.secrets:
-            token_data = dict(st.secrets["google_fit_token"])
-            refresh = token_data.get("refresh_token")
-            print(f"[GoogleFit] refresh_token en secrets: {bool(refresh)}")
-            if refresh:
-                return True
+        creds = _get_credentials()
+        return bool(creds and creds.valid)
     except Exception as e:
-        print(f"[GoogleFit] Error leyendo secrets: {e}")
+        print(f"[GoogleFit] fit_autenticado error: {e}")
+        return False
 
-    # Verificar desde disco (local)
-    if not TOKEN_FILE.exists():
-        print("[GoogleFit] Sin token_fit.json en disco")
-        return False
-    try:
-        from google.oauth2.credentials import Credentials
-        from google.auth.transport.requests import Request
-        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            TOKEN_FILE.write_text(creds.to_json())
-        return creds.valid
-    except Exception as e:
-        print(f"[GoogleFit] Error disco: {e}")
-        return False
 
 def fit_configurado() -> bool:
-    """Verifica si Google Fit está configurado — Secrets o disco."""
-    # En producción verificar secrets
+    """True si hay alguna fuente de credenciales (client o token)."""
+    if _load_token_from_db() or _load_token_from_secrets() or _load_token_from_disk():
+        return True
     try:
         import streamlit as st
         if "google_fit_token" in st.secrets:
-            print("[GoogleFit] fit_configurado: True (secrets)")
             return True
     except Exception:
         pass
-    # En local verificar archivo
-    print(f"[GoogleFit] fit_configurado: {CREDENTIALS_FILE.exists()} (disco)")
     return CREDENTIALS_FILE.exists()
+
+
+def estado_google_fit() -> dict:
+    """Resumen para la UI de Salud."""
+    en_bd = bool(_load_token_from_db())
+    en_secrets = bool(_load_token_from_secrets())
+    en_disco = TOKEN_FILE.exists()
+    ok = fit_autenticado()
+    return {
+        "configurado": fit_configurado(),
+        "autenticado": ok,
+        "en_bd": en_bd,
+        "en_secrets": en_secrets,
+        "en_disco": en_disco,
+        "error": get_ultimo_error_auth(),
+        "credentials_file": CREDENTIALS_FILE.exists(),
+    }
 
 # ═══════════════════════════════════════════════════════════════
 # HELPERS DE TIEMPO

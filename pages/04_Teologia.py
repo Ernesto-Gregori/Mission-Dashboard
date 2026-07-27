@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import ejecutar, ejecutar_cached
-from app.ai_client import chat_simple, api_key_configurada
+from app.ai_client import chat_simple, api_key_configurada, sugerir_lectura_devocional
 from app.timezone_config import (
     date, datetime,
     hoy as _hoy,
@@ -263,6 +263,20 @@ with st.sidebar:
         st.success(f"¡Vas bien! Llevas {racha_actual} días")
     else:
         st.success(f"¡Excelente disciplina! {racha_actual} días 🔥")
+
+    st.divider()
+    if api_key_configurada():
+        st.success("🤖 Groq activo")
+        tema_ia = st.text_input("Tema para sugerir pasaje", placeholder="Ej: ansiedad, fe…", key="teo_tema_ia")
+        if st.button("✨ Sugerir pasaje (Groq)", use_container_width=True):
+            with st.spinner("Buscando pasaje..."):
+                st.session_state["teo_sugerencia"] = sugerir_lectura_devocional(
+                    tema=tema_ia or "disciplina espiritual"
+                )
+        if st.session_state.get("teo_sugerencia"):
+            st.info(st.session_state["teo_sugerencia"])
+    else:
+        st.caption("🤖 Groq offline — configura GROQ_API_KEY")
 
     st.divider()
 
