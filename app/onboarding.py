@@ -482,7 +482,8 @@ def render_coach(force: bool = False) -> None:
     # ── Paso 1: perfil ───────────────────────────────────────
     if step == 1:
         st.subheader("1. Cuéntame de ti")
-        with st.form("coach_perfil"):
+        # Form key must differ from session_state key "coach_perfil"
+        with st.form("coach_perfil_form"):
             nombre = st.text_input("¿Cómo te llamo?", value=st.session_state.get("user_name", ""))
             situacion = st.text_area(
                 "¿En qué etapa estás?",
