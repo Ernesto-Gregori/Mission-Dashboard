@@ -142,6 +142,20 @@ Usuarios nuevos (sin módulos activos) ven el **Coach** al primer login:
 Admin/legacy con módulos ya activos se marca `onboarding_completo=1` y no ve el coach.
 Dashboard y nav muestran solo módulos activos; se puede reconfigurar desde el expander Coach.
 
+## 13. La app se duerme en Streamlit Cloud
+
+**Causa:** Streamlit Community Cloud hiberna apps sin tráfico (orden de ~12 h; a veces se siente antes por cold start). No es un bug de Mission Dashboard.
+
+| Opción | Efecto | Coste |
+|--------|--------|--------|
+| GitHub Action + Playwright (`keep-awake.yml`) | Visita la URL cada 6 h y pulsa “get this app back up” si hace falta | Gratis |
+| Commits vacíos a `main` | Resetea el timer **si ya está despierta**, pero **redeploy** molesto | Evitar |
+| Ping HTTP / UptimeRobot simple | Suele devolver 200 sin despertar el proceso Python | No sirve bien |
+| Railway / Render / Fly / VPS | Always-on real | Hosting aparte |
+| Snowflake / Streamlit de pago | Uptime profesional | De pago |
+
+**Setup del keep-awake:** secret `STREAMLIT_APP_URL` + workflow en Actions (ver README).
+
 ---
 
 ## Roadmap
