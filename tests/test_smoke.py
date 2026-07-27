@@ -17,14 +17,21 @@ def isolated_db(monkeypatch):
     db_path = td / "test.db"
 
     import app.database as dbmod
+    import app.db.core as core
 
     monkeypatch.setattr(dbmod, "DB_PATH", db_path)
+    monkeypatch.setattr(core, "DB_PATH", db_path)
     if hasattr(dbmod.usar_turso, "cache_clear"):
         dbmod.usar_turso.cache_clear()
+    if hasattr(core.usar_turso, "cache_clear"):
+        core.usar_turso.cache_clear()
+    if hasattr(core._get_turso_config, "cache_clear"):
+        core._get_turso_config.cache_clear()
     monkeypatch.setenv("TURSO_URL", "")
     monkeypatch.setenv("TURSO_TOKEN", "")
     # secrets may still set turso — force False
     monkeypatch.setattr(dbmod, "usar_turso", lambda: False)
+    monkeypatch.setattr(core, "usar_turso", lambda: False)
 
     dbmod.init_database()
     from app.multiuser import migrate_multiuser
@@ -86,6 +93,16 @@ def test_aislamiento_user_id(isolated_db):
     ) or []
     assert len(rows_a) == 1
     assert len(rows_b) == 0
+
+
+def test_audit_log_on_crear_usuario(isolated_db):
+    from app.audit import listar_auditoria
+
+    db = isolated_db
+    ok, _ = db.crear_usuario("audit_user", "password1", rol="usuario")
+    assert ok
+    rows = listar_auditoria(limite=20, entidad="usuarios")
+    assert any(r.get("accion") == "crear_usuario" for r in rows)
 
 
 def test_rate_limit_login():

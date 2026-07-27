@@ -37,6 +37,7 @@ TABLAS_BACKUP = [
     "matrimonio_notas",
     "matrimonio_habitos",
     "eventos_calendario",
+    "audit_log",
 ]
 
 

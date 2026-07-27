@@ -1,0 +1,66 @@
+"""Paquete db — acceso por dominio. Preferir app.database para compat."""
+from app.db.core import (
+    DB_PATH,
+    ejecutar,
+    ejecutar_cached,
+    ensure_database,
+    ensure_remote_schema,
+    invalidate_data_caches,
+    usar_turso,
+    _get_turso_config,
+    _get_turso_conn,
+)
+from app.db.schema import SOBRES_CONFIG, init_sobres, init_database
+from app.db.finanzas import (
+    guardar_ingreso,
+    obtener_ingreso,
+    agregar_gasto_sobre,
+    obtener_gastos_sobre,
+    actualizar_gasto_sobre,
+    eliminar_gasto_sobre,
+    _calcular_sobres_uncached,
+    obtener_tipos_bloque,
+    calcular_sobres,
+)
+from app.db.usuarios import (
+    _hash_password,
+    verificar_password,
+    contar_usuarios,
+    crear_usuario,
+    obtener_usuario_activo,
+    autenticar_usuario,
+    listar_usuarios,
+)
+from app.db.migrate import migrar_local_a_turso
+
+__all__ = [
+    "DB_PATH",
+    "SOBRES_CONFIG",
+    "ejecutar",
+    "ejecutar_cached",
+    "ensure_database",
+    "ensure_remote_schema",
+    "invalidate_data_caches",
+    "usar_turso",
+    "init_sobres",
+    "init_database",
+    "guardar_ingreso",
+    "obtener_ingreso",
+    "agregar_gasto_sobre",
+    "obtener_gastos_sobre",
+    "actualizar_gasto_sobre",
+    "eliminar_gasto_sobre",
+    "_calcular_sobres_uncached",
+    "obtener_tipos_bloque",
+    "calcular_sobres",
+    "_hash_password",
+    "verificar_password",
+    "contar_usuarios",
+    "crear_usuario",
+    "obtener_usuario_activo",
+    "autenticar_usuario",
+    "listar_usuarios",
+    "migrar_local_a_turso",
+    "_get_turso_config",
+    "_get_turso_conn",
+]

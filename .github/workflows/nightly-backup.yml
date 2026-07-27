@@ -1,0 +1,60 @@
+# Backup nocturno → GitHub Actions Artifacts (gratis, sin cuentas extra).
+#
+# Setup (una vez, si usas Turso):
+# 1. Repo → Settings → Secrets and variables → Actions
+# 2. Secrets: TURSO_URL, TURSO_TOKEN (mismos que en Streamlit)
+# 3. Actions → Nightly Backup → Run workflow (probar)
+#
+# Sin Turso: exporta desde SQLite local del runner (casi vacío) —
+# en ese caso el backup útil sigue siendo el botón manual en Usuarios
+# o mover a Turso primero.
+#
+# Artifacts se retienen 30 días (ajustable abajo).
+
+name: Nightly Backup
+
+on:
+  schedule:
+    - cron: "30 6 * * *"  # 06:30 UTC diario
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: true
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Export backup JSON
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+        run: |
+          mkdir -p artifacts/backups
+          if [ -z "$TURSO_URL" ] || [ -z "$TURSO_TOKEN" ]; then
+            echo "::warning::Sin TURSO_URL/TURSO_TOKEN: el backup del runner será local/vacío. Añade los secrets de Actions si usas Turso."
+          fi
+          python scripts/run_backup.py --tag nightly --outdir artifacts/backups
+          ls -la artifacts/backups
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mission-backup-${{ github.run_id }}
+          path: artifacts/backups/
+          retention-days: 30
+          if-no-files-found: error

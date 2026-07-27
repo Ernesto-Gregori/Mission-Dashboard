@@ -44,7 +44,9 @@ st.divider()
 st.subheader("💾 Backup")
 st.caption(
     "Exporta un JSON de tablas clave a `data/backups/` "
-    "(útil antes de migrar o tocar producción)."
+    "(útil antes de migrar o tocar producción). "
+    "También hay backup nocturno automático vía GitHub Actions → Artifacts "
+    "(requiere secrets `TURSO_URL` / `TURSO_TOKEN` en el repo)."
 )
 if st.button("📦 Exportar backup ahora", use_container_width=True):
     from app.backup import exportar_backup_json
@@ -53,6 +55,26 @@ if st.button("📦 Exportar backup ahora", use_container_width=True):
         st.success(f"Backup creado: `{path}`")
     else:
         st.error("No se pudo crear el backup (revisa logs).")
+
+st.divider()
+st.subheader("🧾 Auditoría reciente")
+st.caption("Últimas acciones sensibles (finanzas / usuarios).")
+try:
+    from app.audit import listar_auditoria
+
+    rows = listar_auditoria(limite=30)
+    if not rows:
+        st.info("Sin eventos de auditoría aún.")
+    else:
+        for r in rows:
+            quien = r.get("username") or (f"user#{r.get('user_id')}" if r.get("user_id") else "—")
+            st.text(
+                f"{r.get('creado_en', '—')} · {quien} · "
+                f"{r.get('accion')} · {r.get('entidad') or ''} "
+                f"{r.get('entidad_id') or ''}"
+            )
+except Exception as e:
+    st.warning(f"No se pudo leer auditoría: {e}")
 
 st.divider()
 col1, col2 = st.columns(2)
