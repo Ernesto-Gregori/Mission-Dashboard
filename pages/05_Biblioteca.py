@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import ejecutar, ejecutar_cached
+from app.tenant import uid
 from app.ai_client import (
     extraer_metadatos_libro,
     buscar_metadatos_isbn,
@@ -94,17 +95,17 @@ def agregar_libro_por_procesar(nombre_archivo: str, ruta: str,
                    .title())
     return ejecutar("""
         INSERT INTO libros
-            (titulo, nombre_archivo, ruta_archivo,
+            (user_id, titulo, nombre_archivo, ruta_archivo,
              tamano_mb, formato, hash_archivo, estado)
-        VALUES (?, ?, ?, ?, ?, ?, 'por_procesar')
-    """, [titulo_temp, nombre_archivo, ruta,
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'por_procesar')
+    """, [uid(), titulo_temp, nombre_archivo, ruta,
           float(tamano), formato, hash_archivo])
 
 
 def obtener_libro(libro_id: int) -> dict | None:
     rows = ejecutar(
-        "SELECT * FROM libros WHERE id = ?",
-        [libro_id], fetchall=True
+        "SELECT * FROM libros WHERE id = ? AND user_id = ?",
+        [libro_id, uid()], fetchall=True
     )
     return rows[0] if rows else None
 
@@ -112,8 +113,8 @@ def obtener_libro(libro_id: int) -> dict | None:
 def obtener_libros_por_estado(estado=None, categoria=None,
                                color=None, busqueda="",
                                pagina=1, por_pagina=10) -> tuple:
-    conditions = ["1=1"]
-    params     = []
+    conditions = ["user_id = ?"]
+    params     = [uid()]
 
     if estado:
         conditions.append("estado = ?")
@@ -186,8 +187,8 @@ def guardar_metadatos_ia(libro_id: int, metadatos: dict) -> None:
 
     set_clause = ", ".join(f"{k} = ?" for k in campos)
     ejecutar(
-        f"UPDATE libros SET {set_clause} WHERE id = ?",
-        list(campos.values()) + [int(libro_id)]
+        f"UPDATE libros SET {set_clause} WHERE id = ? AND user_id = ?",
+        list(campos.values()) + [int(libro_id), uid()]
     )
 
 
@@ -197,14 +198,14 @@ def actualizar_progreso(libro_id: int, pagina_actual: int,
         ejecutar("""
             UPDATE libros
             SET pagina_actual = ?, estado = ?, actualizado_en = ?
-            WHERE id = ?
-        """, [int(pagina_actual), estado, iso_ahora(), int(libro_id)])
+            WHERE id = ? AND user_id = ?
+        """, [int(pagina_actual), estado, iso_ahora(), int(libro_id), uid()])
     else:
         ejecutar("""
             UPDATE libros
             SET pagina_actual = ?, actualizado_en = ?
-            WHERE id = ?
-        """, [int(pagina_actual), iso_ahora(), int(libro_id)])
+            WHERE id = ? AND user_id = ?
+        """, [int(pagina_actual), iso_ahora(), int(libro_id), uid()])
 
 
 def agregar_resaltado(libro_id: int, pagina: int, texto_resaltado: str,
@@ -212,10 +213,10 @@ def agregar_resaltado(libro_id: int, pagina: int, texto_resaltado: str,
                       texto_contexto: str = "") -> int:
     return ejecutar("""
         INSERT INTO resaltados
-            (libro_id, pagina, texto_resaltado,
+            (user_id, libro_id, pagina, texto_resaltado,
              color_etiqueta, nota_personal, texto_contexto)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, [int(libro_id), int(pagina),
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, [uid(), int(libro_id), int(pagina),
           str(texto_resaltado), str(color_etiqueta),
           str(nota_personal or ""), str(texto_contexto or "")])
 
@@ -224,19 +225,19 @@ def obtener_resaltados(libro_id: int, color: str = None) -> list:
     if color:
         return ejecutar_cached("""
             SELECT * FROM resaltados
-            WHERE libro_id = ? AND color_etiqueta = ?
+            WHERE libro_id = ? AND color_etiqueta = ? AND user_id = ?
             ORDER BY pagina, creado_en
-        """, (int(libro_id), color)) or []
+        """, (int(libro_id), color, uid())) or []
     return ejecutar_cached("""
         SELECT * FROM resaltados
-        WHERE libro_id = ?
+        WHERE libro_id = ? AND user_id = ?
         ORDER BY pagina, creado_en
-    """, (int(libro_id),)) or []
+    """, (int(libro_id), uid())) or []
 
 
 def eliminar_libro(libro_id: int) -> None:
-    ejecutar("DELETE FROM resaltados WHERE libro_id = ?", [int(libro_id)])
-    ejecutar("DELETE FROM libros WHERE id = ?",           [int(libro_id)])
+    ejecutar("DELETE FROM resaltados WHERE libro_id = ? AND user_id = ?", [int(libro_id), uid()])
+    ejecutar("DELETE FROM libros WHERE id = ? AND user_id = ?",           [int(libro_id), uid()])
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -323,8 +324,8 @@ with tab_cargar:
                 hash_archivo = hashlib.md5(contenido).hexdigest()[:16]
 
                 existentes = ejecutar(
-                    "SELECT id, titulo, nombre_archivo, hash_archivo FROM libros",
-                    [], fetchall=True
+                    "SELECT id, titulo, nombre_archivo, hash_archivo FROM libros WHERE user_id = ?",
+                    [uid()], fetchall=True
                 ) or []
 
                 duplicado = next(
@@ -796,7 +797,7 @@ with tab_catalogo:
                                         total_paginas=?, descripcion=?,
                                         temas_clave=?, subcategorias=?,
                                         actualizado_en=?
-                                    WHERE id=?
+                                    WHERE id=? AND user_id=?
                                 """, [
                                     str(titulo_e), str(autor_e),
                                     str(editorial_e), str(isbn_e),
@@ -806,6 +807,7 @@ with tab_catalogo:
                                     json.dumps([s.strip() for s in subcats_e.split(",") if s.strip()]),
                                     iso_ahora(),    # ← str ISO local
                                     int(libro["id"]),
+                                    uid(),
                                 ])
                                 st.success("✅ Libro actualizado")
                                 st.rerun()

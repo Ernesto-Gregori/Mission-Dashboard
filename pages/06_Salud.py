@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import ejecutar, ejecutar_cached
+from app.tenant import uid
 from app.ai_client import chat_simple, api_key_configurada, probar_groq
 from app.google_fit import (
     obtener_datos_dia,
@@ -119,7 +120,7 @@ def guardar_registro_salud(fecha, datos: dict) -> None:
         return float(v) if v is not None else None
 
     campos = [
-        "fecha", "horas_sueno", "calidad_sueno", "hora_dormir", "hora_despertar",
+        "user_id", "fecha", "horas_sueno", "calidad_sueno", "hora_dormir", "hora_despertar",
         "energia_manana", "energia_tarde", "energia_noche",
         "hizo_ejercicio", "tipo_ejercicio", "duracion_minutos", "intensidad",
         "notas_ejercicio", "zonas_musculares", "sesiones_json",
@@ -127,6 +128,7 @@ def guardar_registro_salud(fecha, datos: dict) -> None:
         "fuente_datos", "productividad_percibida",
     ]
     valores = [
+        uid(),
         fecha_iso,                                          # str
         _float(datos.get("horas_sueno")),
         _int(datos.get("calidad_sueno")),
@@ -149,10 +151,14 @@ def guardar_registro_salud(fecha, datos: dict) -> None:
         str(datos.get("fuente_datos") or "manual"),
         _int(datos.get("productividad_percibida")),
     ]
+    placeholders = ", ".join(["?"] * len(valores))
+    set_cols = [c for c in campos if c not in ("user_id", "fecha")]
+    set_clause = ", ".join(f"{c} = excluded.{c}" for c in set_cols)
     ejecutar(
-        f"""INSERT OR REPLACE INTO registros_salud
+        f"""INSERT INTO registros_salud
             ({', '.join(campos)})
-            VALUES ({', '.join(['?'] * len(valores))})""",
+            VALUES ({placeholders})
+            ON CONFLICT(user_id, fecha) DO UPDATE SET {set_clause}""",
         valores,
     )
 
@@ -160,8 +166,8 @@ def guardar_registro_salud(fecha, datos: dict) -> None:
 def obtener_registro_salud(fecha) -> dict | None:
     fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
     rows = ejecutar(
-        "SELECT * FROM registros_salud WHERE fecha = ?",
-        [fecha_iso], fetchall=True,
+        "SELECT * FROM registros_salud WHERE fecha = ? AND user_id = ?",
+        [fecha_iso, uid()], fetchall=True,
     )
     return rows[0] if rows else None
 
@@ -170,8 +176,8 @@ def obtener_registros_rango(dias: int = 14) -> list:
     fecha_desde = (_hoy() - timedelta(days=dias)).isoformat()  # ← local
     return ejecutar_cached("""
         SELECT * FROM registros_salud
-        WHERE fecha >= ? ORDER BY fecha DESC
-    """, (fecha_desde,)) or []
+        WHERE fecha >= ? AND user_id = ? ORDER BY fecha DESC
+    """, (fecha_desde, uid())) or []
 
 
 def calcular_promedios(registros: list) -> dict:

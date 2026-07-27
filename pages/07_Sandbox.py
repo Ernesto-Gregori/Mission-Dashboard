@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import ejecutar, ejecutar_cached
+from app.tenant import uid
 from app.ai_client import chat_simple, api_key_configurada
 from app.timezone_config import (
     date, datetime,
@@ -88,9 +89,9 @@ def obtener_categorias_dominio(dominio: str) -> list:
     try:
         rows = ejecutar_cached("""
             SELECT DISTINCT categoria FROM sandbox_ideas
-            WHERE dominio = ? AND categoria IS NOT NULL
+            WHERE dominio = ? AND categoria IS NOT NULL AND user_id = ?
             ORDER BY categoria
-        """, (dominio,)) or []
+        """, (dominio, uid())) or []
         en_bd = [r["categoria"] for r in rows]
         return list(dict.fromkeys(defaults + en_bd))
     except Exception:
@@ -100,8 +101,8 @@ def obtener_categorias_dominio(dominio: str) -> list:
 # ── IDEAS ─────────────────────────────────────────────────────
 
 def obtener_ideas(estado=None, dominio=None, busqueda="") -> list:
-    conditions = ["1=1"]
-    params     = []
+    conditions = ["user_id = ?"]
+    params     = [uid()]
     if estado:
         conditions.append("estado = ?")
         params.append(estado)
@@ -126,10 +127,11 @@ def guardar_idea(titulo: str, descripcion: str, dominio: str,
                  motivacion: int, notas: str = "") -> int:
     return ejecutar("""
         INSERT INTO sandbox_ideas
-            (titulo, descripcion, dominio, categoria,
+            (user_id, titulo, descripcion, dominio, categoria,
              etiquetas, prioridad, motivacion, notas)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
+        uid(),
         str(titulo), str(descripcion or ""),
         str(dominio), str(categoria or ""),
         json.dumps(etiquetas),
@@ -147,7 +149,7 @@ def actualizar_idea(idea_id: int, titulo: str, descripcion: str,
         SET titulo=?, descripcion=?, dominio=?, categoria=?,
             etiquetas=?, estado=?, prioridad=?,
             motivacion=?, notas=?, actualizado_en=?
-        WHERE id=?
+        WHERE id=? AND user_id=?
     """, [
         str(titulo), str(descripcion or ""),
         str(dominio), str(categoria or ""),
@@ -156,18 +158,19 @@ def actualizar_idea(idea_id: int, titulo: str, descripcion: str,
         str(notas or ""),
         iso_ahora(),        # ← str ISO local
         int(idea_id),
+        uid(),
     ])
 
 
 def eliminar_idea(idea_id: int) -> None:
-    ejecutar("DELETE FROM sandbox_ideas WHERE id=?", [int(idea_id)])
+    ejecutar("DELETE FROM sandbox_ideas WHERE id=? AND user_id=?", [int(idea_id), uid()])
 
 
 # ── SNIPPETS ──────────────────────────────────────────────────
 
 def obtener_snippets(lenguaje=None, dominio=None, busqueda="") -> list:
-    conditions = ["1=1"]
-    params     = []
+    conditions = ["user_id = ?"]
+    params     = [uid()]
     if lenguaje:
         conditions.append("lenguaje = ?")
         params.append(lenguaje)
@@ -191,9 +194,10 @@ def guardar_snippet(titulo: str, descripcion: str, lenguaje: str,
                     codigo: str, tags: list, dominio: str) -> int:
     return ejecutar("""
         INSERT INTO sandbox_snippets
-            (titulo, descripcion, lenguaje, codigo, tags, dominio)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (user_id, titulo, descripcion, lenguaje, codigo, tags, dominio)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     """, [
+        uid(),
         str(titulo), str(descripcion or ""),
         str(lenguaje), str(codigo),
         json.dumps(tags), str(dominio),
@@ -207,26 +211,27 @@ def actualizar_snippet(snip_id: int, titulo: str, descripcion: str,
         UPDATE sandbox_snippets
         SET titulo=?, descripcion=?, lenguaje=?,
             codigo=?, tags=?, dominio=?, actualizado_en=?
-        WHERE id=?
+        WHERE id=? AND user_id=?
     """, [
         str(titulo), str(descripcion or ""),
         str(lenguaje), str(codigo),
         json.dumps(tags), str(dominio),
         iso_ahora(),        # ← str ISO local
         int(snip_id),
+        uid(),
     ])
 
 
 def eliminar_snippet(snip_id: int) -> None:
-    ejecutar("DELETE FROM sandbox_snippets WHERE id=?", [int(snip_id)])
+    ejecutar("DELETE FROM sandbox_snippets WHERE id=? AND user_id=?", [int(snip_id), uid()])
 
 
 def incrementar_uso(snip_id: int) -> None:
     ejecutar("""
         UPDATE sandbox_snippets
         SET veces_usado = veces_usado + 1
-        WHERE id=?
-    """, [int(snip_id)])
+        WHERE id=? AND user_id=?
+    """, [int(snip_id), uid()])
 
 
 # ── SESIONES ──────────────────────────────────────────────────
@@ -238,10 +243,11 @@ def guardar_sesion(fecha, duracion: int, tipo: str, dominio: str,
     fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
     return ejecutar("""
         INSERT INTO sandbox_sesiones
-            (fecha, duracion_minutos, tipo_actividad, dominio,
+            (user_id, fecha, duracion_minutos, tipo_actividad, dominio,
              proyecto_id, descripcion, codigo_producido, satisfaccion)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
+        uid(),
         fecha_iso,
         int(duracion),
         str(tipo),
@@ -257,10 +263,11 @@ def obtener_sesiones_recientes(limite: int = 10) -> list:
     return ejecutar_cached("""
         SELECT ss.*, si.titulo as proyecto_titulo
         FROM sandbox_sesiones ss
-        LEFT JOIN sandbox_ideas si ON ss.proyecto_id = si.id
+        LEFT JOIN sandbox_ideas si ON ss.proyecto_id = si.id AND si.user_id = ss.user_id
+        WHERE ss.user_id = ?
         ORDER BY ss.fecha DESC, ss.creado_en DESC
         LIMIT ?
-    """, (int(limite),)) or []
+    """, (uid(), int(limite))) or []
 
 
 # ═══════════════════════════════════════════════════════════════

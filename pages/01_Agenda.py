@@ -16,6 +16,7 @@ from app.database import (
     obtener_ingreso,
     calcular_sobres,
 )
+from app.tenant import uid
 from app.ai_client import chat_simple, api_key_configurada
 from app.google_calendar import (
     obtener_eventos_google,
@@ -66,7 +67,7 @@ def guardar_bitacora(datos: dict) -> bool:
     try:
         ejecutar("""
             INSERT INTO bitacora_semanal (
-                semana_inicio, victoria_1, victoria_2, victoria_3,
+                user_id, semana_inicio, victoria_1, victoria_2, victoria_3,
                 ingreso_actual, sobre_supervivencia, aporte_transicion,
                 presupuesto_cita, semaforo_superv, semaforo_ahorros,
                 semaforo_extras, gasto_pausado,
@@ -75,9 +76,9 @@ def guardar_bitacora(datos: dict) -> bool:
                 pendientes_soltar, reflexion_semana, estado,
                 actualizado_en
             ) VALUES (
-                ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'abierta',?
+                ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'abierta',?
             )
-            ON CONFLICT(semana_inicio) DO UPDATE SET
+            ON CONFLICT(user_id, semana_inicio) DO UPDATE SET
                 victoria_1          = excluded.victoria_1,
                 victoria_2          = excluded.victoria_2,
                 victoria_3          = excluded.victoria_3,
@@ -98,6 +99,7 @@ def guardar_bitacora(datos: dict) -> bool:
                 reflexion_semana    = excluded.reflexion_semana,
                 actualizado_en      = excluded.actualizado_en
         """, [
+            uid(),
             datos["semana_inicio"],
             datos.get("victoria_1", ""),
             datos.get("victoria_2", ""),
@@ -127,8 +129,8 @@ def guardar_bitacora(datos: dict) -> bool:
 
 def obtener_bitacora(semana_inicio: str) -> dict | None:
     rows = ejecutar(
-        "SELECT * FROM bitacora_semanal WHERE semana_inicio = ?",
-        [semana_inicio], fetchall=True,
+        "SELECT * FROM bitacora_semanal WHERE semana_inicio = ? AND user_id = ?",
+        [semana_inicio, uid()], fetchall=True,
     )
     return rows[0] if rows else None
 
@@ -136,8 +138,9 @@ def obtener_bitacora(semana_inicio: str) -> dict | None:
 def obtener_bitacoras_recientes(limite: int = 10) -> list:
     return ejecutar_cached("""
         SELECT * FROM bitacora_semanal
+        WHERE user_id = ?
         ORDER BY semana_inicio DESC LIMIT ?
-    """, (limite,)) or []
+    """, (uid(), limite)) or []
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -151,21 +154,22 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
                COALESCE(ambito,'Matrimonio') AS ambito,
                '#a371f7' AS color, NULL AS google_id
         FROM matrimonio_citas
-        WHERE fecha >= ? AND fecha <= ?
+        WHERE fecha >= ? AND fecha <= ? AND user_id = ?
         ORDER BY fecha, hora
-    """, [lunes.isoformat(), domingo.isoformat()], fetchall=True) or []
+    """, [lunes.isoformat(), domingo.isoformat(), uid()], fetchall=True) or []
 
     locales = ejecutar("""
         SELECT fecha, hora_inicio, titulo, tipo,
                '' AS estado_planificacion, tipo AS ambito,
                color, google_id
         FROM eventos_calendario
-        WHERE fecha >= ? AND fecha <= ?
+        WHERE fecha >= ? AND fecha <= ? AND user_id = ?
         ORDER BY fecha, hora_inicio
-    """, [lunes.isoformat(), domingo.isoformat()], fetchall=True) or []
+    """, [lunes.isoformat(), domingo.isoformat(), uid()], fetchall=True) or []
 
     bloques_rows = ejecutar_cached(
-        "SELECT nombre FROM bloques_fijos WHERE activo = 1"
+        "SELECT nombre FROM bloques_fijos WHERE activo = 1 AND user_id = ?",
+        (uid(),),
     ) or []
     nombres_bloques = {r["nombre"] for r in bloques_rows}
 
@@ -188,7 +192,7 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _eventos_semana_cached(lunes_iso: str, domingo_iso: str) -> list:
+def _eventos_semana_cached(lunes_iso: str, domingo_iso: str, _user_id: int) -> list:
     """Cache corto para no pegarle a Google en cada tecla/recarga."""
     from datetime import date as _date
     return obtener_eventos_semana(
@@ -210,9 +214,9 @@ def obtener_deepwork_semana(lunes: date, domingo: date) -> list:
                    s.estado, s.duracion_real, s.notas
             FROM bloques_fijos b
             LEFT JOIN sesiones_completadas s
-                ON s.bloque_fijo_id = b.id AND s.fecha = ?
-            WHERE b.activo = 1
-        """, [dia_iso], fetchall=True) or []
+                ON s.bloque_fijo_id = b.id AND s.fecha = ? AND s.user_id = ?
+            WHERE b.activo = 1 AND b.user_id = ?
+        """, [dia_iso, uid(), uid()], fetchall=True) or []
 
         for b in bloques:
             dias = json.loads(b["dias_semana"])
@@ -240,9 +244,9 @@ def obtener_devocionales_semana(lunes: date, domingo: date) -> list:
     return ejecutar("""
         SELECT fecha, pasaje_referencia, duracion_minutos
         FROM devocionales
-        WHERE fecha BETWEEN ? AND ?
+        WHERE fecha BETWEEN ? AND ? AND user_id = ?
         ORDER BY fecha
-    """, [lunes.isoformat(), domingo.isoformat()], fetchall=True) or []
+    """, [lunes.isoformat(), domingo.isoformat(), uid()], fetchall=True) or []
 
 
 def obtener_salud_semana(lunes: date, domingo: date) -> list:
@@ -251,17 +255,17 @@ def obtener_salud_semana(lunes: date, domingo: date) -> list:
                energia_manana AS nivel_energia,
                hizo_ejercicio, productividad_percibida
         FROM registros_salud
-        WHERE fecha BETWEEN ? AND ?
+        WHERE fecha BETWEEN ? AND ? AND user_id = ?
         ORDER BY fecha
-    """, [lunes.isoformat(), domingo.isoformat()], fetchall=True) or []
+    """, [lunes.isoformat(), domingo.isoformat(), uid()], fetchall=True) or []
 
 
 def obtener_libros_leyendo() -> list:
     return ejecutar_cached("""
         SELECT titulo, autor, pagina_actual, total_paginas
-        FROM libros WHERE estado = 'leyendo'
+        FROM libros WHERE estado = 'leyendo' AND user_id = ?
         ORDER BY actualizado_en DESC
-    """) or []
+    """, (uid(),)) or []
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -270,7 +274,8 @@ def obtener_libros_leyendo() -> list:
 
 def calcular_racha_devocional() -> int:
     fechas_rows = ejecutar_cached(
-        "SELECT fecha FROM devocionales ORDER BY fecha DESC LIMIT 30"
+        "SELECT fecha FROM devocionales WHERE user_id = ? ORDER BY fecha DESC LIMIT 30",
+        (uid(),),
     ) or []
     fechas = [
         datetime.strptime(r["fecha"], "%Y-%m-%d").date()
@@ -289,9 +294,9 @@ def calcular_racha_devocional() -> int:
 def calcular_racha_ejercicio() -> int:
     fechas_rows = ejecutar_cached("""
         SELECT fecha FROM registros_salud
-        WHERE hizo_ejercicio = 1
+        WHERE hizo_ejercicio = 1 AND user_id = ?
         ORDER BY fecha DESC LIMIT 30
-    """) or []
+    """, (uid(),)) or []
     fechas = [
         datetime.strptime(r["fecha"], "%Y-%m-%d").date()
         for r in fechas_rows
@@ -312,9 +317,9 @@ def calcular_racha_ejercicio() -> int:
 def calcular_racha_deepwork() -> int:
     fechas_rows = ejecutar_cached("""
         SELECT DISTINCT fecha FROM sesiones_completadas
-        WHERE estado = 'Completado'
+        WHERE estado = 'Completado' AND user_id = ?
         ORDER BY fecha DESC LIMIT 30
-    """) or []
+    """, (uid(),)) or []
     fechas = [
         datetime.strptime(r["fecha"], "%Y-%m-%d").date()
         for r in fechas_rows
@@ -337,12 +342,13 @@ def obtener_eventos_personalizados(fecha: str = None) -> list:
     if fecha:
         return ejecutar("""
             SELECT * FROM eventos_calendario
-            WHERE fecha = ? ORDER BY hora_inicio
-        """, [fecha], fetchall=True) or []
+            WHERE fecha = ? AND user_id = ? ORDER BY hora_inicio
+        """, [fecha, uid()], fetchall=True) or []
     return ejecutar("""
         SELECT * FROM eventos_calendario
+        WHERE user_id = ?
         ORDER BY fecha DESC, hora_inicio LIMIT 50
-    """, fetchall=True) or []
+    """, [uid()], fetchall=True) or []
 
 
 def guardar_evento(datos: dict) -> int:
@@ -351,10 +357,11 @@ def guardar_evento(datos: dict) -> int:
         google_id = crear_evento_google(datos)
     return ejecutar("""
         INSERT INTO eventos_calendario
-            (fecha, hora_inicio, hora_fin, titulo, descripcion,
+            (user_id, fecha, hora_inicio, hora_fin, titulo, descripcion,
              tipo, color, google_id, fuente)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
+        uid(),
         datos["fecha"], datos.get("hora_inicio"), datos.get("hora_fin"),
         datos["titulo"], datos.get("descripcion", ""),
         datos.get("tipo", "Personal"), datos.get("color", "#58a6ff"),
@@ -364,11 +371,11 @@ def guardar_evento(datos: dict) -> int:
 
 def eliminar_evento(evento_id: int) -> bool:
     rows = ejecutar(
-        "SELECT google_id FROM eventos_calendario WHERE id = ?",
-        [evento_id], fetchall=True,
+        "SELECT google_id FROM eventos_calendario WHERE id = ? AND user_id = ?",
+        [evento_id, uid()], fetchall=True,
     )
     google_id = rows[0]["google_id"] if rows else None
-    ejecutar("DELETE FROM eventos_calendario WHERE id = ?", [evento_id])
+    ejecutar("DELETE FROM eventos_calendario WHERE id = ? AND user_id = ?", [evento_id, uid()])
     if google_id and calendar_disponible():
         eliminar_evento_google(google_id)
     return True
@@ -379,8 +386,8 @@ def _presupuesto_cita_auto(citas_mat: list) -> float:
         return 0.0
     rows = ejecutar("""
         SELECT presupuesto_estimado FROM matrimonio_citas
-        WHERE titulo = ? AND fecha = ?
-    """, [citas_mat[0]["titulo"], citas_mat[0]["fecha"]], fetchall=True)
+        WHERE titulo = ? AND fecha = ? AND user_id = ?
+    """, [citas_mat[0]["titulo"], citas_mat[0]["fecha"], uid()], fetchall=True)
     if rows and rows[0]["presupuesto_estimado"]:
         return float(rows[0]["presupuesto_estimado"])
     return 0.0
@@ -747,7 +754,7 @@ with tab_bitacora:
     semaforo_aho_auto = _semaforo("Futuro_Hogar")
     semaforo_ext_auto = _semaforo("Ministerio_Extras")
 
-    eventos_bit_auto = _eventos_semana_cached(lunes_bit_sel.isoformat(), domingo_bit.isoformat())
+    eventos_bit_auto = _eventos_semana_cached(lunes_bit_sel.isoformat(), domingo_bit.isoformat(), uid())
     citas_mat_auto   = [e for e in eventos_bit_auto if e.get("ambito") == "Matrimonio"]
 
     racha_dev_auto = calcular_racha_devocional()

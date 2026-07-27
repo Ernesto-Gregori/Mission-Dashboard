@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import ejecutar, ejecutar_cached
+from app.tenant import uid
 from app.ai_client import generar_alerta_matrimonio, api_key_configurada, chat_simple
 from app.timezone_config import (
     date, datetime,
@@ -78,8 +79,8 @@ EMOJIS_NOTA = {
 # ── CITAS ─────────────────────────────────────────────────────
 
 def obtener_citas(fecha_desde=None, estado=None, ambito=None) -> list:
-    conditions = ["1=1"]
-    params     = []
+    conditions = ["user_id = ?"]
+    params     = [uid()]
     if fecha_desde:
         conditions.append("fecha >= ?")
         params.append(str(fecha_desde))
@@ -103,11 +104,12 @@ def guardar_cita(fecha: str, hora, tipo: str, titulo: str,
     """FIX Turso: todos los valores como tipos primitivos."""
     return ejecutar("""
         INSERT INTO matrimonio_citas
-            (fecha, hora, tipo_cita, titulo, descripcion,
+            (user_id, fecha, hora, tipo_cita, titulo, descripcion,
              lugar, presupuesto_estimado, estado_planificacion,
              ambito, notas_preparacion)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'Planeando', ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Planeando', ?, ?)
     """, [
+        uid(),
         str(fecha),
         str(hora) if hora else None,
         str(tipo),
@@ -130,7 +132,7 @@ def actualizar_cita(cita_id: int, fecha: str, hora, tipo: str,
             descripcion=?, lugar=?, presupuesto_estimado=?,
             estado_planificacion=?, ambito=?,
             notas_preparacion=?, actualizado_en=?
-        WHERE id=?
+        WHERE id=? AND user_id=?
     """, [
         str(fecha),
         str(hora) if hora else None,
@@ -144,18 +146,19 @@ def actualizar_cita(cita_id: int, fecha: str, hora, tipo: str,
         str(preparacion or ""),
         iso_ahora(),        # ← str ISO local
         int(cita_id),
+        uid(),
     ])
 
 
 def eliminar_cita(cita_id: int) -> None:
-    ejecutar("DELETE FROM matrimonio_citas WHERE id=?", [int(cita_id)])
+    ejecutar("DELETE FROM matrimonio_citas WHERE id=? AND user_id=?", [int(cita_id), uid()])
 
 
 # ── NOTAS ─────────────────────────────────────────────────────
 
 def obtener_notas(categoria=None, urgencia_min: int = 1) -> list:
-    conditions = ["urgencia >= ?"]
-    params     = [int(urgencia_min)]
+    conditions = ["user_id = ?", "urgencia >= ?"]
+    params     = [uid(), int(urgencia_min)]
     if categoria:
         conditions.append("categoria = ?")
         params.append(categoria)
@@ -171,9 +174,10 @@ def guardar_nota(categoria: str, contenido: str, contexto: str,
                  fecha_mencion: str, urgencia: int) -> int:
     return ejecutar("""
         INSERT INTO matrimonio_notas
-            (categoria, contenido, contexto, fecha_mencion, urgencia)
-        VALUES (?, ?, ?, ?, ?)
+            (user_id, categoria, contenido, contexto, fecha_mencion, urgencia)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, [
+        uid(),
         str(categoria),
         str(contenido),
         str(contexto or ""),
@@ -188,7 +192,7 @@ def actualizar_nota(nota_id: int, categoria: str, contenido: str,
         UPDATE matrimonio_notas
         SET categoria=?, contenido=?, contexto=?,
             urgencia=?, actualizado_en=?
-        WHERE id=?
+        WHERE id=? AND user_id=?
     """, [
         str(categoria),
         str(contenido),
@@ -196,11 +200,12 @@ def actualizar_nota(nota_id: int, categoria: str, contenido: str,
         int(urgencia),
         iso_ahora(),            # ← str ISO local
         int(nota_id),
+        uid(),
     ])
 
 
 def eliminar_nota(nota_id: int) -> None:
-    ejecutar("DELETE FROM matrimonio_notas WHERE id=?", [int(nota_id)])
+    ejecutar("DELETE FROM matrimonio_notas WHERE id=? AND user_id=?", [int(nota_id), uid()])
 
 
 # ── HÁBITOS ───────────────────────────────────────────────────
@@ -209,12 +214,20 @@ def registrar_habito(fecha: str, minutos: int, tipo_conexion: str,
                      iniciado_por: str, satisfaccion: int,
                      notas: str, modo_pareja: int) -> None:
     ejecutar("""
-        INSERT OR REPLACE INTO matrimonio_habitos
-            (fecha, tiempo_calidad_minutos, tipo_conexion,
+        INSERT INTO matrimonio_habitos
+            (user_id, fecha, tiempo_calidad_minutos, tipo_conexion,
              iniciado_por, satisfaccion, notas,
              modo_pareja_activado)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, fecha) DO UPDATE SET
+            tiempo_calidad_minutos = excluded.tiempo_calidad_minutos,
+            tipo_conexion          = excluded.tipo_conexion,
+            iniciado_por           = excluded.iniciado_por,
+            satisfaccion           = excluded.satisfaccion,
+            notas                  = excluded.notas,
+            modo_pareja_activado   = excluded.modo_pareja_activado
     """, [
+        uid(),
         str(fecha),             # ← str ISO, no objeto date
         int(minutos),
         str(tipo_conexion),
@@ -229,9 +242,9 @@ def obtener_habitos_recientes(dias: int = 14) -> list:
     fecha_desde = (_hoy() - timedelta(days=dias)).isoformat()  # ← local
     return ejecutar_cached("""
         SELECT * FROM matrimonio_habitos
-        WHERE fecha >= ?
+        WHERE fecha >= ? AND user_id = ?
         ORDER BY fecha DESC
-    """, (fecha_desde,)) or []
+    """, (fecha_desde, uid())) or []
 
 
 def verificar_alerta_20_30(hoy_local) -> tuple:

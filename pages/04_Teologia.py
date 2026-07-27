@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import ejecutar, ejecutar_cached
+from app.tenant import uid
 from app.ai_client import chat_simple, api_key_configurada, sugerir_lectura_devocional
 from app.timezone_config import (
     date, datetime,
@@ -101,13 +102,25 @@ def guardar_devocional(fecha, pasaje_ref, pasaje_texto, observacion,
     fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
 
     ejecutar("""
-        INSERT OR REPLACE INTO devocionales (
-            fecha, pasaje_referencia, pasaje_texto, version_biblia,
+        INSERT INTO devocionales (
+            user_id, fecha, pasaje_referencia, pasaje_texto, version_biblia,
             observacion, interpretacion, aplicacion,
             conexion_instituto, conexion_situacion,
             oracion_escrita, duracion_minutos
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, fecha) DO UPDATE SET
+            pasaje_referencia  = excluded.pasaje_referencia,
+            pasaje_texto       = excluded.pasaje_texto,
+            version_biblia     = excluded.version_biblia,
+            observacion        = excluded.observacion,
+            interpretacion     = excluded.interpretacion,
+            aplicacion         = excluded.aplicacion,
+            conexion_instituto = excluded.conexion_instituto,
+            conexion_situacion = excluded.conexion_situacion,
+            oracion_escrita    = excluded.oracion_escrita,
+            duracion_minutos   = excluded.duracion_minutos
     """, [
+        uid(),
         fecha_iso,       # ← str, no date object
         str(pasaje_ref or ""),
         str(pasaje_texto or ""),
@@ -125,16 +138,16 @@ def guardar_devocional(fecha, pasaje_ref, pasaje_texto, observacion,
 def obtener_devocional(fecha) -> dict | None:
     fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
     rows = ejecutar(
-        "SELECT * FROM devocionales WHERE fecha = ?",
-        [fecha_iso], fetchall=True,
+        "SELECT * FROM devocionales WHERE fecha = ? AND user_id = ?",
+        [fecha_iso, uid()], fetchall=True,
     )
     return rows[0] if rows else None
 
 
 def obtener_devocionales_recientes(limite: int = 7) -> list:
     return ejecutar_cached("""
-        SELECT * FROM devocionales ORDER BY fecha DESC LIMIT ?
-    """, (limite,)) or []
+        SELECT * FROM devocionales WHERE user_id = ? ORDER BY fecha DESC LIMIT ?
+    """, (uid(), limite)) or []
 
 
 def calcular_racha() -> int:
@@ -164,9 +177,9 @@ def agregar_pedido(titulo: str, descripcion: str, categoria: str,
                    urgencia: int, dias_oracion: list) -> int:
     return ejecutar("""
         INSERT INTO pedidos_oracion
-            (titulo, descripcion, categoria, urgencia, dias_oracion)
-        VALUES (?, ?, ?, ?, ?)
-    """, [titulo, descripcion, categoria, urgencia,
+            (user_id, titulo, descripcion, categoria, urgencia, dias_oracion)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, [uid(), titulo, descripcion, categoria, urgencia,
           json.dumps(dias_oracion)])
 
 
@@ -174,11 +187,12 @@ def obtener_pedidos(estado: str = None) -> list:
     if estado:
         return ejecutar("""
             SELECT * FROM pedidos_oracion
-            WHERE estado = ?
+            WHERE estado = ? AND user_id = ?
             ORDER BY urgencia DESC, creado_en DESC
-        """, [estado], fetchall=True) or []
+        """, [estado, uid()], fetchall=True) or []
     return ejecutar("""
         SELECT * FROM pedidos_oracion
+        WHERE user_id = ?
         ORDER BY
             CASE estado
                 WHEN 'Activo'     THEN 1
@@ -187,7 +201,7 @@ def obtener_pedidos(estado: str = None) -> list:
                 WHEN 'Archivado'  THEN 4
             END,
             urgencia DESC, creado_en DESC
-    """, fetchall=True) or []
+    """, [uid()], fetchall=True) or []
 
 
 def actualizar_estado_pedido(pedido_id: int, nuevo_estado: str,
@@ -199,7 +213,7 @@ def actualizar_estado_pedido(pedido_id: int, nuevo_estado: str,
             nota_respuesta  = ?,
             fecha_respuesta = ?,
             actualizado_en  = ?
-        WHERE id = ?
+        WHERE id = ? AND user_id = ?
     """, [
         nuevo_estado,
         nota_respuesta,
@@ -209,11 +223,12 @@ def actualizar_estado_pedido(pedido_id: int, nuevo_estado: str,
         ),
         iso_ahora(),                    # ← zona horaria local
         pedido_id,
+        uid(),
     ])
 
 
 def eliminar_pedido(pedido_id: int) -> None:
-    ejecutar("DELETE FROM pedidos_oracion WHERE id = ?", [pedido_id])
+    ejecutar("DELETE FROM pedidos_oracion WHERE id = ? AND user_id = ?", [pedido_id, uid()])
 
 
 def editar_pedido(pedido_id: int, titulo: str, descripcion: str,
@@ -227,12 +242,13 @@ def editar_pedido(pedido_id: int, titulo: str, descripcion: str,
             urgencia       = ?,
             dias_oracion   = ?,
             actualizado_en = ?
-        WHERE id = ?
+        WHERE id = ? AND user_id = ?
     """, [
         titulo, descripcion, categoria, urgencia,
         json.dumps(dias_oracion),
         iso_ahora(),                    # ← zona horaria local
         pedido_id,
+        uid(),
     ])
 
 

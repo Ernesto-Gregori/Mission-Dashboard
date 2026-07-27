@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import ejecutar, ejecutar_cached, obtener_tipos_bloque
+from app.tenant import uid
 from app.ai_client import chat_simple, api_key_configurada
 from app.timezone_config import (
     date, datetime,
@@ -71,25 +72,27 @@ que también programa. Eres directo, práctico y motivador. Máximo 100 palabras
 # ═══════════════════════════════════════════════════════════════
 
 @st.cache_data(ttl=60)
-def obtener_bloques_fijos() -> list:
+def obtener_bloques_fijos(_user_id: int) -> list:
     # Mantiene su propio cache de 60s — más agresivo que ejecutar_cached
     return ejecutar(
-        "SELECT * FROM bloques_fijos WHERE activo = 1 ORDER BY hora_inicio",
+        "SELECT * FROM bloques_fijos WHERE activo = 1 AND user_id = ? ORDER BY hora_inicio",
+        [_user_id],
         fetchall=True,
     ) or []
 
 
 def obtener_todos_bloques() -> list:
     return ejecutar_cached(
-        "SELECT * FROM bloques_fijos ORDER BY activo DESC, hora_inicio"
+        "SELECT * FROM bloques_fijos WHERE user_id = ? ORDER BY activo DESC, hora_inicio",
+        (uid(),),
     ) or []
 
 
 def obtener_estado_sesion(fecha: str, bloque_id: int) -> tuple:
     rows = ejecutar("""
         SELECT estado, notas FROM sesiones_completadas
-        WHERE fecha = ? AND bloque_fijo_id = ?
-    """, [fecha, bloque_id], fetchall=True)
+        WHERE fecha = ? AND bloque_fijo_id = ? AND user_id = ?
+    """, [fecha, bloque_id, uid()], fetchall=True)
     if rows:
         return rows[0]["estado"], rows[0]["notas"]
     return None, None
@@ -98,10 +101,13 @@ def obtener_estado_sesion(fecha: str, bloque_id: int) -> tuple:
 def registrar_sesion(fecha: str, bloque_id: int,
                      estado: str, notas: str = "") -> None:
     ejecutar("""
-        INSERT OR REPLACE INTO sesiones_completadas
-            (fecha, bloque_fijo_id, estado, notas)
-        VALUES (?, ?, ?, ?)
-    """, [fecha, bloque_id, estado, notas])
+        INSERT INTO sesiones_completadas
+            (user_id, fecha, bloque_fijo_id, estado, notas)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, fecha, bloque_fijo_id) DO UPDATE SET
+            estado = excluded.estado,
+            notas  = excluded.notas
+    """, [uid(), fecha, bloque_id, estado, notas])
     obtener_bloques_fijos.clear()
     invalidate_data_caches()
 
@@ -110,19 +116,19 @@ def obtener_sesiones_semana(fecha_inicio: str, fecha_fin: str) -> list:
     return ejecutar_cached("""
         SELECT sc.*, bf.nombre, bf.tipo, bf.hora_inicio, bf.hora_fin
         FROM sesiones_completadas sc
-        JOIN bloques_fijos bf ON sc.bloque_fijo_id = bf.id
-        WHERE sc.fecha BETWEEN ? AND ?
+        JOIN bloques_fijos bf ON sc.bloque_fijo_id = bf.id AND bf.user_id = sc.user_id
+        WHERE sc.fecha BETWEEN ? AND ? AND sc.user_id = ?
         ORDER BY sc.fecha, bf.hora_inicio
-    """, (fecha_inicio, fecha_fin)) or []
+    """, (fecha_inicio, fecha_fin, uid())) or []
 
 
 def crear_bloque(nombre: str, hora_inicio: str, hora_fin: str,
                  dias: list, tipo: str, color: str) -> int:
     bloque_id = ejecutar("""
         INSERT INTO bloques_fijos
-            (nombre, hora_inicio, hora_fin, dias_semana, tipo, color, activo)
-        VALUES (?, ?, ?, ?, ?, ?, 1)
-    """, [nombre, hora_inicio, hora_fin, json.dumps(dias), tipo, color])
+            (user_id, nombre, hora_inicio, hora_fin, dias_semana, tipo, color, activo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    """, [uid(), nombre, hora_inicio, hora_fin, json.dumps(dias), tipo, color])
     obtener_bloques_fijos.clear()
     return bloque_id
 
@@ -134,20 +140,20 @@ def actualizar_bloque(bloque_id: int, nombre: str, hora_inicio: str,
         UPDATE bloques_fijos
         SET nombre=?, hora_inicio=?, hora_fin=?,
             dias_semana=?, tipo=?, color=?, activo=?
-        WHERE id=?
+        WHERE id=? AND user_id=?
     """, [nombre, hora_inicio, hora_fin,
-          json.dumps(dias), tipo, color, int(activo), bloque_id])
+          json.dumps(dias), tipo, color, int(activo), bloque_id, uid()])
     obtener_bloques_fijos.clear()
     return True
 
 
 def desactivar_bloque(bloque_id: int) -> None:
-    ejecutar("UPDATE bloques_fijos SET activo = 0 WHERE id = ?", [bloque_id])
+    ejecutar("UPDATE bloques_fijos SET activo = 0 WHERE id = ? AND user_id = ?", [bloque_id, uid()])
     obtener_bloques_fijos.clear()
 
 
 def reactivar_bloque(bloque_id: int) -> None:
-    ejecutar("UPDATE bloques_fijos SET activo = 1 WHERE id = ?", [bloque_id])
+    ejecutar("UPDATE bloques_fijos SET activo = 1 WHERE id = ? AND user_id = ?", [bloque_id, uid()])
     obtener_bloques_fijos.clear()
 
 
@@ -233,7 +239,7 @@ tab_hoy, tab_semana, tab_ia, tab_config = st.tabs([
 with tab_hoy:
     st.subheader(f"Bloques para el {fecha_seleccionada.strftime('%d/%m/%Y')}")
 
-    bloques    = obtener_bloques_fijos()
+    bloques    = obtener_bloques_fijos(uid())
     fecha_str  = fecha_seleccionada.isoformat()
     dia_numero = dia_semana + 1
 
