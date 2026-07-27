@@ -24,9 +24,10 @@ ensure_database()
 
 st.title("🔐 Usuarios y seguridad")
 st.caption(
-    "Cada usuario tiene su propio sistema (finanzas, hábitos, salud, etc.). "
-    "Los usuarios nuevos pasan por el Coach IA al primer login. "
-    "Las contraseñas se guardan con hash."
+    "App web multi-usuario (datos en Turso). "
+    "Cada cuenta tiene plan Free / Premium / Familia. "
+    "Las contraseñas se guardan con hash. "
+    "Los usuarios nuevos pasan por el Coach IA al primer login."
 )
 
 user = st.session_state.get("user") or {}

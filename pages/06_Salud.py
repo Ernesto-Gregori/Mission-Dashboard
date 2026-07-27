@@ -16,7 +16,6 @@ from app.ai_client import chat_simple, api_key_configurada, probar_groq
 from app.google_fit import (
     obtener_datos_dia,
     estado_google_fit,
-    iniciar_oauth_local,
     guardar_token_desde_json,
     crear_url_autorizacion_web,
     manejar_oauth_retorno,
@@ -67,11 +66,20 @@ DIAS_CORTOS  = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]
 
 
 def _panel_reconectar_google():
-    """UI para vincular Google Fit/Calendar (OAuth web o fallbacks)."""
+    """UI para vincular Google Fit/Calendar (OAuth web). Premium+."""
+    from app.billing import puede_google, render_paywall, PLAN_PREMIUM
+
     st.markdown("#### 🔗 Vincular Google Fit + Calendar")
+    if not puede_google():
+        render_paywall(
+            "Google Fit / Calendar está incluido en **Premium** y **Familia**.",
+            plan_sugerido=PLAN_PREMIUM,
+        )
+        return
+
     st.caption(
         "El token queda en **tu cuenta** (tabla oauth_tokens). "
-        "Sirve para Fit y Calendar. En Cloud usa «Conectar con Google»."
+        "Sirve para Fit y Calendar. Usa «Conectar con Google»."
     )
 
     # ── Preferido: OAuth web ─────────────────────────────────
@@ -104,7 +112,7 @@ def _panel_reconectar_google():
         st.divider()
     else:
         st.info(
-            "Para OAuth web en Streamlit Cloud, añade en secrets:\n\n"
+            "Para OAuth web, añade en secrets:\n\n"
             "```toml\n"
             "[google_oauth]\n"
             'client_id = "….apps.googleusercontent.com"\n'
@@ -115,40 +123,24 @@ def _panel_reconectar_google():
             "con esa redirect URI."
         )
 
-    tab_local, tab_pegar = st.tabs(["PC local (OAuth)", "Pegar token JSON"])
-
-    with tab_local:
-        st.caption(
-            "Solo funciona si corres la app en tu computadora con "
-            "`credentials_fit.json`. Luego el token se guarda en BD."
-        )
-        if st.button("🔗 Abrir OAuth en navegador", key="btn_oauth_fit"):
-            with st.spinner("Esperando autorización de Google..."):
-                ok, msg = iniciar_oauth_local()
-            if ok:
-                st.success(msg)
-                st.rerun()
-            else:
-                st.error(msg)
-
-    with tab_pegar:
-        st.caption(
-            "Respaldo: pega el JSON de un `token_fit.json` generado en local. "
-            "Se guarda en BD de **tu** usuario."
-        )
-        texto = st.text_area(
-            "Contenido de token_fit.json",
-            height=160,
-            placeholder='{"token":"...","refresh_token":"...","client_id":"...", ...}',
-            key="paste_fit_token",
-        )
-        if st.button("💾 Guardar token en BD", type="primary", key="btn_save_fit_token"):
-            ok, msg = guardar_token_desde_json(texto)
-            if ok:
-                st.success(msg)
-                st.rerun()
-            else:
-                st.error(msg)
+    st.subheader("Pegar token JSON (respaldo)")
+    st.caption(
+        "Respaldo: pega el JSON de un token OAuth ya autorizado. "
+        "Se guarda en BD de **tu** usuario."
+    )
+    texto = st.text_area(
+        "Contenido de token_fit.json",
+        height=160,
+        placeholder='{"token":"...","refresh_token":"...","client_id":"...", ...}',
+        key="paste_fit_token",
+    )
+    if st.button("💾 Guardar token en BD", type="primary", key="btn_save_fit_token"):
+        ok, msg = guardar_token_desde_json(texto)
+        if ok:
+            st.success(msg)
+            st.rerun()
+        else:
+            st.error(msg)
 
 # ═══════════════════════════════════════════════════════════════
 # FUNCIONES DB

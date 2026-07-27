@@ -45,7 +45,7 @@ def _bootstrap_desde_secrets() -> bool:
         pwd = ""
     if not pwd:
         return False
-    ok, _ = crear_usuario("admin", pwd, rol="admin")
+    ok, _ = crear_usuario("admin", pwd, rol="admin", plan="premium")
     return ok
 
 
@@ -71,7 +71,7 @@ def _pantalla_setup():
                 if password != password2:
                     st.error("Las contraseñas no coinciden")
                 else:
-                    ok, msg = crear_usuario(username, password, rol="admin")
+                    ok, msg = crear_usuario(username, password, rol="admin", plan="premium")
                     if ok:
                         user = autenticar_usuario(username, password)
                         if user:
@@ -190,30 +190,67 @@ def panel_gestion_usuarios():
         st.warning("Solo el administrador puede gestionar usuarios.")
         return
 
+    from app.billing import PLANES_VALIDOS, set_plan, resumen_plan_ui
+
     st.subheader("👥 Usuarios registrados")
     usuarios = listar_usuarios()
     if usuarios:
         for u in usuarios:
             estado = "✅ activo" if u.get("activo") else "⏸️ inactivo"
+            plan = u.get("plan") or "free"
             st.markdown(
-                f"- **{u['username']}** · rol `{u.get('rol', 'usuario')}` · {estado}"
+                f"- **{u['username']}** · rol `{u.get('rol', 'usuario')}` · "
+                f"plan `{plan}` · {estado}"
             )
     else:
         st.caption("No hay usuarios registrados.")
 
     st.divider()
+    st.subheader("💳 Cambiar plan (manual / hasta Stripe)")
+    st.caption(
+        "Mientras no haya webhook de Stripe, el admin asigna el plan aquí. "
+        "La app es web (Turso); el plan vive en la BD remota."
+    )
+    if usuarios:
+        with st.form("set_plan_form"):
+            opciones = {
+                f"{u['username']} (id={u['id']})": int(u["id"]) for u in usuarios
+            }
+            elegido = st.selectbox("Usuario", list(opciones.keys()))
+            nuevo_plan = st.selectbox("Plan", list(PLANES_VALIDOS), index=1)
+            expira = st.text_input(
+                "Expira (YYYY-MM-DD, vacío = sin fecha)",
+                value="",
+            )
+            if st.form_submit_button("Actualizar plan", type="primary"):
+                ok, msg = set_plan(
+                    opciones[elegido],
+                    nuevo_plan,
+                    expira.strip() or None,
+                )
+                if ok:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+    st.divider()
     st.subheader("➕ Crear usuario nuevo")
-    st.caption("Mínimo 3 caracteres en el usuario (a-z, 0-9, _) y 8 en la contraseña.")
+    st.caption(
+        "Mínimo 3 caracteres en el usuario (a-z, 0-9, _) y 8 en la contraseña. "
+        "Nuevos usuarios empiezan en plan **Free**."
+    )
     with st.form("crear_usuario_form", clear_on_submit=True):
         nuevo_user = st.text_input("Usuario nuevo", placeholder="ej: esposa")
         nueva_pwd = st.text_input("Contraseña", type="password")
         nueva_pwd2 = st.text_input("Repetir contraseña", type="password")
         rol = st.selectbox("Rol", ["usuario", "admin"])
+        plan = st.selectbox("Plan inicial", list(PLANES_VALIDOS), index=0)
         if st.form_submit_button("Crear usuario", type="primary", use_container_width=True):
             if nueva_pwd != nueva_pwd2:
                 st.error("Las contraseñas no coinciden")
             else:
-                ok, msg = crear_usuario(nuevo_user, nueva_pwd, rol=rol)
+                ok, msg = crear_usuario(nuevo_user, nueva_pwd, rol=rol, plan=plan)
                 if ok:
                     # Usuario nuevo: sin módulos; verá el Coach IA en el primer login
                     rows = __import__("app.database", fromlist=["ejecutar"]).ejecutar(
@@ -225,7 +262,7 @@ def panel_gestion_usuarios():
                     invalidate_data_caches()
                     st.success(
                         f"✅ {msg}: **{nuevo_user.strip().lower()}** "
-                        "(al entrar verá el Coach para armar su sistema)"
+                        f"(plan `{plan}`; al entrar verá el Coach)"
                     )
                     st.rerun()
                 else:

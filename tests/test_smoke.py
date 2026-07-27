@@ -151,3 +151,72 @@ def test_backup_export(isolated_db, tmp_path, monkeypatch):
     assert path.exists()
     data = path.read_text(encoding="utf-8")
     assert "usuarios" in data
+
+
+def test_billing_planes_y_cuota(isolated_db, monkeypatch):
+    from app import billing as bil
+    from app.tenant import uid as _uid
+
+    db = isolated_db
+    bil.ensure_billing_schema()
+    ok, _ = db.crear_usuario("free_user", "password1", rol="usuario", plan="free")
+    assert ok
+    uid = int(db.ejecutar(
+        "SELECT id FROM usuarios WHERE username='free_user'", fetchall=True
+    )[0]["id"])
+
+    # Mock tenant + session plan
+    monkeypatch.setattr("app.tenant.uid", lambda: uid)
+    class _SS(dict):
+        pass
+    import streamlit as st
+    st.session_state.user = {
+        "id": uid, "username": "free_user", "rol": "usuario",
+        "plan": "free", "coach_ia_usado": 0,
+    }
+
+    assert bil.plan_vigente() == "free"
+    assert bil.modulos_max("free") == 3
+    assert bil.puede_google("free") is False
+    assert bil.puede_google("premium") is True
+    assert bil.cuota_ia_ok(uid, "free") is True
+
+    for _ in range(15):
+        bil.registrar_llamada_ia(uid)
+    assert bil.llamadas_ia_mes(uid) == 15
+    assert bil.cuota_ia_ok(uid, "free") is False
+    assert bil.cuota_ia_ok(uid, "premium") is True
+
+    ok, _ = bil.set_plan(uid, "premium")
+    assert ok
+    row = db.ejecutar(
+        "SELECT plan FROM usuarios WHERE id=?", [uid], fetchall=True
+    )[0]
+    assert row["plan"] == "premium"
+
+
+def test_aplicar_modulos_respeta_cupo_free(isolated_db, monkeypatch):
+    from app.onboarding import aplicar_modulos, listar_modulos_usuario
+    import streamlit as st
+
+    db = isolated_db
+    ok, _ = db.crear_usuario("cupo_user", "password1", rol="usuario", plan="free")
+    assert ok
+    uid = int(db.ejecutar(
+        "SELECT id FROM usuarios WHERE username='cupo_user'", fetchall=True
+    )[0]["id"])
+    monkeypatch.setattr("app.tenant.uid", lambda: uid)
+    st.session_state.user = {
+        "id": uid, "username": "cupo_user", "rol": "usuario", "plan": "free",
+    }
+    st.session_state.pop("_modulos_activos", None)
+
+    aplicar_modulos(
+        ["agenda", "finanzas", "salud", "teologia", "sandbox"],
+        user_id=uid,
+    )
+    activos = {
+        r["modulo"] for r in listar_modulos_usuario(uid) if int(r.get("activo") or 0) == 1
+    }
+    assert len(activos) == 3
+    assert "agenda" in activos

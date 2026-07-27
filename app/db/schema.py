@@ -633,7 +633,32 @@ def init_database():
             rol           TEXT    NOT NULL DEFAULT 'admin'
                               CHECK(rol IN ('admin', 'usuario')),
             activo        BOOLEAN DEFAULT 1,
+            plan          TEXT    DEFAULT 'free',
+            plan_expira_en TEXT,
+            coach_ia_usado INTEGER DEFAULT 0,
+            onboarding_completo INTEGER DEFAULT 0,
             creado_en     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    for sql in (
+        "ALTER TABLE usuarios ADD COLUMN plan TEXT DEFAULT 'free'",
+        "ALTER TABLE usuarios ADD COLUMN plan_expira_en TEXT",
+        "ALTER TABLE usuarios ADD COLUMN coach_ia_usado INTEGER DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN onboarding_completo INTEGER DEFAULT 0",
+    ):
+        try:
+            cursor.execute(sql)
+        except Exception:
+            pass
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS uso_ia (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            anio INTEGER NOT NULL,
+            mes INTEGER NOT NULL,
+            llamadas INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(user_id, anio, mes)
         )
     """)
 

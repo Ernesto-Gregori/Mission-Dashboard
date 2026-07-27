@@ -142,6 +142,20 @@ def aplicar_modulos(
     if not elegidos:
         elegidos = ["agenda"]
 
+    # Cupo por plan (Free: máx N; agenda primero)
+    try:
+        from app.billing import modulos_max, plan_vigente
+
+        tope = modulos_max(plan_vigente())
+        if tope is not None and len(elegidos) > int(tope):
+            if "agenda" in elegidos:
+                resto = [c for c in elegidos if c != "agenda"]
+                elegidos = ["agenda"] + resto[: max(0, int(tope) - 1)]
+            else:
+                elegidos = elegidos[: int(tope)]
+    except Exception:
+        pass
+
     # Desactivar todos, activar elegidos
     for mod in MODULOS_DEFAULT:
         ejecutar("""
@@ -201,6 +215,29 @@ def sugerir_con_ia(perfil: dict[str, Any]) -> dict:
     """Llama a Groq y devuelve {resumen, modulos, razones, habitos}."""
     from app.ai_client import _llamar_ai, api_key_configurada
 
+    try:
+        from app.billing import (
+            coach_ia_ya_usado,
+            marcar_coach_ia_usado,
+            modulos_max,
+            puede_reconfigurar_coach,
+            plan_vigente,
+        )
+
+        if coach_ia_ya_usado() and not puede_reconfigurar_coach():
+            sug = _sugerencia_fallback(perfil)
+            tope = modulos_max(plan_vigente())
+            if tope:
+                sug["modulos"] = sug["modulos"][: int(tope)]
+            sug["fuente"] = "fallback"
+            sug["resumen"] = (
+                (sug.get("resumen") or "")
+                + " (Free: Coach IA de setup ya usado; upgrade para reconfigurar con IA)."
+            )
+            return sug
+    except Exception:
+        pass
+
     if not api_key_configurada():
         return _sugerencia_fallback(perfil)
 
@@ -218,12 +255,37 @@ Módulos permitidos:
 Elige el set mínimo útil. JSON únicamente.
 """
     raw = _llamar_ai(prompt, system=COACH_SYSTEM, max_tokens=700)
+    if raw:
+        try:
+            from app.billing import marcar_coach_ia_usado
+
+            marcar_coach_ia_usado()
+        except Exception:
+            pass
     if not raw:
         return _sugerencia_fallback(perfil)
     parsed = _parse_json(raw)
     if not parsed:
         return _sugerencia_fallback(perfil)
-    return _normalizar_sugerencia(parsed, perfil)
+    sug = _normalizar_sugerencia(parsed, perfil)
+    try:
+        from app.billing import modulos_max, plan_vigente
+
+        tope = modulos_max(plan_vigente())
+        if tope and len(sug.get("modulos") or []) > int(tope):
+            mods = sug["modulos"]
+            if "agenda" in mods:
+                resto = [m for m in mods if m != "agenda"]
+                sug["modulos"] = ["agenda"] + resto[: max(0, int(tope) - 1)]
+            else:
+                sug["modulos"] = mods[: int(tope)]
+            sug["resumen"] = (
+                (sug.get("resumen") or "")
+                + f" (ajustado al cupo Free de {tope} módulos)."
+            )
+    except Exception:
+        pass
+    return sug
 
 
 def _parse_json(texto: str) -> dict | None:
@@ -314,16 +376,10 @@ def _sugerencia_fallback(perfil: dict) -> dict:
 
 
 def require_module(clave: str) -> None:
-    """Bloquea la página si el módulo no está activo para el usuario."""
-    if usuario_onboarding_completo() and not modulo_activo(clave):
-        meta = MODULE_TEMPLATES.get(clave, {})
-        st.warning(
-            f"El módulo **{meta.get('nombre', clave)}** no está activo en tu sistema."
-        )
-        st.caption("Puedes activarlo de nuevo desde el Coach o desde el dashboard.")
-        if st.button("🏠 Ir al dashboard", use_container_width=True):
-            st.switch_page("Mission_Dashboard.py")
-        st.stop()
+    """Bloquea la página si el módulo no está activo / fuera del plan."""
+    from app.billing import require_plan_module
+
+    require_plan_module(clave)
 
 
 def require_onboarding() -> None:
@@ -348,7 +404,19 @@ def _ocultar_nav() -> None:
 def render_coach(force: bool = False) -> None:
     """UI del coach (también usable para reconfigurar)."""
     if force and usuario_onboarding_completo() and not st.session_state.get("coach_reconfig"):
+        from app.billing import (
+            PLAN_FREE,
+            limites,
+            plan_vigente,
+            puede_reconfigurar_coach,
+            render_paywall,
+            resumen_plan_ui,
+            stripe_link,
+            PLAN_PREMIUM,
+        )
+
         st.markdown("**Tu sistema actual**")
+        st.caption(resumen_plan_ui())
         activos = modulos_activos()
         if activos:
             for k in sorted(activos):
@@ -356,15 +424,53 @@ def render_coach(force: bool = False) -> None:
                 st.markdown(f"- {meta.get('emoji', '')} **{meta.get('nombre', k)}**")
         else:
             st.caption("Ningún módulo activo.")
-        if st.button("✏️ Cambiar módulos con el coach", type="primary", use_container_width=True):
-            st.session_state.coach_reconfig = True
-            st.session_state.coach_step = 1
-            st.session_state.coach_sugerencia = None
-            st.rerun()
+
+        # Módulos fuera del cupo Free → upsell
+        if plan_vigente() == PLAN_FREE:
+            bloqueados = [k for k in MODULE_TEMPLATES if k not in activos]
+            if bloqueados:
+                st.markdown("#### Disponibles en Premium")
+                for k in bloqueados[:6]:
+                    meta = MODULE_TEMPLATES[k]
+                    st.markdown(f"- {meta['emoji']} {meta['nombre']} — _{meta['descripcion']}_")
+                link = stripe_link(PLAN_PREMIUM)
+                if link:
+                    st.link_button(
+                        f"Upgrade a Premium ({limites(PLAN_PREMIUM)['precio']})",
+                        link,
+                        type="primary",
+                        use_container_width=True,
+                    )
+                else:
+                    st.info("Premium desbloquea todos los módulos, Google Fit/Calendar y Coach ilimitado.")
+
+        if puede_reconfigurar_coach():
+            if st.button("✏️ Cambiar módulos con el coach", type="primary", use_container_width=True):
+                st.session_state.coach_reconfig = True
+                st.session_state.coach_step = 1
+                st.session_state.coach_sugerencia = None
+                st.rerun()
+        else:
+            st.caption("Plan Free: el Coach IA de setup es una sola vez.")
+            if st.button("Desbloquear reconfiguración (Premium)", use_container_width=True):
+                render_paywall(
+                    "Reconfigurar el sistema con Coach IA requiere Premium o Familia.",
+                    plan_sugerido=PLAN_PREMIUM,
+                )
+                st.stop()
         return
 
     st.title("🤖 Coach Mission Dashboard")
     st.caption("Te ayudo a armar tu sistema con plantillas según lo que necesitas.")
+    try:
+        from app.billing import modulos_max, plan_vigente, resumen_plan_ui
+
+        st.caption(resumen_plan_ui())
+        tope = modulos_max(plan_vigente())
+        if tope:
+            st.info(f"Tu plan Free permite hasta **{tope} módulos** activos (Agenda + los que elijas).")
+    except Exception:
+        pass
 
     if "coach_step" not in st.session_state:
         st.session_state.coach_step = 1
@@ -465,6 +571,18 @@ def render_coach(force: bool = False) -> None:
                 if not seleccion:
                     st.error("Elige al menos un módulo.")
                 else:
+                    try:
+                        from app.billing import modulos_max, plan_vigente
+
+                        tope = modulos_max(plan_vigente())
+                        if tope and len(seleccion) > int(tope):
+                            st.error(
+                                f"Tu plan permite máximo {tope} módulos. "
+                                f"Desmarca {len(seleccion) - int(tope)} o pasa a Premium."
+                            )
+                            st.stop()
+                    except Exception:
+                        pass
                     aplicar_modulos(seleccion, razones=razones)
                     aplicar_habitos_sugeridos(sug.get("habitos") or [])
                     marcar_onboarding_completo(True)
@@ -473,5 +591,33 @@ def render_coach(force: bool = False) -> None:
                     st.session_state.coach_reconfig = False
                     invalidate_data_caches()
                     st.success("¡Listo! Tu sistema quedó configurado.")
+                    # Upsell post-onboarding Free
+                    try:
+                        from app.billing import (
+                            PLAN_FREE,
+                            PLAN_PREMIUM,
+                            limites,
+                            plan_vigente,
+                            stripe_link,
+                        )
+
+                        if plan_vigente() == PLAN_FREE:
+                            resto = [k for k in MODULE_TEMPLATES if k not in seleccion]
+                            if resto:
+                                st.markdown("#### También te pueden servir (Premium)")
+                                for k in resto[:4]:
+                                    st.markdown(
+                                        f"- {MODULE_TEMPLATES[k]['emoji']} "
+                                        f"{MODULE_TEMPLATES[k]['nombre']}"
+                                    )
+                                link = stripe_link(PLAN_PREMIUM)
+                                if link:
+                                    st.link_button(
+                                        f"Upgrade ({limites(PLAN_PREMIUM)['precio']})",
+                                        link,
+                                        use_container_width=True,
+                                    )
+                    except Exception:
+                        pass
                     st.balloons()
                     st.rerun()

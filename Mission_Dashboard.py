@@ -629,13 +629,18 @@ with st.sidebar:
                 st.error(r["mensaje"])
     st.divider()
     user = st.session_state.get("user") or {}
-    st.caption(f"👤 {user.get('username', '—')} · {user.get('rol', '')}")
+    try:
+        from app.billing import resumen_plan_ui
+
+        st.caption(f"👤 {user.get('username', '—')} · {user.get('rol', '')} · {resumen_plan_ui(user)}")
+    except Exception:
+        st.caption(f"👤 {user.get('username', '—')} · {user.get('rol', '')}")
     if user.get("rol") == "admin":
         st.page_link("pages/09_Usuarios.py", label="🔐 Crear / gestionar usuarios", icon="🔐")
     st.caption("💡 Reconfigura módulos con el Coach en el dashboard")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
         logout()
-    st.caption(f"v1.3 • Coach IA + plantillas • {TZ_NAME}")
+    st.caption(f"v1.4 • Planes Free/Premium/Familia • {TZ_NAME}")
 
 # ═══════════════════════════════════════════════════════════════
 # HEADER

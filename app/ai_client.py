@@ -121,6 +121,16 @@ def _llamar_ai(
     if not _hay_cuota():
         return None
 
+    # Cuota por plan (Free: techo mensual en uso_ia)
+    try:
+        from app.billing import cuota_ia_ok, registrar_llamada_ia
+
+        if not cuota_ia_ok():
+            print("[AI] Cuota de plan agotada este mes")
+            return None
+    except Exception:
+        pass
+
     client = _get_client()
     if not client:
         return None
@@ -137,6 +147,12 @@ def _llamar_ai(
             max_tokens=max_tokens,
         )
         _registrar_llamada()
+        try:
+            from app.billing import registrar_llamada_ia
+
+            registrar_llamada_ia()
+        except Exception:
+            pass
         # Marcar conexión como ok al primer éxito
         _estado["conexion_ok"] = True
         _estado["conexion_ts"] = time.time()

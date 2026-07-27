@@ -132,9 +132,13 @@ def invalidate_data_caches() -> None:
 
 def ensure_database() -> None:
     """
-    init_database() + migración multi-usuario, una vez por sesión.
+    init_database() + migración multi-usuario + billing, una vez por sesión.
+    En cloud web exige Turso.
     """
     from app.db.schema import init_database
+    from app.runtime import require_turso_web
+
+    require_turso_web()
 
     try:
         if st.session_state.get("_db_ready"):
@@ -145,6 +149,11 @@ def ensure_database() -> None:
             migrate_multiuser()
         except Exception as e:
             print(f"[ensure_database] migrate_multiuser: {e}")
+        try:
+            from app.billing import ensure_billing_schema
+            ensure_billing_schema()
+        except Exception as e:
+            print(f"[ensure_database] billing: {e}")
         st.session_state["_db_ready"] = True
     except Exception:
         init_database()
@@ -153,6 +162,11 @@ def ensure_database() -> None:
             migrate_multiuser()
         except Exception as e:
             print(f"[ensure_database] migrate_multiuser: {e}")
+        try:
+            from app.billing import ensure_billing_schema
+            ensure_billing_schema()
+        except Exception as e:
+            print(f"[ensure_database] billing: {e}")
 
 
 def ensure_remote_schema():
@@ -218,12 +232,32 @@ def ensure_remote_schema():
             creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS uso_ia (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            anio INTEGER NOT NULL,
+            mes INTEGER NOT NULL,
+            llamadas INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(user_id, anio, mes)
+        )
+        """,
     ]
     for sql in statements:
         try:
             ejecutar(sql)
         except Exception as e:
             print(f"ensure_remote_schema: {e}")
+
+    for sql in (
+        "ALTER TABLE usuarios ADD COLUMN plan TEXT DEFAULT 'free'",
+        "ALTER TABLE usuarios ADD COLUMN plan_expira_en TEXT",
+        "ALTER TABLE usuarios ADD COLUMN coach_ia_usado INTEGER DEFAULT 0",
+    ):
+        try:
+            ejecutar(sql)
+        except Exception:
+            pass
 
     # También en SQLite local (por si ensure_database ya corrió antes del ALTER)
     try:
