@@ -41,24 +41,17 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# OAuth retorno de Google ANTES del login (la sesión suele perderse al volver)
+try:
+    from app.google_fit import manejar_oauth_retorno
+    manejar_oauth_retorno()
+except Exception:
+    pass
+
 # ═══════════════════════════════════════════════════════════════
 # 2. AUTENTICACIÓN (usuario + contraseña, todas las rutas)
 # ═══════════════════════════════════════════════════════════════
 require_auth()
-
-# Callback OAuth web ANTES del coach (Google puede redirigir a la home)
-try:
-    from app.google_fit import procesar_oauth_callback
-    _oauth_home = procesar_oauth_callback()
-    if _oauth_home is not None:
-        ok_cb, msg_cb = _oauth_home
-        if ok_cb:
-            st.success(msg_cb)
-            st.info("Ve a **Salud** para importar datos de Google Fit.")
-        else:
-            st.error(msg_cb)
-except Exception:
-    pass
 
 require_onboarding()
 

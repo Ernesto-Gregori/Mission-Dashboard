@@ -472,7 +472,15 @@ def _build_web_flow(redirect_uri: str):
             "redirect_uris": [redirect_uri],
         }
     }
-    flow = Flow.from_client_config(client_config, scopes=SCOPES)
+    # Cliente confidencial (web + client_secret): sin PKCE.
+    # PKCE guardaría code_verifier en memoria; al volver de Google la sesión
+    # de Streamlit a menudo se pierde → "Missing code verifier".
+    flow = Flow.from_client_config(
+        client_config,
+        scopes=SCOPES,
+        autogenerate_code_verifier=False,
+    )
+    flow.code_verifier = None
     flow.redirect_uri = redirect_uri
     return flow, ""
 
@@ -614,6 +622,48 @@ def procesar_oauth_callback() -> tuple[bool, str] | None:
         except Exception:
             pass
         return False, f"Error al intercambiar el código OAuth: {e}"
+
+
+def manejar_oauth_retorno() -> None:
+    """
+    Procesa el retorno de Google (?code=&state=).
+
+    Debe llamarse ANTES de require_auth(): al salir a Google y volver,
+    Streamlit Cloud a menudo pierde la sesión — si esperamos al login,
+    el code caduca y nunca se guarda el token.
+    """
+    try:
+        import streamlit as st
+    except Exception:
+        return
+
+    try:
+        params = st.query_params
+        if not (params.get("code") or params.get("error")):
+            return
+    except Exception:
+        return
+
+    # Asegurar BD aunque aún no haya sesión
+    try:
+        from app.database import ensure_database
+        ensure_database()
+    except Exception as e:
+        print(f"[GoogleFit] ensure_database en oauth retorno: {e}")
+
+    result = procesar_oauth_callback()
+    if result is None:
+        return
+    ok, msg = result
+    if ok:
+        st.success(msg)
+        st.info(
+            "Google ya quedó vinculado a tu cuenta. "
+            "Si te pide iniciar sesión otra vez, entra con tu usuario "
+            "y abre **Salud** — debe decir «token en BD»."
+        )
+    else:
+        st.error(msg)
 
 
 def get_fit_service():

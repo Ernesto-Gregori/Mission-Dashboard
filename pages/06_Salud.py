@@ -19,7 +19,7 @@ from app.google_fit import (
     iniciar_oauth_local,
     guardar_token_desde_json,
     crear_url_autorizacion_web,
-    procesar_oauth_callback,
+    manejar_oauth_retorno,
     oauth_web_disponible,
     get_oauth_redirect_uri,
 )
@@ -35,20 +35,12 @@ st.set_page_config(
     layout="wide"
 )
 
+# OAuth retorno ANTES del login (sesión puede haberse perdido)
+manejar_oauth_retorno()
+
 from app.auth import require_auth
 from app.onboarding import require_onboarding, require_module
 require_auth()
-
-# Callback OAuth web (?code=) — tras login, antes de bloquear por módulo
-_oauth_result = procesar_oauth_callback()
-if _oauth_result is not None:
-    ok_cb, msg_cb = _oauth_result
-    if ok_cb:
-        st.success(msg_cb)
-        st.balloons()
-    else:
-        st.error(msg_cb)
-
 require_onboarding()
 require_module("salud")
 ensure_database()
@@ -101,10 +93,12 @@ def _panel_reconectar_google():
                 type="primary",
                 use_container_width=True,
             )
-            st.caption(
-                "Te lleva a Google → autorizas → vuelves a la app. "
-                "El token se guarda solo para tu usuario."
-            )
+        st.caption(
+            "Te lleva a Google → autorizas → vuelves a la app. "
+            "El token se guarda solo para tu usuario. "
+            "El aviso «Google no ha verificado esta aplicación» es normal "
+            "en modo Testing: pulsa Continuar / Avanzado."
+        )
         else:
             st.error(err)
         st.divider()
