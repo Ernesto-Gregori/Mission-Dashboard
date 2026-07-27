@@ -714,21 +714,97 @@ def estado_google_fit() -> dict:
     }
 
 # ═══════════════════════════════════════════════════════════════
-# HELPERS DE TIEMPO
+# HELPERS DE TIEMPO (zona local de la app, no UTC del servidor)
 # ═══════════════════════════════════════════════════════════════
 
+def _tz_local():
+    from app.timezone_config import TZ_LOCAL
+    return TZ_LOCAL
+
+
+def _rango_dia_ms(fecha: date) -> tuple[int, int]:
+    """Inicio/fin del día en epoch ms, usando la zona de la app."""
+    tz = _tz_local()
+    start = datetime.combine(fecha, datetime.min.time()).replace(tzinfo=tz)
+    end = datetime.combine(fecha, datetime.max.time()).replace(tzinfo=tz)
+    return int(start.timestamp() * 1000), int(end.timestamp() * 1000)
+
+
+def _rango_dia_ns(fecha: date) -> tuple[int, int]:
+    start_ms, end_ms = _rango_dia_ms(fecha)
+    return start_ms * 1_000_000, end_ms * 1_000_000
+
+
 def _fecha_a_nanos(fecha: date, fin_dia: bool = False) -> int:
-    """Convierte fecha a nanosegundos epoch (formato Google Fit)."""
-    if fin_dia:
-        dt = datetime.combine(fecha, datetime.max.time())
-    else:
-        dt = datetime.combine(fecha, datetime.min.time())
-    return int(dt.timestamp() * 1e9)
+    """Convierte fecha a nanosegundos epoch (zona local de la app)."""
+    start_ns, end_ns = _rango_dia_ns(fecha)
+    return end_ns if fin_dia else start_ns
 
 
 def _nanos_a_datetime(nanos: int) -> datetime:
-    """Convierte nanosegundos epoch a datetime."""
-    return datetime.fromtimestamp(nanos / 1e9)
+    """Nanos epoch → datetime naive en zona local de la app."""
+    tz = _tz_local()
+    return datetime.fromtimestamp(int(nanos) / 1e9, tz=tz).replace(tzinfo=None)
+
+
+def _ms_a_datetime(ms: int | str) -> datetime:
+    tz = _tz_local()
+    return datetime.fromtimestamp(int(ms) / 1000.0, tz=tz).replace(tzinfo=None)
+
+
+def _rfc3339_rango(fecha: date, dias_antes: int = 0) -> tuple[str, str]:
+    """Timestamps RFC3339 con offset local para sessions.list."""
+    tz = _tz_local()
+    inicio = datetime.combine(
+        fecha - timedelta(days=dias_antes), datetime.min.time()
+    ).replace(tzinfo=tz)
+    fin = datetime.combine(fecha, datetime.max.time()).replace(tzinfo=tz)
+    return inicio.isoformat(), fin.isoformat()
+
+
+def _sum_aggregate_int(service, data_type: str, start_ms: int, end_ms: int) -> int:
+    response = service.users().dataset().aggregate(
+        userId="me",
+        body={
+            "aggregateBy": [{"dataTypeName": data_type}],
+            "bucketByTime": {"durationMillis": 86400000},
+            "startTimeMillis": str(start_ms),
+            "endTimeMillis": str(end_ms),
+        },
+    ).execute()
+    total = 0
+    for bucket in response.get("bucket", []):
+        for dataset in bucket.get("dataset", []):
+            for point in dataset.get("point", []):
+                for val in point.get("value", []):
+                    if "intVal" in val:
+                        total += int(val.get("intVal") or 0)
+                    elif "fpVal" in val:
+                        total += int(val.get("fpVal") or 0)
+    return total
+
+
+def _sum_aggregate_float(service, data_type: str, start_ms: int, end_ms: int) -> float:
+    response = service.users().dataset().aggregate(
+        userId="me",
+        body={
+            "aggregateBy": [{"dataTypeName": data_type}],
+            "bucketByTime": {"durationMillis": 86400000},
+            "startTimeMillis": str(start_ms),
+            "endTimeMillis": str(end_ms),
+        },
+    ).execute()
+    total = 0.0
+    for bucket in response.get("bucket", []):
+        for dataset in bucket.get("dataset", []):
+            for point in dataset.get("point", []):
+                for val in point.get("value", []):
+                    if "fpVal" in val:
+                        total += float(val.get("fpVal") or 0)
+                    elif "intVal" in val:
+                        total += float(val.get("intVal") or 0)
+    return total
+
 
 # ═══════════════════════════════════════════════════════════════
 # OBTENER DATOS DE SUEÑO
@@ -736,14 +812,15 @@ def _nanos_a_datetime(nanos: int) -> datetime:
 
 def obtener_sueno(fecha: date, service=None) -> Dict:
     """
-    Obtiene datos de sueño de Google Fit para una fecha.
-    Retorna: horas_sueno, calidad_sueno, hora_dormir, hora_despertar
+    Obtiene sueño de Google Fit para la noche que termina en `fecha`
+    (despertar del día seleccionado).
     """
     resultado = {
-        'horas_sueno': None,
-        'calidad_sueno': None,
-        'hora_dormir': None,
-        'hora_despertar': None,
+        "horas_sueno": None,
+        "calidad_sueno": None,
+        "hora_dormir": None,
+        "hora_despertar": None,
+        "_fuente": None,
     }
 
     try:
@@ -752,70 +829,117 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
         if service is None:
             return resultado
 
-        # Buscar en ventana de 24h (día anterior + día actual para capturar sueño nocturno)
+        # 1) Sesiones de sueño (activityType 72) — lo más fiable en Wear/Fitbit/Pixel
+        try:
+            start_rfc, end_rfc = _rfc3339_rango(fecha, dias_antes=1)
+            sessions_response = service.users().sessions().list(
+                userId="me",
+                startTime=start_rfc,
+                endTime=end_rfc,
+                activityType=72,
+            ).execute()
+            for sesion in sessions_response.get("session", []) or []:
+                if "startTimeMillis" not in sesion or "endTimeMillis" not in sesion:
+                    continue
+                inicio = _ms_a_datetime(sesion["startTimeMillis"])
+                fin = _ms_a_datetime(sesion["endTimeMillis"])
+                # Sueño de "hoy" = el que termina el día seleccionado (despertar)
+                if fin.date() != fecha and inicio.date() != fecha:
+                    continue
+                horas = (fin - inicio).total_seconds() / 3600.0
+                if horas < 1:
+                    continue
+                resultado = {
+                    "horas_sueno": round(horas, 1),
+                    "calidad_sueno": min(10, max(1, int(horas))),
+                    "hora_dormir": inicio.strftime("%H:%M"),
+                    "hora_despertar": fin.strftime("%H:%M"),
+                    "_fuente": "sessions",
+                }
+                return resultado
+        except Exception as e:
+            print(f"[GoogleFit] Sueño sessions: {e}")
+
+        # 2) Segmentos de sueño (varias data sources)
         fecha_inicio = fecha - timedelta(days=1)
         start_ns = _fecha_a_nanos(fecha_inicio)
         end_ns = _fecha_a_nanos(fecha, fin_dia=True)
+        source_ids = [
+            "derived:com.google.sleep.segment:com.google.android.gms:merged",
+            "derived:com.google.sleep.segment:com.google.android.gms:merge_sleep_segments",
+        ]
+        try:
+            sources = service.users().dataSources().list(
+                userId="me",
+                dataTypeName="com.google.sleep.segment",
+            ).execute()
+            for ds in sources.get("dataSource", []) or []:
+                dsid = ds.get("dataStreamId")
+                if dsid and dsid not in source_ids:
+                    source_ids.append(dsid)
+        except Exception as e:
+            print(f"[GoogleFit] list sleep sources: {e}")
 
-        body = {
-            "startTimeNanos": str(start_ns),
-            "endTimeNanos": str(end_ns),
-            "dataTypeName": "com.google.sleep.segment"
-        }
-
-        response = service.users().dataSources().datasets().get(
-            userId="me",
-            dataSourceId="derived:com.google.sleep.segment:com.google.android.gms:merged",
-            datasetId=f"{start_ns}-{end_ns}"
-        ).execute()
-
-        puntos = response.get('point', [])
+        puntos = []
+        for dsid in source_ids:
+            try:
+                response = service.users().dataSources().datasets().get(
+                    userId="me",
+                    dataSourceId=dsid,
+                    datasetId=f"{start_ns}-{end_ns}",
+                ).execute()
+                pts = response.get("point", []) or []
+                if pts:
+                    puntos = pts
+                    resultado["_fuente"] = f"dataset:{dsid.split(':')[-1]}"
+                    break
+            except Exception as e:
+                print(f"[GoogleFit] sleep dataset {dsid[-40:]}: {e}")
 
         if not puntos:
             return resultado
 
-        # Calcular duración total de sueño
         total_segundos = 0
         inicio_sueno = None
         fin_sueno = None
         etapas = []
 
         for punto in puntos:
-            inicio = _nanos_a_datetime(int(punto['startTimeNanos']))
-            fin = _nanos_a_datetime(int(punto['endTimeNanos']))
-            tipo = punto['value'][0]['intVal'] if punto.get('value') else 1
-
-            # Tipos: 1=Despierto, 2=Sueño ligero, 3=Sueño profundo, 4=REM, 5=Dormido
-            if tipo in [2, 3, 4, 5]:
+            inicio = _nanos_a_datetime(int(punto["startTimeNanos"]))
+            fin = _nanos_a_datetime(int(punto["endTimeNanos"]))
+            tipo = punto["value"][0]["intVal"] if punto.get("value") else 1
+            # 1=awake 2=light 3=deep 4=rem 5=sleep(out)/generic
+            if tipo in (2, 3, 4, 5):
                 duracion = (fin - inicio).total_seconds()
                 total_segundos += duracion
-                etapas.append({'tipo': tipo, 'duracion': duracion})
+                etapas.append({"tipo": tipo, "duracion": duracion})
+                if inicio_sueno is None or inicio < inicio_sueno:
+                    inicio_sueno = inicio
+                if fin_sueno is None or fin > fin_sueno:
+                    fin_sueno = fin
 
-            if inicio_sueno is None or inicio < inicio_sueno:
-                inicio_sueno = inicio
-            if fin_sueno is None or fin > fin_sueno:
-                fin_sueno = fin
+        if total_segundos <= 0:
+            return resultado
 
         horas = total_segundos / 3600
-
-        # Calcular calidad basada en etapas de sueño
-        # Más REM y sueño profundo = mejor calidad
-        sueno_profundo = sum(e['duracion'] for e in etapas if e['tipo'] == 3)
-        sueno_rem = sum(e['duracion'] for e in etapas if e['tipo'] == 4)
-        pct_calidad = ((sueno_profundo + sueno_rem) / total_segundos) if total_segundos > 0 else 0
+        sueno_profundo = sum(e["duracion"] for e in etapas if e["tipo"] == 3)
+        sueno_rem = sum(e["duracion"] for e in etapas if e["tipo"] == 4)
+        pct_calidad = (
+            (sueno_profundo + sueno_rem) / total_segundos if total_segundos > 0 else 0
+        )
         calidad = min(10, max(1, int(pct_calidad * 15 + horas * 0.5)))
-
-        resultado = {
-            'horas_sueno': round(horas, 1),
-            'calidad_sueno': calidad,
-            'hora_dormir': inicio_sueno.strftime('%H:%M') if inicio_sueno else None,
-            'hora_despertar': fin_sueno.strftime('%H:%M') if fin_sueno else None,
-        }
+        resultado.update({
+            "horas_sueno": round(horas, 1),
+            "calidad_sueno": calidad,
+            "hora_dormir": inicio_sueno.strftime("%H:%M") if inicio_sueno else None,
+            "hora_despertar": fin_sueno.strftime("%H:%M") if fin_sueno else None,
+        })
 
     except Exception as e:
         print(f"[GoogleFit] Error obteniendo sueño: {e}")
 
     return resultado
+
 
 # ═══════════════════════════════════════════════════════════════
 # OBTENER DATOS DE EJERCICIO
@@ -823,16 +947,15 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
 
 def obtener_ejercicio(fecha: date, service=None) -> Dict:
     """
-    Obtiene sesiones de ejercicio de Google Fit.
-    Retorna: hizo_ejercicio, tipo_ejercicio, duracion_minutos, calorias, pasos
+    Obtiene sesiones de ejercicio + pasos/calorías de Google Fit.
     """
     resultado = {
-        'hizo_ejercicio': False,
-        'tipo_ejercicio': None,
-        'duracion_minutos': None,
-        'calorias': None,
-        'pasos': None,
-        'sesiones': []
+        "hizo_ejercicio": False,
+        "tipo_ejercicio": None,
+        "duracion_minutos": None,
+        "calorias": None,
+        "pasos": None,
+        "sesiones": [],
     }
 
     try:
@@ -841,102 +964,87 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
         if service is None:
             return resultado
 
-        start_ms = int(datetime.combine(fecha, datetime.min.time()).timestamp() * 1000)
-        end_ms = int(datetime.combine(fecha, datetime.max.time()).timestamp() * 1000)
+        start_ms, end_ms = _rango_dia_ms(fecha)
+        start_rfc, end_rfc = _rfc3339_rango(fecha)
 
-        # Obtener sesiones de actividad
-        sessions_response = service.users().sessions().list(
-            userId="me",
-            startTime=datetime.combine(fecha, datetime.min.time()).isoformat() + "Z",
-            endTime=datetime.combine(fecha, datetime.max.time()).isoformat() + "Z",
-        ).execute()
-
-        sesiones = sessions_response.get('session', [])
-
-        # Mapeo de tipos de actividad Google Fit → nombre legible
         ACTIVIDADES = {
-            1: 'Aeróbicos', 7: 'Caminata', 8: 'Carrera',
-            9: 'Bicicleta', 10: 'Bicicleta', 13: 'Calistenia',
-            15: 'Cardio', 17: 'Escalada', 20: 'Entrenamiento fuerza',
-            21: 'Fútbol', 29: 'Natación', 35: 'Fuerza',
-            36: 'Pilates', 37: 'Yoga', 45: 'Entrenamiento funcional',
-            93: 'Entrenamiento fuerza', 97: 'Pesas',
+            1: "Aeróbicos", 7: "Caminata", 8: "Carrera",
+            9: "Bicicleta", 10: "Bicicleta", 13: "Calistenia",
+            15: "Cardio", 17: "Escalada", 20: "Entrenamiento fuerza",
+            21: "Fútbol", 29: "Natación", 35: "Fuerza",
+            36: "Pilates", 37: "Yoga", 45: "Entrenamiento funcional",
+            72: "Sueño", 93: "Entrenamiento fuerza", 97: "Pesas",
         }
 
-        duracion_total = 0
         sesiones_info = []
+        duracion_total = 0.0
 
-        for sesion in sesiones:
-            tipo_id = sesion.get('activityType', 0)
-            tipo_nombre = ACTIVIDADES.get(tipo_id, f'Ejercicio ({tipo_id})')
+        try:
+            sessions_response = service.users().sessions().list(
+                userId="me",
+                startTime=start_rfc,
+                endTime=end_rfc,
+            ).execute()
+            for sesion in sessions_response.get("session", []) or []:
+                tipo_id = int(sesion.get("activityType", 0) or 0)
+                if tipo_id == 72:  # sueño no es ejercicio
+                    continue
+                if "startTimeMillis" not in sesion or "endTimeMillis" not in sesion:
+                    continue
+                duracion_ms = int(sesion["endTimeMillis"]) - int(sesion["startTimeMillis"])
+                duracion_min = max(0, duracion_ms / 60000.0)
+                if duracion_min < 1:
+                    continue
+                tipo_nombre = ACTIVIDADES.get(tipo_id, f"Ejercicio ({tipo_id})")
+                duracion_total += duracion_min
+                sesiones_info.append({
+                    "tipo": tipo_nombre,
+                    "duracion_min": round(duracion_min),
+                })
+        except Exception as e:
+            print(f"[GoogleFit] sessions ejercicio: {e}")
 
-            inicio = datetime.fromisoformat(
-                sesion['startTimeMillis']
-            ) if 'startTimeMillis' in sesion else None
-
-            duracion_ms = int(sesion.get('endTimeMillis', 0)) - int(sesion.get('startTimeMillis', 0))
-            duracion_min = duracion_ms / 60000
-
-            duracion_total += duracion_min
-            sesiones_info.append({
-                'tipo': tipo_nombre,
-                'duracion_min': round(duracion_min),
-            })
-
-        # Obtener pasos del día
-        pasos_response = service.users().dataset().aggregate(
-            userId="me",
-            body={
-                "aggregateBy": [{"dataTypeName": "com.google.step_count.delta"}],
-                "bucketByTime": {"durationMillis": 86400000},
-                "startTimeMillis": str(start_ms),
-                "endTimeMillis": str(end_ms),
-            }
-        ).execute()
-
+        # Pasos / calorías (aggregate) — independientes de sesiones
         pasos_total = 0
-        for bucket in pasos_response.get('bucket', []):
-            for dataset in bucket.get('dataset', []):
-                for point in dataset.get('point', []):
-                    for val in point.get('value', []):
-                        pasos_total += val.get('intVal', 0)
+        calorias_total = 0.0
+        try:
+            pasos_total = _sum_aggregate_int(
+                service, "com.google.step_count.delta", start_ms, end_ms
+            )
+        except Exception as e:
+            print(f"[GoogleFit] pasos: {e}")
+        try:
+            calorias_total = _sum_aggregate_float(
+                service, "com.google.calories.expended", start_ms, end_ms
+            )
+        except Exception as e:
+            print(f"[GoogleFit] calorias: {e}")
 
-        # Obtener calorías
-        calorias_response = service.users().dataset().aggregate(
-            userId="me",
-            body={
-                "aggregateBy": [{"dataTypeName": "com.google.calories.expended"}],
-                "bucketByTime": {"durationMillis": 86400000},
-                "startTimeMillis": str(start_ms),
-                "endTimeMillis": str(end_ms),
-            }
-        ).execute()
-
-        calorias_total = 0
-        for bucket in calorias_response.get('bucket', []):
-            for dataset in bucket.get('dataset', []):
-                for point in dataset.get('point', []):
-                    for val in point.get('value', []):
-                        calorias_total += val.get('fpVal', 0)
+        # Si no hay sesiones pero hay muchos pasos, sugerir caminata
+        if not sesiones_info and pasos_total >= 5000:
+            # ~100 pasos/min caminando aprox. (heurística suave)
+            estim_min = max(10, min(180, int(pasos_total / 100)))
+            sesiones_info = [{"tipo": "Caminata", "duracion_min": estim_min}]
+            duracion_total = estim_min
 
         if sesiones_info:
-            tipo_principal = sesiones_info[0]['tipo']
             resultado = {
-                'hizo_ejercicio': True,
-                'tipo_ejercicio': tipo_principal,
-                'duracion_minutos': round(duracion_total),
-                'calorias': round(calorias_total),
-                'pasos': pasos_total,
-                'sesiones': sesiones_info,
+                "hizo_ejercicio": True,
+                "tipo_ejercicio": sesiones_info[0]["tipo"],
+                "duracion_minutos": round(duracion_total),
+                "calorias": round(calorias_total) if calorias_total else None,
+                "pasos": pasos_total,
+                "sesiones": sesiones_info,
             }
         else:
-            resultado['pasos'] = pasos_total
-            resultado['calorias'] = round(calorias_total)
+            resultado["pasos"] = pasos_total
+            resultado["calorias"] = round(calorias_total) if calorias_total else None
 
     except Exception as e:
         print(f"[GoogleFit] Error obteniendo ejercicio: {e}")
 
     return resultado
+
 
 # ═══════════════════════════════════════════════════════════════
 # OBTENER FRECUENCIA CARDÍACA
@@ -944,7 +1052,7 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
 
 def obtener_frecuencia_cardiaca(fecha: date, service=None) -> Dict:
     """Obtiene frecuencia cardíaca promedio y máxima del día."""
-    resultado = {'fc_promedio': None, 'fc_maxima': None}
+    resultado = {"fc_promedio": None, "fc_maxima": None}
 
     try:
         if service is None:
@@ -952,25 +1060,77 @@ def obtener_frecuencia_cardiaca(fecha: date, service=None) -> Dict:
         if service is None:
             return resultado
 
-        start_ms = int(datetime.combine(fecha, datetime.min.time()).timestamp() * 1000)
-        end_ms = int(datetime.combine(fecha, datetime.max.time()).timestamp() * 1000)
+        start_ms, end_ms = _rango_dia_ms(fecha)
+        samples: list[float] = []
 
-        response = service.users().dataset().aggregate(
-            userId="me",
-            body={
-                "aggregateBy": [{"dataTypeName": "com.google.heart_rate.bpm"}],
-                "bucketByTime": {"durationMillis": 86400000},
-                "startTimeMillis": str(start_ms),
-                "endTimeMillis": str(end_ms),
-            }
-        ).execute()
+        # 1) Resumen agregado
+        try:
+            response = service.users().dataset().aggregate(
+                userId="me",
+                body={
+                    "aggregateBy": [{"dataTypeName": "com.google.heart_rate.summary"}],
+                    "bucketByTime": {"durationMillis": 86400000},
+                    "startTimeMillis": str(start_ms),
+                    "endTimeMillis": str(end_ms),
+                },
+            ).execute()
+            for bucket in response.get("bucket", []):
+                for dataset in bucket.get("dataset", []):
+                    for point in dataset.get("point", []):
+                        vals = point.get("value", []) or []
+                        # summary suele ser [avg, max, min] como fpVal
+                        fps = [float(v["fpVal"]) for v in vals if "fpVal" in v]
+                        if len(fps) >= 2:
+                            resultado["fc_promedio"] = round(fps[0]) or None
+                            resultado["fc_maxima"] = round(fps[1]) or None
+                            return resultado
+                        for v in vals:
+                            # mapVal style
+                            for m in v.get("mapVal", []) or []:
+                                key = (m.get("key") or "").lower()
+                                fp = m.get("value", {}).get("fpVal")
+                                if fp is None:
+                                    continue
+                                if "average" in key or "mean" in key or key == "average":
+                                    resultado["fc_promedio"] = round(fp) or None
+                                if "max" in key:
+                                    resultado["fc_maxima"] = round(fp) or None
+        except Exception as e:
+            print(f"[GoogleFit] HR summary: {e}")
 
-        for bucket in response.get('bucket', []):
-            for dataset in bucket.get('dataset', []):
-                for point in dataset.get('point', []):
-                    vals = {v.get('key'): v.get('fpVal') for v in point.get('value', [])}
-                    resultado['fc_promedio'] = round(vals.get('mean', 0)) or None
-                    resultado['fc_maxima'] = round(vals.get('max', 0)) or None
+        if resultado["fc_promedio"] or resultado["fc_maxima"]:
+            return resultado
+
+        # 2) Muestras bpm crudas → media / max
+        try:
+            response = service.users().dataset().aggregate(
+                userId="me",
+                body={
+                    "aggregateBy": [{"dataTypeName": "com.google.heart_rate.bpm"}],
+                    "bucketByTime": {"durationMillis": 3600000},
+                    "startTimeMillis": str(start_ms),
+                    "endTimeMillis": str(end_ms),
+                },
+            ).execute()
+            for bucket in response.get("bucket", []):
+                for dataset in bucket.get("dataset", []):
+                    for point in dataset.get("point", []):
+                        for val in point.get("value", []) or []:
+                            if "fpVal" in val:
+                                samples.append(float(val["fpVal"]))
+                            elif "intVal" in val:
+                                samples.append(float(val["intVal"]))
+                            # legacy key/mean style
+                            if val.get("key") in ("mean", "average") and val.get("fpVal"):
+                                samples.append(float(val["fpVal"]))
+                            if val.get("key") == "max" and val.get("fpVal"):
+                                resultado["fc_maxima"] = round(float(val["fpVal"])) or None
+        except Exception as e:
+            print(f"[GoogleFit] HR bpm: {e}")
+
+        if samples:
+            resultado["fc_promedio"] = round(sum(samples) / len(samples)) or None
+            resultado["fc_maxima"] = round(max(samples)) or None
 
     except Exception as e:
         print(f"[GoogleFit] Error obteniendo FC: {e}")
@@ -991,37 +1151,49 @@ def obtener_datos_dia(fecha: date) -> Dict:
     try:
         service = get_fit_service()
         if service is None:
-            return {'error': 'Google Fit no configurado'}
+            return {"error": "Google Fit no configurado"}
 
         sueno = obtener_sueno(fecha, service)
         ejercicio = obtener_ejercicio(fecha, service)
         fc = obtener_frecuencia_cardiaca(fecha, service)
 
+        avisos = []
+        if sueno.get("horas_sueno") is None:
+            avisos.append(
+                "Sin sueño en Fit para esta fecha (¿el dispositivo guarda sueño en Google Fit?)."
+            )
+        if not ejercicio.get("hizo_ejercicio") and not (ejercicio.get("pasos") or 0):
+            avisos.append("Sin actividad/pasos detectados.")
+        if fc.get("fc_promedio") is None:
+            avisos.append(
+                "Sin frecuencia cardíaca (hace falta reloj/banda que escriba FC en Fit)."
+            )
+
         return {
             # Sueño
-            'horas_sueno': sueno['horas_sueno'],
-            'calidad_sueno': sueno['calidad_sueno'],
-            'hora_dormir': sueno['hora_dormir'],
-            'hora_despertar': sueno['hora_despertar'],
+            "horas_sueno": sueno["horas_sueno"],
+            "calidad_sueno": sueno["calidad_sueno"],
+            "hora_dormir": sueno["hora_dormir"],
+            "hora_despertar": sueno["hora_despertar"],
             # Ejercicio
-            'hizo_ejercicio': ejercicio['hizo_ejercicio'],
-            'tipo_ejercicio': ejercicio['tipo_ejercicio'],
-            'duracion_minutos': ejercicio['duracion_minutos'],
-            'sesiones_fit': ejercicio['sesiones'],
-            'calorias': ejercicio.get('calorias'),
-            'pasos': ejercicio.get('pasos'),
+            "hizo_ejercicio": ejercicio["hizo_ejercicio"],
+            "tipo_ejercicio": ejercicio["tipo_ejercicio"],
+            "duracion_minutos": ejercicio["duracion_minutos"],
+            "sesiones_fit": ejercicio["sesiones"],
+            "calorias": ejercicio.get("calorias"),
+            "pasos": ejercicio.get("pasos"),
             # Cardíaco
-            'fc_promedio': fc['fc_promedio'],
-            'fc_maxima': fc['fc_maxima'],
-            # Estos siempre los llena el usuario manualmente
-            'energia_manana': None,
-            'energia_tarde': None,
-            'energia_noche': None,
-            'productividad_percibida': None,
-            'zona_muscular': None,
-            'notas_ejercicio': None,
+            "fc_promedio": fc["fc_promedio"],
+            "fc_maxima": fc["fc_maxima"],
+            # Manual
+            "energia_manana": None,
+            "energia_tarde": None,
+            "energia_noche": None,
+            "productividad_percibida": None,
+            "notas_ejercicio": None,
+            "avisos_fit": avisos,
+            "fuente_sueno": sueno.get("_fuente"),
         }
-
     except Exception as e:
-        print(f"[GoogleFit] Error general: {e}")
-        return {'error': str(e)}
+        print(f"[GoogleFit] Error obtener_datos_dia: {e}")
+        return {"error": str(e)}

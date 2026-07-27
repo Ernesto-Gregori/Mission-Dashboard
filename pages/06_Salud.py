@@ -451,6 +451,10 @@ with tab_hoy:
                 st.caption("Sesiones detectadas: " +
                     " • ".join(f"{s['tipo']} ({s['duracion_min']} min)"
                                for s in sesiones))
+            for aviso in fit.get("avisos_fit") or []:
+                st.caption(f"ℹ️ {aviso}")
+        else:
+            st.error(f"Google Fit: {fit.get('error')}")
 
     st.divider()
     st.markdown("### ✏️ Editar y completar registro")
