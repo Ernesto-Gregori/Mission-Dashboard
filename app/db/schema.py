@@ -644,6 +644,8 @@ def init_database():
         "ALTER TABLE usuarios ADD COLUMN plan TEXT DEFAULT 'free'",
         "ALTER TABLE usuarios ADD COLUMN plan_expira_en TEXT",
         "ALTER TABLE usuarios ADD COLUMN coach_ia_usado INTEGER DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN stripe_customer_id TEXT",
+        "ALTER TABLE usuarios ADD COLUMN stripe_subscription_id TEXT",
         "ALTER TABLE usuarios ADD COLUMN onboarding_completo INTEGER DEFAULT 0",
     ):
         try:

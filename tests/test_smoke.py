@@ -195,6 +195,66 @@ def test_billing_planes_y_cuota(isolated_db, monkeypatch):
     assert row["plan"] == "premium"
 
 
+def test_stripe_checkout_event_aplica_plan(isolated_db, monkeypatch):
+    from app import billing as bil
+
+    db = isolated_db
+    bil.ensure_billing_schema()
+    ok, _ = db.crear_usuario("pay_user", "password1", rol="usuario", plan="free")
+    assert ok
+    uid = int(db.ejecutar(
+        "SELECT id FROM usuarios WHERE username='pay_user'", fetchall=True
+    )[0]["id"])
+
+    ok, msg = bil.aplicar_evento_checkout({
+        "client_reference_id": str(uid),
+        "customer": "cus_test",
+        "subscription": "sub_test",
+        "metadata": {"plan": "premium", "user_id": str(uid)},
+    })
+    assert ok, msg
+    row = db.ejecutar(
+        "SELECT plan, stripe_customer_id, stripe_subscription_id FROM usuarios WHERE id=?",
+        [uid], fetchall=True,
+    )[0]
+    assert row["plan"] == "premium"
+    assert row["stripe_customer_id"] == "cus_test"
+
+    ok, msg = bil.aplicar_cancelacion_subscription({
+        "id": "sub_test",
+        "metadata": {"user_id": str(uid)},
+    })
+    assert ok, msg
+    row = db.ejecutar(
+        "SELECT plan FROM usuarios WHERE id=?", [uid], fetchall=True
+    )[0]
+    assert row["plan"] == "free"
+
+
+def test_crear_checkout_fallback_payment_link(monkeypatch):
+    from app import billing as bil
+
+    monkeypatch.setattr(bil, "_secret", lambda name, default="": {
+        "STRIPE_SECRET_KEY": "",
+        "STRIPE_PRICE_PREMIUM": "",
+        "STRIPE_LINK_PREMIUM": "https://buy.stripe.com/test_premium",
+    }.get(name, default))
+
+    # sin secret key → error pidiendo secret; con solo link via crear:
+    monkeypatch.setattr(bil, "_secret", lambda name, default="": {
+        "STRIPE_SECRET_KEY": "sk_test_x",
+        "STRIPE_PRICE_PREMIUM": "",
+        "STRIPE_LINK_PREMIUM": "https://buy.stripe.com/test_premium",
+        "APP_URL": "https://example.streamlit.app",
+    }.get(name, default))
+
+    url, err = bil.crear_checkout_session("premium", 42, username="x")
+    assert err is None
+    assert url is not None
+    assert "client_reference_id=42" in url
+    assert "buy.stripe.com" in url
+
+
 def test_aplicar_modulos_respeta_cupo_free(isolated_db, monkeypatch):
     from app.onboarding import aplicar_modulos, listar_modulos_usuario
     import streamlit as st

@@ -35,6 +35,39 @@ st.info(
     f"Sesión actual: **{user.get('username', '—')}** · rol **{user.get('rol', '—')}**"
 )
 
+# Cualquier usuario puede ver/mejorar su plan
+st.subheader("💳 Tu plan")
+try:
+    from app.billing import (
+        PLAN_FREE,
+        limites,
+        plan_vigente,
+        render_upgrade_buttons,
+        resumen_plan_ui,
+        stripe_configured,
+    )
+
+    st.caption(resumen_plan_ui(user))
+    if plan_vigente(user) == PLAN_FREE:
+        st.markdown(
+            f"Free incluye hasta **{limites(PLAN_FREE)['modulos_max']} módulos**, "
+            "Coach IA de setup y cuota mensual de IA. "
+            "Premium desbloquea todo + Google Fit/Calendar."
+        )
+        if stripe_configured():
+            render_upgrade_buttons()
+        else:
+            st.caption(
+                "Stripe aún no está configurado en secrets "
+                "(`STRIPE_SECRET_KEY`, `STRIPE_PRICE_PREMIUM`, `APP_URL`)."
+            )
+    else:
+        st.success(f"Plan activo: **{limites(plan_vigente(user))['nombre']}**")
+except Exception as e:
+    st.warning(f"No se pudo cargar billing: {e}")
+
+st.divider()
+
 if user.get("rol") != "admin":
     st.warning("Tu cuenta no es administrador. Pide a un admin que te dé acceso o cree usuarios.")
     st.stop()

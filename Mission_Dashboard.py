@@ -70,6 +70,35 @@ _init_gemini()
 # ═══════════════════════════════════════════════════════════════
 ensure_database()
 
+# Retorno de Stripe Checkout (?checkout=success|cancel)
+try:
+    qs = st.query_params
+    checkout = qs.get("checkout")
+    if checkout == "success":
+        st.success(
+            "Pago recibido. Si tu plan no cambia en unos segundos, recarga la página "
+            "(el webhook de Stripe actualiza Turso)."
+        )
+        # Refrescar plan desde BD
+        from app.database import obtener_usuario_activo
+        u = st.session_state.get("user") or {}
+        if u.get("id"):
+            fresh = obtener_usuario_activo(int(u["id"]))
+            if fresh:
+                st.session_state.user = fresh
+        try:
+            del st.query_params["checkout"]
+        except Exception:
+            pass
+    elif checkout == "cancel":
+        st.info("Checkout cancelado. Puedes intentarlo cuando quieras.")
+        try:
+            del st.query_params["checkout"]
+        except Exception:
+            pass
+except Exception:
+    pass
+
 # ═══════════════════════════════════════════════════════════════
 # CSS
 # ═══════════════════════════════════════════════════════════════

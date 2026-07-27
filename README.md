@@ -87,6 +87,43 @@ módulos/plantillas (Agenda, Finanzas, Deep Work, etc.) y hábitos iniciales.
 - Todas las escrituras (incluida **Finanzas**) pasan por `ejecutar()` → misma BD
 - Con Turso configurado, los datos persisten en la nube
 - Sin Turso, se usa `data/mission.db` (ignorado por git)
+- **Producción web:** exige `TURSO_URL` + `TURSO_TOKEN` en secrets
+
+## Planes + Stripe
+Planes: **Free** / **Premium ($7)** / **Familia ($14)**.
+
+### Secrets en Streamlit Cloud
+```toml
+TURSO_URL = "libsql://…"
+TURSO_TOKEN = "…"
+GROQ_API_KEY = "…"
+APP_URL = "https://TU-APP.streamlit.app"
+
+STRIPE_SECRET_KEY = "sk_live_… o sk_test_…"
+STRIPE_PRICE_PREMIUM = "price_…"
+STRIPE_PRICE_FAMILIA = "price_…"   # opcional
+# Alternativa sin Checkout Session API:
+# STRIPE_LINK_PREMIUM = "https://buy.stripe.com/…"
+```
+
+### Webhook (obligatorio para activar el plan tras pagar)
+Streamlit no recibe webhooks. Despliega `webhook/` en Railway/Render:
+
+```bash
+# En el servicio webhook:
+STRIPE_SECRET_KEY=…
+STRIPE_WEBHOOK_SECRET=whsec_…   # del endpoint en Stripe Dashboard
+TURSO_URL=…
+TURSO_TOKEN=…
+STRIPE_PRICE_PREMIUM=price_…
+STRIPE_PRICE_FAMILIA=price_…
+```
+
+Stripe Dashboard → Developers → Webhooks → URL:
+`https://TU-WEBHOOK/stripe/webhook`  
+Eventos: `checkout.session.completed`, `customer.subscription.deleted`
+
+Docker: `webhook/Dockerfile` (raíz del repo como context).
 
 ## Diagnóstico
 Ver [DIAGNOSTICO.md](./DIAGNOSTICO.md) — por qué no hace falta Electron ahora, y qué se corrigió.

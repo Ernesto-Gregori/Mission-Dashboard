@@ -11,7 +11,10 @@ try:
 except ImportError:
     libsql = None
 
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:  # webhook / scripts sin Streamlit
+    st = None
 
 from app.db.adapters import *  # noqa: F401,F403
 
@@ -27,11 +30,12 @@ def _get_turso_config():
     """
     url = None
     token = None
-    try:
-        url = st.secrets.get("TURSO_URL")
-        token = st.secrets.get("TURSO_TOKEN")
-    except Exception:
-        pass
+    if st is not None:
+        try:
+            url = st.secrets.get("TURSO_URL")
+            token = st.secrets.get("TURSO_TOKEN")
+        except Exception:
+            pass
     if not url or not token:
         from dotenv import load_dotenv
 
@@ -108,13 +112,14 @@ def ejecutar(sql: str, params: list = None, fetchall: bool = False):
 
 
 
-@st.cache_data(ttl=30)
-def ejecutar_cached(sql: str, params: tuple = ()) -> list:
-    """
-    SELECT cacheado — params como TUPLA, siempre retorna list.
-    NUNCA usar para INSERT / UPDATE / DELETE.
-    """
+def _ejecutar_cached_impl(sql: str, params: tuple = ()) -> list:
     return ejecutar(sql, list(params), fetchall=True) or []
+
+
+if st is not None:
+    ejecutar_cached = st.cache_data(ttl=30)(_ejecutar_cached_impl)
+else:
+    ejecutar_cached = _ejecutar_cached_impl
 
 
 def invalidate_data_caches() -> None:
@@ -140,9 +145,16 @@ def ensure_database() -> None:
 
     require_turso_web()
 
+    ready = False
+    if st is not None:
+        try:
+            ready = bool(st.session_state.get("_db_ready"))
+        except Exception:
+            ready = False
+    if ready:
+        return
+
     try:
-        if st.session_state.get("_db_ready"):
-            return
         init_database()
         try:
             from app.multiuser import migrate_multiuser
@@ -154,7 +166,11 @@ def ensure_database() -> None:
             ensure_billing_schema()
         except Exception as e:
             print(f"[ensure_database] billing: {e}")
-        st.session_state["_db_ready"] = True
+        if st is not None:
+            try:
+                st.session_state["_db_ready"] = True
+            except Exception:
+                pass
     except Exception:
         init_database()
         try:
@@ -253,6 +269,8 @@ def ensure_remote_schema():
         "ALTER TABLE usuarios ADD COLUMN plan TEXT DEFAULT 'free'",
         "ALTER TABLE usuarios ADD COLUMN plan_expira_en TEXT",
         "ALTER TABLE usuarios ADD COLUMN coach_ia_usado INTEGER DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN stripe_customer_id TEXT",
+        "ALTER TABLE usuarios ADD COLUMN stripe_subscription_id TEXT",
     ):
         try:
             ejecutar(sql)
