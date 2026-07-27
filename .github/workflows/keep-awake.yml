@@ -1,0 +1,89 @@
+# Mantiene despierta la app en Streamlit Community Cloud.
+# Un GET HTTP no basta: hay que abrir la app en un navegador (WebSocket).
+#
+# Setup (una vez):
+# 1. Repo → Settings → Secrets and variables → Actions
+# 2. Crear secret STREAMLIT_APP_URL = https://TU-APP.streamlit.app
+# 3. Actions → Keep Streamlit Awake → Run workflow (probar)
+#
+# Si el secret no existe, el job se omite sin fallar.
+
+name: Keep Streamlit Awake
+
+on:
+  schedule:
+    # Cada 6 horas (umbral oficial de sleep ≈ 12 h de inactividad)
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: keep-awake
+  cancel-in-progress: true
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check STREAMLIT_APP_URL secret
+        id: check
+        env:
+          APP_URL: ${{ secrets.STREAMLIT_APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Falta el secret STREAMLIT_APP_URL. Añádelo en Settings → Secrets → Actions."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "URL configurada (no se imprime por seguridad)."
+          fi
+
+      - name: Install Playwright (Chromium)
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          pip install --quiet playwright==1.49.1
+          playwright install --with-deps chromium
+
+      - name: Wake Streamlit app
+        if: steps.check.outputs.configured == 'true'
+        env:
+          APP_URL: ${{ secrets.STREAMLIT_APP_URL }}
+        run: |
+          python << 'PY'
+          import os, sys, time
+          from playwright.sync_api import sync_playwright
+
+          url = os.environ["APP_URL"].strip().rstrip("/")
+          if not url.startswith("http"):
+              print("STREAMLIT_APP_URL inválida", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Visitando app…")
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.goto(url, wait_until="domcontentloaded", timeout=120_000)
+              time.sleep(3)
+
+              # Botón típico cuando la app está dormida
+              for label in (
+                  "Yes, get this app back up!",
+                  "Yes, get this app back up",
+                  "Get this app back up",
+              ):
+                  btn = page.get_by_role("button", name=label)
+                  try:
+                      if btn.count() and btn.first.is_visible():
+                          print(f"App dormida — clic en: {label}")
+                          btn.first.click()
+                          page.wait_for_timeout(15_000)
+                          break
+                  except Exception as e:
+                      print(f"Botón '{label}': {e}")
+
+              # Dar tiempo a que arranque el proceso Python + WebSocket
+              page.wait_for_timeout(20_000)
+              title = page.title()
+              print(f"Listo. title={title!r}")
+              browser.close()
+          PY

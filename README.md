@@ -32,6 +32,18 @@ Si Google Cloud OAuth está en modo **Testing**, el refresh_token puede expirar 
 - Esta app es **Streamlit**. En Streamlit Cloud funciona tal cual.
 - **NiceGUI / Flet no corren en Streamlit Cloud** — haría falta otro hosting y reescribir la UI. Ver `DIAGNOSTICO.md`.
 
+### App que se “duerme” (Streamlit Community Cloud)
+Es normal en el plan gratis: sin tráfico la app hiberna y el siguiente acceso tarda en despertar.
+
+**Mitigación gratis (recomendada):** GitHub Action `Keep Streamlit Awake` (cada 6 h con Playwright).
+
+1. Copia la URL de tu app (`https://….streamlit.app`)
+2. En GitHub → **Settings → Secrets and variables → Actions**
+3. Crea el secret `STREAMLIT_APP_URL` con esa URL
+4. **Actions → Keep Streamlit Awake → Run workflow** (probar una vez)
+
+**Si quieres cero sueño de verdad:** mover a hosting always-on (Railway, Render, Fly.io, VPS). Ver `DIAGNOSTICO.md`.
+
 ## Multi-usuario
 Cada cuenta tiene **sus propios datos** (finanzas, hábitos, salud, etc.).
 Los datos antiguos se asignan al primer admin en la migración automática.
