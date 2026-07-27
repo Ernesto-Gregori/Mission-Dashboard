@@ -53,7 +53,7 @@ def _pantalla_setup():
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.markdown("## 🏠 Mission Dashboard")
         st.markdown("### Primer acceso — crea tu usuario")
-        st.caption("Esta contraseña se guarda cifrada (hash). No se almacena en texto plano.")
+        st.caption("Esta contraseña se guarda cifrada (hash). Mínimo 8 caracteres. No se almacena en texto plano.")
         with st.form("setup_admin"):
             username = st.text_input("Usuario", value="admin")
             password = st.text_input("Contraseña", type="password")
