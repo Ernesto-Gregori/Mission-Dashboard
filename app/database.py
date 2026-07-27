@@ -202,12 +202,8 @@ def init_database():
         )
     """)
     
-    # Insertar tus bloques fijos si no existen
-    bloques_default = [
-        ("Instituto Bíblico", "08:00", "12:30", "[1,2,3,4,5]", "Instituto", "#a371f7"),
-        ("Deep Work: Código", "06:15", "07:15", "[1,2,3,4,5]", "Programacion", "#3fb950"),
-        ("Sesión Biblioteca", "19:30", "21:00", "[2,3,4]", "Biblioteca", "#e3b341"),
-    ]
+    # Bloques por defecto: ya no se siembran globalmente (Coach / provision por usuario).
+    bloques_default = []
     
     for nombre, inicio, fin, dias, tipo, color in bloques_default:
         cursor.execute("""
@@ -582,13 +578,9 @@ def init_database():
         )
     """)
 
-    # Insertar hábitos fijos por defecto si no existen
-    habitos_defaults = [
-        ('devocional', 'Devocional', '📖', '05:45', 1),
-        ('codigo',     'Código',     '💻', '06:15', 2),
-        ('lectura',    'Lectura',    '📚', '19:30', 3),
-        ('calistenia', 'Calistenia', '💪', 'Mié 16:30', 4),
-    ]
+    # Hábitos por defecto: ya no se siembran globalmente.
+    # Cada usuario los recibe vía Coach IA o provision_user_defaults (legacy).
+    habitos_defaults = []
     for clave, label, emoji, hora, orden in habitos_defaults:
         cursor.execute("""
             INSERT OR IGNORE INTO habitos_config

@@ -487,20 +487,39 @@ def migrate_multiuser() -> dict:
         pass
 
     if admin_id:
-        # Solo sembrar módulos/hábitos si ya hay datos (instalación legacy).
-        # Usuarios nuevos pasan por el Coach IA sin módulos preactivados.
+        # Solo auto-sembrar si ya hay módulos activos o datos de negocio reales.
+        # Los hábitos seed de init_database (huérfanos asignados) NO cuentan:
+        # en installs nuevas el admin debe pasar por el Coach IA.
         try:
-            n = ejecutar(
-                "SELECT COUNT(*) AS n FROM habitos_config WHERE user_id = ?",
-                [admin_id],
-                fetchall=True,
-            ) or [{"n": 0}]
             n_mod = ejecutar(
                 "SELECT COUNT(*) AS n FROM user_modulos WHERE user_id = ? AND activo = 1",
                 [admin_id],
                 fetchall=True,
             ) or [{"n": 0}]
-            if int(n[0]["n"] or 0) > 0 or int(n_mod[0]["n"] or 0) > 0:
+            has_modules = int(n_mod[0]["n"] or 0) > 0
+            has_legacy = False
+            for table in (
+                "gastos_sobres",
+                "devocionales",
+                "bitacora_semanal",
+                "libros",
+                "registros_salud",
+                "matrimonio_citas",
+                "sandbox_ideas",
+                "sesiones_completadas",
+            ):
+                try:
+                    r = ejecutar(
+                        f"SELECT COUNT(*) AS n FROM {table} WHERE user_id = ?",
+                        [admin_id],
+                        fetchall=True,
+                    ) or [{"n": 0}]
+                    if int(r[0]["n"] or 0) > 0:
+                        has_legacy = True
+                        break
+                except Exception:
+                    pass
+            if has_modules or has_legacy:
                 provision_user_defaults(admin_id, only_if_empty=True, seed_modules=True)
         except Exception as e:
             print(f"[multiuser] provision admin: {e}")
