@@ -20,6 +20,8 @@ from app.database import (
 )
 from app.auth import require_auth, logout, panel_gestion_usuarios
 from app.tenant import uid
+from app.onboarding import require_onboarding, modulos_activos, render_coach
+from app.templates import MODULE_TEMPLATES
 from app.ai_client import chat_simple, estado_gemini, verificar_conexion
 from app.timezone_config import (
     date, datetime,           # re-exportados — todo el código existente funciona
@@ -42,6 +44,7 @@ st.set_page_config(
 # 2. AUTENTICACIÓN (usuario + contraseña, todas las rutas)
 # ═══════════════════════════════════════════════════════════════
 require_auth()
+require_onboarding()
 
 # ═══════════════════════════════════════════════════════════════
 # 3. Cache de IA
@@ -620,9 +623,10 @@ with st.sidebar:
     st.caption(f"👤 {user.get('username', '—')} · {user.get('rol', '')}")
     if user.get("rol") == "admin":
         st.page_link("pages/09_Usuarios.py", label="🔐 Crear / gestionar usuarios", icon="🔐")
+    st.caption("💡 Reconfigura módulos con el Coach en el dashboard")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
         logout()
-    st.caption(f"v1.2 • Python + Streamlit • {TZ_NAME}")
+    st.caption(f"v1.3 • Coach IA + plantillas • {TZ_NAME}")
 
 # ═══════════════════════════════════════════════════════════════
 # HEADER
@@ -837,92 +841,129 @@ st.progress(
 st.divider()
 
 # ═══════════════════════════════════════════════════════════════
-# MÓDULOS
+# MÓDULOS (solo los activos para este usuario)
 # ═══════════════════════════════════════════════════════════════
 
+_activos = modulos_activos()
+
 st.subheader("🗂️ Módulos del Sistema")
+if not _activos:
+    st.info("Aún no tienes módulos activos. Abre el Coach abajo para armar tu sistema.")
+else:
+    st.caption(
+        "Activos: "
+        + ", ".join(
+            f"{MODULE_TEMPLATES[k]['emoji']} {MODULE_TEMPLATES[k]['nombre']}"
+            for k in sorted(_activos, key=lambda x: MODULE_TEMPLATES.get(x, {}).get("prioridad", 99))
+            if k in MODULE_TEMPLATES
+        )
+    )
+
 mod_col1, mod_col2 = st.columns(2)
 
 with mod_col1:
-    fin = metricas["finanzas"]
-    sin_txt = " · ⚠️ Registra ingreso en Finanzas" if fin.get("sin_ingreso") else ""
-    st.markdown(f"""
-    <div class="mission-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#f0f6fc;font-weight:600;">💰 Finanzas Personales</span>
-            <span style="color:{fin['color']};font-size:0.875rem;">{fin['semaforo']} {fin['pct']}% usado</span>
-        </div>
-        <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">
-            Gastado: ${fin['gastos']:,.0f} / Ingreso: ${fin['presupuesto']:,.0f}{sin_txt}
-        </p>
-    </div>""", unsafe_allow_html=True)
+    if "finanzas" in _activos:
+        fin = metricas["finanzas"]
+        sin_txt = " · ⚠️ Registra ingreso en Finanzas" if fin.get("sin_ingreso") else ""
+        st.markdown(f"""
+        <div class="mission-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:#f0f6fc;font-weight:600;">💰 Finanzas Personales</span>
+                <span style="color:{fin['color']};font-size:0.875rem;">{fin['semaforo']} {fin['pct']}% usado</span>
+            </div>
+            <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">
+                Gastado: ${fin['gastos']:,.0f} / Ingreso: ${fin['presupuesto']:,.0f}{sin_txt}
+            </p>
+        </div>""", unsafe_allow_html=True)
 
-    dw = metricas["deep_work"]
-    st.markdown(f"""
-    <div class="mission-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#f0f6fc;font-weight:600;">⏰ Deep Work</span>
-            <span style="color:#58a6ff;font-size:0.875rem;">{dw['completados']}/{dw['total']} bloques esta semana</span>
-        </div>
-        <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">Tasa de éxito: {dw['pct']}%</p>
-    </div>""", unsafe_allow_html=True)
+    if "deep_work" in _activos:
+        dw = metricas["deep_work"]
+        st.markdown(f"""
+        <div class="mission-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:#f0f6fc;font-weight:600;">⏰ Deep Work</span>
+                <span style="color:#58a6ff;font-size:0.875rem;">{dw['completados']}/{dw['total']} bloques esta semana</span>
+            </div>
+            <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">Tasa de éxito: {dw['pct']}%</p>
+        </div>""", unsafe_allow_html=True)
 
-    teo = metricas["teologia"]
-    st.markdown(f"""
-    <div class="mission-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#f0f6fc;font-weight:600;">✝️ Bitácora Teológica</span>
-            <span style="color:#a371f7;font-size:0.875rem;">{teo['total']} entradas · 🔥{teo['racha']} días</span>
-        </div>
-        <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">Último devocional: {teo['ultimo']}</p>
-    </div>""", unsafe_allow_html=True)
+    if "teologia" in _activos:
+        teo = metricas["teologia"]
+        st.markdown(f"""
+        <div class="mission-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:#f0f6fc;font-weight:600;">✝️ Bitácora Teológica</span>
+                <span style="color:#a371f7;font-size:0.875rem;">{teo['total']} entradas · 🔥{teo['racha']} días</span>
+            </div>
+            <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">Último devocional: {teo['ultimo']}</p>
+        </div>""", unsafe_allow_html=True)
+
+    if "agenda" in _activos:
+        st.markdown("""
+        <div class="mission-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:#f0f6fc;font-weight:600;">📅 Agenda & Bitácora</span>
+                <span style="color:#58a6ff;font-size:0.875rem;">Semana activa</span>
+            </div>
+            <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">Calendario, bitácora y rachas</p>
+        </div>""", unsafe_allow_html=True)
 
 with mod_col2:
-    bib = metricas["biblioteca"]
-    st.markdown(f"""
-    <div class="mission-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#f0f6fc;font-weight:600;">📚 Biblioteca</span>
-            <span style="color:#e3b341;font-size:0.875rem;">{bib['total']} libros</span>
-        </div>
-        <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">📖 {bib['leyendo']}</p>
-    </div>""", unsafe_allow_html=True)
+    if "biblioteca" in _activos:
+        bib = metricas["biblioteca"]
+        st.markdown(f"""
+        <div class="mission-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:#f0f6fc;font-weight:600;">📚 Biblioteca</span>
+                <span style="color:#e3b341;font-size:0.875rem;">{bib['total']} libros</span>
+            </div>
+            <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">📖 {bib['leyendo']}</p>
+        </div>""", unsafe_allow_html=True)
 
-    sal = metricas["salud"]
-    sal_texto = (
-        f"Energía: {sal['energia']}/10 · "
-        f"{'🏋️ Ejercicio ✓' if sal['ejercicio'] else '❌ Sin ejercicio'} · "
-        f"Productividad: {sal['productividad']}/10"
-        if sal["registrado"] else "Sin registro hoy — ve al módulo Salud"
+    if "salud" in _activos:
+        sal = metricas["salud"]
+        sal_texto = (
+            f"Energía: {sal['energia']}/10 · "
+            f"{'🏋️ Ejercicio ✓' if sal['ejercicio'] else '❌ Sin ejercicio'} · "
+            f"Productividad: {sal['productividad']}/10"
+            if sal["registrado"] else "Sin registro hoy — ve al módulo Salud"
+        )
+        st.markdown(f"""
+        <div class="mission-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:#f0f6fc;font-weight:600;">💪 Salud y Energía</span>
+                <span style="color:#f85149;font-size:0.875rem;">Energía: {sal['energia']}/10</span>
+            </div>
+            <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">{sal_texto}</p>
+        </div>""", unsafe_allow_html=True)
+
+    if "matrimonio" in _activos:
+        mat = metricas["matrimonio"]
+        st.markdown(f"""
+        <div class="mission-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:#f0f6fc;font-weight:600;">💑 Conexión Matrimonial</span>
+                <span style="color:#ff69b4;font-size:0.875rem;">{mat['citas_mes']} citas este mes</span>
+            </div>
+            <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">📅 {mat['proxima']}</p>
+        </div>""", unsafe_allow_html=True)
+
+    if "sandbox" in _activos:
+        sand = metricas["sandbox"]
+        st.markdown(f"""
+        <div class="mission-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="color:#f0f6fc;font-weight:600;">🧪 Sandbox</span>
+                <span style="color:#58a6ff;font-size:0.875rem;">{sand['ideas_activas']} ideas activas</span>
+            </div>
+            <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">🧩 {sand['snippets']} snippets guardados</p>
+        </div>""", unsafe_allow_html=True)
+
+with st.expander("🤖 Coach — reconfigurar mi sistema", expanded=False):
+    st.caption(
+        "Vuelve a pasar por el coach para activar/desactivar módulos y hábitos sugeridos."
     )
-    st.markdown(f"""
-    <div class="mission-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#f0f6fc;font-weight:600;">💪 Salud y Energía</span>
-            <span style="color:#f85149;font-size:0.875rem;">Energía: {sal['energia']}/10</span>
-        </div>
-        <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">{sal_texto}</p>
-    </div>""", unsafe_allow_html=True)
-
-    mat = metricas["matrimonio"]
-    st.markdown(f"""
-    <div class="mission-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#f0f6fc;font-weight:600;">💑 Conexión Matrimonial</span>
-            <span style="color:#ff69b4;font-size:0.875rem;">{mat['citas_mes']} citas este mes</span>
-        </div>
-        <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">📅 {mat['proxima']}</p>
-    </div>""", unsafe_allow_html=True)
-
-    sand = metricas["sandbox"]
-    st.markdown(f"""
-    <div class="mission-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#f0f6fc;font-weight:600;">🧪 Sandbox</span>
-            <span style="color:#58a6ff;font-size:0.875rem;">{sand['ideas_activas']} ideas activas</span>
-        </div>
-        <p style="color:#8b949e;font-size:0.875rem;margin-top:0.5rem;">🧩 {sand['snippets']} snippets guardados</p>
-    </div>""", unsafe_allow_html=True)
+    render_coach(force=True)
 
 # ═══════════════════════════════════════════════════════════════
 # SECRETARIA IA

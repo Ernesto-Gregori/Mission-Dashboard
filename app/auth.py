@@ -70,7 +70,8 @@ def _pantalla_setup():
                     if ok:
                         user = autenticar_usuario(username, password)
                         if user:
-                            provision_user_defaults(int(user["id"]))
+                            # Sin módulos: el Coach arma el sistema en el primer login
+                            provision_user_defaults(int(user["id"]), seed_modules=False)
                         st.session_state.authenticated = True
                         st.session_state.user = user
                         st.session_state.user_name = user["username"]
@@ -183,15 +184,18 @@ def panel_gestion_usuarios():
             else:
                 ok, msg = crear_usuario(nuevo_user, nueva_pwd, rol=rol)
                 if ok:
-                    # Sembrar hábitos/bloques/módulos del nuevo usuario
+                    # Usuario nuevo: sin módulos; verá el Coach IA en el primer login
                     rows = __import__("app.database", fromlist=["ejecutar"]).ejecutar(
                         "SELECT id FROM usuarios WHERE username = ?",
                         [nuevo_user.strip().lower()], fetchall=True,
                     ) or []
                     if rows:
-                        provision_user_defaults(int(rows[0]["id"]))
+                        provision_user_defaults(int(rows[0]["id"]), seed_modules=False)
                     invalidate_data_caches()
-                    st.success(f"✅ {msg}: **{nuevo_user.strip().lower()}**")
+                    st.success(
+                        f"✅ {msg}: **{nuevo_user.strip().lower()}** "
+                        "(al entrar verá el Coach para armar su sistema)"
+                    )
                     st.rerun()
                 else:
                     st.error(msg)

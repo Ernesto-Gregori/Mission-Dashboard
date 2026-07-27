@@ -10,6 +10,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
 from app.database import listar_usuarios, crear_usuario
 from app.auth import require_auth, panel_gestion_usuarios, logout
+from app.onboarding import require_onboarding
 
 st.set_page_config(
     page_title="Usuarios | Mission Dashboard",
@@ -18,11 +19,13 @@ st.set_page_config(
 )
 
 require_auth()
+require_onboarding()
 ensure_database()
 
 st.title("🔐 Usuarios y seguridad")
 st.caption(
     "Cada usuario tiene su propio sistema (finanzas, hábitos, salud, etc.). "
+    "Los usuarios nuevos pasan por el Coach IA al primer login. "
     "Las contraseñas se guardan con hash."
 )
 

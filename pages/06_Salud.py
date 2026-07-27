@@ -32,7 +32,10 @@ st.set_page_config(
 )
 
 from app.auth import require_auth
+from app.onboarding import require_onboarding, require_module
 require_auth()
+require_onboarding()
+require_module("salud")
 ensure_database()
 
 # ═══════════════════════════════════════════════════════════════

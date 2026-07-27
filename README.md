@@ -34,8 +34,16 @@ Si Google Cloud OAuth está en modo **Testing**, el refresh_token puede expirar 
 
 ## Multi-usuario
 Cada cuenta tiene **sus propios datos** (finanzas, hábitos, salud, etc.).
-Al crear un usuario se siembran hábitos/bloques por defecto para esa cuenta.
 Los datos antiguos se asignan al primer admin en la migración automática.
+
+## Coach IA + plantillas
+En el **primer login** de un usuario nuevo, un coach (Groq) pregunta perfil y sugiere
+módulos/plantillas (Agenda, Finanzas, Deep Work, etc.) y hábitos iniciales.
+- Solo se muestran los módulos activos de esa cuenta
+- Se puede reconfigurar desde el dashboard → «Coach — reconfigurar mi sistema»
+- Sin `GROQ_API_KEY`, el coach usa reglas locales (fallback)
+
+## Estabilidad Streamlit
 - Los formularios (`st.form`) evitan recargar al escribir (Finanzas, Bitácora, Deep Work, hábitos, chat).
 - La BD se inicializa una sola vez por sesión (`ensure_database`).
 - Tras guardar se limpian caches para ver el cambio al instante.

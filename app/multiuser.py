@@ -487,25 +487,67 @@ def migrate_multiuser() -> dict:
         pass
 
     if admin_id:
-        provision_user_defaults(admin_id, only_if_empty=True)
+        # Solo sembrar módulos/hábitos si ya hay datos (instalación legacy).
+        # Usuarios nuevos pasan por el Coach IA sin módulos preactivados.
+        try:
+            n = ejecutar(
+                "SELECT COUNT(*) AS n FROM habitos_config WHERE user_id = ?",
+                [admin_id],
+                fetchall=True,
+            ) or [{"n": 0}]
+            n_mod = ejecutar(
+                "SELECT COUNT(*) AS n FROM user_modulos WHERE user_id = ? AND activo = 1",
+                [admin_id],
+                fetchall=True,
+            ) or [{"n": 0}]
+            if int(n[0]["n"] or 0) > 0 or int(n_mod[0]["n"] or 0) > 0:
+                provision_user_defaults(admin_id, only_if_empty=True, seed_modules=True)
+        except Exception as e:
+            print(f"[multiuser] provision admin: {e}")
 
     return report
 
 
-def provision_user_defaults(user_id: int, only_if_empty: bool = False) -> None:
+def provision_user_defaults(
+    user_id: int,
+    only_if_empty: bool = False,
+    seed_modules: bool | None = None,
+) -> None:
     """
-    Siembra hábitos, bloques Deep Work y módulos activos para un usuario nuevo.
+    Prepara defaults de un usuario.
+
+    - Usuarios nuevos (seed_modules=False): no activan módulos ni hábitos;
+      el Coach IA lo hace en el primer login.
+    - Migración del admin existente (only_if_empty=True): activa todos los
+      módulos, marca onboarding completo y siembra hábitos/bloques si faltan.
     """
     from app.database import ejecutar
 
     _ensure_user_modulos_table(ejecutar)
 
-    # Módulos
-    for mod in MODULOS_DEFAULT:
-        ejecutar("""
-            INSERT OR IGNORE INTO user_modulos (user_id, modulo, activo, config_json)
-            VALUES (?, ?, 1, '{}')
-        """, [user_id, mod])
+    if seed_modules is None:
+        seed_modules = bool(only_if_empty)
+
+    if seed_modules:
+        for mod in MODULOS_DEFAULT:
+            ejecutar("""
+                INSERT OR IGNORE INTO user_modulos (user_id, modulo, activo, config_json)
+                VALUES (?, ?, 1, '{}')
+            """, [user_id, mod])
+        try:
+            ejecutar(
+                "ALTER TABLE usuarios ADD COLUMN onboarding_completo INTEGER DEFAULT 0"
+            )
+        except Exception:
+            pass
+        ejecutar(
+            "UPDATE usuarios SET onboarding_completo = 1 WHERE id = ?",
+            [user_id],
+        )
+
+    # Usuarios nuevos: el coach siembra hábitos/módulos
+    if not seed_modules:
+        return
 
     if only_if_empty:
         n = ejecutar(
@@ -528,7 +570,6 @@ def provision_user_defaults(user_id: int, only_if_empty: bool = False) -> None:
             VALUES (?, ?, ?, ?, ?, 1, ?)
         """, [user_id, clave, label, emoji, hora, orden])
 
-    # Solo crear bloques si el usuario no tiene ninguno
     n_b = ejecutar(
         "SELECT COUNT(*) AS n FROM bloques_fijos WHERE user_id = ?",
         [user_id], fetchall=True,

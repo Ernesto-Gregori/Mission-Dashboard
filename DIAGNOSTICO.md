@@ -129,23 +129,39 @@ Antes todos compartían las mismas tablas. Ahora:
 - Columna `user_id` en tablas de negocio
 - CRUD filtrado por `app.tenant.uid()`
 - Tokens Google Fit por usuario
-- `provision_user_defaults()` al crear cuenta
 - Migración automática en `ensure_database()`
 
-Siguiente fase (pendiente): coach IA de onboarding + plantillas de módulos.
+## 12. Coach IA + plantillas
+
+Usuarios nuevos (sin módulos activos) ven el **Coach** al primer login:
+
+1. Perfil (situación, objetivos, áreas)
+2. Groq sugiere 3–6 módulos + hábitos (fallback por reglas si no hay API key)
+3. El usuario confirma → `user_modulos` + `habitos_config`
+
+Admin/legacy con módulos ya activos se marca `onboarding_completo=1` y no ve el coach.
+Dashboard y nav muestran solo módulos activos; se puede reconfigurar desde el expander Coach.
+
+---
+
+## Roadmap
 
 1. ~~Unificar finanzas con `ejecutar()` / Turso~~
 2. ~~Auth real + proteger todas las páginas~~
 3. ~~Página visible Usuarios~~
 4. ~~Forms / fragments / cache para recargas~~
-5. Confirmar Turso / secrets y redeploy en Streamlit Cloud
-6. NiceGUI/Flet **solo** si cambias de hosting (no compatible con Streamlit Cloud)
+5. ~~Multi-usuario~~
+6. ~~Coach IA + plantillas~~
+7. Confirmar Turso / secrets y redeploy en Streamlit Cloud
+8. NiceGUI/Flet **solo** si cambias de hosting (no compatible con Streamlit Cloud)
 
 ---
 
 ## Checklist post-deploy
 
 - [ ] Crear el primer usuario en la pantalla de setup
+- [ ] Completar el Coach IA (o confirmar que admin legacy ya tiene módulos)
+- [ ] Crear un segundo usuario y verificar que ve el coach y datos aislados
 - [ ] Verificar que un gasto en Finanzas aparece tras recargar / en otro dispositivo (si usas Turso)
 - [ ] Confirmar que abrir `/Finanzas` sin login pide autenticación
 - [ ] Hacer backup de `data/mission.db` antes de migrar a Turso
