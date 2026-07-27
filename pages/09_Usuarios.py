@@ -41,6 +41,20 @@ if user.get("rol") != "admin":
 panel_gestion_usuarios()
 
 st.divider()
+st.subheader("💾 Backup")
+st.caption(
+    "Exporta un JSON de tablas clave a `data/backups/` "
+    "(útil antes de migrar o tocar producción)."
+)
+if st.button("📦 Exportar backup ahora", use_container_width=True):
+    from app.backup import exportar_backup_json
+    path = exportar_backup_json(tag="manual")
+    if path:
+        st.success(f"Backup creado: `{path}`")
+    else:
+        st.error("No se pudo crear el backup (revisa logs).")
+
+st.divider()
 col1, col2 = st.columns(2)
 with col1:
     if st.button("🚪 Cerrar sesión", use_container_width=True):

@@ -40,8 +40,16 @@ Si OAuth está en modo **Testing**, el refresh puede caducar ~7 días: añade tu
 ## Seguridad
 - Login con **usuario + contraseña** en todas las páginas
 - Contraseñas con PBKDF2 (no texto plano)
+- Rate-limit de login (bloqueo temporal tras fallos)
 - **Crear usuarios:** menú lateral → **Usuarios** (solo rol admin)
+- Backup JSON desde Usuarios (admin)
 - Si ya tenías `APP_PASSWORD` en secrets y no hay usuarios, se crea `admin` automáticamente (entra con usuario `admin` + esa clave)
+
+## Tests
+```bash
+pip install -r requirements.txt
+pytest -q tests/
+```
 
 ## Hosting
 - Esta app es **Streamlit**. En Streamlit Cloud funciona tal cual.

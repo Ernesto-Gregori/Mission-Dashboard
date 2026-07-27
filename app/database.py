@@ -1166,13 +1166,15 @@ def verificar_password(password: str, password_hash: str, salt: str) -> bool:
 
 
 def contar_usuarios() -> int:
+    from app.logging_config import get_logger
     try:
         rows = ejecutar(
             "SELECT COUNT(*) AS n FROM usuarios WHERE activo = 1",
             fetchall=True,
         ) or []
         return int(rows[0]["n"]) if rows else 0
-    except Exception:
+    except Exception as e:
+        get_logger("database").exception("contar_usuarios falló: %s", e)
         return 0
 
 

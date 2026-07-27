@@ -17,6 +17,10 @@ from app.database import (
 )
 from app.multiuser import provision_user_defaults
 from app.stability import invalidate_data_caches
+from app.rate_limit import segundos_bloqueo, registrar_fallo, registrar_exito
+from app.logging_config import get_logger
+
+log = get_logger("auth")
 
 
 def _ocultar_chrome():
@@ -100,14 +104,30 @@ def _pantalla_login():
                 "Entrar", use_container_width=True, type="primary"
             )
             if submitted:
-                user = autenticar_usuario(username, password)
-                if user:
-                    st.session_state.authenticated = True
-                    st.session_state.user = user
-                    st.session_state.user_name = user["username"]
-                    st.rerun()
+                bloqueo = segundos_bloqueo(username)
+                if bloqueo > 0:
+                    st.error(
+                        f"Demasiados intentos fallidos. Espera {bloqueo}s "
+                        "antes de volver a intentar."
+                    )
                 else:
-                    st.error("❌ Usuario o contraseña incorrectos")
+                    user = autenticar_usuario(username, password)
+                    if user:
+                        registrar_exito(username)
+                        st.session_state.authenticated = True
+                        st.session_state.user = user
+                        st.session_state.user_name = user["username"]
+                        st.rerun()
+                    else:
+                        lock = registrar_fallo(username)
+                        log.warning("Login fallido user=%s", (username or "").strip().lower())
+                        if lock > 0:
+                            st.error(
+                                f"❌ Credenciales incorrectas. "
+                                f"Cuenta bloqueada temporalmente ({lock}s)."
+                            )
+                        else:
+                            st.error("❌ Usuario o contraseña incorrectos")
         st.markdown("---")
         st.caption(
             "¿Primera vez y no hay usuarios? Reinicia la app sin usuarios en BD "

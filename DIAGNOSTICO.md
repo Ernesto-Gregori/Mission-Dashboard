@@ -190,6 +190,21 @@ Flujo en Streamlit Cloud sin pegar JSON:
 
 Sigue gratis en Google Cloud para uso personal.
 
+## 16. Hardening (bugs + seguridad + CI)
+
+- `requirements.txt` en UTF-8 (antes UTF-16 rompía `pip install`)
+- Devcontainer apunta a `Mission_Dashboard.py`; Streamlit solo en `127.0.0.1` (XSRF/CORS del config.toml)
+- Rate-limit de login (5 fallos → bloqueo temporal con backoff)
+- Logger central (`app/logging_config.py`); `contar_usuarios` ya no traga errores en silencio
+- Tests de humo (`tests/`) + workflow CI
+- Backup JSON (`app/backup.py`) — export desde Usuarios (admin)
+
+### Aún pendiente (deuda consciente)
+- Partir `database.py` / páginas grandes en submódulos por dominio
+- Auditoría «quién cambió qué» en Finanzas/Matrimonio
+- Sustituir keep-awake por hosting always-on si el uso crece
+- Backups programados a storage externo (hoy es export manual)
+
 ---
 
 ## Roadmap
