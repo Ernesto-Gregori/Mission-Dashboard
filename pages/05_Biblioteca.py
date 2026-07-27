@@ -214,7 +214,15 @@ def actualizar_progreso(libro_id: int, pagina_actual: int,
 def agregar_resaltado(libro_id: int, pagina: int, texto_resaltado: str,
                       color_etiqueta: str, nota_personal: str = "",
                       texto_contexto: str = "") -> int:
-    return ejecutar("""
+    # Verificar que el libro pertenece al usuario
+    own = ejecutar(
+        "SELECT id FROM libros WHERE id = ? AND user_id = ?",
+        [int(libro_id), uid()],
+        fetchall=True,
+    ) or []
+    if not own:
+        return 0
+    rid = ejecutar("""
         INSERT INTO resaltados
             (user_id, libro_id, pagina, texto_resaltado,
              color_etiqueta, nota_personal, texto_contexto)
@@ -222,6 +230,8 @@ def agregar_resaltado(libro_id: int, pagina: int, texto_resaltado: str,
     """, [uid(), int(libro_id), int(pagina),
           str(texto_resaltado), str(color_etiqueta),
           str(nota_personal or ""), str(texto_contexto or "")])
+    invalidate_data_caches()
+    return rid
 
 
 def obtener_resaltados(libro_id: int, color: str = None) -> list:
@@ -241,6 +251,7 @@ def obtener_resaltados(libro_id: int, color: str = None) -> list:
 def eliminar_libro(libro_id: int) -> None:
     ejecutar("DELETE FROM resaltados WHERE libro_id = ? AND user_id = ?", [int(libro_id), uid()])
     ejecutar("DELETE FROM libros WHERE id = ? AND user_id = ?",           [int(libro_id), uid()])
+    invalidate_data_caches()
 
 
 # ═══════════════════════════════════════════════════════════════

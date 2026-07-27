@@ -82,24 +82,26 @@ TIPO_BLOQUE_COLOR = {
 def sincronizar_bloques_semana(lunes: date, domingo: date) -> int:
     """
     Crea eventos en Google Calendar para los bloques Deep Work
-    de la semana indicada. Evita duplicados verificando por título y fecha.
+    de la semana indicada (solo del usuario en sesión).
     Retorna el número de eventos creados.
     """
-    import sqlite3
     import json
-    from pathlib import Path
-    
-    DB_PATH = Path(__file__).parent.parent / "data" / "mission.db"
-    
+    from app.database import ejecutar
+    from app.tenant import try_uid
+
     try:
         service = get_calendar_service()
         if not service:
             return 0
-        
+
+        user_id = try_uid()
+        if user_id is None:
+            return 0
+
         # Obtener bloques existentes en Google Calendar esta semana
         time_min = datetime.combine(lunes, datetime.min.time()).isoformat() + "Z"
         time_max = datetime.combine(domingo, datetime.max.time()).isoformat() + "Z"
-        
+
         eventos_gc = service.events().list(
             calendarId=CALENDAR_ID,
             timeMin=time_min,
@@ -107,7 +109,7 @@ def sincronizar_bloques_semana(lunes: date, domingo: date) -> int:
             singleEvents=True,
             maxResults=200,
         ).execute()
-        
+
         # Índice de eventos ya existentes por título+fecha
         existentes = set()
         for e in eventos_gc.get('items', []):
@@ -118,41 +120,36 @@ def sincronizar_bloques_semana(lunes: date, domingo: date) -> int:
             elif 'date' in start:
                 fecha_e = start['date']
             existentes.add(f"{e.get('summary','')}_{fecha_e}")
-        
-        # Obtener bloques fijos de la BD
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT nombre, hora_inicio, hora_fin, 
+
+        bloques = ejecutar("""
+            SELECT nombre, hora_inicio, hora_fin,
                    dias_semana, tipo, color
-            FROM bloques_fijos WHERE activo = 1
-        """)
-        bloques = [dict(r) for r in cursor.fetchall()]
-        conn.close()
-        
+            FROM bloques_fijos
+            WHERE activo = 1 AND user_id = ?
+        """, [user_id], fetchall=True) or []
+
         creados = 0
-        
+
         # Iterar cada día de la semana
         for i in range(7):
             dia = lunes + timedelta(days=i)
             dia_numero = dia.weekday() + 1  # 1=Lunes...7=Domingo
-            
+
             for bloque in bloques:
                 dias = json.loads(bloque['dias_semana'])
                 if dia_numero not in dias:
                     continue
-                
+
                 titulo    = bloque['nombre']
                 fecha_str = dia.isoformat()
                 clave     = f"{titulo}_{fecha_str}"
-                
+
                 # Saltar si ya existe
                 if clave in existentes:
                     continue
-                
+
                 color_id = TIPO_BLOQUE_COLOR.get(bloque['tipo'], '9')
-                
+
                 evento_body = {
                     "summary": titulo,
                     "description": f"Bloque Deep Work — Mission Dashboard\nTipo: {bloque['tipo']}",
@@ -166,7 +163,7 @@ def sincronizar_bloques_semana(lunes: date, domingo: date) -> int:
                         "timeZone": "America/Mexico_City",
                     },
                 }
-                
+
                 try:
                     service.events().insert(
                         calendarId=CALENDAR_ID,
@@ -176,9 +173,9 @@ def sincronizar_bloques_semana(lunes: date, domingo: date) -> int:
                     print(f"[Calendar] Bloque creado: {titulo} {fecha_str}")
                 except Exception as e:
                     print(f"[Calendar] Error creando bloque {titulo}: {e}")
-        
+
         return creados
-    
+
     except Exception as e:
         print(f"[Calendar] Error en sincronizar_bloques_semana: {e}")
         return 0

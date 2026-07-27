@@ -136,6 +136,7 @@ def guardar_devocional(fecha, pasaje_ref, pasaje_texto, observacion,
         str(oracion or ""),
         int(duracion or 30),
     ])
+    invalidate_data_caches()
 
 
 def obtener_devocional(fecha) -> dict | None:
@@ -178,12 +179,14 @@ def calcular_racha() -> int:
 
 def agregar_pedido(titulo: str, descripcion: str, categoria: str,
                    urgencia: int, dias_oracion: list) -> int:
-    return ejecutar("""
+    rid = ejecutar("""
         INSERT INTO pedidos_oracion
             (user_id, titulo, descripcion, categoria, urgencia, dias_oracion)
         VALUES (?, ?, ?, ?, ?, ?)
     """, [uid(), titulo, descripcion, categoria, urgencia,
           json.dumps(dias_oracion)])
+    invalidate_data_caches()
+    return rid
 
 
 def obtener_pedidos(estado: str = None) -> list:
@@ -228,10 +231,12 @@ def actualizar_estado_pedido(pedido_id: int, nuevo_estado: str,
         pedido_id,
         uid(),
     ])
+    invalidate_data_caches()
 
 
 def eliminar_pedido(pedido_id: int) -> None:
     ejecutar("DELETE FROM pedidos_oracion WHERE id = ? AND user_id = ?", [pedido_id, uid()])
+    invalidate_data_caches()
 
 
 def editar_pedido(pedido_id: int, titulo: str, descripcion: str,
@@ -253,6 +258,7 @@ def editar_pedido(pedido_id: int, titulo: str, descripcion: str,
         pedido_id,
         uid(),
     ])
+    invalidate_data_caches()
 
 
 # ═══════════════════════════════════════════════════════════════

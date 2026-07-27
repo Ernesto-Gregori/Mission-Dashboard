@@ -106,11 +106,24 @@ def listar_modulos_usuario(user_id: int | None = None) -> list[dict]:
 
 
 def modulos_activos(user_id: int | None = None) -> set[str]:
-    return {
+    import streamlit as st
+
+    user_id = user_id or uid()
+    # Cache de sesión: evita query en cada navegación
+    if (
+        st.session_state.get("_modulos_activos_uid") == user_id
+        and isinstance(st.session_state.get("_modulos_activos"), set)
+    ):
+        return st.session_state["_modulos_activos"]
+
+    activos = {
         r["modulo"]
         for r in listar_modulos_usuario(user_id)
         if int(r.get("activo") or 0) == 1
     }
+    st.session_state["_modulos_activos"] = activos
+    st.session_state["_modulos_activos_uid"] = user_id
+    return activos
 
 
 def modulo_activo(clave: str, user_id: int | None = None) -> bool:
@@ -148,6 +161,13 @@ def aplicar_modulos(
                 config_json = excluded.config_json
         """, [user_id, mod, cfg])
 
+    # Invalidar cache de módulos de la sesión
+    try:
+        import streamlit as st
+        st.session_state.pop("_modulos_activos", None)
+        st.session_state.pop("_modulos_activos_uid", None)
+    except Exception:
+        pass
     invalidate_data_caches()
 
 

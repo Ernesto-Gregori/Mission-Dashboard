@@ -164,6 +164,7 @@ def guardar_registro_salud(fecha, datos: dict) -> None:
             ON CONFLICT(user_id, fecha) DO UPDATE SET {set_clause}""",
         valores,
     )
+    invalidate_data_caches()
 
 
 def obtener_registro_salud(fecha) -> dict | None:

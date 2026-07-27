@@ -105,7 +105,7 @@ def guardar_cita(fecha: str, hora, tipo: str, titulo: str,
                  ambito: str = "Matrimonio",
                  preparacion: str = "") -> int:
     """FIX Turso: todos los valores como tipos primitivos."""
-    return ejecutar("""
+    rid = ejecutar("""
         INSERT INTO matrimonio_citas
             (user_id, fecha, hora, tipo_cita, titulo, descripcion,
              lugar, presupuesto_estimado, estado_planificacion,
@@ -123,6 +123,8 @@ def guardar_cita(fecha: str, hora, tipo: str, titulo: str,
         str(ambito),
         str(preparacion or ""),
     ])
+    invalidate_data_caches()
+    return rid
 
 
 def actualizar_cita(cita_id: int, fecha: str, hora, tipo: str,
@@ -151,10 +153,12 @@ def actualizar_cita(cita_id: int, fecha: str, hora, tipo: str,
         int(cita_id),
         uid(),
     ])
+    invalidate_data_caches()
 
 
 def eliminar_cita(cita_id: int) -> None:
     ejecutar("DELETE FROM matrimonio_citas WHERE id=? AND user_id=?", [int(cita_id), uid()])
+    invalidate_data_caches()
 
 
 # ── NOTAS ─────────────────────────────────────────────────────
@@ -175,7 +179,7 @@ def obtener_notas(categoria=None, urgencia_min: int = 1) -> list:
 
 def guardar_nota(categoria: str, contenido: str, contexto: str,
                  fecha_mencion: str, urgencia: int) -> int:
-    return ejecutar("""
+    rid = ejecutar("""
         INSERT INTO matrimonio_notas
             (user_id, categoria, contenido, contexto, fecha_mencion, urgencia)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -187,6 +191,8 @@ def guardar_nota(categoria: str, contenido: str, contexto: str,
         str(fecha_mencion),     # ← str ISO, no objeto date
         int(urgencia),
     ])
+    invalidate_data_caches()
+    return rid
 
 
 def actualizar_nota(nota_id: int, categoria: str, contenido: str,
@@ -205,10 +211,12 @@ def actualizar_nota(nota_id: int, categoria: str, contenido: str,
         int(nota_id),
         uid(),
     ])
+    invalidate_data_caches()
 
 
 def eliminar_nota(nota_id: int) -> None:
     ejecutar("DELETE FROM matrimonio_notas WHERE id=? AND user_id=?", [int(nota_id), uid()])
+    invalidate_data_caches()
 
 
 # ── HÁBITOS ───────────────────────────────────────────────────
@@ -299,16 +307,21 @@ if alerta_activa and proxima_cita:
     st.error("⏰ **ALERTA 20:30 — MODO PAREJA ACTIVADO** ⏰")
     ctx = (f"Cita hoy: {proxima_cita['titulo']} "
            f"a las {proxima_cita['hora'] or '21:00'}")
-    msg         = generar_alerta_matrimonio(ctx)
+    _alerta_key = f"mat_alerta_{proxima_cita.get('id')}_{hoy.isoformat()}"
+    if st.session_state.get("_mat_alerta_key") != _alerta_key:
+        st.session_state._mat_alerta_msg = generar_alerta_matrimonio(ctx)
+        st.session_state._mat_alerta_key = _alerta_key
+    msg = st.session_state._mat_alerta_msg
+    from app.security import esc
     ambito_icon = "💑" if proxima_cita.get("ambito") == "Matrimonio" else "👨‍👩‍👧"
     st.html(f"""
 <div style="background:#3c1e1e;border:2px solid #f85149;
             border-radius:12px;padding:1.5rem;margin:1rem 0;">
-    <h3 style="color:#f85149;margin:0;">{ambito_icon} {msg}</h3>
+    <h3 style="color:#f85149;margin:0;">{ambito_icon} {esc(msg)}</h3>
     <p style="color:#f0f6fc;margin:0.5rem 0 0 0;">
-        <strong>Evento:</strong> {proxima_cita['titulo']}<br>
-        <strong>Hora:</strong> {proxima_cita['hora'] or '21:00'}<br>
-        <strong>Lugar:</strong> {proxima_cita['lugar'] or 'Por definir'}
+        <strong>Evento:</strong> {esc(proxima_cita['titulo'])}<br>
+        <strong>Hora:</strong> {esc(proxima_cita['hora'] or '21:00')}<br>
+        <strong>Lugar:</strong> {esc(proxima_cita['lugar'] or 'Por definir')}
     </p>
 </div>""")
     if st.button("✅ Modo pareja activado", type="primary"):

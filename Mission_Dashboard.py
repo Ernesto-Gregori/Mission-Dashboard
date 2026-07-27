@@ -22,6 +22,7 @@ from app.auth import require_auth, logout, panel_gestion_usuarios
 from app.tenant import uid
 from app.onboarding import require_onboarding, modulos_activos, render_coach
 from app.templates import MODULE_TEMPLATES
+from app.security import esc
 from app.ai_client import chat_simple, estado_gemini, verificar_conexion
 from app.timezone_config import (
     date, datetime,           # re-exportados — todo el código existente funciona
@@ -517,10 +518,10 @@ with st.sidebar:
     st.markdown(f"""
     <div style="padding:0.5rem;">
         <p style="color:#f0f6fc;margin:0;font-weight:600;">
-            👤 {st.session_state.user_name}
+            👤 {esc(st.session_state.user_name)}
         </p>
         <p style="color:#8b949e;margin:0;font-size:0.75rem;">
-            {_ahora_fecha_str()} · {TZ_NAME}
+            {esc(_ahora_fecha_str())} · {esc(TZ_NAME)}
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -558,9 +559,9 @@ with st.sidebar:
         hora_txt   = f" — {proxima_cita['hora'][:5]}" if proxima_cita.get("hora") else ""
         st.markdown(f"""
         <div style="background:#1a1229;border:1px solid #a371f7;border-radius:8px;padding:0.6rem;">
-            <div style="color:#a371f7;font-size:0.7rem;font-weight:700;">{label_cita}</div>
-            <div style="color:#f0f6fc;font-size:0.8rem;">{proxima_cita['titulo'][:25]}</div>
-            <div style="color:#8b949e;font-size:0.7rem;">{proxima_cita['fecha']}{hora_txt}</div>
+            <div style="color:#a371f7;font-size:0.7rem;font-weight:700;">{esc(label_cita)}</div>
+            <div style="color:#f0f6fc;font-size:0.8rem;">{esc((proxima_cita['titulo'] or '')[:25])}</div>
+            <div style="color:#8b949e;font-size:0.7rem;">{esc(proxima_cita['fecha'])}{esc(hora_txt)}</div>
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -810,7 +811,7 @@ for i, cfg in enumerate(configs_hab):
     simbolo    = "✅"       if completado else "○"
     color_s    = "#3fb950" if completado else "#8b949e"
     hora_tag   = (
-        f'<div style="color:#3fb950;font-size:0.7rem;">✓ {hora_ok}</div>'
+        f'<div style="color:#3fb950;font-size:0.7rem;">✓ {esc(hora_ok)}</div>'
         if hora_ok else ""
     )
     with cols_h[i % n_cols]:
@@ -818,10 +819,10 @@ for i, cfg in enumerate(configs_hab):
         <div style="background:{color_f};border:1px solid {color_b};
                     border-radius:12px;padding:1rem;
                     text-align:center;margin-bottom:0.5rem;">
-            <div style="font-size:1.5rem;">{cfg['emoji']}</div>
-            <div style="color:#f0f6fc;font-weight:600;font-size:0.9rem;">{cfg['label']}</div>
+            <div style="font-size:1.5rem;">{esc(cfg['emoji'])}</div>
+            <div style="color:#f0f6fc;font-weight:600;font-size:0.9rem;">{esc(cfg['label'])}</div>
             <div style="color:{color_s};font-size:1.8rem;line-height:1.2;">{simbolo}</div>
-            <div style="color:#8b949e;font-size:0.75rem;">{cfg['hora']}</div>
+            <div style="color:#8b949e;font-size:0.75rem;">{esc(cfg['hora'])}</div>
             {hora_tag}
         </div>
         """, unsafe_allow_html=True)

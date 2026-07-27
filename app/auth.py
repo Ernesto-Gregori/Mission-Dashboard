@@ -13,6 +13,7 @@ from app.database import (
     crear_usuario,
     autenticar_usuario,
     listar_usuarios,
+    obtener_usuario_activo,
 )
 from app.multiuser import provision_user_defaults
 from app.stability import invalidate_data_caches
@@ -119,6 +120,7 @@ def require_auth():
     """
     Llamar en CADA página justo después de st.set_page_config().
     Bloquea el acceso si no hay sesión autenticada.
+    Revalida contra BD (usuario desactivado / borrado).
     """
     ensure_database()
 
@@ -128,7 +130,16 @@ def require_auth():
         st.session_state.user = None
 
     if st.session_state.authenticated and st.session_state.user:
-        return st.session_state.user
+        raw = st.session_state.user
+        uid_sess = raw.get("id") if isinstance(raw, dict) else None
+        if uid_sess is not None:
+            fresh = obtener_usuario_activo(int(uid_sess))
+            if fresh:
+                st.session_state.user = fresh
+                st.session_state.user_name = fresh.get("username") or st.session_state.get("user_name")
+                return fresh
+        st.session_state.authenticated = False
+        st.session_state.user = None
 
     n = contar_usuarios()
     if n == 0:
@@ -172,7 +183,7 @@ def panel_gestion_usuarios():
 
     st.divider()
     st.subheader("➕ Crear usuario nuevo")
-    st.caption("Mínimo 3 caracteres en el usuario y 6 en la contraseña.")
+    st.caption("Mínimo 3 caracteres en el usuario (a-z, 0-9, _) y 8 en la contraseña.")
     with st.form("crear_usuario_form", clear_on_submit=True):
         nuevo_user = st.text_input("Usuario nuevo", placeholder="ej: esposa")
         nueva_pwd = st.text_input("Contraseña", type="password")

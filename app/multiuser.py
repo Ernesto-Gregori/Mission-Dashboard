@@ -447,6 +447,58 @@ def migrate_multiuser() -> dict:
     except Exception:
         pass
 
+    # Fast path: migración ya aplicada → no repetir PRAGMA/ALTER/rebuild
+    try:
+        done = ejecutar(
+            "SELECT id FROM _migrations WHERE id = 'multiuser_v1'",
+            fetchall=True,
+        ) or []
+        if done:
+            _ensure_user_modulos_table(ejecutar)
+            admin_id = _first_admin_id(ejecutar)
+            report["admin_id"] = admin_id
+            report["skipped"] = True
+            if admin_id:
+                try:
+                    n_mod = ejecutar(
+                        "SELECT COUNT(*) AS n FROM user_modulos WHERE user_id = ? AND activo = 1",
+                        [admin_id],
+                        fetchall=True,
+                    ) or [{"n": 0}]
+                    has_modules = int(n_mod[0]["n"] or 0) > 0
+                    has_legacy = False
+                    if not has_modules:
+                        for table in (
+                            "gastos_sobres",
+                            "devocionales",
+                            "bitacora_semanal",
+                            "libros",
+                            "registros_salud",
+                            "matrimonio_citas",
+                            "sandbox_ideas",
+                            "sesiones_completadas",
+                        ):
+                            try:
+                                r = ejecutar(
+                                    f"SELECT COUNT(*) AS n FROM {table} WHERE user_id = ?",
+                                    [admin_id],
+                                    fetchall=True,
+                                ) or [{"n": 0}]
+                                if int(r[0]["n"] or 0) > 0:
+                                    has_legacy = True
+                                    break
+                            except Exception:
+                                pass
+                    if has_modules or has_legacy:
+                        provision_user_defaults(
+                            admin_id, only_if_empty=True, seed_modules=True
+                        )
+                except Exception as e:
+                    print(f"[multiuser] provision admin (fast): {e}")
+            return report
+    except Exception as e:
+        print(f"[multiuser] fast-path check: {e}")
+
     _ensure_user_modulos_table(ejecutar)
     _rebuild_oauth_tokens(ejecutar)
 

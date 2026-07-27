@@ -203,20 +203,14 @@ def init_database():
     """)
     
     # Bloques por defecto: ya no se siembran globalmente (Coach / provision por usuario).
+    # NO deduplicar por nombre globalmente: borraría bloques de otros usuarios.
     bloques_default = []
-    
+
     for nombre, inicio, fin, dias, tipo, color in bloques_default:
         cursor.execute("""
             INSERT OR IGNORE INTO bloques_fijos (nombre, hora_inicio, hora_fin, dias_semana, tipo, color)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (nombre, inicio, fin, dias, tipo, color))
-
-    cursor.execute("""
-        DELETE FROM bloques_fijos 
-        WHERE id NOT IN (
-            SELECT MIN(id) FROM bloques_fijos GROUP BY nombre
-        )
-    """)
     
     # ═════════════════════════════════════════════════════════
     # TABLA: SESIONES_COMPLETADAS (registro diario)
@@ -1183,11 +1177,13 @@ def contar_usuarios() -> int:
 
 
 def crear_usuario(username: str, password: str, rol: str = "admin") -> tuple[bool, str]:
+    from app.security import username_valido
+
     username = (username or "").strip().lower()
-    if len(username) < 3:
-        return False, "El usuario debe tener al menos 3 caracteres"
-    if len(password or "") < 6:
-        return False, "La contraseña debe tener al menos 6 caracteres"
+    if not username_valido(username):
+        return False, "Usuario: 3–32 caracteres, solo a-z, 0-9 y _"
+    if len(password or "") < 8:
+        return False, "La contraseña debe tener al menos 8 caracteres"
     if rol not in ("admin", "usuario"):
         rol = "usuario"
     existentes = ejecutar(
@@ -1204,7 +1200,25 @@ def crear_usuario(username: str, password: str, rol: str = "admin") -> tuple[boo
         """, [username, password_hash, salt, rol])
         return True, "Usuario creado"
     except Exception as e:
-        return False, f"No se pudo crear: {e}"
+        print(f"[auth] crear_usuario: {e}")
+        return False, "No se pudo crear el usuario"
+
+
+def obtener_usuario_activo(user_id: int) -> dict | None:
+    """Recarga perfil desde BD (sesión / desactivación)."""
+    rows = ejecutar("""
+        SELECT id, username, rol, activo
+        FROM usuarios
+        WHERE id = ? AND activo = 1
+    """, [int(user_id)], fetchall=True) or []
+    if not rows:
+        return None
+    u = rows[0]
+    return {
+        "id": u["id"],
+        "username": u["username"],
+        "rol": u["rol"],
+    }
 
 
 def autenticar_usuario(username: str, password: str) -> dict | None:

@@ -156,6 +156,29 @@ Dashboard y nav muestran solo módulos activos; se puede reconfigurar desde el e
 
 **Setup del keep-awake:** secret `STREAMLIT_APP_URL` + workflow en Actions (ver README).
 
+## 14. Seguridad y optimización (ronda actual)
+
+### Seguridad corregida
+- OAuth Google Fit **solo por `user_id`** (sin secrets/disco compartidos entre cuentas)
+- Eliminado `DELETE` global de `bloques_fijos` por nombre
+- Sync Calendar filtra por usuario y usa `ejecutar()` (Turso-safe)
+- Sesión revalidada en cada `require_auth()` (usuario desactivado → logout)
+- Usernames `a-z0-9_`, contraseña mín. 8; helper `esc()` anti-XSS en dashboard/alerta matrimonio
+- Resaltados Biblioteca verifican ownership del libro
+
+### Optimización
+- `invalidate_data_caches()` en escrituras de Teología/Salud/Sandbox/Matrimonio/Biblioteca
+- `migrate_multiuser` fast-path si ya corrió (`multiuser_v1`)
+- Cache de módulos activos en sesión
+- Agenda usa cache de eventos Google en la vista semanal
+- Alerta Matrimonio IA no re-llama Groq en cada rerun
+
+### Pendiente (siguiente ronda)
+- Escape HTML en el resto de páginas (Finanzas, Deep Work, Teología cards)
+- Rate-limit de login y cuota Groq por usuario
+- Cifrar `oauth_tokens` at rest
+- Form/fragment en Salud «Hoy»
+
 ---
 
 ## Roadmap

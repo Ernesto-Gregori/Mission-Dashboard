@@ -112,13 +112,6 @@ def _load_token_from_db() -> Optional[dict]:
             fetchall=True,
         ) or []
         if not rows:
-            # Legacy: token sin user_id (migración)
-            rows = ejecutar(
-                "SELECT token_json FROM oauth_tokens WHERE provider = ? AND (user_id IS NULL OR user_id = ?)",
-                [PROVIDER, user_id],
-                fetchall=True,
-            ) or []
-        if not rows:
             return None
         return json.loads(rows[0]["token_json"])
     except Exception as e:
@@ -127,7 +120,7 @@ def _load_token_from_db() -> Optional[dict]:
 
 
 def _save_token_dict(token_data: dict) -> bool:
-    """Guarda token en BD por usuario (sobrevive sleep) y en disco si es posible."""
+    """Guarda token en BD por usuario (sobrevive sleep). Sin archivo global compartido."""
     global _ultimo_error_auth
     try:
         from app.database import ejecutar
@@ -157,7 +150,10 @@ def _save_token_dict(token_data: dict) -> bool:
             from app.tenant import try_uid
             user_id = try_uid()
             payload = json.dumps(token_data)
-            ejecutar("DELETE FROM oauth_tokens WHERE provider = ? AND (user_id = ? OR user_id IS NULL)", [PROVIDER, user_id])
+            ejecutar(
+                "DELETE FROM oauth_tokens WHERE provider = ? AND user_id = ?",
+                [PROVIDER, user_id],
+            )
             ejecutar("""
                 INSERT INTO oauth_tokens (user_id, provider, token_json, actualizado_en)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -167,12 +163,46 @@ def _save_token_dict(token_data: dict) -> bool:
             _ultimo_error_auth = f"No se pudo guardar token en BD: {e2}"
             return False
 
+    # Disco opcional SOLO por usuario (evita compartir token entre cuentas)
     try:
-        TOKEN_FILE.write_text(json.dumps(token_data, indent=2))
+        from app.tenant import try_uid
+        uid_disk = try_uid()
+        if uid_disk is not None:
+            path = TOKEN_FILE.parent / f"token_fit_u{uid_disk}.json"
+            path.write_text(json.dumps(token_data, indent=2))
     except Exception as e:
-        # En Streamlit Cloud el disco puede fallar; BD basta
         print(f"[GoogleFit] Disco no escribible (ok si hay BD): {e}")
     return True
+
+
+def _oauth_client_bootstrap() -> dict:
+    """Solo client_id / client_secret de la app OAuth — nunca refresh_token ajeno."""
+    out: dict = {}
+    try:
+        import streamlit as st
+        if "google_fit_token" in st.secrets:
+            m = st.secrets["google_fit_token"]
+            if m.get("client_id"):
+                out["client_id"] = m["client_id"]
+            if m.get("client_secret"):
+                out["client_secret"] = m["client_secret"]
+            if m.get("token_uri"):
+                out["token_uri"] = m["token_uri"]
+    except Exception:
+        pass
+    if CREDENTIALS_FILE.exists():
+        try:
+            cred_file = json.loads(CREDENTIALS_FILE.read_text())
+            installed = cred_file.get("installed") or cred_file.get("web") or {}
+            out.setdefault("client_id", installed.get("client_id"))
+            out.setdefault("client_secret", installed.get("client_secret"))
+            out.setdefault(
+                "token_uri",
+                installed.get("token_uri") or "https://oauth2.googleapis.com/token",
+            )
+        except Exception:
+            pass
+    return {k: v for k, v in out.items() if v}
 
 
 def guardar_token_desde_json(texto: str) -> tuple[bool, str]:
@@ -183,21 +213,17 @@ def guardar_token_desde_json(texto: str) -> tuple[bool, str]:
         return False, f"JSON inválido: {e}"
     if not data.get("refresh_token") and not data.get("token"):
         return False, "El JSON debe incluir refresh_token o token"
-    # Completar client_id/secret desde credentials o secrets si faltan
+    # Completar solo client_id/secret de la app (no tokens de otros usuarios)
     if not data.get("client_id") or not data.get("client_secret"):
-        bootstrap = _load_token_from_secrets() or {}
+        bootstrap = _oauth_client_bootstrap()
         data.setdefault("client_id", bootstrap.get("client_id"))
         data.setdefault("client_secret", bootstrap.get("client_secret"))
-        data.setdefault("token_uri", bootstrap.get("token_uri")
-                        or "https://oauth2.googleapis.com/token")
-        if CREDENTIALS_FILE.exists():
-            try:
-                cred_file = json.loads(CREDENTIALS_FILE.read_text())
-                installed = cred_file.get("installed") or cred_file.get("web") or {}
-                data.setdefault("client_id", installed.get("client_id"))
-                data.setdefault("client_secret", installed.get("client_secret"))
-            except Exception:
-                pass
+        data.setdefault(
+            "token_uri",
+            bootstrap.get("token_uri") or "https://oauth2.googleapis.com/token",
+        )
+    if not data.get("client_id") or not data.get("client_secret"):
+        return False, "Falta client_id/client_secret en el JSON (o en credentials_fit.json)"
     data["scopes"] = _normalize_scopes(data.get("scopes") or SCOPES)
     if _save_token_dict(data):
         return True, "Token guardado en la base de datos. Ya no deberías re-vincular tras cada sleep."
@@ -257,18 +283,15 @@ def _refresh_and_persist(creds):
 
 def _get_credentials():
     """
-    Obtiene credenciales OAuth2.
-    Orden: BD (Turso/SQLite) → Streamlit Secrets → token_fit.json
-    Tras refrescar, siempre se persiste en BD.
+    Credenciales OAuth2 solo del usuario en sesión (tabla oauth_tokens).
+    No reutiliza secrets/disco compartidos (evita fuga entre cuentas).
     """
     global _ultimo_error_auth
-    token_data = (
-        _load_token_from_db()
-        or _load_token_from_secrets()
-        or _load_token_from_disk()
-    )
+    token_data = _load_token_from_db()
     if not token_data:
-        _ultimo_error_auth = "Sin token. Conecta Google Fit o pega el JSON del token."
+        _ultimo_error_auth = (
+            "Sin token para tu usuario. Conecta Google Fit o pega el JSON del token."
+        )
         return None
 
     creds = _creds_from_token_dict(token_data)
@@ -276,9 +299,6 @@ def _get_credentials():
         return None
 
     if creds.valid:
-        # Migrar a BD si solo estaba en secrets/disco
-        if not _load_token_from_db():
-            _save_token_dict(json.loads(creds.to_json()))
         return creds
 
     return _refresh_and_persist(creds)

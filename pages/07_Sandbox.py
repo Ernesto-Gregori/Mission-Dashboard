@@ -128,7 +128,7 @@ def obtener_ideas(estado=None, dominio=None, busqueda="") -> list:
 def guardar_idea(titulo: str, descripcion: str, dominio: str,
                  categoria: str, etiquetas: list, prioridad: int,
                  motivacion: int, notas: str = "") -> int:
-    return ejecutar("""
+    rid = ejecutar("""
         INSERT INTO sandbox_ideas
             (user_id, titulo, descripcion, dominio, categoria,
              etiquetas, prioridad, motivacion, notas)
@@ -141,6 +141,8 @@ def guardar_idea(titulo: str, descripcion: str, dominio: str,
         int(prioridad), int(motivacion),
         str(notas or ""),
     ])
+    invalidate_data_caches()
+    return rid
 
 
 def actualizar_idea(idea_id: int, titulo: str, descripcion: str,
@@ -163,10 +165,12 @@ def actualizar_idea(idea_id: int, titulo: str, descripcion: str,
         int(idea_id),
         uid(),
     ])
+    invalidate_data_caches()
 
 
 def eliminar_idea(idea_id: int) -> None:
     ejecutar("DELETE FROM sandbox_ideas WHERE id=? AND user_id=?", [int(idea_id), uid()])
+    invalidate_data_caches()
 
 
 # ── SNIPPETS ──────────────────────────────────────────────────
@@ -195,7 +199,7 @@ def obtener_snippets(lenguaje=None, dominio=None, busqueda="") -> list:
 
 def guardar_snippet(titulo: str, descripcion: str, lenguaje: str,
                     codigo: str, tags: list, dominio: str) -> int:
-    return ejecutar("""
+    rid = ejecutar("""
         INSERT INTO sandbox_snippets
             (user_id, titulo, descripcion, lenguaje, codigo, tags, dominio)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -205,6 +209,8 @@ def guardar_snippet(titulo: str, descripcion: str, lenguaje: str,
         str(lenguaje), str(codigo),
         json.dumps(tags), str(dominio),
     ])
+    invalidate_data_caches()
+    return rid
 
 
 def actualizar_snippet(snip_id: int, titulo: str, descripcion: str,
@@ -223,10 +229,12 @@ def actualizar_snippet(snip_id: int, titulo: str, descripcion: str,
         int(snip_id),
         uid(),
     ])
+    invalidate_data_caches()
 
 
 def eliminar_snippet(snip_id: int) -> None:
     ejecutar("DELETE FROM sandbox_snippets WHERE id=? AND user_id=?", [int(snip_id), uid()])
+    invalidate_data_caches()
 
 
 def incrementar_uso(snip_id: int) -> None:
@@ -244,7 +252,7 @@ def guardar_sesion(fecha, duracion: int, tipo: str, dominio: str,
                    codigo: str, satisfaccion: int) -> int:
     """FIX Turso: fecha → str ISO, tipos primitivos en todos los campos."""
     fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
-    return ejecutar("""
+    rid = ejecutar("""
         INSERT INTO sandbox_sesiones
             (user_id, fecha, duracion_minutos, tipo_actividad, dominio,
              proyecto_id, descripcion, codigo_producido, satisfaccion)
@@ -260,6 +268,8 @@ def guardar_sesion(fecha, duracion: int, tipo: str, dominio: str,
         str(codigo or "") or None,
         int(satisfaccion),
     ])
+    invalidate_data_caches()
+    return rid
 
 
 def obtener_sesiones_recientes(limite: int = 10) -> list:

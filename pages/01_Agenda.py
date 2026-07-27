@@ -565,7 +565,7 @@ with tab_cal:
     st.divider()
 
     # Datos de la semana
-    eventos   = obtener_eventos_semana(lunes_sel, domingo_sel)
+    eventos   = _eventos_semana_cached(lunes_sel.isoformat(), domingo_sel.isoformat(), uid())
     dw_ses    = obtener_deepwork_semana(lunes_sel, domingo_sel)
     devos     = obtener_devocionales_semana(lunes_sel, domingo_sel)
     salud_sem = obtener_salud_semana(lunes_sel, domingo_sel)
@@ -1085,7 +1085,7 @@ with tab_historial_bit:
             devos_sel   = obtener_devocionales_semana(lun_sel, dom_sel)
             dw_sel      = obtener_deepwork_semana(lun_sel, dom_sel)
             salud_sel   = obtener_salud_semana(lun_sel, dom_sel)
-            eventos_sel = obtener_eventos_semana(lun_sel, dom_sel)
+            eventos_sel = _eventos_semana_cached(lun_sel.isoformat(), dom_sel.isoformat(), uid())
 
             dw_comp_sel = len([s for s in dw_sel if s.get("completado") == 1])
             ej_sel      = len([s for s in salud_sel if s.get("hizo_ejercicio")])
