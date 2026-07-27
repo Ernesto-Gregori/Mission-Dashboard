@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from app.database import init_database, listar_usuarios, crear_usuario
+from app.stability import ensure_database, invalidate_data_caches
+from app.database import listar_usuarios, crear_usuario
 from app.auth import require_auth, panel_gestion_usuarios, logout
 
 st.set_page_config(
@@ -17,7 +18,7 @@ st.set_page_config(
 )
 
 require_auth()
-init_database()
+ensure_database()
 
 st.title("🔐 Usuarios y seguridad")
 st.caption("Aquí creas cuentas nuevas. Las contraseñas se guardan con hash (no en texto plano).")

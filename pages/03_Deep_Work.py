@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from app.database import init_database, ejecutar, ejecutar_cached, obtener_tipos_bloque
+from app.stability import ensure_database, invalidate_data_caches
+from app.database import ejecutar, ejecutar_cached, obtener_tipos_bloque
 from app.ai_client import chat_simple, api_key_configurada
 from app.timezone_config import (
     date, datetime,
@@ -25,8 +26,7 @@ st.set_page_config(
 
 from app.auth import require_auth
 require_auth()
-
-init_database()
+ensure_database()
 
 # ═══════════════════════════════════════════════════════════════
 # CSS
@@ -102,7 +102,8 @@ def registrar_sesion(fecha: str, bloque_id: int,
             (fecha, bloque_fijo_id, estado, notas)
         VALUES (?, ?, ?, ?)
     """, [fecha, bloque_id, estado, notas])
-    obtener_bloques_fijos.clear()   # invalida cache tras escritura
+    obtener_bloques_fijos.clear()
+    invalidate_data_caches()
 
 
 def obtener_sesiones_semana(fecha_inicio: str, fecha_fin: str) -> list:
@@ -287,24 +288,20 @@ with tab_hoy:
                 with st.popover("⚡ Marcar", use_container_width=True):
                     st.markdown(f"**{bloque['nombre']}**")
                     ESTADOS = ["Pendiente","Completado","Parcial","No_realizado","Postergado"]
-
-                    nuevo_estado = st.selectbox(
-                        "Estado", ESTADOS,
-                        index=ESTADOS.index(estado_actual) if estado_actual else 0,
-                        key=f"estado_{key_base}",
-                    )
-                    notas = st.text_area(
-                        "Notas de la sesión",
-                        value=notas_actuales or "",
-                        placeholder="¿Qué lograste? ¿Hubo distracciones?",
-                        key=f"notas_{key_base}",
-                    )
-
-                    if st.button("💾 Guardar", key=f"guardar_{key_base}",
-                                 use_container_width=True):
-                        registrar_sesion(fecha_str, bloque["id"], nuevo_estado, notas)
-                        st.success("✅ Guardado")
-                        st.rerun()
+                    with st.form(f"form_sesion_{key_base}"):
+                        nuevo_estado = st.selectbox(
+                            "Estado", ESTADOS,
+                            index=ESTADOS.index(estado_actual) if estado_actual else 0,
+                        )
+                        notas = st.text_area(
+                            "Notas de la sesión",
+                            value=notas_actuales or "",
+                            placeholder="¿Qué lograste? ¿Hubo distracciones?",
+                        )
+                        if st.form_submit_button("💾 Guardar", use_container_width=True):
+                            registrar_sesion(fecha_str, bloque["id"], nuevo_estado, notas)
+                            st.success("✅ Guardado")
+                            st.rerun()
 
                     st.divider()
                     st.caption("🤖 Coach IA")

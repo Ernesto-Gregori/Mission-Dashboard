@@ -22,6 +22,11 @@ Sistema de gestión de vida personal — uso privado.
 - Esta app es **Streamlit**. En Streamlit Cloud funciona tal cual.
 - **NiceGUI / Flet no corren en Streamlit Cloud** — haría falta otro hosting y reescribir la UI. Ver `DIAGNOSTICO.md`.
 
+## Estabilidad / recargas
+- Los formularios (`st.form`) evitan recargar al escribir (Finanzas, Bitácora, Deep Work, hábitos, chat).
+- La BD se inicializa una sola vez por sesión (`ensure_database`).
+- Tras guardar se limpian caches para ver el cambio al instante.
+
 ## Persistencia (importante)
 - Todas las escrituras (incluida **Finanzas**) pasan por `ejecutar()` → misma BD
 - Con Turso configurado, los datos persisten en la nube

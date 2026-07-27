@@ -9,7 +9,8 @@ import json
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
-from app.database import init_database, ejecutar, ejecutar_cached
+from app.stability import ensure_database, invalidate_data_caches
+from app.database import ejecutar, ejecutar_cached
 from app.ai_client import chat_simple, api_key_configurada
 from app.google_fit import obtener_datos_dia, fit_configurado, fit_autenticado
 from app.timezone_config import (
@@ -26,8 +27,7 @@ st.set_page_config(
 
 from app.auth import require_auth
 require_auth()
-
-init_database()
+ensure_database()
 
 # ═══════════════════════════════════════════════════════════════
 # SYSTEM PROMPT

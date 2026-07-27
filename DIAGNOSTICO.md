@@ -95,13 +95,27 @@ Coste: reescribir frontend, auth, y capa de datos. La lógica de Python (IA, Goo
 
 ---
 
-## 7. Plan sugerido (prioridad)
+## 7. Estabilidad Streamlit (recargas)
+
+Mitigaciones ya aplicadas (seguir en Streamlit):
+
+- `ensure_database()` — schema una vez por sesión
+- `invalidate_data_caches()` — tras guardar, la UI no queda 30s desfasada
+- Finanzas: período/ingreso en `st.form`; historial en `st.fragment`
+- Agenda bitácora: formulario completo (escribir sin recargar)
+- Deep Work: marcar sesión en `st.form` dentro del popover
+- Dashboard: hábitos nuevos y chat IA en forms; seed de hábitos 1×/día
+- `calcular_sobres` cacheado
+
+Streamlit **siempre** re-ejecuta el script en interacciones fuera de form/fragment; no se puede eliminar al 100% sin cambiar de framework.
+
+## 8. Plan sugerido (prioridad)
 
 1. ~~Unificar finanzas con `ejecutar()` / Turso~~
 2. ~~Auth real + proteger todas las páginas~~
 3. ~~Página visible Usuarios~~
-4. Confirmar Turso / secrets y redeploy en Streamlit Cloud
-5. Reducir recargas con más `st.form`
+4. ~~Forms / fragments / cache para recargas~~
+5. Confirmar Turso / secrets y redeploy en Streamlit Cloud
 6. NiceGUI/Flet **solo** si cambias de hosting (no compatible con Streamlit Cloud)
 
 ---

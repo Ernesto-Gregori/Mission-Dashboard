@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
+from app.stability import ensure_database, after_write, invalidate_data_caches
 from app.database import (
-    init_database,
     ejecutar,
     ejecutar_cached,
     obtener_ingreso,
@@ -39,8 +39,7 @@ st.set_page_config(
 
 from app.auth import require_auth
 require_auth()
-
-init_database()
+ensure_database()
 
 # ═══════════════════════════════════════════════════════════════
 # CONSTANTES
@@ -186,6 +185,16 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
     todos = citas + locales + google_eventos
     todos.sort(key=lambda e: (e.get("fecha",""), e.get("hora_inicio") or "23:59"))
     return todos
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _eventos_semana_cached(lunes_iso: str, domingo_iso: str) -> list:
+    """Cache corto para no pegarle a Google en cada tecla/recarga."""
+    from datetime import date as _date
+    return obtener_eventos_semana(
+        _date.fromisoformat(lunes_iso),
+        _date.fromisoformat(domingo_iso),
+    )
 
 
 def obtener_deepwork_semana(lunes: date, domingo: date) -> list:
@@ -738,153 +747,169 @@ with tab_bitacora:
     semaforo_aho_auto = _semaforo("Futuro_Hogar")
     semaforo_ext_auto = _semaforo("Ministerio_Extras")
 
-    eventos_bit_auto = obtener_eventos_semana(lunes_bit_sel, domingo_bit)
+    eventos_bit_auto = _eventos_semana_cached(lunes_bit_sel.isoformat(), domingo_bit.isoformat())
     citas_mat_auto   = [e for e in eventos_bit_auto if e.get("ambito") == "Matrimonio"]
 
     racha_dev_auto = calcular_racha_devocional()
     racha_ej_auto  = calcular_racha_ejercicio()
     racha_dw_auto  = calcular_racha_deepwork()
 
-    # ── Sección 1: Victorias ─────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 🏆 1. Definición de Objetivos — Las 3 Victorias")
-    st.caption("¿Qué 3 cosas harían esta semana un éxito?")
+    # ── Formulario bitácora (sin recarga al escribir) ─────────
+    st.info("✏️ Completa el formulario y pulsa **Guardar bitácora**. Mientras escribes no se recarga la página.")
 
-    col_v1, col_v2, col_v3 = st.columns(3)
-    with col_v1:
-        v1 = st.text_area("🥇 Victoria #1", value=bit.get("victoria_1",""),
-            height=100, placeholder="Ej: Entregar proyecto de programación", key="bit_v1")
-    with col_v2:
-        v2 = st.text_area("🥈 Victoria #2", value=bit.get("victoria_2",""),
-            height=100, placeholder="Ej: Completar capítulo de Hermenéutica", key="bit_v2")
-    with col_v3:
-        v3 = st.text_area("🥉 Victoria #3", value=bit.get("victoria_3",""),
-            height=100, placeholder="Ej: Cita de calidad con esposa", key="bit_v3")
+    with st.form("form_bitacora_semanal"):
+        st.markdown("### 🏆 1. Definición de Objetivos — Las 3 Victorias")
+        st.caption("¿Qué 3 cosas harían esta semana un éxito?")
 
-    # ── Sección 2: Monitor Financiero ────────────────────────
-    st.markdown("---")
-    st.markdown("### 💰 2. Monitor Financiero")
+        col_v1, col_v2, col_v3 = st.columns(3)
+        with col_v1:
+            v1 = st.text_area("🥇 Victoria #1", value=bit.get("victoria_1",""),
+                height=100, placeholder="Ej: Entregar proyecto de programación")
+        with col_v2:
+            v2 = st.text_area("🥈 Victoria #2", value=bit.get("victoria_2",""),
+                height=100, placeholder="Ej: Completar capítulo de Hermenéutica")
+        with col_v3:
+            v3 = st.text_area("🥉 Victoria #3", value=bit.get("victoria_3",""),
+                height=100, placeholder="Ej: Cita de calidad con esposa")
 
-    col_f1, col_f2, col_f3 = st.columns(3)
-    with col_f1:
-        ingreso = st.number_input("Ingreso actual $", min_value=0.0, step=100.0,
-            value=float(bit.get("ingreso_actual") or ingreso_auto or 0),
-            key="bit_ingreso")
-        sobre_sup = st.checkbox("✅ Sobre de Supervivencia (60-70%) llenado",
-            value=bool(bit.get("sobre_supervivencia", 0)), key="bit_sobre_sup")
-    with col_f2:
-        aporte_trans = st.number_input("Aporte Fondo Transición $", min_value=0.0,
-            step=50.0, value=float(bit.get("aporte_transicion") or 0), key="bit_aporte")
-        presup_cita = st.number_input("Presupuesto cita con esposa $", min_value=0.0,
-            step=50.0, value=float(bit.get("presupuesto_cita") or 0), key="bit_presup_cita")
-    with col_f3:
-        gasto_pausado = st.text_input("⚠️ Gasto/sobre a pausar (opcional)",
-            value=bit.get("gasto_pausado",""), key="bit_gasto_pausado")
+        st.markdown("---")
+        st.markdown("### 💰 2. Monitor Financiero")
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            ingreso = st.number_input("Ingreso actual $", min_value=0.0, step=100.0,
+                value=float(bit.get("ingreso_actual") or ingreso_auto or 0))
+            sobre_sup = st.checkbox("✅ Sobre de Supervivencia (60-70%) llenado",
+                value=bool(bit.get("sobre_supervivencia", 0)))
+        with col_f2:
+            aporte_trans = st.number_input("Aporte Fondo Transición $", min_value=0.0,
+                step=50.0, value=float(bit.get("aporte_transicion") or 0))
+            presup_cita = st.number_input("Presupuesto cita con esposa $", min_value=0.0,
+                step=50.0, value=float(bit.get("presupuesto_cita") or 0))
+        with col_f3:
+            gasto_pausado = st.text_input("⚠️ Gasto/sobre a pausar (opcional)",
+                value=bit.get("gasto_pausado",""))
 
-    st.markdown("**🚦 Estado del Semáforo:**")
-    col_sf1, col_sf2, col_sf3 = st.columns(3)
-    opciones_sem = ["verde", "amarillo", "rojo"]
-    with col_sf1:
-        sem_sup = st.selectbox("Supervivencia", opciones_sem,
-            index=opciones_sem.index(bit.get("semaforo_superv","verde")),
-            format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}",
-            key="bit_sem_sup")
-    with col_sf2:
-        sem_aho = st.selectbox("Ahorros", opciones_sem,
-            index=opciones_sem.index(bit.get("semaforo_ahorros","verde")),
-            format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}",
-            key="bit_sem_aho")
-    with col_sf3:
-        sem_ext = st.selectbox("Extras", opciones_sem,
-            index=opciones_sem.index(bit.get("semaforo_extras","verde")),
-            format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}",
-            key="bit_sem_ext")
+        st.markdown("**🚦 Estado del Semáforo:**")
+        col_sf1, col_sf2, col_sf3 = st.columns(3)
+        opciones_sem = ["verde", "amarillo", "rojo"]
+        with col_sf1:
+            sem_sup = st.selectbox("Supervivencia", opciones_sem,
+                index=opciones_sem.index(bit.get("semaforo_superv","verde")),
+                format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}")
+        with col_sf2:
+            sem_aho = st.selectbox("Ahorros", opciones_sem,
+                index=opciones_sem.index(bit.get("semaforo_ahorros","verde")),
+                format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}")
+        with col_sf3:
+            sem_ext = st.selectbox("Extras", opciones_sem,
+                index=opciones_sem.index(bit.get("semaforo_extras","verde")),
+                format_func=lambda x: f"{SEMAFOROS[x]} {x.capitalize()}")
 
-    # ── Sección 3: Cita ──────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 💑 3. Diseño de Cita y Conexión")
+        st.markdown("---")
+        st.markdown("### 💑 3. Diseño de Cita y Conexión")
+        eventos_bit = eventos_bit_auto
+        citas_mat = citas_mat_auto
+        if citas_mat and not bit.get("actividad_cita"):
+            st.info(f"💡 Tienes programado: **{citas_mat[0]['titulo']}** el {citas_mat[0]['fecha']}")
+        col_cit1, col_cit2 = st.columns(2)
+        with col_cit1:
+            act_cita = st.text_input("Actividad elegida",
+                value=bit.get("actividad_cita","") or (citas_mat[0]["titulo"] if citas_mat else ""),
+                placeholder="Cena en casa, salida al parque...")
+        with col_cit2:
+            costo_cita = st.number_input("Costo estimado $", min_value=0.0, step=50.0,
+                value=float(bit.get("costo_cita") or 0))
 
-    eventos_bit  = obtener_eventos_semana(lunes_bit_sel, domingo_bit)
-    citas_mat    = [e for e in eventos_bit if e.get("ambito") == "Matrimonio"]
-
-    if citas_mat and not bit.get("actividad_cita"):
-        st.info(f"💡 Tienes programado: **{citas_mat[0]['titulo']}** el {citas_mat[0]['fecha']}")
-
-    col_cit1, col_cit2 = st.columns(2)
-    with col_cit1:
-        act_cita = st.text_input("Actividad elegida",
-            value=bit.get("actividad_cita","") or (citas_mat[0]["titulo"] if citas_mat else ""),
-            placeholder="Cena en casa, salida al parque...", key="bit_act_cita")
-    with col_cit2:
-        costo_cita = st.number_input("Costo estimado $", min_value=0.0, step=50.0,
-            value=float(bit.get("costo_cita") or 0), key="bit_costo_cita")
-
-    if sem_ext == "rojo" and costo_cita > 0:
-        st.warning("⚠️ Semáforo extras en 🔴 — considera una cita en casa")
-    elif sem_ext == "amarillo" and costo_cita > 200:
-        st.warning("🟡 Extras en amarillo — cita con presupuesto ajustado")
-
-    # ── Sección 4: Lectura ───────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 📚 4. Log de Lectura y Conocimiento")
-
-    libros_leyendo = obtener_libros_leyendo()
-
-    col_lib1, col_lib2 = st.columns(2)
-    with col_lib1:
-        if libros_leyendo:
-            if len(libros_leyendo) > 1:
-                libro_sel_idx = st.selectbox(
-                    "📖 Seleccionar libro",
-                    options=range(len(libros_leyendo)),
-                    format_func=lambda i: (
-                        f"{libros_leyendo[i]['titulo']} "
-                        f"— pág. {libros_leyendo[i]['pagina_actual'] or 0}"
-                    ),
-                    key="bit_sel_libro",
+        st.markdown("---")
+        st.markdown("### 📚 4. Log de Lectura y Conocimiento")
+        libros_leyendo = obtener_libros_leyendo()
+        libro_bit = bit.get("libro_actual","") or ""
+        pag_default = 0
+        col_lib1, col_lib2 = st.columns(2)
+        with col_lib1:
+            if libros_leyendo:
+                if len(libros_leyendo) > 1:
+                    libro_sel_idx = st.selectbox(
+                        "📖 Seleccionar libro",
+                        options=range(len(libros_leyendo)),
+                        format_func=lambda i: (
+                            f"{libros_leyendo[i]['titulo']} "
+                            f"— pág. {libros_leyendo[i]['pagina_actual'] or 0}"
+                        ),
+                    )
+                    libro_activo_sel = libros_leyendo[libro_sel_idx]
+                else:
+                    libro_activo_sel = libros_leyendo[0]
+                pag_default = libro_activo_sel.get("pagina_actual") or 0
+                total_pag   = libro_activo_sel.get("total_paginas") or 0
+                pct_libro   = int(pag_default / total_pag * 100) if total_pag else 0
+                st.success(
+                    f"📖 **{libro_activo_sel['titulo']}** — "
+                    f"pág. {pag_default} / {total_pag} ({pct_libro}%)"
                 )
-                libro_activo_sel = libros_leyendo[libro_sel_idx]
+                st.progress(pct_libro / 100)
+                libro_bit = f"{libro_activo_sel['titulo']} — {libro_activo_sel['autor'] or ''}"
             else:
-                libro_activo_sel = libros_leyendo[0]
+                st.info("📚 No hay libros en lectura activa")
+                libro_bit = st.text_input("Libro actual",
+                    value=bit.get("libro_actual",""),
+                    placeholder="Título del libro...")
+            pag_bit = st.number_input("Página actual", min_value=0, step=1,
+                value=int(bit.get("pagina_actual") or pag_default))
+        with col_lib2:
+            frase_bit = st.text_area("✨ Frase favorita de la semana",
+                value=bit.get("frase_favorita",""), height=120,
+                placeholder="La frase que más te impactó...")
 
-            pag_default = libro_activo_sel.get("pagina_actual") or 0
-            total_pag   = libro_activo_sel.get("total_paginas") or 0
-            pct_libro   = int(pag_default / total_pag * 100) if total_pag else 0
-            st.success(
-                f"📖 **{libro_activo_sel['titulo']}** — "
-                f"pág. {pag_default} / {total_pag} ({pct_libro}%)"
-            )
-            st.progress(pct_libro / 100)
-            libro_bit = f"{libro_activo_sel['titulo']} — {libro_activo_sel['autor'] or ''}"
-        else:
-            pag_default = 0
-            st.info("📚 No hay libros en lectura activa")
-            libro_bit = st.text_input("Libro actual",
-                value=bit.get("libro_actual",""),
-                placeholder="Título del libro...", key="bit_libro")
+        st.markdown("---")
+        st.markdown("### 🌙 5. Vaciado Mental y Fricción Cero")
+        st.caption("Domingo 20:30 — Soltar antes de dormir")
+        col_vm1, col_vm2 = st.columns(2)
+        with col_vm1:
+            pendientes = st.text_area("📤 Pendientes para 'Soltar'",
+                value=bit.get("pendientes_soltar",""), height=120,
+                placeholder="Escribe todo lo que está en tu mente...")
+        with col_vm2:
+            reflexion = st.text_area("💭 Reflexión de la semana",
+                value=bit.get("reflexion_semana",""), height=120,
+                placeholder="¿Cómo fue la semana?\n¿Qué aprendiste?")
 
-        pag_bit = st.number_input("Página actual", min_value=0, step=1,
-            value=int(bit.get("pagina_actual") or pag_default), key="bit_pag")
+        guardar_bit = st.form_submit_button(
+            "💾 Guardar bitácora", use_container_width=True, type="primary"
+        )
 
-    with col_lib2:
-        frase_bit = st.text_area("✨ Frase favorita de la semana",
-            value=bit.get("frase_favorita",""), height=120,
-            placeholder="La frase que más te impactó...", key="bit_frase")
+    if guardar_bit:
+        ok = guardar_bitacora({
+            "semana_inicio":       lunes_bit_sel.isoformat(),
+            "victoria_1":          v1,
+            "victoria_2":          v2,
+            "victoria_3":          v3,
+            "ingreso_actual":      ingreso,
+            "sobre_supervivencia": 1 if sobre_sup else 0,
+            "aporte_transicion":   aporte_trans,
+            "presupuesto_cita":    presup_cita,
+            "semaforo_superv":     sem_sup,
+            "semaforo_ahorros":    sem_aho,
+            "semaforo_extras":     sem_ext,
+            "gasto_pausado":       gasto_pausado,
+            "actividad_cita":      act_cita,
+            "costo_cita":          costo_cita,
+            "libro_actual":        libro_bit,
+            "pagina_actual":       pag_bit,
+            "frase_favorita":      frase_bit,
+            "pendientes_soltar":   pendientes,
+            "reflexion_semana":    reflexion,
+        })
+        if ok:
+            invalidate_data_caches()
+            try:
+                _eventos_semana_cached.clear()
+            except Exception:
+                pass
+            st.success("✅ Bitácora guardada correctamente")
+            st.rerun()
 
-    # ── Sección 5: Vaciado Mental ─────────────────────────────
-    st.markdown("---")
-    st.markdown("### 🌙 5. Vaciado Mental y Fricción Cero")
-    st.caption("Domingo 20:30 — Soltar antes de dormir")
-
-    col_vm1, col_vm2 = st.columns(2)
-    with col_vm1:
-        pendientes = st.text_area("📤 Pendientes para 'Soltar'",
-            value=bit.get("pendientes_soltar",""), height=120,
-            placeholder="Escribe todo lo que está en tu mente...", key="bit_pendientes")
-    with col_vm2:
-        reflexion = st.text_area("💭 Reflexión de la semana",
-            value=bit.get("reflexion_semana",""), height=120,
-            placeholder="¿Cómo fue la semana?\n¿Qué aprendiste?", key="bit_reflexion")
+    eventos_bit = eventos_bit_auto
 
     # ── Datos automáticos ────────────────────────────────────
     st.markdown("---")
@@ -925,37 +950,11 @@ with tab_bitacora:
             SEMAFOROS[semaforo_sup_auto])
         col_fa4.metric("Disponible",    f"${sobres_data['total_disponible']:,.0f}")
 
-    # ── Guardar ──────────────────────────────────────────────
+    # ── IA (fuera del form) ──────────────────────────────────
     st.markdown("---")
     col_gbtn, col_ia_btn = st.columns(2)
-
     with col_gbtn:
-        if st.button("💾 Guardar bitácora", use_container_width=True,
-                     type="primary", key="btn_guardar_bit"):
-            ok = guardar_bitacora({
-                "semana_inicio":       lunes_bit_sel.isoformat(),
-                "victoria_1":          v1,
-                "victoria_2":          v2,
-                "victoria_3":          v3,
-                "ingreso_actual":      ingreso,
-                "sobre_supervivencia": 1 if sobre_sup else 0,
-                "aporte_transicion":   aporte_trans,
-                "presupuesto_cita":    presup_cita,
-                "semaforo_superv":     sem_sup,
-                "semaforo_ahorros":    sem_aho,
-                "semaforo_extras":     sem_ext,
-                "gasto_pausado":       gasto_pausado,
-                "actividad_cita":      act_cita,
-                "costo_cita":          costo_cita,
-                "libro_actual":        libro_bit,
-                "pagina_actual":       pag_bit,
-                "frase_favorita":      frase_bit,
-                "pendientes_soltar":   pendientes,
-                "reflexion_semana":    reflexion,
-            })
-            if ok:
-                st.success("✅ Bitácora guardada correctamente")
-                st.rerun()
+        st.caption("La bitácora se guarda con el botón del formulario de arriba.")
 
     with col_ia_btn:
         if st.button("🤖 Análisis completo IA", use_container_width=True,

@@ -8,13 +8,13 @@ auth.py - Autenticación centralizada para Mission Dashboard
 import streamlit as st
 
 from app.database import (
-    init_database,
+    ensure_database,
     contar_usuarios,
     crear_usuario,
     autenticar_usuario,
     listar_usuarios,
-    ensure_remote_schema,
 )
+from app.stability import invalidate_data_caches
 
 
 def _ocultar_chrome():
@@ -116,8 +116,7 @@ def require_auth():
     Llamar en CADA página justo después de st.set_page_config().
     Bloquea el acceso si no hay sesión autenticada.
     """
-    init_database()
-    ensure_remote_schema()
+    ensure_database()
 
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
@@ -181,6 +180,7 @@ def panel_gestion_usuarios():
             else:
                 ok, msg = crear_usuario(nuevo_user, nueva_pwd, rol=rol)
                 if ok:
+                    invalidate_data_caches()
                     st.success(f"✅ {msg}: **{nuevo_user.strip().lower()}**")
                     st.rerun()
                 else:

@@ -12,11 +12,13 @@ BASE_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(BASE_DIR / "app"))
 
 from app.database import (
-    init_database,
+    ensure_database,
     calcular_sobres,
     ejecutar,
     ejecutar_cached,
+    invalidate_data_caches,
 )
+from app.stability import after_write
 from app.auth import require_auth, logout, panel_gestion_usuarios
 from app.ai_client import chat_simple, estado_gemini, verificar_conexion
 from app.timezone_config import (
@@ -52,9 +54,9 @@ def _init_gemini():
 _init_gemini()
 
 # ═══════════════════════════════════════════════════════════════
-# 4. Inicializar BD
+# 4. Inicializar BD (una vez por sesión)
 # ═══════════════════════════════════════════════════════════════
-init_database()
+ensure_database()
 
 # ═══════════════════════════════════════════════════════════════
 # CSS
@@ -140,12 +142,16 @@ def get_todos_habitos_config() -> list:
 
 def get_habitos_hoy() -> dict:
     hoy_iso = _hoy_iso()
-    for h in get_habitos_config():
-        ejecutar("""
-            INSERT OR IGNORE INTO habitos_diarios_v2
-                (fecha, habito_clave, completado)
-            VALUES (?, ?, 0)
-        """, [hoy_iso, h["clave"]])
+    # Sembrar filas del día solo una vez por sesión (no en cada recarga)
+    seed_key = f"_habitos_seeded_{hoy_iso}"
+    if not st.session_state.get(seed_key):
+        for h in get_habitos_config():
+            ejecutar("""
+                INSERT OR IGNORE INTO habitos_diarios_v2
+                    (fecha, habito_clave, completado)
+                VALUES (?, ?, 0)
+            """, [hoy_iso, h["clave"]])
+        st.session_state[seed_key] = True
 
     rows = ejecutar("""
         SELECT habito_clave, completado, hora_completado, fecha
@@ -177,6 +183,7 @@ def toggle_habito(clave: str):
             completado      = excluded.completado,
             hora_completado = excluded.hora_completado
     """, [hoy_iso, clave, nuevo, hora])
+    invalidate_data_caches()
 
 
 def agregar_habito(label: str, emoji: str, hora: str) -> bool:
@@ -189,6 +196,10 @@ def agregar_habito(label: str, emoji: str, hora: str) -> bool:
                 (clave, label, emoji, hora, activo, orden)
             VALUES (?, ?, ?, ?, 1, ?)
         """, [clave, label.strip(), emoji or "⭐", hora or "—", max_ord + 1])
+        invalidate_data_caches()
+        # permitir re-sembrar hábitos del día
+        hoy_iso = _hoy_iso()
+        st.session_state.pop(f"_habitos_seeded_{hoy_iso}", None)
         return True
     except Exception:
         return False
@@ -198,21 +209,25 @@ def editar_habito(clave: str, label: str, emoji: str, hora: str) -> bool:
     ejecutar("""
         UPDATE habitos_config SET label=?, emoji=?, hora=? WHERE clave=?
     """, [label, emoji, hora, clave])
+    invalidate_data_caches()
     return True
 
 
 def eliminar_habito(clave: str) -> bool:
     ejecutar("UPDATE habitos_config SET activo=0 WHERE clave=?", [clave])
+    invalidate_data_caches()
     return True
 
 
 def reactivar_habito(clave: str):
     ejecutar("UPDATE habitos_config SET activo=1 WHERE clave=?", [clave])
+    invalidate_data_caches()
 
 
 def restaurar_habitos_default():
     for clave in ["devocional", "codigo", "lectura", "calistenia"]:
         ejecutar("UPDATE habitos_config SET activo=1 WHERE clave=?", [clave])
+    invalidate_data_caches()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -678,21 +693,22 @@ if st.session_state.modo_gestion_hab:
     with st.container():
         st.markdown("#### ⚙️ Gestión de hábitos")
         st.markdown("**➕ Nuevo hábito**")
-        col_n1, col_n2, col_n3, col_n4 = st.columns([3, 1, 2, 1])
-        with col_n1: nh_label = st.text_input("Nombre", placeholder="Ej: Meditación", key="nh_label")
-        with col_n2: nh_emoji = st.text_input("Emoji", value="⭐", max_chars=2, key="nh_emoji")
-        with col_n3: nh_hora  = st.text_input("Hora",  placeholder="07:00", key="nh_hora")
-        with col_n4:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("➕ Agregar", use_container_width=True, key="btn_nh"):
+        with st.form("form_nuevo_habito", clear_on_submit=True):
+            col_n1, col_n2, col_n3 = st.columns([3, 1, 2])
+            with col_n1:
+                nh_label = st.text_input("Nombre", placeholder="Ej: Meditación")
+            with col_n2:
+                nh_emoji = st.text_input("Emoji", value="⭐", max_chars=2)
+            with col_n3:
+                nh_hora = st.text_input("Hora", placeholder="07:00")
+            if st.form_submit_button("➕ Agregar", use_container_width=True, type="primary"):
                 if not nh_label.strip():
                     st.error("⚠️ Nombre requerido")
+                elif agregar_habito(nh_label, nh_emoji, nh_hora):
+                    st.success(f"✅ '{nh_label}' creado")
+                    st.rerun()
                 else:
-                    if agregar_habito(nh_label, nh_emoji, nh_hora):
-                        st.success(f"✅ '{nh_label}' creado")
-                        st.rerun()
-                    else:
-                        st.warning("Ya existe un hábito con ese nombre")
+                    st.warning("Ya existe un hábito con ese nombre")
 
         st.divider()
         st.markdown("**📋 Hábitos activos:**")
@@ -909,14 +925,14 @@ with col_chat:
     if "ia_prompt_enviado" not in st.session_state:
         st.session_state.ia_prompt_enviado = ""
 
-    prompt_usuario = st.text_input(
-        "Pregunta a tu secretaria:",
-        placeholder="Ej: ¿Qué pasaje leer hoy?",
-        key="chat_input"
-    )
-    col_send, _ = st.columns([1, 3])
-    with col_send:
-        enviar = st.button("➤ Enviar", use_container_width=True, type="primary")
+    with st.form("form_chat_ia"):
+        prompt_usuario = st.text_input(
+            "Pregunta a tu secretaria:",
+            placeholder="Ej: ¿Qué pasaje leer hoy?",
+        )
+        enviar = st.form_submit_button(
+            "➤ Enviar", use_container_width=True, type="primary"
+        )
 
     if enviar and prompt_usuario.strip():
         if prompt_usuario != st.session_state.ia_prompt_enviado:

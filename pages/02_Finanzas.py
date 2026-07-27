@@ -9,13 +9,12 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 from app.database import (
-    init_database,
     guardar_ingreso, obtener_ingreso,
     agregar_gasto_sobre, obtener_gastos_sobre,
     actualizar_gasto_sobre, eliminar_gasto_sobre,
     calcular_sobres, SOBRES_CONFIG,
-    ejecutar_cached,
 )
+from app.stability import ensure_database, after_write, invalidate_data_caches
 from app.ai_client import chat_simple, api_key_configurada
 from app.timezone_config import (
     date, datetime,
@@ -31,8 +30,7 @@ st.set_page_config(
 
 from app.auth import require_auth
 require_auth()
-
-init_database()
+ensure_database()
 
 # ═══════════════════════════════════════════════════════════════
 # CONSTANTES UI
@@ -89,49 +87,73 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════
-# SIDEBAR
+# SIDEBAR — período/ingreso en form (no recarga al escribir)
 # ═══════════════════════════════════════════════════════════════
 
+hoy = _hoy()
+if "fin_mes" not in st.session_state:
+    st.session_state.fin_mes = hoy.month
+if "fin_anio" not in st.session_state:
+    st.session_state.fin_anio = hoy.year
+
+MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
+
 with st.sidebar:
-    st.header("📅 Período")
-    col_m, col_a = st.columns(2)
-
-    hoy = _hoy()   # ← zona horaria local, una sola vez
-
-    with col_m:
-        mes_actual = st.selectbox(
-            "Mes", range(1, 13),
-            index=hoy.month - 1,
-            format_func=lambda x: [
-                "Ene","Feb","Mar","Abr","May","Jun",
-                "Jul","Ago","Sep","Oct","Nov","Dic"
-            ][x-1]
-        )
-    with col_a:
-        anio_actual = st.number_input("Año", 2024, 2030, hoy.year)
-
-    st.divider()
-    st.header("💵 Ingreso del mes")
-
-    ingreso_guardado = obtener_ingreso(mes_actual, anio_actual)
-    nuevo_ingreso    = st.number_input(
-        "¿Cuánto recibiste? ($MXN)",
-        min_value=0.0, step=100.0,
-        value=float(ingreso_guardado)
+    st.header("📅 Período e ingreso")
+    ingreso_guardado = obtener_ingreso(
+        st.session_state.fin_mes, st.session_state.fin_anio
     )
-    nota_ingreso = st.text_input("Nota", placeholder="Ej: Quincena + apoyo")
 
-    if st.button("💾 Guardar ingreso", use_container_width=True, type="primary"):
-        if guardar_ingreso(mes_actual, anio_actual, nuevo_ingreso, nota_ingreso):
-            st.success(f"✅ ${nuevo_ingreso:,.0f} guardado")
+    with st.form("form_periodo_ingreso"):
+        col_m, col_a = st.columns(2)
+        with col_m:
+            mes_form = st.selectbox(
+                "Mes", range(1, 13),
+                index=st.session_state.fin_mes - 1,
+                format_func=lambda x: MESES[x - 1],
+            )
+        with col_a:
+            anio_form = st.number_input(
+                "Año", 2024, 2030, int(st.session_state.fin_anio)
+            )
+        nuevo_ingreso = st.number_input(
+            "¿Cuánto recibiste? ($MXN)",
+            min_value=0.0, step=100.0,
+            value=float(ingreso_guardado),
+        )
+        nota_ingreso = st.text_input("Nota", placeholder="Ej: Quincena + apoyo")
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            aplicar = st.form_submit_button("Aplicar período", use_container_width=True)
+        with col_a2:
+            guardar = st.form_submit_button(
+                "💾 Guardar ingreso", use_container_width=True, type="primary"
+            )
+
+        if aplicar or guardar:
+            st.session_state.fin_mes = int(mes_form)
+            st.session_state.fin_anio = int(anio_form)
+        if guardar:
+            if guardar_ingreso(
+                st.session_state.fin_mes,
+                st.session_state.fin_anio,
+                nuevo_ingreso,
+                nota_ingreso,
+            ):
+                after_write(rerun=True)
+        elif aplicar:
             st.rerun()
 
-    if nuevo_ingreso > 0:
+    mes_actual = st.session_state.fin_mes
+    anio_actual = st.session_state.fin_anio
+    ingreso_vista = obtener_ingreso(mes_actual, anio_actual)
+
+    if ingreso_vista > 0:
         st.divider()
         st.markdown("**📊 Distribución sugerida:**")
-        st.markdown(f"🔴 Supervivencia (65%): `${nuevo_ingreso * 0.65:,.0f}`")
-        st.markdown(f"🟢 Futuro/Hogar (20%):  `${nuevo_ingreso * 0.20:,.0f}`")
-        st.markdown(f"🔵 Ministerio (15%):    `${nuevo_ingreso * 0.15:,.0f}`")
+        st.markdown(f"🔴 Supervivencia (65%): `${ingreso_vista * 0.65:,.0f}`")
+        st.markdown(f"🟢 Futuro/Hogar (20%):  `${ingreso_vista * 0.20:,.0f}`")
+        st.markdown(f"🔵 Ministerio (15%):    `${ingreso_vista * 0.15:,.0f}`")
 
     st.divider()
     if api_key_configurada():
@@ -413,13 +435,15 @@ with tab_nuevo:
                     f"{SOBRES_CONFIG[sobre_sel]['nombre']} · ID: {nuevo_id}"
                 )
                 st.balloons()
-                st.rerun()
+                after_write(rerun=True)
 
 # ═══════════════════════════════════════════════════════════════
 # TAB 3: HISTORIAL
 # ═══════════════════════════════════════════════════════════════
 
-with tab_historial:
+@st.fragment
+def _historial_gastos_fragment(mes_actual, anio_actual):
+    """Fragmento: filtrar historial sin recargar todo el módulo."""
     st.subheader("📜 Historial de Gastos")
 
     col_f1, col_f2, col_f3 = st.columns(3)
@@ -486,6 +510,11 @@ with tab_historial:
                     unsafe_allow_html=True
                 )
             st.divider()
+
+
+
+with tab_historial:
+    _historial_gastos_fragment(mes_actual, anio_actual)
 
 # ═══════════════════════════════════════════════════════════════
 # TAB 4: ASESOR IA
@@ -711,7 +740,7 @@ with tab_editar:
                 ):
                     st.success("✅ Gasto actualizado")
                     st.session_state.gasto_encontrado = None
-                    st.rerun()
+                    after_write(rerun=True)
                 else:
                     st.error("❌ No se pudo actualizar")
 
@@ -724,7 +753,7 @@ with tab_editar:
             elif eliminar_gasto_sobre(gasto['id']):
                 st.success("🗑️ Eliminado")
                 st.session_state.gasto_encontrado = None
-                st.rerun()
+                after_write(rerun=True)
             else:
                 st.error("❌ No se pudo eliminar")
 

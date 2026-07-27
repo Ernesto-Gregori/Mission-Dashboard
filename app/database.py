@@ -707,6 +707,10 @@ def guardar_ingreso(mes: int, anio: int, monto: float, notas: str = "") -> bool:
             ON CONFLICT(mes, anio)
             DO UPDATE SET monto_total = ?, notas = ?
         """, [mes, anio, monto, notas, monto, notas])
+        try:
+            invalidate_data_caches()
+        except NameError:
+            pass
         return True
     except Exception as e:
         print(f"Error guardando ingreso: {e}")
@@ -722,12 +726,17 @@ def obtener_ingreso(mes: int, anio: int) -> float:
 def agregar_gasto_sobre(fecha, sobre: str, subcategoria: str,
                         descripcion: str, monto: float,
                         es_fijo: bool = False, notas: str = "") -> int:
-    return ejecutar("""
+    gid = ejecutar("""
         INSERT INTO gastos_sobres
             (fecha, sobre, subcategoria, descripcion, monto, es_fijo, notas)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     """, [str(fecha), sobre, subcategoria, descripcion, monto,
           1 if es_fijo else 0, notas])
+    try:
+        invalidate_data_caches()
+    except NameError:
+        pass
+    return gid
 
 def obtener_gastos_sobre(mes=None, anio=None, sobre=None, limite=100) -> list:
     query = "SELECT * FROM gastos_sobres WHERE 1=1"
@@ -773,6 +782,11 @@ def actualizar_gasto_sobre(gasto_id: int, **kwargs) -> bool:
             "SELECT id FROM gastos_sobres WHERE id = ?",
             [gasto_id], fetchall=True
         ) or []
+        if rows:
+            try:
+                invalidate_data_caches()
+            except NameError:
+                pass
         return bool(rows)
     except Exception as e:
         print(f"Error actualizando gasto: {e}")
@@ -791,7 +805,13 @@ def eliminar_gasto_sobre(gasto_id: int) -> bool:
             "SELECT id FROM gastos_sobres WHERE id = ?",
             [gasto_id], fetchall=True
         ) or []
-        return not despues
+        ok = not despues
+        if ok:
+            try:
+                invalidate_data_caches()
+            except NameError:
+                pass
+        return ok
     except Exception as e:
         print(f"Error eliminando gasto: {e}")
         return False
@@ -986,6 +1006,37 @@ def ejecutar_cached(sql: str, params: tuple = ()) -> list:
     NUNCA usar para INSERT / UPDATE / DELETE.
     """
     return ejecutar(sql, list(params), fetchall=True) or []
+
+
+# Cachear resumen financiero (definición más arriba); limpiar tras escrituras
+calcular_sobres = st.cache_data(ttl=30)(calcular_sobres)
+
+
+def invalidate_data_caches() -> None:
+    """Limpia caches de lectura para que los guardados se vean al instante."""
+    try:
+        ejecutar_cached.clear()
+    except Exception:
+        pass
+    try:
+        calcular_sobres.clear()
+    except Exception:
+        pass
+
+
+def ensure_database() -> None:
+    """
+    init_database() una sola vez por sesión Streamlit.
+    Evita recrear esquema en cada interacción/recarga.
+    """
+    try:
+        if st.session_state.get("_db_ready"):
+            return
+        init_database()
+        st.session_state["_db_ready"] = True
+    except Exception:
+        # Fuera de contexto Streamlit (scripts/tests)
+        init_database()
 
 
 def ensure_remote_schema():
