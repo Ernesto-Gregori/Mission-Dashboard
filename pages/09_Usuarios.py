@@ -21,7 +21,10 @@ require_auth()
 ensure_database()
 
 st.title("🔐 Usuarios y seguridad")
-st.caption("Aquí creas cuentas nuevas. Las contraseñas se guardan con hash (no en texto plano).")
+st.caption(
+    "Cada usuario tiene su propio sistema (finanzas, hábitos, salud, etc.). "
+    "Las contraseñas se guardan con hash."
+)
 
 user = st.session_state.get("user") or {}
 st.info(

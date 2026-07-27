@@ -32,7 +32,10 @@ Si Google Cloud OAuth está en modo **Testing**, el refresh_token puede expirar 
 - Esta app es **Streamlit**. En Streamlit Cloud funciona tal cual.
 - **NiceGUI / Flet no corren en Streamlit Cloud** — haría falta otro hosting y reescribir la UI. Ver `DIAGNOSTICO.md`.
 
-## Estabilidad / recargas
+## Multi-usuario
+Cada cuenta tiene **sus propios datos** (finanzas, hábitos, salud, etc.).
+Al crear un usuario se siembran hábitos/bloques por defecto para esa cuenta.
+Los datos antiguos se asignan al primer admin en la migración automática.
 - Los formularios (`st.form`) evitan recargar al escribir (Finanzas, Bitácora, Deep Work, hábitos, chat).
 - La BD se inicializa una sola vez por sesión (`ensure_database`).
 - Tras guardar se limpian caches para ver el cambio al instante.

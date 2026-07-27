@@ -122,7 +122,17 @@ También: apps OAuth en modo Testing de Google caducan el refresh ~7 días.
 
 Bug corregido: `chat_simple(..., contexto=SYSTEM_X)` **ignoraba** el system prompt del módulo y siempre usaba el genérico. Ahora cada módulo (Finanzas, Salud, Agenda, Deep Work, etc.) envía su propio contexto a Groq.
 
-## 10. Plan sugerido (prioridad)
+## 11. Multi-usuario (cada quien su sistema)
+
+Antes todos compartían las mismas tablas. Ahora:
+
+- Columna `user_id` en tablas de negocio
+- CRUD filtrado por `app.tenant.uid()`
+- Tokens Google Fit por usuario
+- `provision_user_defaults()` al crear cuenta
+- Migración automática en `ensure_database()`
+
+Siguiente fase (pendiente): coach IA de onboarding + plantillas de módulos.
 
 1. ~~Unificar finanzas con `ejecutar()` / Turso~~
 2. ~~Auth real + proteger todas las páginas~~

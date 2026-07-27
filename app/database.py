@@ -711,37 +711,55 @@ def init_database():
 # ═════════════════════════════════════════════════════════════════
 
 def guardar_ingreso(mes: int, anio: int, monto: float, notas: str = "") -> bool:
+    from app.tenant import uid
     try:
         ejecutar("""
-            INSERT INTO ingreso_mensual (mes, anio, monto_total, notas)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(mes, anio)
+            INSERT INTO ingreso_mensual (user_id, mes, anio, monto_total, notas)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, mes, anio)
             DO UPDATE SET monto_total = ?, notas = ?
-        """, [mes, anio, monto, notas, monto, notas])
+        """, [uid(), mes, anio, monto, notas, monto, notas])
         try:
             invalidate_data_caches()
         except NameError:
             pass
         return True
     except Exception as e:
-        print(f"Error guardando ingreso: {e}")
-        return False
+        try:
+            ejecutar("""
+                DELETE FROM ingreso_mensual
+                WHERE user_id = ? AND mes = ? AND anio = ?
+            """, [uid(), mes, anio])
+            ejecutar("""
+                INSERT INTO ingreso_mensual (user_id, mes, anio, monto_total, notas)
+                VALUES (?, ?, ?, ?, ?)
+            """, [uid(), mes, anio, monto, notas])
+            try:
+                invalidate_data_caches()
+            except NameError:
+                pass
+            return True
+        except Exception as e2:
+            print(f"Error guardando ingreso: {e} / {e2}")
+            return False
 
 def obtener_ingreso(mes: int, anio: int) -> float:
+    from app.tenant import uid
     rows = ejecutar("""
         SELECT monto_total FROM ingreso_mensual
-        WHERE mes = ? AND anio = ?
-    """, [mes, anio], fetchall=True) or []
+        WHERE user_id = ? AND mes = ? AND anio = ?
+    """, [uid(), mes, anio], fetchall=True) or []
     return float(rows[0]["monto_total"]) if rows else 0.0
 
 def agregar_gasto_sobre(fecha, sobre: str, subcategoria: str,
                         descripcion: str, monto: float,
                         es_fijo: bool = False, notas: str = "") -> int:
+    from app.tenant import uid
     gid = ejecutar("""
         INSERT INTO gastos_sobres
-            (fecha, sobre, subcategoria, descripcion, monto, es_fijo, notas)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, [str(fecha), sobre, subcategoria, descripcion, monto,
+            (user_id, fecha, sobre, subcategoria, descripcion, monto, es_fijo, notas)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, [uid(), str(fecha), sobre, subcategoria, descripcion, monto,
           1 if es_fijo else 0, notas])
     try:
         invalidate_data_caches()
@@ -750,8 +768,9 @@ def agregar_gasto_sobre(fecha, sobre: str, subcategoria: str,
     return gid
 
 def obtener_gastos_sobre(mes=None, anio=None, sobre=None, limite=100) -> list:
-    query = "SELECT * FROM gastos_sobres WHERE 1=1"
-    params = []
+    from app.tenant import uid
+    query = "SELECT * FROM gastos_sobres WHERE user_id = ?"
+    params = [uid()]
 
     if mes and anio:
         query += """ AND strftime('%m', fecha) = ?
@@ -767,6 +786,7 @@ def obtener_gastos_sobre(mes=None, anio=None, sobre=None, limite=100) -> list:
     return ejecutar(query, params, fetchall=True) or []
 
 def actualizar_gasto_sobre(gasto_id: int, **kwargs) -> bool:
+    from app.tenant import uid
     campos_permitidos = {
         'fecha', 'sobre', 'subcategoria',
         'descripcion', 'monto', 'es_fijo', 'notas'
@@ -786,12 +806,12 @@ def actualizar_gasto_sobre(gasto_id: int, **kwargs) -> bool:
     set_clause = ", ".join(f"{k} = ?" for k in campos)
     try:
         ejecutar(
-            f"UPDATE gastos_sobres SET {set_clause} WHERE id = ?",
-            list(campos.values()) + [gasto_id]
+            f"UPDATE gastos_sobres SET {set_clause} WHERE id = ? AND user_id = ?",
+            list(campos.values()) + [gasto_id, uid()]
         )
         rows = ejecutar(
-            "SELECT id FROM gastos_sobres WHERE id = ?",
-            [gasto_id], fetchall=True
+            "SELECT id FROM gastos_sobres WHERE id = ? AND user_id = ?",
+            [gasto_id, uid()], fetchall=True
         ) or []
         if rows:
             try:
@@ -804,17 +824,21 @@ def actualizar_gasto_sobre(gasto_id: int, **kwargs) -> bool:
         return False
 
 def eliminar_gasto_sobre(gasto_id: int) -> bool:
+    from app.tenant import uid
     try:
         antes = ejecutar(
-            "SELECT id FROM gastos_sobres WHERE id = ?",
-            [gasto_id], fetchall=True
+            "SELECT id FROM gastos_sobres WHERE id = ? AND user_id = ?",
+            [gasto_id, uid()], fetchall=True
         ) or []
         if not antes:
             return False
-        ejecutar("DELETE FROM gastos_sobres WHERE id = ?", [gasto_id])
+        ejecutar(
+            "DELETE FROM gastos_sobres WHERE id = ? AND user_id = ?",
+            [gasto_id, uid()]
+        )
         despues = ejecutar(
-            "SELECT id FROM gastos_sobres WHERE id = ?",
-            [gasto_id], fetchall=True
+            "SELECT id FROM gastos_sobres WHERE id = ? AND user_id = ?",
+            [gasto_id, uid()], fetchall=True
         ) or []
         ok = not despues
         if ok:
@@ -827,11 +851,8 @@ def eliminar_gasto_sobre(gasto_id: int) -> bool:
         print(f"Error eliminando gasto: {e}")
         return False
 
-def calcular_sobres(mes: int, anio: int) -> dict:
-    """
-    Calcula el estado de los 3 sobres.
-    Lógica: llenar en orden según ingreso disponible.
-    """
+def _calcular_sobres_uncached(mes: int, anio: int, user_id: int) -> dict:
+    """Implementación interna — user_id obligatorio para cache correcta."""
     ingreso = obtener_ingreso(mes, anio)
     gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=500)
     
@@ -905,11 +926,12 @@ def obtener_tipos_bloque() -> list:
     """
     defaults = ['Instituto', 'Programacion', 'Biblioteca', 'Personal']
     try:
+        from app.tenant import uid
         rows = ejecutar("""
             SELECT DISTINCT tipo FROM bloques_fijos
-            WHERE tipo IS NOT NULL
+            WHERE user_id = ? AND tipo IS NOT NULL
             ORDER BY tipo
-        """, fetchall=True) or []
+        """, [uid()], fetchall=True) or []
         en_bd = [row["tipo"] for row in rows]
         return list(dict.fromkeys(defaults + en_bd))
     except Exception:
@@ -1019,9 +1041,12 @@ def ejecutar_cached(sql: str, params: tuple = ()) -> list:
     return ejecutar(sql, list(params), fetchall=True) or []
 
 
-# Cachear resumen financiero (definición más arriba); limpiar tras escrituras
-calcular_sobres = st.cache_data(ttl=30)(calcular_sobres)
+# Cache por (mes, anio, user_id)
+_calcular_sobres_cached = st.cache_data(ttl=30)(_calcular_sobres_uncached)
 
+def calcular_sobres(mes: int, anio: int) -> dict:
+    from app.tenant import uid
+    return _calcular_sobres_cached(mes, anio, uid())
 
 def invalidate_data_caches() -> None:
     """Limpia caches de lectura para que los guardados se vean al instante."""
@@ -1030,24 +1055,32 @@ def invalidate_data_caches() -> None:
     except Exception:
         pass
     try:
-        calcular_sobres.clear()
+        _calcular_sobres_cached.clear()
     except Exception:
         pass
 
 
 def ensure_database() -> None:
     """
-    init_database() una sola vez por sesión Streamlit.
-    Evita recrear esquema en cada interacción/recarga.
+    init_database() + migración multi-usuario, una vez por sesión.
     """
     try:
         if st.session_state.get("_db_ready"):
             return
         init_database()
+        try:
+            from app.multiuser import migrate_multiuser
+            migrate_multiuser()
+        except Exception as e:
+            print(f"[ensure_database] migrate_multiuser: {e}")
         st.session_state["_db_ready"] = True
     except Exception:
-        # Fuera de contexto Streamlit (scripts/tests)
         init_database()
+        try:
+            from app.multiuser import migrate_multiuser
+            migrate_multiuser()
+        except Exception as e:
+            print(f"[ensure_database] migrate_multiuser: {e}")
 
 
 def ensure_remote_schema():

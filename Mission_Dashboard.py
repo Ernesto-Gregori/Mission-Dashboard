@@ -19,6 +19,7 @@ from app.database import (
     invalidate_data_caches,
 )
 from app.auth import require_auth, logout, panel_gestion_usuarios
+from app.tenant import uid
 from app.ai_client import chat_simple, estado_gemini, verificar_conexion
 from app.timezone_config import (
     date, datetime,           # re-exportados — todo el código existente funciona
@@ -126,17 +127,18 @@ def get_habitos_config() -> list:
     return ejecutar_cached("""
         SELECT id, clave, label, emoji, hora, activo, orden
         FROM habitos_config
-        WHERE activo = 1
+        WHERE activo = 1 AND user_id = ?
         ORDER BY orden, id
-    """) or []
+    """, (uid(),)) or []
 
 
 def get_todos_habitos_config() -> list:
     return ejecutar_cached("""
         SELECT id, clave, label, emoji, hora, activo, orden
         FROM habitos_config
+        WHERE user_id = ?
         ORDER BY orden, id
-    """) or []
+    """, (uid(),)) or []
 
 
 def get_habitos_hoy() -> dict:
@@ -147,16 +149,16 @@ def get_habitos_hoy() -> dict:
         for h in get_habitos_config():
             ejecutar("""
                 INSERT OR IGNORE INTO habitos_diarios_v2
-                    (fecha, habito_clave, completado)
-                VALUES (?, ?, 0)
-            """, [hoy_iso, h["clave"]])
+                    (user_id, fecha, habito_clave, completado)
+                VALUES (?, ?, ?, 0)
+            """, [uid(), hoy_iso, h["clave"]])
         st.session_state[seed_key] = True
 
     rows = ejecutar("""
         SELECT habito_clave, completado, hora_completado, fecha
         FROM habitos_diarios_v2
-        WHERE fecha = ?
-    """, [hoy_iso], fetchall=True) or []
+        WHERE user_id = ? AND fecha = ?
+    """, [uid(), hoy_iso], fetchall=True) or []
 
     return {r["habito_clave"]: r for r in rows}
 
@@ -167,34 +169,34 @@ def toggle_habito(clave: str):
 
     rows = ejecutar("""
         SELECT completado FROM habitos_diarios_v2
-        WHERE fecha = ? AND habito_clave = ?
-    """, [hoy_iso, clave], fetchall=True)
+        WHERE user_id = ? AND fecha = ? AND habito_clave = ?
+    """, [uid(), hoy_iso, clave], fetchall=True)
 
     nuevo = 0 if (rows and rows[0]["completado"]) else 1
     hora  = hora_now if nuevo else None
 
     ejecutar("""
         INSERT INTO habitos_diarios_v2
-            (fecha, habito_clave, completado, hora_completado)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(fecha, habito_clave)
+            (user_id, fecha, habito_clave, completado, hora_completado)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, fecha, habito_clave)
         DO UPDATE SET
             completado      = excluded.completado,
             hora_completado = excluded.hora_completado
-    """, [hoy_iso, clave, nuevo, hora])
+    """, [uid(), hoy_iso, clave, nuevo, hora])
     invalidate_data_caches()
 
 
 def agregar_habito(label: str, emoji: str, hora: str) -> bool:
     clave = label.lower().strip().replace(" ", "_")[:20]
-    rows  = ejecutar("SELECT MAX(orden) AS m FROM habitos_config", fetchall=True)
+    rows  = ejecutar("SELECT MAX(orden) AS m FROM habitos_config WHERE user_id = ?", [uid()], fetchall=True)
     max_ord = (rows[0]["m"] or 0) if rows else 0
     try:
         ejecutar("""
             INSERT OR IGNORE INTO habitos_config
-                (clave, label, emoji, hora, activo, orden)
-            VALUES (?, ?, ?, ?, 1, ?)
-        """, [clave, label.strip(), emoji or "⭐", hora or "—", max_ord + 1])
+                (user_id, clave, label, emoji, hora, activo, orden)
+            VALUES (?, ?, ?, ?, ?, 1, ?)
+        """, [uid(), clave, label.strip(), emoji or "⭐", hora or "—", max_ord + 1])
         invalidate_data_caches()
         # permitir re-sembrar hábitos del día
         hoy_iso = _hoy_iso()
@@ -206,26 +208,27 @@ def agregar_habito(label: str, emoji: str, hora: str) -> bool:
 
 def editar_habito(clave: str, label: str, emoji: str, hora: str) -> bool:
     ejecutar("""
-        UPDATE habitos_config SET label=?, emoji=?, hora=? WHERE clave=?
-    """, [label, emoji, hora, clave])
+        UPDATE habitos_config SET label=?, emoji=?, hora=?
+        WHERE clave=? AND user_id=?
+    """, [label, emoji, hora, clave, uid()])
     invalidate_data_caches()
     return True
 
 
 def eliminar_habito(clave: str) -> bool:
-    ejecutar("UPDATE habitos_config SET activo=0 WHERE clave=?", [clave])
+    ejecutar("UPDATE habitos_config SET activo=0 WHERE clave=? AND user_id=?", [clave, uid()])
     invalidate_data_caches()
     return True
 
 
 def reactivar_habito(clave: str):
-    ejecutar("UPDATE habitos_config SET activo=1 WHERE clave=?", [clave])
+    ejecutar("UPDATE habitos_config SET activo=1 WHERE clave=? AND user_id=?", [clave, uid()])
     invalidate_data_caches()
 
 
 def restaurar_habitos_default():
     for clave in ["devocional", "codigo", "lectura", "calistenia"]:
-        ejecutar("UPDATE habitos_config SET activo=1 WHERE clave=?", [clave])
+        ejecutar("UPDATE habitos_config SET activo=1 WHERE clave=? AND user_id=?", [clave, uid()])
     invalidate_data_caches()
 
 
@@ -237,6 +240,7 @@ def get_metricas_modulos() -> dict:
     metricas = {}
     hoy      = _hoy()
     hoy_iso  = hoy.isoformat()
+    u = uid()
 
     # ── FINANZAS ─────────────────────────────────────────────
     try:
@@ -265,8 +269,9 @@ def get_metricas_modulos() -> dict:
             SELECT
                 COUNT(*) AS total,
                 SUM(CASE WHEN estado='Completado' THEN 1 ELSE 0 END) AS completados
-            FROM sesiones_completadas WHERE fecha >= ?
-        """, (lunes,))
+            FROM sesiones_completadas
+            WHERE user_id = ? AND fecha >= ?
+        """, (u, lunes))
         r = rows[0] if rows else {"total": 0, "completados": 0}
         total_dw = r["total"] or 0
         comp_dw  = r["completados"] or 0
@@ -280,14 +285,14 @@ def get_metricas_modulos() -> dict:
     # ── BIBLIOTECA ────────────────────────────────────────────
     try:
         total_libros = (ejecutar_cached(
-            "SELECT COUNT(*) AS n FROM libros"
+            "SELECT COUNT(*) AS n FROM libros WHERE user_id = ?", (u,)
         ) or [{"n": 0}])[0]["n"] or 0
 
         rows = ejecutar_cached("""
             SELECT titulo, pagina_actual, total_paginas
-            FROM libros WHERE estado='leyendo'
+            FROM libros WHERE user_id = ? AND estado='leyendo'
             ORDER BY actualizado_en DESC LIMIT 1
-        """)
+        """, (u,))
         leyendo = rows[0] if rows else None
         if leyendo and leyendo["total_paginas"]:
             pct_libro   = int((leyendo["pagina_actual"] or 0) / leyendo["total_paginas"] * 100)
@@ -300,12 +305,18 @@ def get_metricas_modulos() -> dict:
 
     # ── TEOLOGÍA ──────────────────────────────────────────────
     try:
-        rows = ejecutar_cached("SELECT COUNT(*) AS total, MAX(fecha) AS ultimo FROM devocionales")
+        rows = ejecutar_cached(
+            "SELECT COUNT(*) AS total, MAX(fecha) AS ultimo FROM devocionales WHERE user_id = ?",
+            (u,),
+        )
         r         = rows[0] if rows else {"total": 0, "ultimo": "—"}
         total_teo = r["total"] or 0
         ultimo    = r["ultimo"] or "—"
 
-        fechas_teo = ejecutar_cached("SELECT fecha FROM devocionales ORDER BY fecha DESC")
+        fechas_teo = ejecutar_cached(
+            "SELECT fecha FROM devocionales WHERE user_id = ? ORDER BY fecha DESC",
+            (u,),
+        )
         racha = 0
         check = hoy
         for row in (fechas_teo or []):
@@ -322,8 +333,8 @@ def get_metricas_modulos() -> dict:
     try:
         rows = ejecutar("""
             SELECT energia_manana, hizo_ejercicio, productividad_percibida
-            FROM registros_salud WHERE fecha = ?
-        """, [hoy_iso], fetchall=True)
+            FROM registros_salud WHERE user_id = ? AND fecha = ?
+        """, [u, hoy_iso], fetchall=True)
         sal = rows[0] if rows else None
         metricas["salud"] = {
             "energia":       (sal["energia_manana"] or 0) if sal else 0,
@@ -338,9 +349,10 @@ def get_metricas_modulos() -> dict:
     try:
         rows = ejecutar("""
             SELECT titulo, fecha, hora FROM matrimonio_citas
-            WHERE fecha >= ? AND estado_planificacion NOT IN ('Cancelada','Completada')
+            WHERE user_id = ? AND fecha >= ?
+              AND estado_planificacion NOT IN ('Cancelada','Completada')
             ORDER BY fecha, hora LIMIT 1
-        """, [hoy_iso], fetchall=True)
+        """, [u, hoy_iso], fetchall=True)
         prox = rows[0] if rows else None
         if prox:
             dias       = (datetime.strptime(prox["fecha"], "%Y-%m-%d").date() - hoy).days
@@ -351,9 +363,10 @@ def get_metricas_modulos() -> dict:
 
         rows_mes = ejecutar_cached("""
             SELECT COUNT(*) AS n FROM matrimonio_citas
-            WHERE strftime('%Y-%m', fecha) = ?
+            WHERE user_id = ?
+              AND strftime('%Y-%m', fecha) = ?
               AND estado_planificacion = 'Completada'
-        """, (hoy.strftime("%Y-%m"),))
+        """, (u, hoy.strftime("%Y-%m")))
         citas_mes = (rows_mes[0]["n"] or 0) if rows_mes else 0
         metricas["matrimonio"] = {"proxima": prox_texto, "citas_mes": citas_mes}
     except Exception:
@@ -363,11 +376,11 @@ def get_metricas_modulos() -> dict:
     try:
         ideas = (ejecutar_cached("""
             SELECT COUNT(*) AS n FROM sandbox_ideas
-            WHERE estado NOT IN ('Completado','Abandonado')
-        """) or [{"n": 0}])[0]["n"] or 0
+            WHERE user_id = ? AND estado NOT IN ('Completado','Abandonado')
+        """, (u,)) or [{"n": 0}])[0]["n"] or 0
 
         snips = (ejecutar_cached(
-            "SELECT COUNT(*) AS n FROM sandbox_snippets"
+            "SELECT COUNT(*) AS n FROM sandbox_snippets WHERE user_id = ?", (u,)
         ) or [{"n": 0}])[0]["n"] or 0
 
         metricas["sandbox"] = {"ideas_activas": ideas, "snippets": snips}
@@ -377,16 +390,14 @@ def get_metricas_modulos() -> dict:
     return metricas
 
 
-# ═══════════════════════════════════════════════════════════════
-# SIDEBAR DATA
-# ═══════════════════════════════════════════════════════════════
-
 def get_sidebar_data() -> dict:
     hoy     = _hoy()
     hoy_iso = hoy.isoformat()
+    u = uid()
 
     fechas_dev = ejecutar_cached(
-        "SELECT fecha FROM devocionales ORDER BY fecha DESC LIMIT 30"
+        "SELECT fecha FROM devocionales WHERE user_id = ? ORDER BY fecha DESC LIMIT 30",
+        (u,),
     ) or []
     racha_dev = 0
     check = hoy
@@ -400,9 +411,10 @@ def get_sidebar_data() -> dict:
     hab_rows = ejecutar_cached("""
         SELECT fecha, COUNT(*) AS total, SUM(completado) AS completados
         FROM habitos_diarios_v2
+        WHERE user_id = ?
         GROUP BY fecha
         ORDER BY fecha DESC LIMIT 30
-    """) or []
+    """, (u,)) or []
     racha_hab = 0
     check_hab = hoy
     for row in hab_rows:
@@ -415,20 +427,16 @@ def get_sidebar_data() -> dict:
 
     citas = ejecutar("""
         SELECT titulo, fecha, hora FROM matrimonio_citas
-        WHERE fecha >= ? AND estado_planificacion IN ('Confirmada','Planeando')
+        WHERE user_id = ? AND fecha >= ?
+          AND estado_planificacion IN ('Confirmada','Planeando')
         ORDER BY fecha, hora LIMIT 1
-    """, [hoy_iso], fetchall=True)
+    """, [u, hoy_iso], fetchall=True)
 
-    ing_rows = ejecutar_cached("""
-        SELECT monto_total FROM ingreso_mensual WHERE mes=? AND anio=?
-    """, (hoy.month, hoy.year))
-    ingreso_sb = (ing_rows[0]["monto_total"] or 0) if ing_rows else 0
-
-    gasto_rows = ejecutar_cached("""
-        SELECT SUM(monto) AS total FROM gastos_sobres
-        WHERE strftime('%Y-%m', fecha) = ?
-    """, (hoy.strftime("%Y-%m"),))
-    gastado_sb = (gasto_rows[0]["total"] or 0) if gasto_rows else 0
+    # Finanzas ya scoped vía helpers
+    from app.database import obtener_ingreso, obtener_gastos_sobre
+    ingreso_sb = obtener_ingreso(hoy.month, hoy.year)
+    gastos = obtener_gastos_sobre(mes=hoy.month, anio=hoy.year, limite=500)
+    gastado_sb = sum(g["monto"] for g in gastos)
 
     return {
         "racha_dev":    racha_dev,
@@ -439,31 +447,29 @@ def get_sidebar_data() -> dict:
     }
 
 
-# ═══════════════════════════════════════════════════════════════
-# ALERTAS DATA
-# ═══════════════════════════════════════════════════════════════
-
 def get_alertas_data(hoy_iso: str) -> dict:
+    u = uid()
     dev = ejecutar(
-        "SELECT id FROM devocionales WHERE fecha=?",
-        [hoy_iso], fetchall=True
+        "SELECT id FROM devocionales WHERE user_id=? AND fecha=?",
+        [u, hoy_iso], fetchall=True
     )
     dw = ejecutar("""
         SELECT COUNT(*) AS total,
                SUM(CASE WHEN estado='Completado' THEN 1 ELSE 0 END) AS comp
-        FROM sesiones_completadas WHERE fecha=?
-    """, [hoy_iso], fetchall=True)
+        FROM sesiones_completadas WHERE user_id=? AND fecha=?
+    """, [u, hoy_iso], fetchall=True)
     dw_row = dw[0] if dw else {"total": 0, "comp": 0}
 
     sal = ejecutar(
-        "SELECT id FROM registros_salud WHERE fecha=?",
-        [hoy_iso], fetchall=True
+        "SELECT id FROM registros_salud WHERE user_id=? AND fecha=?",
+        [u, hoy_iso], fetchall=True
     )
     cita = ejecutar("""
         SELECT titulo, hora FROM matrimonio_citas
-        WHERE fecha=? AND estado_planificacion IN ('Confirmada','Planeando')
+        WHERE user_id=? AND fecha=?
+          AND estado_planificacion IN ('Confirmada','Planeando')
         LIMIT 1
-    """, [hoy_iso], fetchall=True)
+    """, [u, hoy_iso], fetchall=True)
 
     return {
         "devocional_hoy": len(dev) > 0,

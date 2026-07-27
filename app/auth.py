@@ -14,6 +14,7 @@ from app.database import (
     autenticar_usuario,
     listar_usuarios,
 )
+from app.multiuser import provision_user_defaults
 from app.stability import invalidate_data_caches
 
 
@@ -68,6 +69,8 @@ def _pantalla_setup():
                     ok, msg = crear_usuario(username, password, rol="admin")
                     if ok:
                         user = autenticar_usuario(username, password)
+                        if user:
+                            provision_user_defaults(int(user["id"]))
                         st.session_state.authenticated = True
                         st.session_state.user = user
                         st.session_state.user_name = user["username"]
@@ -180,6 +183,13 @@ def panel_gestion_usuarios():
             else:
                 ok, msg = crear_usuario(nuevo_user, nueva_pwd, rol=rol)
                 if ok:
+                    # Sembrar hábitos/bloques/módulos del nuevo usuario
+                    rows = __import__("app.database", fromlist=["ejecutar"]).ejecutar(
+                        "SELECT id FROM usuarios WHERE username = ?",
+                        [nuevo_user.strip().lower()], fetchall=True,
+                    ) or []
+                    if rows:
+                        provision_user_defaults(int(rows[0]["id"]))
                     invalidate_data_caches()
                     st.success(f"✅ {msg}: **{nuevo_user.strip().lower()}**")
                     st.rerun()

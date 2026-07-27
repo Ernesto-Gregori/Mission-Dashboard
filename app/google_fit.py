@@ -87,9 +87,11 @@ def _ensure_oauth_table():
         from app.database import ejecutar
         ejecutar("""
             CREATE TABLE IF NOT EXISTS oauth_tokens (
-                provider TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL DEFAULT 0,
+                provider TEXT NOT NULL,
                 token_json TEXT NOT NULL,
-                actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, provider)
             )
         """)
     except Exception as e:
@@ -99,12 +101,23 @@ def _ensure_oauth_table():
 def _load_token_from_db() -> Optional[dict]:
     try:
         from app.database import ejecutar
+        from app.tenant import try_uid
         _ensure_oauth_table()
+        user_id = try_uid()
+        if user_id is None:
+            return None
         rows = ejecutar(
-            "SELECT token_json FROM oauth_tokens WHERE provider = ?",
-            [PROVIDER],
+            "SELECT token_json FROM oauth_tokens WHERE provider = ? AND user_id = ?",
+            [PROVIDER, user_id],
             fetchall=True,
         ) or []
+        if not rows:
+            # Legacy: token sin user_id (migración)
+            rows = ejecutar(
+                "SELECT token_json FROM oauth_tokens WHERE provider = ? AND (user_id IS NULL OR user_id = ?)",
+                [PROVIDER, user_id],
+                fetchall=True,
+            ) or []
         if not rows:
             return None
         return json.loads(rows[0]["token_json"])
@@ -114,23 +127,45 @@ def _load_token_from_db() -> Optional[dict]:
 
 
 def _save_token_dict(token_data: dict) -> bool:
-    """Guarda token en BD (sobrevive sleep) y en disco si es posible."""
+    """Guarda token en BD por usuario (sobrevive sleep) y en disco si es posible."""
     global _ultimo_error_auth
     try:
         from app.database import ejecutar
+        from app.tenant import try_uid
         _ensure_oauth_table()
+        user_id = try_uid()
+        if user_id is None:
+            _ultimo_error_auth = "Debes iniciar sesión para guardar el token de Google Fit"
+            return False
         payload = json.dumps(token_data)
+        # Asegurar columna user_id
+        try:
+            ejecutar("ALTER TABLE oauth_tokens ADD COLUMN user_id INTEGER")
+        except Exception:
+            pass
         ejecutar("""
-            INSERT INTO oauth_tokens (provider, token_json, actualizado_en)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(provider) DO UPDATE SET
+            INSERT INTO oauth_tokens (user_id, provider, token_json, actualizado_en)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id, provider) DO UPDATE SET
                 token_json = excluded.token_json,
                 actualizado_en = CURRENT_TIMESTAMP
-        """, [PROVIDER, payload])
+        """, [user_id, PROVIDER, payload])
     except Exception as e:
-        print(f"[GoogleFit] Error guardando token en BD: {e}")
-        _ultimo_error_auth = f"No se pudo guardar token en BD: {e}"
-        return False
+        # Fallback sin PK compuesto (tabla vieja)
+        try:
+            from app.database import ejecutar
+            from app.tenant import try_uid
+            user_id = try_uid()
+            payload = json.dumps(token_data)
+            ejecutar("DELETE FROM oauth_tokens WHERE provider = ? AND (user_id = ? OR user_id IS NULL)", [PROVIDER, user_id])
+            ejecutar("""
+                INSERT INTO oauth_tokens (user_id, provider, token_json, actualizado_en)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """, [user_id, PROVIDER, payload])
+        except Exception as e2:
+            print(f"[GoogleFit] Error guardando token en BD: {e} / {e2}")
+            _ultimo_error_auth = f"No se pudo guardar token en BD: {e2}"
+            return False
 
     try:
         TOKEN_FILE.write_text(json.dumps(token_data, indent=2))
