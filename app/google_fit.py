@@ -178,42 +178,43 @@ def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
 def _oauth_client_bootstrap() -> dict:
     """Solo client_id / client_secret de la app OAuth — nunca refresh_token ajeno."""
     out: dict = {}
-    # Preferido: env / secrets.toml / Streamlit (app.secrets, sin warnings en uvicorn)
+
+    def _put(key: str, value) -> None:
+        if value and not out.get(key):
+            out[key] = value
+
+    # Preferido: env / secrets.toml / Streamlit (app.secrets)
     try:
         from app.secrets import get_secret, get_secret_section
 
         section = get_secret_section("google_oauth")
-        if section.get("client_id"):
-            out["client_id"] = section["client_id"]
-        if section.get("client_secret"):
-            out["client_secret"] = section["client_secret"]
-        if section.get("token_uri"):
-            out["token_uri"] = section["token_uri"]
+        _put("client_id", section.get("client_id"))
+        _put("client_secret", section.get("client_secret"))
+        _put("token_uri", section.get("token_uri"))
         fit = get_secret_section("google_fit_token")
-        out.setdefault("client_id", fit.get("client_id"))
-        out.setdefault("client_secret", fit.get("client_secret"))
-        out.setdefault("token_uri", fit.get("token_uri"))
-        out.setdefault("client_id", get_secret("GOOGLE_OAUTH_CLIENT_ID"))
-        out.setdefault("client_secret", get_secret("GOOGLE_OAUTH_CLIENT_SECRET"))
+        _put("client_id", fit.get("client_id"))
+        _put("client_secret", fit.get("client_secret"))
+        _put("token_uri", fit.get("token_uri"))
+        _put("client_id", get_secret("GOOGLE_OAUTH_CLIENT_ID"))
+        _put("client_secret", get_secret("GOOGLE_OAUTH_CLIENT_SECRET"))
     except Exception:
         pass
     # Env directo (por si secrets no cargó dotenv)
-    out.setdefault("client_id", os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""))
-    out.setdefault("client_secret", os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", ""))
+    _put("client_id", os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""))
+    _put("client_secret", os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", ""))
     if CREDENTIALS_FILE.exists():
         try:
             cred_file = json.loads(CREDENTIALS_FILE.read_text())
-            # Preferir bloque "web" para redirect URI
             block = cred_file.get("web") or cred_file.get("installed") or {}
-            out.setdefault("client_id", block.get("client_id"))
-            out.setdefault("client_secret", block.get("client_secret"))
-            out.setdefault(
+            _put("client_id", block.get("client_id"))
+            _put("client_secret", block.get("client_secret"))
+            _put(
                 "token_uri",
                 block.get("token_uri") or "https://oauth2.googleapis.com/token",
             )
         except Exception:
             pass
-    out.setdefault("token_uri", "https://oauth2.googleapis.com/token")
+    _put("token_uri", "https://oauth2.googleapis.com/token")
     return {k: v for k, v in out.items() if v}
 
 
@@ -244,7 +245,12 @@ def guardar_token_desde_json(texto: str) -> tuple[bool, str]:
 
 def _load_token_from_secrets() -> Optional[dict]:
     try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        if get_script_run_ctx() is None:
+            return None
         import streamlit as st
+
         if "google_fit_token" not in st.secrets:
             return None
         return _token_dict_from_mapping(st.secrets["google_fit_token"])
