@@ -162,6 +162,37 @@ def test_require_auth_redirect(web_client):
     assert "/login" in r.headers.get("location", "")
 
 
+def test_admin_setup_tiene_google_premium(web_client):
+    """Setup crea admin premium → Salud muestra Conectar Google (no paywall Fit)."""
+    _setup_user(web_client, "admin_prem")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "soltero",
+            "objetivos": "todo",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["salud", "agenda", "finanzas"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["salud", "agenda", "finanzas"]},
+        follow_redirects=False,
+    )
+    r = web_client.get("/app/billing")
+    assert r.status_code == 200
+    assert b"Premium" in r.content or b"premium" in r.content.lower()
+
+    r = web_client.get("/app/m/salud")
+    assert r.status_code == 200
+    # No debe exigir upgrade para Google si es admin/premium
+    assert b"requiere plan Premium" not in r.content
+    assert b"Conectar con Google" in r.content or b"Vinculado" in r.content or b"Google Fit" in r.content
+
+
 def test_tenant_uid_in_threadpool_via_finanzas(web_client):
     """
     Regresión: sync endpoint + uid() en threadpool (como uvicorn).

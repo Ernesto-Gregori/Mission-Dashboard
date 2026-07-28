@@ -88,21 +88,30 @@ def ensure_billing_schema() -> None:
         except Exception:
             pass
 
-    # Grandfather: admins legacy sin plan → premium (no bloquear al dueño)
+    # Grandfather: todo admin tiene al menos Premium (dueño de la app)
     try:
         ejecutar(
             """
             UPDATE usuarios
-            SET plan = 'premium'
-            WHERE (plan IS NULL OR plan = '')
-              AND rol = 'admin'
+            SET plan = 'premium', plan_expira_en = NULL
+            WHERE rol = 'admin'
+              AND COALESCE(LOWER(TRIM(plan)), 'free') NOT IN ('premium', 'familia')
+            """
+        )
+        ejecutar(
+            """
+            UPDATE usuarios
+            SET plan_expira_en = NULL
+            WHERE rol = 'admin'
+              AND plan_expira_en IS NOT NULL
             """
         )
         ejecutar(
             """
             UPDATE usuarios
             SET plan = 'free'
-            WHERE plan IS NULL OR plan = ''
+            WHERE (plan IS NULL OR plan = '')
+              AND COALESCE(rol, 'usuario') != 'admin'
             """
         )
     except Exception as e:
@@ -120,8 +129,32 @@ def limites(plan: str | None) -> dict[str, Any]:
     return PLAN_LIMITES[normalizar_plan(plan)]
 
 
+def es_admin(user: dict | None = None) -> bool:
+    """True si el usuario es administrador (dueño)."""
+    if user is None and st is not None:
+        try:
+            user = st.session_state.get("user") or {}
+        except Exception:
+            user = {}
+    user = user or {}
+    if str(user.get("rol") or "").lower() == "admin":
+        return True
+    try:
+        from app.tenant import current_user
+
+        cu = current_user() or {}
+        return str(cu.get("rol") or "").lower() == "admin"
+    except Exception:
+        return False
+
+
 def plan_vigente(user: dict | None = None) -> str:
-    """Plan efectivo: si plan_expira_en pasó → free."""
+    """
+    Plan efectivo del usuario.
+
+    - Admin: siempre Premium (o Familia si ya lo tiene). Sin expiración.
+    - Otros: si plan_expira_en pasó → free.
+    """
     ensure_billing_schema()
     if user is None and st is not None:
         try:
@@ -129,6 +162,14 @@ def plan_vigente(user: dict | None = None) -> str:
         except Exception:
             user = {}
     user = user or {}
+
+    # Dueño / admin: acceso completo a lo Premium (Google, módulos ilimitados, IA…)
+    if str(user.get("rol") or "").lower() == "admin":
+        plan = normalizar_plan(user.get("plan"))
+        if plan == PLAN_FAMILIA:
+            return PLAN_FAMILIA
+        return PLAN_PREMIUM
+
     plan = normalizar_plan(user.get("plan"))
     exp = user.get("plan_expira_en")
     if exp and plan != PLAN_FREE:
