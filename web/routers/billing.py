@@ -15,6 +15,7 @@ from app.billing import (
 )
 from app.onboarding import listar_modulos_usuario
 from app.templates import MODULE_TEMPLATES
+from web.checkout_flash import consume_checkout_query, pop_checkout_flash
 from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app/billing", tags=["billing"])
@@ -48,6 +49,7 @@ def _ctx(request: Request, user: dict, **extra):
         ],
         "error": None,
         "checkout_url": None,
+        "checkout_flash": None,
         "modulos_nav": _nav(int(user["id"])),
     }
     base.update(extra)
@@ -57,7 +59,15 @@ def _ctx(request: Request, user: dict, **extra):
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def billing_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    return render(request, "billing.html", **_ctx(request, user))
+    user, redirect = consume_checkout_query(request, user, clean_path="/app/billing")
+    if redirect is not None:
+        return redirect
+    flash = pop_checkout_flash(request)
+    return render(
+        request,
+        "billing.html",
+        **_ctx(request, user, checkout_flash=flash),
+    )
 
 
 @router.post("/checkout/{plan}")

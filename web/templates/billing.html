@@ -2,6 +2,13 @@
 {% block content %}
 <h1>Plan y cobros</h1>
 <p class="muted">Plan actual: <strong>{{ plan_label }}</strong> ({{ plan }})</p>
+{% if checkout_flash %}
+  {% if checkout_flash.kind == 'ok' %}
+  <div class="flash-ok">{{ checkout_flash.message }}</div>
+  {% else %}
+  <div class="flash-warn">{{ checkout_flash.message }}</div>
+  {% endif %}
+{% endif %}
 {% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
 
 {% if not stripe_ok %}

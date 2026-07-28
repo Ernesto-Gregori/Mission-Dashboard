@@ -300,6 +300,22 @@ def test_crear_checkout_fallback_payment_link(monkeypatch):
     assert "buy.stripe.com" in url
 
 
+def test_checkout_return_urls_web(monkeypatch):
+    from app import billing as bil
+
+    monkeypatch.setenv("MISSION_WEB", "1")
+    monkeypatch.setattr(
+        bil,
+        "_secret",
+        lambda name, default="": {
+            "APP_URL": "https://mission.example.com",
+        }.get(name, default),
+    )
+    success, cancel = bil.checkout_return_urls("premium")
+    assert success == "https://mission.example.com/app/billing?checkout=success&plan=premium"
+    assert cancel == "https://mission.example.com/app/billing?checkout=cancel"
+
+
 def test_aplicar_modulos_respeta_cupo_free(isolated_db, monkeypatch):
     from app.onboarding import aplicar_modulos, listar_modulos_usuario
     import streamlit as st

@@ -121,6 +121,16 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     def root(request: Request):
+        # Compat Streamlit-style return: /?checkout=success → billing web
+        checkout = (request.query_params.get("checkout") or "").strip().lower()
+        if checkout in ("success", "cancel"):
+            q = request.url.query
+            dest = f"/app/billing?{q}" if q else "/app/billing"
+            if not request.session.get("user_id"):
+                # Guardar destino post-login sería ideal; por ahora a login
+                request.session["post_login_redirect"] = dest
+                return RedirectResponse("/login", status_code=303)
+            return RedirectResponse(dest, status_code=303)
         if request.session.get("user_id"):
             return RedirectResponse("/app", status_code=303)
         return RedirectResponse("/login", status_code=303)

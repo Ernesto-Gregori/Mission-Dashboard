@@ -193,6 +193,57 @@ def test_admin_setup_tiene_google_premium(web_client):
     assert b"Conectar con Google" in r.content or b"Vinculado" in r.content or b"Google Fit" in r.content
 
 
+def test_checkout_success_banner_y_refresh(web_client):
+    """/?checkout=success y /app/billing?checkout=success muestran banner y limpian query."""
+    _setup_user(web_client, "pay_banner")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "soltero",
+            "objetivos": "premium",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["finanzas"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["finanzas"]},
+        follow_redirects=False,
+    )
+
+    # Retorno canónico FastAPI
+    r = web_client.get(
+        "/app/billing?checkout=success&plan=premium",
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 307)
+    assert r.headers.get("location", "").startswith("/app/billing")
+    assert "checkout=" not in r.headers.get("location", "")
+
+    r = web_client.get("/app/billing")
+    assert r.status_code == 200
+    assert b"Pago recibido" in r.content
+    # Admin setup es premium → mensaje con plan activo
+    assert b"Plan activo" in r.content or b"Premium" in r.content
+
+    # Cancel
+    r = web_client.get("/app/billing?checkout=cancel", follow_redirects=False)
+    assert r.status_code in (303, 307)
+    r = web_client.get("/app/billing")
+    assert r.status_code == 200
+    assert b"Checkout cancelado" in r.content
+
+    # Compat: /?checkout=success → billing
+    r = web_client.get("/?checkout=success&plan=premium", follow_redirects=False)
+    assert r.status_code in (303, 307)
+    loc = r.headers.get("location", "")
+    assert "/app/billing" in loc
+    assert "checkout=success" in loc
+
+
 def test_deep_work_dia_y_bloque(web_client):
     _setup_user(web_client, "dw_user")
     web_client.post(

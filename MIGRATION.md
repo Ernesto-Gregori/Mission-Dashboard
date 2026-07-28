@@ -37,7 +37,7 @@ Health: `GET /health`
 - [x] Respetar cupo Free / Premium en UI
 - [x] Redirect a `/app/coach` si falta onboarding
 - [x] Reconfig Premium / paywall Free
-- [ ] Refrescar sesión tras Stripe (`?checkout=success`) — parcial en Streamlit; pendiente banner web
+- [x] Refrescar sesión tras Stripe (`?checkout=success`) — banner web en `/app/billing` + URLs de retorno FastAPI
 
 ## Fase 2 — Portar módulos (orden sugerido)
 1. [x] Finanzas (ingreso, sobres, gastos, consejo IA) — `web/routers/finanzas.py`

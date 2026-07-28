@@ -52,7 +52,10 @@ def login_submit(
             status_code=401,
         )
     registrar_exito(key)
+    dest = request.session.pop("post_login_redirect", None)
     login_user(request, user)
+    if dest and isinstance(dest, str) and dest.startswith("/"):
+        return RedirectResponse(dest, status_code=303)
     return RedirectResponse("/app", status_code=303)
 
 

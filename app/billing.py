@@ -274,6 +274,38 @@ def app_base_url() -> str:
     return ""
 
 
+def use_web_checkout_return() -> bool:
+    """True → success/cancel apuntan a FastAPI (/app/billing)."""
+    import os
+
+    if os.getenv("MISSION_WEB", "").strip().lower() in ("1", "true", "yes"):
+        return True
+    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("FLY_APP_NAME") or os.getenv("RENDER"):
+        return True
+    # Sin ScriptRunContext de Streamlit → asumimos FastAPI / scripts
+    if st is None:
+        return True
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        return get_script_run_ctx() is None
+    except Exception:
+        return True
+
+
+def checkout_return_urls(plan_destino: str) -> tuple[str, str]:
+    """(success_url, cancel_url) absolutas para Stripe Checkout."""
+    base = app_base_url() or "https://localhost"
+    plan_destino = normalizar_plan(plan_destino)
+    if use_web_checkout_return():
+        success = f"{base}/app/billing?checkout=success&plan={plan_destino}"
+        cancel = f"{base}/app/billing?checkout=cancel"
+    else:
+        success = f"{base}/?checkout=success&plan={plan_destino}"
+        cancel = f"{base}/?checkout=cancel"
+    return success, cancel
+
+
 def crear_checkout_session(
     plan_destino: str,
     user_id: int,
@@ -306,9 +338,7 @@ def crear_checkout_session(
         return None, "Instala el paquete stripe (requirements.txt)"
 
     stripe.api_key = secret
-    base = app_base_url() or "https://localhost"
-    success = f"{base}/?checkout=success&plan={plan_destino}"
-    cancel = f"{base}/?checkout=cancel"
+    success, cancel = checkout_return_urls(plan_destino)
 
     try:
         session = stripe.checkout.Session.create(
