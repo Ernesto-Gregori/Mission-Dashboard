@@ -48,7 +48,7 @@ Health: `GET /health`
 6. [x] Biblioteca (MVP catálogo/progreso/resaltados; PDF/ISBN IA sigue en Streamlit) — `web/routers/biblioteca.py`
 7. [x] Matrimonio (citas, notas, hábitos; IA consejero / chart historial siguen en Streamlit) — `web/routers/matrimonio.py`
 8. [x] Sandbox (ideas, snippets, sesiones, mentor IA) — `web/routers/sandbox.py`
-9. [ ] Usuarios (admin)
+9. [x] Usuarios (plan propio + admin: crear, set plan, backup, auditoría) — `web/routers/usuarios.py`
 
 **Groq en FastAPI:** la clave de Streamlit Cloud no se comparte sola.
 Usa `GROQ_API_KEY` en el entorno, `.env`, o `.streamlit/secrets.toml` (leído por `app/secrets.py`).

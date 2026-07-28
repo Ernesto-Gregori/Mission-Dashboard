@@ -492,6 +492,71 @@ def test_sandbox_idea_snippet_sesion(web_client):
     assert b"Mentor" in r.content
 
 
+def test_usuarios_admin_crear_plan_backup(web_client):
+    _setup_user(web_client, "usr_admin")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "admin",
+            "objetivos": "gestion",
+            "tiempo": "10",
+            "notas": "",
+            "areas": ["finanzas"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["finanzas"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/usuarios")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Usuarios" in r.content or b"plan" in r.content.lower()
+    assert b"/app/usuarios" in r.content or b"Gesti" in r.content
+
+    r = web_client.get("/app/usuarios?tab=gestion")
+    assert r.status_code == 200
+    assert b"usr_admin" in r.content
+
+    r = web_client.post(
+        "/app/usuarios/crear",
+        data={
+            "username": "esposa_demo",
+            "password": "password1",
+            "password2": "password1",
+            "rol": "usuario",
+            "plan": "free",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"esposa_demo" in r.content
+
+    # id del usuario creado
+    from app.database import listar_usuarios
+
+    rows = listar_usuarios()
+    nuevo = next(u for u in rows if u["username"] == "esposa_demo")
+
+    r = web_client.post(
+        "/app/usuarios/plan",
+        data={"user_id": str(nuevo["id"]), "plan": "premium", "expira": ""},
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"premium" in r.content.lower() or b"Plan" in r.content
+
+    r = web_client.get("/app/usuarios?tab=auditoria")
+    assert r.status_code == 200
+
+    r = web_client.post("/app/usuarios/backup", follow_redirects=True)
+    assert r.status_code == 200
+    assert b"Backup" in r.content or b"backup" in r.content
+
+
 def test_biblioteca_catalogo_y_progreso(web_client):
     _setup_user(web_client, "bib_user")
     web_client.post(

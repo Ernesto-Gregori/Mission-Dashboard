@@ -1,0 +1,182 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>🔐 Usuarios y seguridad</h1>
+<p class="muted">Sesión: <strong>{{ user.username }}</strong> · rol <strong>{{ user.rol }}</strong></p>
+
+{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<nav class="agenda-tabs">
+  <a class="{% if tab == 'plan' %}active{% endif %}" href="/app/usuarios?tab=plan">💳 Tu plan</a>
+  {% if is_admin %}
+  <a class="{% if tab == 'gestion' %}active{% endif %}" href="/app/usuarios?tab=gestion">👥 Gestión</a>
+  <a class="{% if tab == 'backup' %}active{% endif %}" href="/app/usuarios?tab=backup">💾 Backup</a>
+  <a class="{% if tab == 'auditoria' %}active{% endif %}" href="/app/usuarios?tab=auditoria">🧾 Auditoría</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'plan' %}
+<section>
+  <div class="card">
+    <h2>Plan actual</h2>
+    <p>{{ plan_resumen }}</p>
+    {% if plan == plan_free %}
+    <p class="muted">
+      Free incluye hasta <strong>{{ lim_free.modulos_max }} módulos</strong>,
+      Coach IA de setup y cuota mensual de IA.
+      Premium desbloquea todo + Google Fit/Calendar.
+    </p>
+    <p><a class="btn" href="/app/billing">Ver planes / pagar</a></p>
+    {% if not stripe_ok %}
+    <div class="flash-warn">Stripe aún no está configurado en el entorno.</div>
+    {% endif %}
+    {% else %}
+    <div class="flash-ok">Plan activo: <strong>{{ plan_label }}</strong></div>
+    <p><a class="btn secondary" href="/app/billing">Detalle de cobros</a></p>
+    {% endif %}
+  </div>
+  {% if not is_admin %}
+  <div class="flash-warn" style="margin-top:1rem">
+    Tu cuenta no es administrador. Pide a un admin que cree usuarios o asigne planes.
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if tab == 'gestion' and is_admin %}
+<section>
+  <div class="card" style="margin-bottom:1rem">
+    <h2>Usuarios registrados</h2>
+    {% if not usuarios %}
+    <p class="muted">No hay usuarios.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for u in usuarios %}
+      <li>
+        <span>
+          <strong>{{ u.username }}</strong>
+          · rol <code>{{ u.rol }}</code>
+          · plan <code>{{ u.plan or 'free' }}</code>
+          · {% if u.activo %}activo{% else %}inactivo{% endif %}
+          {% if u.plan_expira_en %}<br><span class="muted">expira {{ u.plan_expira_en }}</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-bottom:1rem">
+    <h2>Cambiar plan (manual)</h2>
+    <p class="muted">Útil si Stripe no está activo o para overrides.</p>
+    <form method="post" action="/app/usuarios/plan">
+      <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
+        <div>
+          <label>Usuario</label>
+          <select name="user_id" required>
+            {% for u in usuarios %}
+            <option value="{{ u.id }}">{{ u.username }} (id={{ u.id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Plan</label>
+          <select name="plan">
+            {% for p in planes_validos %}
+            <option value="{{ p }}" {% if p == 'premium' %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Expira (YYYY-MM-DD)</label>
+          <input name="expira" placeholder="vacío = sin fecha" />
+        </div>
+      </div>
+      <div style="margin-top:1rem"><button class="btn" type="submit">Actualizar plan</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Crear usuario</h2>
+    <p class="muted">Usuario 3–32 (a-z, 0-9, _). Contraseña mín. 8. Empiezan en Free salvo que elijas otro plan; al entrar ven el Coach.</p>
+    <form method="post" action="/app/usuarios/crear">
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div>
+          <label>Usuario *</label>
+          <input name="username" required placeholder="ej: esposa" autocomplete="off" />
+        </div>
+        <div>
+          <label>Rol</label>
+          <select name="rol">
+            <option value="usuario">usuario</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Contraseña *</label>
+          <input name="password" type="password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div>
+          <label>Repetir *</label>
+          <input name="password2" type="password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div>
+          <label>Plan inicial</label>
+          <select name="plan">
+            {% for p in planes_validos %}
+            <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:1rem"><button class="btn" type="submit">➕ Crear usuario</button></div>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'backup' and is_admin %}
+<section>
+  <div class="card">
+    <h2>Exportar backup</h2>
+    <p class="muted">
+      JSON de tablas clave en <code>data/backups/</code>
+      (útil antes de migrar o tocar producción).
+    </p>
+    <form method="post" action="/app/usuarios/backup">
+      <button class="btn" type="submit">📦 Exportar backup ahora</button>
+    </form>
+    {% if backup_path %}
+    <div class="flash-ok" style="margin-top:1rem">Archivo: <code>{{ backup_path }}</code></div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'auditoria' and is_admin %}
+<section>
+  <div class="card">
+    <h2>Auditoría reciente</h2>
+    <p class="muted">Últimas acciones sensibles (finanzas / usuarios).</p>
+    {% if not auditoria %}
+    <p class="muted">Sin eventos aún.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for r in auditoria %}
+      <li>
+        <span>
+          {{ r.creado_en or '—' }}
+          · {{ r.username or '—' }}{% if not r.username and r.user_id %} (user#{{ r.user_id }}){% endif %}
+          · <strong>{{ r.accion }}</strong>
+          · {{ r.entidad or '' }} {{ r.entidad_id or '' }}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
