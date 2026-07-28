@@ -192,6 +192,87 @@ def test_tenant_uid_in_threadpool_via_finanzas(web_client):
     assert b"No hay usuario autenticado" not in r.content
 
 
+def test_agenda_calendario_y_bitacora(web_client):
+    _setup_user(web_client, "agenda_user")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "casado",
+            "objetivos": "orden semanal",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["agenda", "finanzas"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["agenda", "finanzas"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/m/agenda")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Agenda" in r.content
+    assert b"Calendario" in r.content
+    assert b"Nuevo evento" in r.content
+
+    r = web_client.post(
+        "/app/m/agenda/evento",
+        data={
+            "fecha": "2026-07-28",
+            "titulo": "Lectura test",
+            "tipo": "Lectura",
+            "hora_inicio": "19:30",
+            "hora_fin": "20:30",
+            "descripcion": "demo",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Lectura test" in r.content
+
+    r = web_client.get("/app/m/agenda?tab=bitacora")
+    assert r.status_code == 200
+    assert b"Bit" in r.content or b"victorias" in r.content.lower()
+
+    from app.db.agenda import obtener_lunes_semana
+    from app.timezone_config import hoy as _hoy
+
+    lun = obtener_lunes_semana(_hoy()).isoformat()
+    r = web_client.post(
+        "/app/m/agenda/bitacora",
+        data={
+            "semana_inicio": lun,
+            "victoria_1": "Orar diario",
+            "victoria_2": "Deep work",
+            "victoria_3": "Cita",
+            "ingreso_actual": "1000",
+            "aporte_transicion": "50",
+            "presupuesto_cita": "200",
+            "semaforo_superv": "verde",
+            "semaforo_ahorros": "amarillo",
+            "semaforo_extras": "verde",
+            "actividad_cita": "Cena",
+            "costo_cita": "150",
+            "libro_actual": "Proverbios",
+            "pagina_actual": "10",
+            "frase_favorita": "El temor de Jehova",
+            "pendientes_soltar": "emails",
+            "reflexion_semana": "Buena semana",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Orar diario" in r.content or b"guardada" in r.content.lower() or b"Bit" in r.content
+
+    r = web_client.get("/app/m/agenda?tab=historial")
+    assert r.status_code == 200
+    assert b"Historial" in r.content
+    assert lun.encode() in r.content or b"Orar" in r.content
+
+
 def test_tenant_contextvar_copied_to_threadpool():
     """El ContextVar seteado en el hilo async se copia al threadpool (mecanismo)."""
     import asyncio

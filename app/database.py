@@ -46,6 +46,28 @@ from app.db.usuarios import (  # noqa: F401
     autenticar_usuario,
     listar_usuarios,
 )
+from app.db.agenda import (  # noqa: F401
+    COLORES_TIPO,
+    DIAS_SEMANA,
+    SEMAFOROS,
+    SYSTEM_AGENDA,
+    TIPOS_EVENTO,
+    calcular_racha_deepwork,
+    calcular_racha_devocional,
+    calcular_racha_ejercicio,
+    eliminar_evento,
+    guardar_bitacora,
+    guardar_evento,
+    obtener_bitacora,
+    obtener_bitacoras_recientes,
+    obtener_deepwork_semana,
+    obtener_devocionales_semana,
+    obtener_eventos_personalizados,
+    obtener_eventos_semana,
+    obtener_libros_leyendo,
+    obtener_lunes_semana,
+    obtener_salud_semana,
+)
 from app.db.migrate import migrar_local_a_turso  # noqa: F401
 
 if __name__ == "__main__":
