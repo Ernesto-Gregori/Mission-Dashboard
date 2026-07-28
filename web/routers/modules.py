@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from app.billing import PLAN_FREE, limites, plan_vigente, puede_google
 from app.onboarding import listar_modulos_usuario, modulo_activo, usuario_onboarding_completo
 from app.templates import MODULE_TEMPLATES
-from web.deps import require_user, render
+from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app/m", tags=["modules"])
 
@@ -34,7 +34,7 @@ def _nav(user_id: int) -> list[dict]:
 def module_page(
     clave: str,
     request: Request,
-    user: Annotated[dict, Depends(require_user)],
+    user: Annotated[dict, Depends(require_onboarded)],
 ):
     meta = MODULE_TEMPLATES.get(clave)
     if not meta:

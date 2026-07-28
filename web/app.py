@@ -27,9 +27,10 @@ if str(ROOT) not in sys.path:
 
 load_dotenv()
 
-from web.deps import NotAuthenticated, init_app_state
+from web.deps import NotAuthenticated, NeedsOnboarding, init_app_state
 from web.routers import auth as auth_router
 from web.routers import billing as billing_router
+from web.routers import coach as coach_router
 from web.routers import dashboard as dash_router
 from web.routers import modules as modules_router
 from web.routers import stripe_hook as stripe_router
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     app.include_router(auth_router.router)
+    app.include_router(coach_router.router)
     app.include_router(dash_router.router)
     app.include_router(modules_router.router)
     app.include_router(billing_router.router)
@@ -73,6 +75,10 @@ def create_app() -> FastAPI:
     @app.exception_handler(NotAuthenticated)
     async def _not_auth(request: Request, exc: NotAuthenticated):
         return RedirectResponse("/login", status_code=303)
+
+    @app.exception_handler(NeedsOnboarding)
+    async def _needs_coach(request: Request, exc: NeedsOnboarding):
+        return RedirectResponse("/app/coach", status_code=303)
 
     @app.get("/health")
     def health():

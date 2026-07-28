@@ -6,6 +6,7 @@
     <div class="meta">{{ user.username }} · {{ user.rol }}</div>
     <nav>
       <a href="/app" class="{% if request.url.path.rstrip('/') == '/app' %}active{% endif %}">🏠 Control de mando</a>
+      <a href="/app/coach" class="{% if '/coach' in request.url.path %}active{% endif %}">🤖 Coach</a>
       <a href="/app/billing">💳 Plan</a>
       {% if modulos_nav is defined %}
         {% for m in modulos_nav %}

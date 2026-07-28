@@ -3,19 +3,28 @@
 <h1>Control de mando</h1>
 <p class="muted">{{ plan_resumen }}</p>
 
-{% if needs_coach %}
-<div class="flash-warn">
-  Aún no completaste el Coach. En esta fase el coach se porta después;
-  mientras tanto puedes activar módulos desde Streamlit o esperar la fase 2.
+{% if onboarded_flash %}
+<div class="flash-ok">¡Listo! Tu sistema quedó configurado con el Coach.</div>
+{% endif %}
+
+{% if just_finished and just_finished.resto %}
+<div class="card">
+  <h2>También te pueden servir (Premium)</h2>
+  <ul class="muted">
+    {% for k in just_finished.resto %}
+    <li>Módulo «{{ k }}»</li>
+    {% endfor %}
+  </ul>
+  <a class="btn secondary" href="/app/billing">Ver upgrade</a>
 </div>
 {% endif %}
 
 <div class="card">
   <h2>Módulos</h2>
-  <p class="muted">{{ activos_count }} activos · migración módulo a módulo desde Streamlit</p>
+  <p class="muted">{{ activos_count }} activos · <a href="/app/coach">reconfigurar con Coach</a></p>
   <div class="grid">
     {% for m in modulos %}
-    <a class="card" href="{{ m.href }}" style="margin:0;color:inherit;text-decoration:none;opacity:{% if m.activo or needs_coach %}1{% else %}0.55{% endif %}">
+    <a class="card" href="{{ m.href }}" style="margin:0;color:inherit;text-decoration:none;opacity:{% if m.activo %}1{% else %}0.55{% endif %}">
       <div style="font-size:1.4rem">{{ m.emoji }}</div>
       <strong>{{ m.nombre }}</strong>
       <div class="muted" style="font-size:0.85rem;margin-top:0.35rem">{{ m.descripcion }}</div>
@@ -31,7 +40,7 @@
 
 <div class="card">
   <h2>Plan {{ plan_label }}</h2>
-  <p class="muted">Upgrade y Stripe viven en la misma app FastAPI (webhook incluido).</p>
+  <p class="muted">Upgrade y Stripe viven en la misma app FastAPI.</p>
   <a class="btn" href="/app/billing">Ver planes / pagar</a>
 </div>
 {% endblock %}

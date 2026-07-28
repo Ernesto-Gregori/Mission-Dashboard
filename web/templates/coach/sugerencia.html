@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block body %}
+{% if hide_nav %}
+<div class="auth-wrap" style="max-width:720px">
+  <div class="card">
+{% else %}
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">Mission Dashboard</div>
+    <div class="meta">{{ user.username }} · Coach</div>
+    <nav>
+      <a href="/app">🏠 Control de mando</a>
+      <a href="/app/coach" class="active">🤖 Coach</a>
+    </nav>
+  </aside>
+  <main class="main">
+{% endif %}
+
+<h1>Tu sistema propuesto</h1>
+<p class="muted">{{ plan_resumen }}{% if tope %} · elige hasta {{ tope }} módulos{% endif %}</p>
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<div class="flash-ok">{{ sug.resumen }}</div>
+<p class="muted" style="font-size:0.85rem">
+  Fuente: {% if sug.fuente == 'ia' %}Groq IA{% else %}reglas / fallback{% endif %}
+</p>
+
+<form method="post" action="/app/coach/activar">
+  <h2>Módulos</h2>
+  {% for m in mods_ui %}
+  <label class="card" style="display:block;cursor:pointer">
+    <span style="display:flex;gap:0.6rem;align-items:flex-start">
+      <input type="checkbox" name="modulos" value="{{ m.clave }}" style="width:auto;margin-top:0.25rem"
+             {% if m.checked %}checked{% endif %} />
+      <span>
+        <strong>{{ m.emoji }} {{ m.nombre }}</strong>
+        <div class="muted" style="font-size:0.85rem">{{ m.razon }}</div>
+      </span>
+    </span>
+  </label>
+  {% endfor %}
+
+  {% if sug.habitos %}
+  <h2>Hábitos sugeridos</h2>
+  <ul class="muted">
+    {% for h in sug.habitos[:6] %}
+    <li>{{ h.emoji or '⭐' }} {{ h.label or h.clave }} · {{ h.hora or '—' }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <div style="display:flex;gap:0.75rem;margin-top:1rem">
+    <button class="btn secondary" type="submit" formaction="/app/coach/atras" formmethod="post">← Atrás</button>
+    <button class="btn" type="submit" style="flex:1">✅ Activar mi sistema</button>
+  </div>
+</form>
+
+{% if plan == free and stripe_ok %}
+<div class="card" style="margin-top:1rem">
+  <p class="muted">¿Necesitas más de {{ tope }} módulos? Premium desbloquea todos.</p>
+  <a class="btn secondary" href="/app/billing">Ver Premium</a>
+</div>
+{% endif %}
+
+{% if hide_nav %}</div></div>{% else %}</main></div>{% endif %}
+{% endblock %}

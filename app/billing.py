@@ -487,30 +487,46 @@ def cuota_ia_ok(user_id: int | None = None, plan: str | None = None) -> bool:
 def marcar_coach_ia_usado(user_id: int | None = None) -> None:
     ensure_billing_schema()
     from app.db.core import ejecutar
-    from app.tenant import uid
+    from app.tenant import current_user, set_current_user, uid
 
     user_id = int(user_id or uid())
     ejecutar(
         "UPDATE usuarios SET coach_ia_usado = 1 WHERE id = ?",
         [user_id],
     )
+    # Refrescar contextvar / session_state si aplica
     try:
-        u = st.session_state.get("user")
+        u = current_user()
         if u and int(u.get("id", -1)) == user_id:
+            u = dict(u)
             u["coach_ia_usado"] = 1
-            st.session_state.user = u
+            set_current_user(u)
     except Exception:
         pass
+    if st is not None:
+        try:
+            u = st.session_state.get("user")
+            if u and int(u.get("id", -1)) == user_id:
+                u["coach_ia_usado"] = 1
+                st.session_state.user = u
+        except Exception:
+            pass
 
 
 def coach_ia_ya_usado(user_id: int | None = None) -> bool:
     ensure_billing_schema()
-    user = st.session_state.get("user") or {}
+    from app.tenant import current_user, uid
+
+    user = current_user() or {}
+    if st is not None and not user:
+        try:
+            user = st.session_state.get("user") or {}
+        except Exception:
+            user = {}
     if user_id is None or int(user.get("id", -1)) == int(user_id or user.get("id") or 0):
         if "coach_ia_usado" in user:
             return bool(int(user.get("coach_ia_usado") or 0))
     from app.db.core import ejecutar
-    from app.tenant import uid
 
     user_id = int(user_id or uid())
     rows = (

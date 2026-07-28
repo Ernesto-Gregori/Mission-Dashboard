@@ -64,6 +64,20 @@ def require_user(request: Request) -> dict:
     return user
 
 
+class NeedsOnboarding(Exception):
+    """Redirige a /app/coach."""
+
+
+def require_onboarded(request: Request, user: dict = Depends(require_user)) -> dict:
+    """Usuario autenticado que ya pasó el Coach (o legacy admin)."""
+    from app.onboarding import marcar_admins_existentes_como_onboarded, usuario_onboarding_completo
+
+    marcar_admins_existentes_como_onboarded()
+    if not usuario_onboarding_completo(int(user["id"])):
+        raise NeedsOnboarding()
+    return user
+
+
 def require_admin(user: dict = Depends(require_user)) -> dict:
     if user.get("rol") != "admin":
         raise HTTPException(403, "Solo administradores")

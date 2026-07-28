@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block body %}
+{% if hide_nav %}
+<div class="auth-wrap" style="max-width:640px">
+{% else %}
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">Mission Dashboard</div>
+    <div class="meta">{{ user.username }} · Coach</div>
+    <nav>
+      <a href="/app">🏠 Control de mando</a>
+      <a href="/app/coach" class="active">🤖 Coach</a>
+      <a href="/app/billing">💳 Plan</a>
+    </nav>
+  </aside>
+  <main class="main">
+{% endif %}
+
+{% if hide_nav %}<div class="card">{% endif %}
+<h1>🤖 Coach Mission Dashboard</h1>
+<p class="muted">{{ plan_resumen }}{% if tope %} · Free: máx. {{ tope }} módulos{% endif %}</p>
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<form method="post" action="/app/coach/perfil">
+  <label>¿Cómo te llamo?</label>
+  <input name="nombre" value="{{ user.username }}" required />
+
+  <label>¿En qué etapa estás?</label>
+  <textarea name="situacion" rows="3" placeholder="Ej: recién casado, estudiante…"></textarea>
+
+  <label>¿Qué quieres mejorar o registrar?</label>
+  <textarea name="objetivos" rows="3" placeholder="Ej: finanzas, relación, hábitos…"></textarea>
+
+  <label>Áreas importantes ahora</label>
+  <div class="grid" style="margin-bottom:0.85rem">
+    {% for a in areas %}
+    <label style="display:flex;gap:0.4rem;align-items:center;color:var(--text)">
+      <input type="checkbox" name="areas" value="{{ a }}" style="width:auto;margin:0" {% if a == 'espiritual' %}checked{% endif %} />
+      {{ a }}
+    </label>
+    {% endfor %}
+  </div>
+
+  <label>Tiempo al día para el sistema</label>
+  <select name="tiempo">
+    <option>5-10 min</option>
+    <option selected>15-20 min</option>
+    <option>30+ min</option>
+  </select>
+
+  <label>Algo más (opcional)</label>
+  <input name="notas" />
+
+  <button class="btn block" type="submit">Continuar →</button>
+</form>
+{% if hide_nav %}</div></div>{% else %}</main></div>{% endif %}
+{% endblock %}

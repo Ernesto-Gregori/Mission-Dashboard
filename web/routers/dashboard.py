@@ -6,19 +6,18 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from app.billing import limites, plan_vigente, resumen_plan_ui
-from app.onboarding import listar_modulos_usuario, usuario_onboarding_completo
+from app.onboarding import listar_modulos_usuario
 from app.templates import MODULE_TEMPLATES
-from web.deps import require_user, render
+from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app", tags=["dashboard"])
 
 
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, user: Annotated[dict, Depends(require_user)]):
+def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     rows = listar_modulos_usuario(int(user["id"]))
     activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    needs_coach = not usuario_onboarding_completo(int(user["id"]))
     mods = []
     for key, meta in MODULE_TEMPLATES.items():
         mods.append({
@@ -28,6 +27,8 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_user)]):
             "href": f"/app/m/{key}",
         })
     plan = plan_vigente(user)
+    just = request.session.pop("coach_just_finished", None)
+    onboarded_flash = request.query_params.get("onboarded") == "1"
     return render(
         request,
         "dashboard.html",
@@ -38,6 +39,8 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_user)]):
         plan_resumen=resumen_plan_ui(user),
         modulos=mods,
         modulos_nav=mods,
-        needs_coach=needs_coach,
+        needs_coach=False,
         activos_count=len(activos),
+        just_finished=just,
+        onboarded_flash=onboarded_flash,
     )

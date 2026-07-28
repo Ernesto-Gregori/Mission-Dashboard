@@ -1,0 +1,40 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>🤖 Coach</h1>
+<p class="muted">{{ plan_resumen }}</p>
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>Tu sistema actual</h2>
+  {% if activos %}
+  <ul>
+    {% for m in activos %}
+    <li>{{ m.emoji }} <strong>{{ m.nombre }}</strong></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Ningún módulo activo.</p>
+  {% endif %}
+
+  {% if puede_reconfig %}
+  <form method="post" action="/app/coach/reconfigurar">
+    <button class="btn" type="submit">✏️ Cambiar módulos con el coach</button>
+  </form>
+  {% else %}
+  <p class="muted">Plan Free: el Coach IA de setup es una sola vez.</p>
+  <a class="btn" href="/app/billing">Desbloquear reconfiguración (Premium)</a>
+  {% endif %}
+</div>
+
+{% if bloqueados %}
+<div class="card">
+  <h2>Disponibles en Premium</h2>
+  <ul class="muted">
+    {% for m in bloqueados %}
+    <li>{{ m.emoji }} {{ m.nombre }} — {{ m.descripcion }}</li>
+    {% endfor %}
+  </ul>
+  <a class="btn secondary" href="/app/billing">Upgrade</a>
+</div>
+{% endif %}
+{% endblock %}

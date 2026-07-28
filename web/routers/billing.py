@@ -15,7 +15,7 @@ from app.billing import (
 )
 from app.onboarding import listar_modulos_usuario
 from app.templates import MODULE_TEMPLATES
-from web.deps import require_user, render
+from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app/billing", tags=["billing"])
 
@@ -56,7 +56,7 @@ def _ctx(request: Request, user: dict, **extra):
 
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
-def billing_page(request: Request, user: Annotated[dict, Depends(require_user)]):
+def billing_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     return render(request, "billing.html", **_ctx(request, user))
 
 
@@ -64,7 +64,7 @@ def billing_page(request: Request, user: Annotated[dict, Depends(require_user)])
 def start_checkout(
     plan: str,
     request: Request,
-    user: Annotated[dict, Depends(require_user)],
+    user: Annotated[dict, Depends(require_onboarded)],
 ):
     url, err = crear_checkout_session(
         plan, int(user["id"]), username=user.get("username")

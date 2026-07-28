@@ -30,10 +30,12 @@ Variables:
 
 Health: `GET /health`
 
-## Fase 1 — Auth + Coach HTMX
-- [ ] Pantalla Coach (perfil → sugerencia → activar módulos)
-- [ ] Respetar cupo Free / Premium en UI
-- [ ] Refrescar sesión tras Stripe (`?checkout=success`)
+## Fase 1 — Auth + Coach HTMX ✅
+- [x] Pantalla Coach (perfil → sugerencia → activar módulos)
+- [x] Respetar cupo Free / Premium en UI
+- [x] Redirect a `/app/coach` si falta onboarding
+- [x] Reconfig Premium / paywall Free
+- [ ] Refrescar sesión tras Stripe (`?checkout=success`) — parcial en Streamlit; pendiente banner web
 
 ## Fase 2 — Portar módulos (orden sugerido)
 1. Finanzas (más crítico / ya encapsulado en `app/db/finanzas.py`)
