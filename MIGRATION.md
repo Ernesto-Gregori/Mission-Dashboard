@@ -45,7 +45,7 @@ Health: `GET /health`
 3. [x] Salud (+ Google OAuth callbacks en FastAPI) — `web/routers/salud.py`, `web/routers/oauth_google.py`
 4. [x] Deep Work — `web/routers/deep_work.py` + `app/db/deep_work.py`
 5. [x] Teología — `web/routers/teologia.py` + `app/db/teologia.py`
-6. [ ] Biblioteca
+6. [x] Biblioteca (MVP catálogo/progreso/resaltados; PDF/ISBN IA sigue en Streamlit) — `web/routers/biblioteca.py`
 7. [ ] Matrimonio
 8. [ ] Sandbox
 9. [ ] Usuarios (admin)

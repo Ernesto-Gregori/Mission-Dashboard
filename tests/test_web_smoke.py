@@ -330,6 +330,66 @@ def test_teologia_devocional_y_pedido(web_client):
     assert b"Sabiduria" in r.content
 
 
+def test_biblioteca_catalogo_y_progreso(web_client):
+    _setup_user(web_client, "bib_user")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "soltero",
+            "objetivos": "lectura",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["biblioteca"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["biblioteca"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/m/biblioteca")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Biblioteca" in r.content
+
+    r = web_client.post(
+        "/app/m/biblioteca/nuevo",
+        data={
+            "titulo": "Proverbios para la vida",
+            "autor": "Anonimo",
+            "categoria": "Teologia",
+            "total_paginas": "200",
+            "descripcion": "sabiduria",
+            "estado": "leyendo",
+            "isbn": "",
+            "editorial": "",
+            "anio": "2020",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Proverbios" in r.content
+
+    r = web_client.get("/app/m/biblioteca?tab=leyendo")
+    assert r.status_code == 200
+    assert b"Proverbios" in r.content
+
+    import re
+
+    m = re.search(rb'/biblioteca/libro/(\d+)/progreso', r.content)
+    assert m, r.content[:600]
+    lid = m.group(1).decode()
+    r = web_client.post(
+        f"/app/m/biblioteca/libro/{lid}/progreso",
+        data={"pagina_actual": "40", "estado": "leyendo", "next_tab": "leyendo"},
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"40" in r.content
+
+
 def test_tenant_uid_in_threadpool_via_finanzas(web_client):
     """
     Regresión: sync endpoint + uid() en threadpool (como uvicorn).

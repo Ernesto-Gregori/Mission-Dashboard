@@ -115,6 +115,24 @@ from app.db.teologia import (  # noqa: F401
     parse_dias_oracion,
     pedidos_para_hoy,
 )
+from app.db.biblioteca import (  # noqa: F401
+    CATEGORIAS as CATEGORIAS_LIBRO,
+    COLORES_RESALTADO,
+    ESTADOS_LIBRO,
+    actualizar_libro,
+    actualizar_progreso,
+    agregar_libro_por_procesar,
+    agregar_resaltado,
+    crear_libro_manual,
+    eliminar_libro,
+    guardar_metadatos_ia,
+    obtener_libro,
+    obtener_libros_por_estado,
+    obtener_resaltados,
+    parsear_lista,
+    pct_progreso,
+    stats_biblioteca,
+)
 from app.db.migrate import migrar_local_a_turso  # noqa: F401
 
 if __name__ == "__main__":
