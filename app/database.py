@@ -98,6 +98,23 @@ from app.db.deep_work import (  # noqa: F401
     reactivar_bloque,
     registrar_sesion,
 )
+from app.db.teologia import (  # noqa: F401
+    CATEGORIAS_PEDIDO,
+    DIAS_ORACION_LABELS,
+    ESTADOS_PEDIDO,
+    URGENCIA_LABELS,
+    VERSIONES_BIBLIA,
+    actualizar_estado_pedido,
+    agregar_pedido,
+    editar_pedido,
+    eliminar_pedido,
+    guardar_devocional,
+    obtener_devocional,
+    obtener_devocionales_recientes,
+    obtener_pedidos,
+    parse_dias_oracion,
+    pedidos_para_hoy,
+)
 from app.db.migrate import migrar_local_a_turso  # noqa: F401
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ Health: `GET /health`
 2. [x] Agenda / bitácora — `web/routers/agenda.py` + `app/db/agenda.py`
 3. [x] Salud (+ Google OAuth callbacks en FastAPI) — `web/routers/salud.py`, `web/routers/oauth_google.py`
 4. [x] Deep Work — `web/routers/deep_work.py` + `app/db/deep_work.py`
-5. [ ] Teología
+5. [x] Teología — `web/routers/teologia.py` + `app/db/teologia.py`
 6. [ ] Biblioteca
 7. [ ] Matrimonio
 8. [ ] Sandbox

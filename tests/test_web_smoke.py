@@ -264,6 +264,72 @@ def test_deep_work_dia_y_bloque(web_client):
     assert b"Semana" in r.content
 
 
+def test_teologia_devocional_y_pedido(web_client):
+    _setup_user(web_client, "teo_user")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "casado",
+            "objetivos": "fe",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["teologia"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["teologia"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/m/teologia")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Teolog" in r.content or b"Devocional" in r.content
+
+    from app.timezone_config import hoy as _hoy
+
+    fecha = str(_hoy())
+    r = web_client.post(
+        "/app/m/teologia/devocional",
+        data={
+            "fecha": fecha,
+            "pasaje_referencia": "Juan 15:1-8",
+            "version_biblia": "NVI",
+            "pasaje_texto": "Yo soy la vid",
+            "observacion": "vid y pámpanos",
+            "interpretacion": "union con Cristo",
+            "aplicacion": "permanecer en El",
+            "conexion_instituto": "",
+            "conexion_situacion": "",
+            "oracion_escrita": "Senor ayudame",
+            "duracion_minutos": "25",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Juan 15" in r.content
+
+    r = web_client.get("/app/m/teologia?tab=historial")
+    assert r.status_code == 200
+    assert b"Juan 15" in r.content
+
+    r = web_client.post(
+        "/app/m/teologia/pedido",
+        data={
+            "titulo": "Sabiduria en decisiones",
+            "descripcion": "trabajo y estudio",
+            "categoria": "Personal",
+            "urgencia": "3",
+            "dias": ["1", "2", "3", "4", "5"],
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Sabiduria" in r.content
+
+
 def test_tenant_uid_in_threadpool_via_finanzas(web_client):
     """
     Regresión: sync endpoint + uid() en threadpool (como uvicorn).
