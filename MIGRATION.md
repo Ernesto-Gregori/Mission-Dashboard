@@ -46,7 +46,7 @@ Health: `GET /health`
 4. [x] Deep Work — `web/routers/deep_work.py` + `app/db/deep_work.py`
 5. [x] Teología — `web/routers/teologia.py` + `app/db/teologia.py`
 6. [x] Biblioteca (MVP catálogo/progreso/resaltados; PDF/ISBN IA sigue en Streamlit) — `web/routers/biblioteca.py`
-7. [ ] Matrimonio
+7. [x] Matrimonio (citas, notas, hábitos; IA consejero / chart historial siguen en Streamlit) — `web/routers/matrimonio.py`
 8. [ ] Sandbox
 9. [ ] Usuarios (admin)
 

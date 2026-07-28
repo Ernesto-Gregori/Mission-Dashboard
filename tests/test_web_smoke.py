@@ -330,6 +330,85 @@ def test_teologia_devocional_y_pedido(web_client):
     assert b"Sabiduria" in r.content
 
 
+def test_matrimonio_cita_nota_habito(web_client):
+    _setup_user(web_client, "mat_user")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "casado",
+            "objetivos": "pareja",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["pareja"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["matrimonio"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/m/matrimonio")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Matrimonio" in r.content or b"Citas" in r.content
+
+    from app.timezone_config import hoy as _hoy
+
+    fecha = str(_hoy())
+    r = web_client.post(
+        "/app/m/matrimonio/cita",
+        data={
+            "fecha": fecha,
+            "hora": "19:30",
+            "ambito": "Matrimonio",
+            "tipo_cita": "Cena_Romantica",
+            "titulo": "Cena aniversario",
+            "lugar": "Casa",
+            "presupuesto": "40",
+            "descripcion": "Velas y musica",
+            "preparacion": "Comprar flores",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Cena aniversario" in r.content
+
+    r = web_client.post(
+        "/app/m/matrimonio/nota",
+        data={
+            "categoria": "Ideas_Regalo",
+            "contenido": "Quiere un libro de poesia",
+            "contexto": "Despues de la cena",
+            "fecha_mencion": fecha,
+            "urgencia": "3",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"poesia" in r.content
+
+    r = web_client.get("/app/m/matrimonio?tab=habitos")
+    assert r.status_code == 200
+
+    r = web_client.post(
+        "/app/m/matrimonio/habito",
+        data={
+            "fecha": fecha,
+            "minutos": "45",
+            "satisfaccion": "5",
+            "tipo_conexion": "Cena",
+            "iniciado_por": "Ambos",
+            "notas": "Buen momento",
+            "modo_pareja": "1",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"45" in r.content or b"Cena" in r.content
+
+
 def test_biblioteca_catalogo_y_progreso(web_client):
     _setup_user(web_client, "bib_user")
     web_client.post(

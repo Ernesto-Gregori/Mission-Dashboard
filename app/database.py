@@ -133,6 +133,30 @@ from app.db.biblioteca import (  # noqa: F401
     pct_progreso,
     stats_biblioteca,
 )
+from app.db.matrimonio import (  # noqa: F401
+    AMBITOS,
+    CATEGORIAS_NOTA,
+    COLORES_ESTADO,
+    EMOJIS_NOTA,
+    EMOJIS_TIPO,
+    ESTADOS_CITA,
+    INICIADO_POR,
+    TIPOS_CITA,
+    TIPOS_CONEXION,
+    actualizar_cita,
+    actualizar_nota,
+    eliminar_cita,
+    eliminar_nota,
+    guardar_cita,
+    guardar_nota,
+    obtener_cita,
+    obtener_citas,
+    obtener_habitos_recientes,
+    obtener_nota,
+    obtener_notas,
+    registrar_habito,
+    verificar_alerta_20_30,
+)
 from app.db.migrate import migrar_local_a_turso  # noqa: F401
 
 if __name__ == "__main__":
