@@ -42,7 +42,7 @@ Health: `GET /health`
 ## Fase 2 — Portar módulos (orden sugerido)
 1. [x] Finanzas (ingreso, sobres, gastos, consejo IA) — `web/routers/finanzas.py`
 2. [x] Agenda / bitácora — `web/routers/agenda.py` + `app/db/agenda.py`
-3. [ ] Salud (+ Google OAuth callbacks en FastAPI)
+3. [x] Salud (+ Google OAuth callbacks en FastAPI) — `web/routers/salud.py`, `web/routers/oauth_google.py`
 4. [ ] Deep Work
 5. [ ] Teología
 6. [ ] Biblioteca

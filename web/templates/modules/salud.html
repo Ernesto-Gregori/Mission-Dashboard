@@ -1,0 +1,195 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+<p class="muted">Sueño · energía · ejercicio · Google Fit</p>
+
+{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+{% if stats7 %}
+<div class="agenda-rachas">
+  <span>💪 {{ stats7.dias_ejercicio }}/7 ejercicios</span>
+  <span>😴 {{ '%.1f'|format(stats7.avg_sueno) }}h sueño</span>
+  <span>⚡ {{ '%.1f'|format(stats7.avg_energia_manana) }}/10 energía</span>
+</div>
+{% endif %}
+
+<nav class="agenda-tabs">
+  <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/salud?tab=hoy&fecha={{ fecha }}">📅 Hoy</a>
+  <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/salud?tab=historial">🗂️ Historial</a>
+  <a class="{% if tab == 'coach' %}active{% endif %}" href="/app/m/salud?tab=coach">🤖 Coach IA</a>
+</nav>
+
+{% if tab == 'hoy' %}
+<section>
+  <div class="card">
+    <h2>🔗 Google Fit</h2>
+    {% if not puede_google %}
+    <div class="flash-warn">Google Fit/Calendar requiere plan Premium o Familia.
+      <a href="/app/billing">Ver planes</a>
+    </div>
+    {% else %}
+      {% if fit.autenticado %}
+      <p><span class="badge ok">Vinculado</span>
+        <form method="post" action="/app/m/salud/fit/importar" style="display:inline">
+          <input type="hidden" name="fecha" value="{{ fecha }}" />
+          <button class="btn" type="submit">Importar datos de hoy (Fit)</button>
+        </form>
+      </p>
+      {% else %}
+      <p class="muted">No vinculado.
+        {% if fit.oauth_web %}
+        Redirect: <code>{{ fit.redirect_uri or '—' }}</code>
+        {% endif %}
+      </p>
+      <p>
+        <a class="btn" href="/app/m/salud/oauth/start">🔐 Conectar con Google</a>
+      </p>
+      <details>
+        <summary class="muted">Pegar token JSON (respaldo)</summary>
+        <form method="post" action="/app/m/salud/token/paste" style="margin-top:0.5rem">
+          <textarea name="token_json" rows="4" placeholder='{"token":"...","refresh_token":"..."}'></textarea>
+          <button class="btn secondary" type="submit" style="margin-top:0.4rem">Guardar token</button>
+        </form>
+      </details>
+      {% endif %}
+      {% if fit.error %}<p class="muted">{{ fit.error }}</p>{% endif %}
+      {% if fit_error %}<p class="flash-error">{{ fit_error }}</p>{% endif %}
+      {% for a in fit_avisos %}<p class="muted">{{ a }}</p>{% endfor %}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Registro del día</h2>
+    <form method="post" action="/app/m/salud/guardar">
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+        <div>
+          <label>Fecha</label>
+          <input name="fecha" type="date" value="{{ fecha }}" required />
+        </div>
+        <div>
+          <label>Horas sueño</label>
+          <input name="horas_sueno" type="number" step="0.1" min="0" max="16" value="{{ form.horas_sueno }}" />
+        </div>
+        <div>
+          <label>Calidad sueño (1-10)</label>
+          <input name="calidad_sueno" type="number" min="1" max="10" value="{{ form.calidad_sueno }}" />
+        </div>
+        <div>
+          <label>Dormir</label>
+          <input name="hora_dormir" type="time" value="{{ form.hora_dormir }}" />
+        </div>
+        <div>
+          <label>Despertar</label>
+          <input name="hora_despertar" type="time" value="{{ form.hora_despertar }}" />
+        </div>
+      </div>
+
+      <h3>Energía</h3>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div><label>Mañana</label><input name="energia_manana" type="number" min="1" max="10" value="{{ form.energia_manana }}" /></div>
+        <div><label>Tarde</label><input name="energia_tarde" type="number" min="1" max="10" value="{{ form.energia_tarde }}" /></div>
+        <div><label>Noche</label><input name="energia_noche" type="number" min="1" max="10" value="{{ form.energia_noche }}" /></div>
+      </div>
+
+      <h3>Ejercicio</h3>
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem">
+        <input type="checkbox" name="hizo_ejercicio" id="ej" {% if form.hizo_ejercicio %}checked{% endif %} />
+        <label for="ej" style="margin:0">Hice ejercicio</label>
+      </div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+        <div>
+          <label>Tipo</label>
+          <select name="tipo_ejercicio">
+            {% for t in tipos_ejercicio %}
+            <option value="{{ t }}" {% if form.tipo_ejercicio == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div><label>Minutos</label><input name="duracion_minutos" type="number" min="0" value="{{ form.duracion_minutos }}" /></div>
+        <div><label>Intensidad</label><input name="intensidad" type="number" min="1" max="10" value="{{ form.intensidad }}" /></div>
+      </div>
+      <div style="margin:0.5rem 0">
+        <label>Zonas</label>
+        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">
+          {% for z in zonas_lista %}
+          <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal">
+            <input type="checkbox" name="zonas" value="{{ z }}" {% if z in zonas_sel %}checked{% endif %} /> {{ z }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div><label>Notas</label><textarea name="notas_ejercicio" rows="2">{{ form.notas_ejercicio }}</textarea></div>
+
+      <h3>Fit / productividad</h3>
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+        <div><label>Calorías</label><input name="calorias_fit" type="number" step="0.1" value="{{ form.calorias_fit }}" /></div>
+        <div><label>Pasos</label><input name="pasos_fit" type="number" value="{{ form.pasos_fit }}" /></div>
+        <div><label>FC prom</label><input name="fc_promedio_fit" type="number" value="{{ form.fc_promedio_fit }}" /></div>
+        <div><label>FC máx</label><input name="fc_maxima_fit" type="number" value="{{ form.fc_maxima_fit }}" /></div>
+        <div><label>Productividad</label><input name="productividad_percibida" type="number" min="1" max="10" value="{{ form.productividad_percibida }}" /></div>
+        <div>
+          <label>Fuente</label>
+          <select name="fuente_datos">
+            {% for f in ['manual','mixto','google_fit'] %}
+            <option value="{{ f }}" {% if form.fuente_datos == f %}selected{% endif %}>{{ f }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem">
+        <button class="btn" type="submit">💾 Guardar día</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'historial' %}
+<section>
+  <div class="card">
+    <h2>Últimos 14 días</h2>
+    {% if stats %}
+    <p class="muted">
+      Ejercicio {{ stats.dias_ejercicio }}/{{ stats.total_dias }} ({{ '%.0f'|format(stats.pct_ejercicio) }}%) ·
+      Sueño {{ '%.1f'|format(stats.avg_sueno) }}h ·
+      Energía {{ '%.1f'|format(stats.avg_energia_manana) }}/10 ·
+      Productividad {{ '%.1f'|format(stats.avg_productividad) }}/10
+    </p>
+    {% endif %}
+    {% if not historial %}
+    <p class="muted">Sin registros aún.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for r in historial %}
+      <li>
+        <span>
+          <a href="/app/m/salud?tab=hoy&fecha={{ r.fecha }}">{{ r.fecha }}</a>
+          · sueño {{ r.horas_sueno or '—' }}h
+          · ⚡{{ r.energia_manana or '—' }}
+          {% if r.hizo_ejercicio %}· 💪 {{ r.tipo_ejercicio or 'ejercicio' }} {{ r.duracion_minutos or '' }}min{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'coach' %}
+<section>
+  <div class="card">
+    <h2>🤖 Coach de salud</h2>
+    <form method="post" action="/app/m/salud/consejo">
+      <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>Resumen IA (14 días)</button>
+      {% if not ia_ok %}<span class="muted"> Configura GROQ_API_KEY</span>{% endif %}
+    </form>
+    {% if consejo %}
+    <div class="card" style="margin-top:0.75rem;white-space:pre-wrap">{{ consejo }}</div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

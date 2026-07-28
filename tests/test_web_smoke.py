@@ -273,6 +273,82 @@ def test_agenda_calendario_y_bitacora(web_client):
     assert lun.encode() in r.content or b"Orar" in r.content
 
 
+def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
+    _setup_user(web_client, "salud_user")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "soltero",
+            "objetivos": "energia",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["salud"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["salud"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/m/salud")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Salud" in r.content
+    assert b"Registro" in r.content or b"sue" in r.content.lower()
+
+    r = web_client.post(
+        "/app/m/salud/guardar",
+        data={
+            "fecha": "2026-07-28",
+            "horas_sueno": "7.5",
+            "calidad_sueno": "8",
+            "hora_dormir": "22:30",
+            "hora_despertar": "05:30",
+            "energia_manana": "8",
+            "energia_tarde": "6",
+            "energia_noche": "5",
+            "hizo_ejercicio": "on",
+            "tipo_ejercicio": "Calistenia",
+            "duracion_minutos": "40",
+            "intensidad": "7",
+            "notas_ejercicio": "pullups",
+            "zonas": ["Pecho", "Espalda"],
+            "productividad_percibida": "8",
+            "fuente_datos": "manual",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"pullups" in r.content or b"Calistenia" in r.content or b"7.5" in r.content
+
+    r = web_client.get("/app/m/salud?tab=historial")
+    assert r.status_code == 200
+    assert b"2026-07-28" in r.content
+
+    # Callback sin code/state → redirect error
+    r = web_client.get("/oauth/google/callback", follow_redirects=False)
+    assert r.status_code in (303, 307)
+    assert "salud" in r.headers.get("location", "")
+
+    # Callback con state inválido
+    r = web_client.get(
+        "/oauth/google/callback?code=fake&state=bad",
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 307)
+    loc = r.headers.get("location", "")
+    assert "google=err" in loc or "salud" in loc
+
+    # Redirect URI desde APP_URL
+    monkeypatch.setenv("APP_URL", "http://127.0.0.1:8000")
+    monkeypatch.delenv("GOOGLE_OAUTH_REDIRECT_URI", raising=False)
+    from app.google_fit import get_oauth_redirect_uri
+
+    assert get_oauth_redirect_uri() == "http://127.0.0.1:8000/oauth/google/callback"
+
+
 def test_tenant_contextvar_copied_to_threadpool():
     """El ContextVar seteado en el hilo async se copia al threadpool (mecanismo)."""
     import asyncio

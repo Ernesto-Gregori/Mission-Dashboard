@@ -68,6 +68,17 @@ from app.db.agenda import (  # noqa: F401
     obtener_lunes_semana,
     obtener_salud_semana,
 )
+from app.db.salud import (  # noqa: F401
+    SYSTEM_SALUD,
+    TIPOS_EJERCICIO,
+    ZONAS_LISTA,
+    analizar_correlacion_simple,
+    calcular_promedios,
+    construir_contexto_salud,
+    guardar_registro_salud,
+    obtener_registro_salud,
+    obtener_registros_rango,
+)
 from app.db.migrate import migrar_local_a_turso  # noqa: F401
 
 if __name__ == "__main__":
