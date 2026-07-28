@@ -1,7 +1,11 @@
 """
-Stripe webhook — actualiza usuarios.plan en Turso.
+Stripe webhook (servicio aparte, opcional).
 
-Deploy (Railway / Render / Fly), NO dentro de Streamlit Cloud.
+Preferido: el endpoint canónico vive en la app FastAPI:
+  POST /stripe/webhook  →  web.routers.stripe_hook
+
+Este módulo se mantiene por compatibilidad si ya desplegaste
+`webhook/` en Railway. Misma lógica.
 
 Env requeridas:
   STRIPE_SECRET_KEY
