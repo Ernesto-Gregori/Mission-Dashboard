@@ -409,6 +409,89 @@ def test_matrimonio_cita_nota_habito(web_client):
     assert b"45" in r.content or b"Cena" in r.content
 
 
+def test_sandbox_idea_snippet_sesion(web_client):
+    _setup_user(web_client, "sb_user")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "estudiante",
+            "objetivos": "ideas y codigo",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["ideas"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["sandbox"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/m/sandbox")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Sandbox" in r.content or b"Ideas" in r.content
+
+    from app.timezone_config import hoy as _hoy
+
+    fecha = str(_hoy())
+    r = web_client.post(
+        "/app/m/sandbox/idea",
+        data={
+            "titulo": "API FastAPI demo",
+            "descripcion": "Prototipo HTMX",
+            "dominio": "Programacion",
+            "categoria": "Web_App",
+            "estado": "Investigando",
+            "prioridad": "4",
+            "motivacion": "8",
+            "etiquetas": "htmx, fastapi",
+            "notas": "MVP",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"API FastAPI demo" in r.content
+
+    r = web_client.post(
+        "/app/m/sandbox/snippet",
+        data={
+            "titulo": "Hello HTMX",
+            "descripcion": "snippet base",
+            "lenguaje": "Python",
+            "codigo": "print('hola')",
+            "tags": "demo",
+            "dominio": "Programacion",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Hello HTMX" in r.content
+    assert b"print" in r.content
+
+    r = web_client.post(
+        "/app/m/sandbox/sesion",
+        data={
+            "fecha": fecha,
+            "duracion": "45",
+            "satisfaccion": "8",
+            "dominio": "Programacion",
+            "tipo": "Codificando",
+            "proyecto_id": "",
+            "descripcion": "Port sandbox a HTMX",
+            "codigo": "",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Port sandbox" in r.content or b"Codificando" in r.content
+
+    r = web_client.get("/app/m/sandbox?tab=mentor")
+    assert r.status_code == 200
+    assert b"Mentor" in r.content
+
+
 def test_biblioteca_catalogo_y_progreso(web_client):
     _setup_user(web_client, "bib_user")
     web_client.post(

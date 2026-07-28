@@ -157,6 +157,33 @@ from app.db.matrimonio import (  # noqa: F401
     registrar_habito,
     verificar_alerta_20_30,
 )
+from app.db.sandbox import (  # noqa: F401
+    CATEGORIAS_DEFAULT_POR_DOMINIO,
+    COLORES_ESTADO as COLORES_ESTADO_SANDBOX,
+    DOMINIOS as DOMINIOS_SANDBOX,
+    EMOJIS_DOMINIO,
+    EMOJIS_LANG,
+    ESTADOS_IDEA,
+    LENGUAJES,
+    SYSTEM_MENTOR,
+    TIPOS_SESION,
+    actualizar_idea,
+    actualizar_snippet,
+    eliminar_idea,
+    eliminar_snippet,
+    guardar_idea,
+    guardar_sesion,
+    guardar_snippet,
+    incrementar_uso,
+    obtener_categorias_dominio,
+    obtener_idea,
+    obtener_ideas,
+    obtener_sesiones_recientes,
+    obtener_snippet,
+    obtener_snippets,
+    parsear_lista as parsear_lista_sandbox,
+    stats_sandbox,
+)
 from app.db.migrate import migrar_local_a_turso  # noqa: F401
 
 if __name__ == "__main__":

@@ -10,7 +10,28 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
-from app.database import ejecutar, ejecutar_cached
+from app.database import (
+    CATEGORIAS_DEFAULT_POR_DOMINIO,
+    COLORES_ESTADO_SANDBOX as COLORES_ESTADO,
+    DOMINIOS_SANDBOX as DOMINIOS,
+    EMOJIS_DOMINIO,
+    EMOJIS_LANG,
+    ESTADOS_IDEA,
+    LENGUAJES,
+    SYSTEM_MENTOR,
+    actualizar_idea,
+    actualizar_snippet,
+    eliminar_idea,
+    eliminar_snippet,
+    guardar_idea,
+    guardar_sesion,
+    guardar_snippet,
+    incrementar_uso,
+    obtener_categorias_dominio,
+    obtener_ideas,
+    obtener_sesiones_recientes,
+    obtener_snippets,
+)
 from app.tenant import uid
 from app.ai_client import chat_simple, api_key_configurada
 from app.timezone_config import (
@@ -31,256 +52,6 @@ require_auth()
 require_onboarding()
 require_module("sandbox")
 ensure_database()
-
-# ═══════════════════════════════════════════════════════════════
-# CONSTANTES
-# ═══════════════════════════════════════════════════════════════
-
-DOMINIOS = [
-    "Estudio", "Programacion", "Trabajo", "Familia",
-    "Personal", "Ministerio", "Matrimonio", "Otros"
-]
-EMOJIS_DOMINIO = {
-    "Estudio":    "📚", "Programacion": "💻",
-    "Trabajo":    "💼", "Familia":      "👨‍👩‍👧",
-    "Personal":   "👤", "Ministerio":   "⛪",
-    "Matrimonio": "💑", "Otros":        "🌐",
-}
-CATEGORIAS_DEFAULT_POR_DOMINIO = {
-    "Estudio":      ["Teología","Hermenéutica","Idiomas","Filosofía","Historia","Investigación"],
-    "Programacion": ["Script","Web_App","Mobile","Data","DevOps","IA","Automatización"],
-    "Trabajo":      ["Proyecto","Proceso","Mejora","Reunión","Propuesta"],
-    "Familia":      ["Salida","Vacaciones","Actividad","Conversación","Celebración","Apoyo"],
-    "Personal":     ["Hábito","Meta","Reflexión","Lectura","Salud"],
-    "Ministerio":   ["Predicación","Discipulado","Servicio","Oración","Estudio Bíblico"],
-    "Matrimonio":   ["Cita","Conversación","Plan","Mejora","Celebración","Vacaciones"],
-    "Otros":        ["General","Idea","Proyecto"],
-}
-ESTADOS_IDEA = [
-    "Idea","Investigando","En_proceso","Completado","Pausado","Abandonado"
-]
-COLORES_ESTADO = {
-    "Idea":         "#8b949e", "Investigando": "#58a6ff",
-    "En_proceso":   "#e3b341", "Completado":   "#3fb950",
-    "Pausado":      "#f0883e", "Abandonado":   "#f85149",
-}
-LENGUAJES = [
-    "Python","JavaScript","TypeScript","HTML_CSS",
-    "SQL","Bash","Markdown","Otro"
-]
-EMOJIS_LANG = {
-    "Python":"🐍","JavaScript":"⚡","TypeScript":"📘",
-    "HTML_CSS":"🎨","SQL":"🗄️","Bash":"💻",
-    "Markdown":"📝","Otro":"🔧",
-}
-SYSTEM_MENTOR = """Eres un mentor versátil y sabio para un estudiante cristiano de teología 
-que también programa. Puedes orientar en:
-- Programación (Python, web, scripts, IA)
-- Estudio académico (teología, hermenéutica, investigación)
-- Vida personal (hábitos, metas, disciplina)
-- Familia y matrimonio (comunicación, planes, relaciones)
-- Ministerio (predicación, discipulado, servicio)
-- Trabajo y proyectos (planificación, ejecución)
-Eres práctico, alentador y sabio. Máximo 150 palabras por respuesta."""
-
-# ═══════════════════════════════════════════════════════════════
-# FUNCIONES DB
-# ═══════════════════════════════════════════════════════════════
-
-def obtener_categorias_dominio(dominio: str) -> list:
-    defaults = CATEGORIAS_DEFAULT_POR_DOMINIO.get(dominio, ["General"])
-    try:
-        rows = ejecutar_cached("""
-            SELECT DISTINCT categoria FROM sandbox_ideas
-            WHERE dominio = ? AND categoria IS NOT NULL AND user_id = ?
-            ORDER BY categoria
-        """, (dominio, uid())) or []
-        en_bd = [r["categoria"] for r in rows]
-        return list(dict.fromkeys(defaults + en_bd))
-    except Exception:
-        return defaults
-
-
-# ── IDEAS ─────────────────────────────────────────────────────
-
-def obtener_ideas(estado=None, dominio=None, busqueda="") -> list:
-    conditions = ["user_id = ?"]
-    params     = [uid()]
-    if estado:
-        conditions.append("estado = ?")
-        params.append(estado)
-    if dominio:
-        conditions.append("dominio = ?")
-        params.append(dominio)
-    if busqueda:
-        conditions.append(
-            "(titulo LIKE ? OR descripcion LIKE ? OR etiquetas LIKE ?)"
-        )
-        params.extend([f"%{busqueda}%"] * 3)
-    where = " AND ".join(conditions)
-    return ejecutar(
-        f"""SELECT * FROM sandbox_ideas WHERE {where}
-            ORDER BY prioridad DESC, motivacion DESC, creado_en DESC""",
-        params, fetchall=True
-    ) or []
-
-
-def guardar_idea(titulo: str, descripcion: str, dominio: str,
-                 categoria: str, etiquetas: list, prioridad: int,
-                 motivacion: int, notas: str = "") -> int:
-    rid = ejecutar("""
-        INSERT INTO sandbox_ideas
-            (user_id, titulo, descripcion, dominio, categoria,
-             etiquetas, prioridad, motivacion, notas)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, [
-        uid(),
-        str(titulo), str(descripcion or ""),
-        str(dominio), str(categoria or ""),
-        json.dumps(etiquetas),
-        int(prioridad), int(motivacion),
-        str(notas or ""),
-    ])
-    invalidate_data_caches()
-    return rid
-
-
-def actualizar_idea(idea_id: int, titulo: str, descripcion: str,
-                    dominio: str, categoria: str, etiquetas: list,
-                    estado: str, prioridad: int, motivacion: int,
-                    notas: str) -> None:
-    ejecutar("""
-        UPDATE sandbox_ideas
-        SET titulo=?, descripcion=?, dominio=?, categoria=?,
-            etiquetas=?, estado=?, prioridad=?,
-            motivacion=?, notas=?, actualizado_en=?
-        WHERE id=? AND user_id=?
-    """, [
-        str(titulo), str(descripcion or ""),
-        str(dominio), str(categoria or ""),
-        json.dumps(etiquetas), str(estado),
-        int(prioridad), int(motivacion),
-        str(notas or ""),
-        iso_ahora(),        # ← str ISO local
-        int(idea_id),
-        uid(),
-    ])
-    invalidate_data_caches()
-
-
-def eliminar_idea(idea_id: int) -> None:
-    ejecutar("DELETE FROM sandbox_ideas WHERE id=? AND user_id=?", [int(idea_id), uid()])
-    invalidate_data_caches()
-
-
-# ── SNIPPETS ──────────────────────────────────────────────────
-
-def obtener_snippets(lenguaje=None, dominio=None, busqueda="") -> list:
-    conditions = ["user_id = ?"]
-    params     = [uid()]
-    if lenguaje:
-        conditions.append("lenguaje = ?")
-        params.append(lenguaje)
-    if dominio:
-        conditions.append("dominio = ?")
-        params.append(dominio)
-    if busqueda:
-        conditions.append(
-            "(titulo LIKE ? OR descripcion LIKE ? OR tags LIKE ?)"
-        )
-        params.extend([f"%{busqueda}%"] * 3)
-    where = " AND ".join(conditions)
-    return ejecutar(
-        f"""SELECT * FROM sandbox_snippets WHERE {where}
-            ORDER BY veces_usado DESC, creado_en DESC""",
-        params, fetchall=True
-    ) or []
-
-
-def guardar_snippet(titulo: str, descripcion: str, lenguaje: str,
-                    codigo: str, tags: list, dominio: str) -> int:
-    rid = ejecutar("""
-        INSERT INTO sandbox_snippets
-            (user_id, titulo, descripcion, lenguaje, codigo, tags, dominio)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, [
-        uid(),
-        str(titulo), str(descripcion or ""),
-        str(lenguaje), str(codigo),
-        json.dumps(tags), str(dominio),
-    ])
-    invalidate_data_caches()
-    return rid
-
-
-def actualizar_snippet(snip_id: int, titulo: str, descripcion: str,
-                       lenguaje: str, codigo: str, tags: list,
-                       dominio: str) -> None:
-    ejecutar("""
-        UPDATE sandbox_snippets
-        SET titulo=?, descripcion=?, lenguaje=?,
-            codigo=?, tags=?, dominio=?, actualizado_en=?
-        WHERE id=? AND user_id=?
-    """, [
-        str(titulo), str(descripcion or ""),
-        str(lenguaje), str(codigo),
-        json.dumps(tags), str(dominio),
-        iso_ahora(),        # ← str ISO local
-        int(snip_id),
-        uid(),
-    ])
-    invalidate_data_caches()
-
-
-def eliminar_snippet(snip_id: int) -> None:
-    ejecutar("DELETE FROM sandbox_snippets WHERE id=? AND user_id=?", [int(snip_id), uid()])
-    invalidate_data_caches()
-
-
-def incrementar_uso(snip_id: int) -> None:
-    ejecutar("""
-        UPDATE sandbox_snippets
-        SET veces_usado = veces_usado + 1
-        WHERE id=? AND user_id=?
-    """, [int(snip_id), uid()])
-
-
-# ── SESIONES ──────────────────────────────────────────────────
-
-def guardar_sesion(fecha, duracion: int, tipo: str, dominio: str,
-                   proyecto_id, descripcion: str,
-                   codigo: str, satisfaccion: int) -> int:
-    """FIX Turso: fecha → str ISO, tipos primitivos en todos los campos."""
-    fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
-    rid = ejecutar("""
-        INSERT INTO sandbox_sesiones
-            (user_id, fecha, duracion_minutos, tipo_actividad, dominio,
-             proyecto_id, descripcion, codigo_producido, satisfaccion)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, [
-        uid(),
-        fecha_iso,
-        int(duracion),
-        str(tipo),
-        str(dominio),
-        int(proyecto_id) if proyecto_id is not None else None,
-        str(descripcion or ""),
-        str(codigo or "") or None,
-        int(satisfaccion),
-    ])
-    invalidate_data_caches()
-    return rid
-
-
-def obtener_sesiones_recientes(limite: int = 10) -> list:
-    return ejecutar_cached("""
-        SELECT ss.*, si.titulo as proyecto_titulo
-        FROM sandbox_sesiones ss
-        LEFT JOIN sandbox_ideas si ON ss.proyecto_id = si.id AND si.user_id = ss.user_id
-        WHERE ss.user_id = ?
-        ORDER BY ss.fecha DESC, ss.creado_en DESC
-        LIMIT ?
-    """, (uid(), int(limite))) or []
 
 
 # ═══════════════════════════════════════════════════════════════
