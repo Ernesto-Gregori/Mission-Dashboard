@@ -1,8 +1,7 @@
 """Coach HTMX — onboarding y reconfiguración de módulos."""
 from __future__ import annotations
 
-import json
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
