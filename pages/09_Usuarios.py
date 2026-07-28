@@ -27,7 +27,8 @@ st.caption(
     "App web multi-usuario (datos en Turso). "
     "Cada cuenta tiene plan Free / Premium / Familia. "
     "Las contraseñas se guardan con hash. "
-    "Los usuarios nuevos pasan por el Coach IA al primer login."
+    "Los usuarios nuevos pasan por el Coach IA al primer login. "
+    "Versión HTMX: /app/usuarios"
 )
 
 user = st.session_state.get("user") or {}

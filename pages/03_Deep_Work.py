@@ -10,7 +10,24 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
-from app.database import ejecutar, ejecutar_cached, obtener_tipos_bloque
+from app.database import (
+    COLORES_DW as COLORES,
+    DIAS_LABELS_DW as DIAS_LABELS,
+    DIAS_NOMBRES_DW as DIAS_NOMBRES,
+    ESTADOS_SESION,
+    SYSTEM_COACH_DW as SYSTEM_COACH,
+    actualizar_bloque,
+    construir_resumen_semana,
+    crear_bloque,
+    desactivar_bloque,
+    obtener_bloques_fijos,
+    obtener_estado_sesion,
+    obtener_sesiones_semana,
+    obtener_todos_bloques,
+    obtener_tipos_bloque,
+    reactivar_bloque,
+    registrar_sesion,
+)
 from app.tenant import uid
 from app.ai_client import chat_simple, api_key_configurada
 from app.timezone_config import (
@@ -32,6 +49,59 @@ require_onboarding()
 require_module("deep_work")
 ensure_database()
 
+
+@st.cache_data(ttl=60)
+def _bloques_fijos_cached(_user_id: int) -> list:
+    return obtener_bloques_fijos(_user_id)
+
+
+def obtener_bloques_fijos_ui(_user_id: int) -> list:
+    return _bloques_fijos_cached(_user_id)
+
+
+# Alias usados en la página
+obtener_bloques_fijos_page = obtener_bloques_fijos
+
+
+def _clear_bloques_cache():
+    try:
+        _bloques_fijos_cached.clear()
+    except Exception:
+        pass
+    invalidate_data_caches()
+
+
+# Monkey: registrar_sesion etc already invalidate; clear streamlit cache too
+_orig_registrar = registrar_sesion
+def registrar_sesion(fecha, bloque_id, estado, notas=""):  # noqa: F811
+    ok = _orig_registrar(fecha, bloque_id, estado, notas)
+    _clear_bloques_cache()
+    return ok
+
+_orig_crear = crear_bloque
+def crear_bloque(nombre, hora_inicio, hora_fin, dias, tipo, color):  # noqa: F811
+    r = _orig_crear(nombre, hora_inicio, hora_fin, dias, tipo, color)
+    _clear_bloques_cache()
+    return r
+
+_orig_act = actualizar_bloque
+def actualizar_bloque(bloque_id, nombre, hora_inicio, hora_fin, dias, tipo, color, activo):  # noqa: F811
+    r = _orig_act(bloque_id, nombre, hora_inicio, hora_fin, dias, tipo, color, activo)
+    _clear_bloques_cache()
+    return r
+
+_orig_des = desactivar_bloque
+def desactivar_bloque(bloque_id):  # noqa: F811
+    _orig_des(bloque_id)
+    _clear_bloques_cache()
+
+_orig_rea = reactivar_bloque
+def reactivar_bloque(bloque_id):  # noqa: F811
+    _orig_rea(bloque_id)
+    _clear_bloques_cache()
+
+
+
 # ═══════════════════════════════════════════════════════════════
 # CSS
 # ═══════════════════════════════════════════════════════════════
@@ -52,152 +122,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════════════
-# CONSTANTES
-# ═══════════════════════════════════════════════════════════════
-
-DIAS_NOMBRES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
-DIAS_LABELS  = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"]
-COLORES      = {
-    '🔵 Azul':     '#58a6ff',
-    '🟢 Verde':    '#3fb950',
-    '🟣 Morado':   '#a371f7',
-    '🟡 Amarillo': '#e3b341',
-    '🔴 Rojo':     '#f85149',
-    '🩷 Rosa':     '#f778ba',
-}
-
-SYSTEM_COACH = """Eres un coach de productividad cristiano para un estudiante de teología 
-que también programa. Eres directo, práctico y motivador. Máximo 100 palabras por respuesta."""
-
-# ═══════════════════════════════════════════════════════════════
-# FUNCIONES DE BD
-# ═══════════════════════════════════════════════════════════════
-
-@st.cache_data(ttl=60)
-def obtener_bloques_fijos(_user_id: int) -> list:
-    # Mantiene su propio cache de 60s — más agresivo que ejecutar_cached
-    return ejecutar(
-        "SELECT * FROM bloques_fijos WHERE activo = 1 AND user_id = ? ORDER BY hora_inicio",
-        [_user_id],
-        fetchall=True,
-    ) or []
-
-
-def obtener_todos_bloques() -> list:
-    return ejecutar_cached(
-        "SELECT * FROM bloques_fijos WHERE user_id = ? ORDER BY activo DESC, hora_inicio",
-        (uid(),),
-    ) or []
-
-
-def obtener_estado_sesion(fecha: str, bloque_id: int) -> tuple:
-    rows = ejecutar("""
-        SELECT estado, notas FROM sesiones_completadas
-        WHERE fecha = ? AND bloque_fijo_id = ? AND user_id = ?
-    """, [fecha, bloque_id, uid()], fetchall=True)
-    if rows:
-        return rows[0]["estado"], rows[0]["notas"]
-    return None, None
-
-
-def registrar_sesion(fecha: str, bloque_id: int,
-                     estado: str, notas: str = "") -> None:
-    ejecutar("""
-        INSERT INTO sesiones_completadas
-            (user_id, fecha, bloque_fijo_id, estado, notas)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, fecha, bloque_fijo_id) DO UPDATE SET
-            estado = excluded.estado,
-            notas  = excluded.notas
-    """, [uid(), fecha, bloque_id, estado, notas])
-    obtener_bloques_fijos.clear()
-    invalidate_data_caches()
-
-
-def obtener_sesiones_semana(fecha_inicio: str, fecha_fin: str) -> list:
-    return ejecutar_cached("""
-        SELECT sc.*, bf.nombre, bf.tipo, bf.hora_inicio, bf.hora_fin
-        FROM sesiones_completadas sc
-        JOIN bloques_fijos bf ON sc.bloque_fijo_id = bf.id AND bf.user_id = sc.user_id
-        WHERE sc.fecha BETWEEN ? AND ? AND sc.user_id = ?
-        ORDER BY sc.fecha, bf.hora_inicio
-    """, (fecha_inicio, fecha_fin, uid())) or []
-
-
-def crear_bloque(nombre: str, hora_inicio: str, hora_fin: str,
-                 dias: list, tipo: str, color: str) -> int:
-    bloque_id = ejecutar("""
-        INSERT INTO bloques_fijos
-            (user_id, nombre, hora_inicio, hora_fin, dias_semana, tipo, color, activo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-    """, [uid(), nombre, hora_inicio, hora_fin, json.dumps(dias), tipo, color])
-    obtener_bloques_fijos.clear()
-    return bloque_id
-
-
-def actualizar_bloque(bloque_id: int, nombre: str, hora_inicio: str,
-                      hora_fin: str, dias: list, tipo: str,
-                      color: str, activo: bool) -> bool:
-    ejecutar("""
-        UPDATE bloques_fijos
-        SET nombre=?, hora_inicio=?, hora_fin=?,
-            dias_semana=?, tipo=?, color=?, activo=?
-        WHERE id=? AND user_id=?
-    """, [nombre, hora_inicio, hora_fin,
-          json.dumps(dias), tipo, color, int(activo), bloque_id, uid()])
-    obtener_bloques_fijos.clear()
-    return True
-
-
-def desactivar_bloque(bloque_id: int) -> None:
-    ejecutar("UPDATE bloques_fijos SET activo = 0 WHERE id = ? AND user_id = ?", [bloque_id, uid()])
-    obtener_bloques_fijos.clear()
-
-
-def reactivar_bloque(bloque_id: int) -> None:
-    ejecutar("UPDATE bloques_fijos SET activo = 1 WHERE id = ? AND user_id = ?", [bloque_id, uid()])
-    obtener_bloques_fijos.clear()
-
-
-# ═══════════════════════════════════════════════════════════════
-# HELPER IA
-# ═══════════════════════════════════════════════════════════════
-
-def _construir_resumen_semana(sesiones: list) -> str:
-    if not sesiones:
-        return "Sin sesiones registradas esta semana."
-
-    total         = len(sesiones)
-    completados   = len([s for s in sesiones if s["estado"] == "Completado"])
-    parciales     = len([s for s in sesiones if s["estado"] == "Parcial"])
-    no_realizados = len([s for s in sesiones if s["estado"] == "No_realizado"])
-
-    por_tipo: dict = {}
-    for s in sesiones:
-        tipo = s["tipo"]
-        if tipo not in por_tipo:
-            por_tipo[tipo] = {"total": 0, "completados": 0}
-        por_tipo[tipo]["total"] += 1
-        if s["estado"] == "Completado":
-            por_tipo[tipo]["completados"] += 1
-
-    resumen = (
-        f"Semana: {total} bloques. "
-        f"Completados: {completados}, Parciales: {parciales}, "
-        f"No realizados: {no_realizados}.\n"
-    )
-    resumen += "Por tipo: " + ", ".join(
-        f"{tipo}: {v['completados']}/{v['total']}"
-        for tipo, v in por_tipo.items()
-    )
-    notas = [s["notas"] for s in sesiones if s.get("notas") and len(s["notas"]) > 10]
-    if notas:
-        resumen += f"\nNotas del usuario: {' | '.join(notas[:3])}"
-    return resumen
-
-
-# ═══════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════
 
@@ -296,7 +220,7 @@ with tab_hoy:
             with col_accion:
                 with st.popover("⚡ Marcar", use_container_width=True):
                     st.markdown(f"**{bloque['nombre']}**")
-                    ESTADOS = ["Pendiente","Completado","Parcial","No_realizado","Postergado"]
+                    ESTADOS = ESTADOS_SESION
                     with st.form(f"form_sesion_{key_base}"):
                         nuevo_estado = st.selectbox(
                             "Estado", ESTADOS,
@@ -411,7 +335,7 @@ with tab_ia:
     lunes_ia         = fecha_seleccionada - timedelta(days=fecha_seleccionada.weekday())
     domingo_ia       = lunes_ia + timedelta(days=6)
     sesiones_ia      = obtener_sesiones_semana(lunes_ia.isoformat(), domingo_ia.isoformat())
-    resumen_semana   = _construir_resumen_semana(sesiones_ia)
+    resumen_semana   = construir_resumen_semana(sesiones_ia)
 
     st.caption(
         f"Analizando semana: {lunes_ia.strftime('%d/%m')} – {domingo_ia.strftime('%d/%m/%Y')}"

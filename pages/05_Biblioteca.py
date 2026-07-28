@@ -9,25 +9,36 @@ from datetime import timedelta
 import json
 import hashlib
 
+import streamlit as st
+
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.stability import ensure_database, invalidate_data_caches
-from app.database import ejecutar, ejecutar_cached
+from app.database import (
+    actualizar_progreso,
+    agregar_libro_por_procesar,
+    agregar_resaltado,
+    eliminar_libro,
+    ejecutar,
+    guardar_metadatos_ia,
+    obtener_libro,
+    obtener_libros_por_estado,
+    obtener_resaltados,
+    parsear_lista,
+)
 from app.tenant import uid
 from app.ai_client import (
-    extraer_metadatos_libro,
-    buscar_metadatos_isbn,
-    verificar_conexion,
-    estado_gemini,
     api_key_configurada,
+    buscar_metadatos_isbn,
+    extraer_metadatos_libro,
+    estado_gemini,
+    verificar_conexion,
 )
 from app.timezone_config import (
     date, datetime,
     hoy as _hoy,
     iso_ahora,
 )
-
-import streamlit as st
 
 st.set_page_config(
     page_title="Biblioteca | Mission Dashboard",
@@ -68,192 +79,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# ═══════════════════════════════════════════════════════════════
-# HELPERS
-# ═══════════════════════════════════════════════════════════════
-
-def parsear_lista(valor) -> list:
-    if not valor:
-        return []
-    if isinstance(valor, list):
-        return [str(v) for v in valor if v]
-    try:
-        resultado = json.loads(valor)
-        return [str(v) for v in resultado if v] if isinstance(resultado, list) else []
-    except Exception:
-        return []
-
-
-# ═══════════════════════════════════════════════════════════════
-# FUNCIONES DB
-# ═══════════════════════════════════════════════════════════════
-
-def agregar_libro_por_procesar(nombre_archivo: str, ruta: str,
-                                tamano: float, formato: str,
-                                hash_archivo: str) -> int:
-    titulo_temp = (nombre_archivo
-                   .replace(f".{formato.lower()}", "")
-                   .replace("_", " ")
-                   .title())
-    return ejecutar("""
-        INSERT INTO libros
-            (user_id, titulo, nombre_archivo, ruta_archivo,
-             tamano_mb, formato, hash_archivo, estado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'por_procesar')
-    """, [uid(), titulo_temp, nombre_archivo, ruta,
-          float(tamano), formato, hash_archivo])
-
-
-def obtener_libro(libro_id: int) -> dict | None:
-    rows = ejecutar(
-        "SELECT * FROM libros WHERE id = ? AND user_id = ?",
-        [libro_id, uid()], fetchall=True
-    )
-    return rows[0] if rows else None
-
-
-def obtener_libros_por_estado(estado=None, categoria=None,
-                               color=None, busqueda="",
-                               pagina=1, por_pagina=10) -> tuple:
-    conditions = ["user_id = ?"]
-    params     = [uid()]
-
-    if estado:
-        conditions.append("estado = ?")
-        params.append(estado)
-    if categoria:
-        conditions.append("categoria_principal = ?")
-        params.append(categoria)
-    if color:
-        conditions.append("color_liquidtext = ?")
-        params.append(color)
-    if busqueda:
-        termino = f"%{busqueda}%"
-        conditions.append("""(
-            titulo        LIKE ? OR
-            autor         LIKE ? OR
-            descripcion   LIKE ? OR
-            temas_clave   LIKE ? OR
-            subcategorias LIKE ?
-        )""")
-        params.extend([termino] * 5)
-
-    where = " AND ".join(conditions)
-
-    total_rows = ejecutar(
-        f"SELECT COUNT(*) as total FROM libros WHERE {where}",
-        params, fetchall=True
-    )
-    total  = total_rows[0]["total"] if total_rows else 0
-    offset = (pagina - 1) * por_pagina
-    libros = ejecutar(
-        f"""SELECT * FROM libros WHERE {where}
-            ORDER BY creado_en DESC LIMIT ? OFFSET ?""",
-        params + [por_pagina, offset], fetchall=True
-    ) or []
-
-    return libros, total
-
-
-def guardar_metadatos_ia(libro_id: int, metadatos: dict) -> None:
-    """
-    FIX Turso: todos los campos se convierten a tipos primitivos
-    (str / int / float) antes de enviar — nunca objetos Python nativos.
-    """
-    for campo in ["subcategorias", "temas_clave", "autores_adicionales"]:
-        valor = metadatos.get(campo)
-        if isinstance(valor, list):
-            metadatos[campo] = json.dumps(valor, ensure_ascii=False)
-        elif not isinstance(valor, str):
-            metadatos[campo] = json.dumps([])
-
-    campos = {
-        "titulo":              str(metadatos.get("titulo") or ""),
-        "autor":               str(metadatos.get("autor") or ""),
-        "isbn":                str(metadatos.get("isbn") or ""),
-        "editorial":           str(metadatos.get("editorial") or ""),
-        "anio_publicacion":    int(metadatos.get("anio_publicacion") or 0),
-        "categoria_principal": str(metadatos.get("categoria_principal") or "Otros"),
-        "total_paginas":       int(metadatos.get("total_paginas") or 0),
-        "descripcion":         str(metadatos.get("descripcion") or ""),
-        "subcategorias":       metadatos.get("subcategorias", "[]"),
-        "temas_clave":         metadatos.get("temas_clave",   "[]"),
-        "autores_adicionales": metadatos.get("autores_adicionales", "[]"),
-        "notas_bibliotecaria": str(metadatos.get("notas_bibliotecaria") or ""),
-        "fuente_metadatos":    str(metadatos.get("fuente_metadatos") or "IA"),
-        "confianza_ia":        int(metadatos.get("confianza_ia") or 5),
-        "estado":              "catalogado",
-        "revisado_manual":     1,
-        "actualizado_en":      iso_ahora(),   # ← zona horaria local, str ISO
-    }
-
-    set_clause = ", ".join(f"{k} = ?" for k in campos)
-    ejecutar(
-        f"UPDATE libros SET {set_clause} WHERE id = ? AND user_id = ?",
-        list(campos.values()) + [int(libro_id), uid()]
-    )
-
-
-def actualizar_progreso(libro_id: int, pagina_actual: int,
-                         estado: str = None) -> None:
-    if estado:
-        ejecutar("""
-            UPDATE libros
-            SET pagina_actual = ?, estado = ?, actualizado_en = ?
-            WHERE id = ? AND user_id = ?
-        """, [int(pagina_actual), estado, iso_ahora(), int(libro_id), uid()])
-    else:
-        ejecutar("""
-            UPDATE libros
-            SET pagina_actual = ?, actualizado_en = ?
-            WHERE id = ? AND user_id = ?
-        """, [int(pagina_actual), iso_ahora(), int(libro_id), uid()])
-
-
-def agregar_resaltado(libro_id: int, pagina: int, texto_resaltado: str,
-                      color_etiqueta: str, nota_personal: str = "",
-                      texto_contexto: str = "") -> int:
-    # Verificar que el libro pertenece al usuario
-    own = ejecutar(
-        "SELECT id FROM libros WHERE id = ? AND user_id = ?",
-        [int(libro_id), uid()],
-        fetchall=True,
-    ) or []
-    if not own:
-        return 0
-    rid = ejecutar("""
-        INSERT INTO resaltados
-            (user_id, libro_id, pagina, texto_resaltado,
-             color_etiqueta, nota_personal, texto_contexto)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, [uid(), int(libro_id), int(pagina),
-          str(texto_resaltado), str(color_etiqueta),
-          str(nota_personal or ""), str(texto_contexto or "")])
-    invalidate_data_caches()
-    return rid
-
-
-def obtener_resaltados(libro_id: int, color: str = None) -> list:
-    if color:
-        return ejecutar_cached("""
-            SELECT * FROM resaltados
-            WHERE libro_id = ? AND color_etiqueta = ? AND user_id = ?
-            ORDER BY pagina, creado_en
-        """, (int(libro_id), color, uid())) or []
-    return ejecutar_cached("""
-        SELECT * FROM resaltados
-        WHERE libro_id = ? AND user_id = ?
-        ORDER BY pagina, creado_en
-    """, (int(libro_id), uid())) or []
-
-
-def eliminar_libro(libro_id: int) -> None:
-    ejecutar("DELETE FROM resaltados WHERE libro_id = ? AND user_id = ?", [int(libro_id), uid()])
-    ejecutar("DELETE FROM libros WHERE id = ? AND user_id = ?",           [int(libro_id), uid()])
-    invalidate_data_caches()
-
-
 # ═══════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════

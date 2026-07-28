@@ -1,0 +1,216 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+<p class="muted">Bloques de enfoque · registro diario</p>
+
+{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<nav class="agenda-tabs">
+  <a class="{% if tab == 'dia' %}active{% endif %}" href="/app/m/deep_work?tab=dia&fecha={{ fecha }}">📋 Mi día</a>
+  <a class="{% if tab == 'semana' %}active{% endif %}" href="/app/m/deep_work?tab=semana&fecha={{ fecha }}">📊 Semana</a>
+  <a class="{% if tab == 'config' %}active{% endif %}" href="/app/m/deep_work?tab=config">⚙️ Config</a>
+  <a class="{% if tab == 'coach' %}active{% endif %}" href="/app/m/deep_work?tab=coach">🤖 Coach</a>
+</nav>
+
+{% if tab == 'dia' %}
+<section>
+  <div class="card">
+    <form method="post" action="/app/m/deep_work/fecha" style="display:flex;gap:0.5rem;align-items:end;flex-wrap:wrap">
+      <div>
+        <label>Fecha</label>
+        <input name="fecha" type="date" value="{{ fecha }}" />
+      </div>
+      <button class="btn secondary" type="submit">Ir</button>
+      <p class="muted" style="margin:0 0 0.4rem">{{ dia_nombre }} {{ fecha }}</p>
+    </form>
+  </div>
+
+  {% if not bloques_dia %}
+  <div class="card"><p class="muted">No hay bloques activos para este día. Crea uno en Config.</p></div>
+  {% else %}
+  {% for b in bloques_dia %}
+  <div class="card" style="border-left:4px solid {{ b.color or '#58a6ff' }}">
+    <div style="display:flex;justify-content:space-between;gap:0.5rem;flex-wrap:wrap">
+      <div>
+        <strong>{{ b.nombre }}</strong>
+        <span class="muted"> · {{ (b.hora_inicio or '')[:5] }}–{{ (b.hora_fin or '')[:5] }} · {{ b.tipo }}</span>
+      </div>
+      <span class="badge {% if b.estado == 'Completado' %}ok{% endif %}">{{ b.estado }}</span>
+    </div>
+    <form method="post" action="/app/m/deep_work/sesion" style="margin-top:0.75rem">
+      <input type="hidden" name="fecha" value="{{ fecha }}" />
+      <input type="hidden" name="bloque_id" value="{{ b.id }}" />
+      <div class="grid" style="grid-template-columns:1fr 2fr auto;align-items:end">
+        <div>
+          <label>Estado</label>
+          <select name="estado">
+            {% for e in estados %}
+            <option value="{{ e }}" {% if b.estado == e %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Notas</label>
+          <input name="notas" value="{{ b.notas }}" placeholder="opcional" />
+        </div>
+        <button class="btn" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+  {% endif %}
+</section>
+{% endif %}
+
+{% if tab == 'semana' %}
+<section>
+  <div class="card">
+    <h2>Semana {{ lunes.strftime('%d/%m') }} — {{ domingo.strftime('%d/%m/%Y') }}</h2>
+    <p>
+      Completados <strong>{{ stats_semana.completados }}</strong> /
+      {{ stats_semana.total }}
+      ({{ '%.0f'|format(stats_semana.tasa) }}%)
+    </p>
+  </div>
+  <div class="agenda-grid">
+    {% for d in dias_semana %}
+    <div class="agenda-day {% if d.iso == hoy %}hoy{% endif %}">
+      <div class="agenda-day-h">
+        <strong>{{ d.label }}</strong>
+        <a href="/app/m/deep_work?tab=dia&fecha={{ d.iso }}">{{ d.fecha.strftime('%d/%m') }}</a>
+      </div>
+      {% for s in d.sesiones %}
+      <div class="chip chip-dw {% if s.estado == 'Completado' %}ok{% endif %}">
+        {% if s.estado == 'Completado' %}✓ {% endif %}{{ (s.nombre or '')[:14] }}
+      </div>
+      {% else %}
+      <p class="muted" style="font-size:0.75rem;margin:0.3rem">—</p>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'config' %}
+<section>
+  <div class="card">
+    <h2>➕ Nuevo bloque</h2>
+    <form method="post" action="/app/m/deep_work/bloque">
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+        <div style="grid-column:1 / -1"><label>Nombre</label><input name="nombre" required placeholder="Deep Work: Código" /></div>
+        <div><label>Inicio</label><input name="hora_inicio" type="time" value="06:15" /></div>
+        <div><label>Fin</label><input name="hora_fin" type="time" value="08:00" /></div>
+        <div>
+          <label>Tipo</label>
+          <select name="tipo">
+            {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Color</label>
+          <select name="color">
+            {% for c in color_labels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="margin:0.75rem 0">
+        <label>Días</label>
+        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr))">
+          {% for n, label in dias_nombres %}
+          <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal">
+            <input type="checkbox" name="dias" value="{{ n }}" {% if n <= 5 %}checked{% endif %} /> {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <button class="btn" type="submit">Crear bloque</button>
+    </form>
+  </div>
+
+  <h2>Tus bloques</h2>
+  {% if not todos_bloques %}
+  <div class="card"><p class="muted">Sin bloques aún.</p></div>
+  {% endif %}
+  {% for b in todos_bloques %}
+  <div class="card" style="border-left:4px solid {{ b.color or '#58a6ff' }};{% if not b.activo %}opacity:0.55{% endif %}">
+    <form method="post" action="/app/m/deep_work/bloque/{{ b.id }}/actualizar">
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+        <div style="grid-column:1 / -1"><label>Nombre</label><input name="nombre" value="{{ b.nombre }}" required /></div>
+        <div><label>Inicio</label><input name="hora_inicio" type="time" value="{{ (b.hora_inicio or '06:00')[:5] }}" /></div>
+        <div><label>Fin</label><input name="hora_fin" type="time" value="{{ (b.hora_fin or '07:00')[:5] }}" /></div>
+        <div>
+          <label>Tipo</label>
+          <select name="tipo">
+            {% for t in tipos %}
+            <option value="{{ t }}" {% if b.tipo == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+            {% if b.tipo and b.tipo not in tipos %}
+            <option value="{{ b.tipo }}" selected>{{ b.tipo }}</option>
+            {% endif %}
+          </select>
+        </div>
+        <div>
+          <label>Color</label>
+          <select name="color">
+            {% for c, hex in colores.items() %}
+            <option value="{{ c }}" {% if b.color == hex %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.4rem;padding-top:1.2rem">
+          <input type="checkbox" name="activo" id="a{{ b.id }}" {% if b.activo %}checked{% endif %} />
+          <label for="a{{ b.id }}" style="margin:0">Activo</label>
+        </div>
+      </div>
+      <div style="margin:0.5rem 0">
+        <label>Días</label>
+        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr))">
+          {% for n, label in dias_nombres %}
+          <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal">
+            <input type="checkbox" name="dias" value="{{ n }}" {% if n in b.dias_list %}checked{% endif %} /> {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+        <p class="muted" style="font-size:0.8rem">{{ b.dias_txt }}</p>
+      </div>
+      <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+        <button class="btn" type="submit">Guardar</button>
+      </div>
+    </form>
+    <div style="margin-top:0.5rem;display:flex;gap:0.4rem">
+      {% if b.activo %}
+      <form method="post" action="/app/m/deep_work/bloque/{{ b.id }}/desactivar">
+        <button class="btn secondary" type="submit">Desactivar</button>
+      </form>
+      {% else %}
+      <form method="post" action="/app/m/deep_work/bloque/{{ b.id }}/reactivar">
+        <button class="btn secondary" type="submit">Reactivar</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if tab == 'coach' %}
+<section>
+  <div class="card">
+    <h2>🤖 Coach Deep Work</h2>
+    <p class="muted">
+      Semana: {{ stats_semana.completados }}/{{ stats_semana.total }} completados
+      ({{ '%.0f'|format(stats_semana.tasa) }}%)
+    </p>
+    <form method="post" action="/app/m/deep_work/consejo">
+      <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>Analizar semana</button>
+      {% if not ia_ok %}<span class="muted"> Configura GROQ_API_KEY</span>{% endif %}
+    </form>
+    {% if consejo %}
+    <div class="card" style="margin-top:0.75rem;white-space:pre-wrap">{{ consejo }}</div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

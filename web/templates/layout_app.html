@@ -8,6 +8,7 @@
       <a href="/app" class="{% if request.url.path.rstrip('/') == '/app' %}active{% endif %}">🏠 Control de mando</a>
       <a href="/app/coach" class="{% if '/coach' in request.url.path %}active{% endif %}">🤖 Coach</a>
       <a href="/app/billing">💳 Plan</a>
+      <a href="/app/usuarios" class="{% if '/usuarios' in request.url.path %}active{% endif %}">🔐 Usuarios</a>
       {% if modulos_nav is defined %}
         {% for m in modulos_nav %}
           <a href="{{ m.href }}" class="{% if not m.activo %}dim{% endif %}{% if request.url.path == m.href %} active{% endif %}">

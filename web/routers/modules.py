@@ -13,7 +13,16 @@ from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app/m", tags=["modules"])
 
-MODULE_STATUS = {k: "stub" for k in MODULE_TEMPLATES}
+MODULE_STATUS = {
+    "agenda": "live",
+    "finanzas": "live",
+    "deep_work": "live",
+    "teologia": "live",
+    "biblioteca": "live",
+    "salud": "live",
+    "sandbox": "live",
+    "matrimonio": "live",
+}
 
 
 def _nav(user_id: int) -> list[dict]:

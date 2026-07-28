@@ -1,0 +1,378 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+<p class="muted">Ideas · snippets · sesiones · mentor IA</p>
+
+{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<div class="agenda-rachas">
+  <span>💡 {{ stats.activas }} activas</span>
+  <span>✅ {{ stats.completadas }} completadas</span>
+  <span>🧩 {{ stats.snippets }} snippets</span>
+</div>
+
+<nav class="agenda-tabs">
+  <a class="{% if tab == 'ideas' %}active{% endif %}" href="/app/m/sandbox?tab=ideas">💡 Ideas</a>
+  <a class="{% if tab == 'nueva' %}active{% endif %}" href="/app/m/sandbox?tab=nueva">➕ Nueva</a>
+  <a class="{% if tab == 'snippets' %}active{% endif %}" href="/app/m/sandbox?tab=snippets">🧩 Snippets</a>
+  <a class="{% if tab == 'sesiones' %}active{% endif %}" href="/app/m/sandbox?tab=sesiones">⏱️ Sesiones</a>
+  <a class="{% if tab == 'mentor' %}active{% endif %}" href="/app/m/sandbox?tab=mentor">🤖 Mentor</a>
+</nav>
+
+{% if tab == 'ideas' %}
+<section>
+  <form method="get" action="/app/m/sandbox" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+    <input type="hidden" name="tab" value="ideas" />
+    <select name="dominio">
+      <option value="">Todos los dominios</option>
+      {% for d in dominios %}
+      <option value="{{ d }}" {% if f_dominio == d %}selected{% endif %}>{{ emojis_dominio.get(d, '') }} {{ d }}</option>
+      {% endfor %}
+    </select>
+    <select name="estado">
+      <option value="">Todos los estados</option>
+      {% for e in estados_idea %}
+      <option value="{{ e }}" {% if f_estado == e %}selected{% endif %}>{{ e.replace('_', ' ') }}</option>
+      {% endfor %}
+    </select>
+    <input name="q" value="{{ f_q }}" placeholder="Buscar…" style="min-width:160px" />
+    <button class="btn secondary" type="submit">Filtrar</button>
+  </form>
+
+  <div class="card">
+    {% if not ideas %}
+    <p class="muted">Sin ideas con estos filtros. <a href="/app/m/sandbox?tab=nueva">Crear una</a>.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for i in ideas %}
+      <li>
+        <span>
+          {{ i.emoji }} <strong>{{ i.titulo }}</strong>
+          · <span style="color:{{ i.color }}">{{ (i.estado or 'Idea').replace('_', ' ') }}</span>
+          · ⭐{{ i.prioridad }}/5 · 💪{{ i.motivacion }}/10
+          <br><span class="muted">{{ i.dominio }}{% if i.categoria %} · {{ i.categoria }}{% endif %}</span>
+          {% if i.descripcion %}<br>{{ i.descripcion[:120] }}{% if i.descripcion|length > 120 %}…{% endif %}{% endif %}
+          {% if i.tags %}<br><span class="muted">{% for t in i.tags[:5] %}#{{ t }} {% endfor %}</span>{% endif %}
+        </span>
+        <span style="display:flex;gap:0.35rem;flex-wrap:wrap">
+          <a class="btn secondary" href="/app/m/sandbox?tab=nueva&edit={{ i.id }}">Editar</a>
+          <form method="post" action="/app/m/sandbox/idea/{{ i.id }}/eliminar" onsubmit="return confirm('¿Eliminar idea?')">
+            <button class="btn secondary" type="submit">Eliminar</button>
+          </form>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'nueva' %}
+<section>
+  <div class="card">
+    <h2>{% if idea_edit %}Editar idea{% else %}Nueva idea{% endif %}</h2>
+    <form method="post" action="{% if idea_edit %}/app/m/sandbox/idea/{{ idea_edit.id }}/actualizar{% else %}/app/m/sandbox/idea{% endif %}">
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Dominio</label>
+          <select name="dominio">
+            {% for d in dominios %}
+            <option value="{{ d }}" {% if dominio_form == d %}selected{% endif %}>{{ emojis_dominio.get(d, '') }} {{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Categoría</label>
+          <select name="categoria">
+            {% for c in categorias %}
+            <option value="{{ c }}" {% if idea_edit and idea_edit.categoria == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>O nueva categoría</label>
+          <input name="categoria_custom" placeholder="Opcional" />
+        </div>
+      </div>
+      <div class="grid" style="grid-template-columns:2fr 1fr">
+        <div>
+          <label>Título *</label>
+          <input name="titulo" required value="{{ idea_edit.titulo if idea_edit else '' }}" />
+        </div>
+        <div>
+          <label>Estado</label>
+          <select name="estado">
+            {% for e in estados_idea %}
+            <option value="{{ e }}" {% if (idea_edit.estado if idea_edit else 'Idea') == e %}selected{% endif %}>{{ e.replace('_', ' ') }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label>Descripción</label>
+        <textarea name="descripcion" rows="3">{{ idea_edit.descripcion if idea_edit else '' }}</textarea>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Prioridad (1–5)</label>
+          <input name="prioridad" type="number" min="1" max="5" value="{{ idea_edit.prioridad if idea_edit else 3 }}" />
+        </div>
+        <div>
+          <label>Motivación (1–10)</label>
+          <input name="motivacion" type="number" min="1" max="10" value="{{ idea_edit.motivacion if idea_edit else 7 }}" />
+        </div>
+        <div>
+          <label>Etiquetas (comas)</label>
+          <input name="etiquetas" value="{{ idea_edit.tags_txt if idea_edit else '' }}" placeholder="urgente, largo plazo" />
+        </div>
+      </div>
+      <div>
+        <label>Notas</label>
+        <textarea name="notas" rows="2">{{ idea_edit.notas if idea_edit else '' }}</textarea>
+      </div>
+      <div style="margin-top:1rem">
+        <button class="btn" type="submit">{% if idea_edit %}💾 Guardar{% else %}➕ Crear idea{% endif %}</button>
+        {% if idea_edit %}<a class="btn secondary" href="/app/m/sandbox?tab=nueva">Cancelar</a>{% endif %}
+      </div>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'snippets' %}
+<section>
+  <form method="get" action="/app/m/sandbox" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+    <input type="hidden" name="tab" value="snippets" />
+    <select name="lang">
+      <option value="">Todos los lenguajes</option>
+      {% for l in lenguajes %}
+      <option value="{{ l }}" {% if f_lang == l %}selected{% endif %}>{{ emojis_lang.get(l, '') }} {{ l }}</option>
+      {% endfor %}
+    </select>
+    <select name="sdom">
+      <option value="">Todos los dominios</option>
+      {% for d in dominios %}
+      <option value="{{ d }}" {% if f_snip_dom == d %}selected{% endif %}>{{ d }}</option>
+      {% endfor %}
+    </select>
+    <input name="sq" value="{{ f_snip_q }}" placeholder="Buscar…" />
+    <button class="btn secondary" type="submit">Filtrar</button>
+  </form>
+
+  <div class="card" style="margin-bottom:1rem">
+    <h2>{% if snip_edit %}Editar snippet{% else %}Nuevo snippet{% endif %}</h2>
+    <form method="post" action="{% if snip_edit %}/app/m/sandbox/snippet/{{ snip_edit.id }}/actualizar{% else %}/app/m/sandbox/snippet{% endif %}">
+      <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
+        <div>
+          <label>Título *</label>
+          <input name="titulo" required value="{{ snip_edit.titulo if snip_edit else '' }}" />
+        </div>
+        <div>
+          <label>Lenguaje</label>
+          <select name="lenguaje">
+            {% for l in lenguajes %}
+            <option value="{{ l }}" {% if (snip_edit.lenguaje if snip_edit else 'Python') == l %}selected{% endif %}>{{ l }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Dominio</label>
+          <select name="dominio">
+            {% for d in dominios %}
+            <option value="{{ d }}" {% if (snip_edit.dominio if snip_edit else 'Programacion') == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label>Código *</label>
+        <textarea name="codigo" rows="8" required style="font-family:ui-monospace,monospace">{{ snip_edit.codigo if snip_edit else '' }}</textarea>
+      </div>
+      <div class="grid" style="grid-template-columns:2fr 1fr">
+        <div>
+          <label>Descripción</label>
+          <input name="descripcion" value="{{ snip_edit.descripcion if snip_edit else '' }}" />
+        </div>
+        <div>
+          <label>Tags (comas)</label>
+          <input name="tags" value="{{ snip_edit.tags_txt if snip_edit else '' }}" />
+        </div>
+      </div>
+      <div style="margin-top:1rem">
+        <button class="btn" type="submit">{% if snip_edit %}💾 Guardar{% else %}➕ Guardar snippet{% endif %}</button>
+        {% if snip_edit %}<a class="btn secondary" href="/app/m/sandbox?tab=snippets">Cancelar</a>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    {% if not snippets %}
+    <p class="muted">Aún no hay snippets.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for s in snippets %}
+      <li style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;gap:0.5rem;flex-wrap:wrap">
+          <span>
+            {{ s.emoji_lang }} <strong>{{ s.titulo }}</strong>
+            · {{ s.emoji_dom }} {{ s.dominio }}
+            · {{ s.veces_usado or 0 }} usos
+            {% if s.tags %}<br><span class="muted">{% for t in s.tags[:5] %}#{{ t }} {% endfor %}</span>{% endif %}
+            {% if s.descripcion %}<br><span class="muted">{{ s.descripcion }}</span>{% endif %}
+          </span>
+          <span style="display:flex;gap:0.35rem;flex-wrap:wrap">
+            <form method="post" action="/app/m/sandbox/snippet/{{ s.id }}/usar">
+              <button class="btn secondary" type="submit">Usado</button>
+            </form>
+            <a class="btn secondary" href="/app/m/sandbox?tab=snippets&edit={{ s.id }}">Editar</a>
+            <form method="post" action="/app/m/sandbox/snippet/{{ s.id }}/eliminar" onsubmit="return confirm('¿Eliminar snippet?')">
+              <button class="btn secondary" type="submit">Eliminar</button>
+            </form>
+          </span>
+        </div>
+        <pre style="margin:0.5rem 0 0;padding:0.75rem;overflow:auto;background:#0d1117;border-radius:6px;font-size:0.85rem">{{ s.codigo }}</pre>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'sesiones' %}
+<section>
+  <div class="card" style="margin-bottom:1rem">
+    <h2>Registrar sesión</h2>
+    <form method="post" action="/app/m/sandbox/sesion">
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Fecha</label>
+          <input name="fecha" type="date" value="{{ hoy }}" />
+        </div>
+        <div>
+          <label>Duración (min)</label>
+          <input name="duracion" type="number" min="5" max="480" step="5" value="60" />
+        </div>
+        <div>
+          <label>Satisfacción (1–10)</label>
+          <input name="satisfaccion" type="number" min="1" max="10" value="7" />
+        </div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Dominio</label>
+          <select name="dominio">
+            {% for d in dominios %}
+            <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select name="tipo">
+            {% for t in tipos_sesion %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Idea relacionada</label>
+          <select name="proyecto_id">
+            <option value="">Sin proyecto</option>
+            {% for i in ideas_activas %}
+            <option value="{{ i.id }}">{{ i.emoji }} {{ i.titulo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label>¿Qué hiciste? *</label>
+        <textarea name="descripcion" rows="3" required></textarea>
+      </div>
+      <div>
+        <label>Código / notas (opcional)</label>
+        <textarea name="codigo" rows="4" style="font-family:ui-monospace,monospace"></textarea>
+      </div>
+      <div style="margin-top:1rem"><button class="btn" type="submit">💾 Guardar sesión</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Recientes</h2>
+    {% if not sesiones %}
+    <p class="muted">Sin sesiones aún.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for s in sesiones %}
+      <li>
+        <span>
+          {{ s.emoji }} <strong>{{ s.fecha }}</strong>
+          · {{ s.tipo_actividad }} · {{ s.duracion_minutos }}min
+          · ★{{ s.satisfaccion }}/10
+          {% if s.proyecto_titulo %}· {{ s.proyecto_titulo }}{% endif %}
+          {% if s.descripcion %}<br>{{ s.descripcion }}{% endif %}
+          {% if s.codigo_producido %}<br><pre style="margin:0.35rem 0 0;padding:0.5rem;overflow:auto;background:#0d1117;border-radius:6px;font-size:0.8rem">{{ s.codigo_producido }}</pre>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'mentor' %}
+<section>
+  <div class="card">
+    <h2>Mentor IA multi-dominio</h2>
+    {% if not ia_ok %}
+    <div class="flash-warn">IA offline — configura GROQ_API_KEY.</div>
+    {% endif %}
+    <form method="post" action="/app/m/sandbox/mentor">
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Área</label>
+          <select name="dominio">
+            {% for d in dominios %}
+            <option value="{{ d }}">{{ emojis_dominio.get(d, '') }} {{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Tipo de ayuda</label>
+          <select name="tipo_ayuda">
+            <option>Consejo general</option>
+            <option>Plan de acción</option>
+            <option>Recursos útiles</option>
+            <option>Próximo paso</option>
+            <option>Reflexión bíblica</option>
+            <option>Cómo priorizar</option>
+          </select>
+        </div>
+        <div>
+          <label>Idea (opcional)</label>
+          <select name="idea_id">
+            <option value="">Ninguna</option>
+            {% for i in ideas %}
+            <option value="{{ i.id }}">{{ i.titulo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label>Pregunta *</label>
+        <textarea name="pregunta" rows="4" required placeholder="¿Por dónde empiezo con este proyecto?"></textarea>
+      </div>
+      <div style="margin-top:1rem">
+        <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>🚀 Consultar mentor</button>
+      </div>
+    </form>
+    {% if mentor_reply %}
+    <div class="flash-ok" style="margin-top:1rem;white-space:pre-wrap">{{ mentor_reply }}</div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

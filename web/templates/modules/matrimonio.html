@@ -1,0 +1,301 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+<p class="muted">Citas · notas · hábitos de conexión</p>
+
+{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+{% if alerta and proxima %}
+<div class="flash-warn">
+  ⏰ Alerta 20:30 — hoy: <strong>{{ proxima.titulo }}</strong>
+  {% if proxima.hora %}· {{ proxima.hora }}{% endif %}
+  {% if proxima.lugar %}· {{ proxima.lugar }}{% endif %}
+</div>
+{% elif proxima %}
+<div class="agenda-rachas">
+  <span>Próxima: {{ proxima.titulo }} · {{ proxima.fecha }}{% if proxima.hora %} {{ proxima.hora }}{% endif %}</span>
+</div>
+{% endif %}
+
+<nav class="agenda-tabs">
+  <a class="{% if tab == 'citas' %}active{% endif %}" href="/app/m/matrimonio?tab=citas">📅 Citas</a>
+  <a class="{% if tab == 'nueva' %}active{% endif %}" href="/app/m/matrimonio?tab=nueva">➕ Nueva</a>
+  <a class="{% if tab == 'notas' %}active{% endif %}" href="/app/m/matrimonio?tab=notas">📝 Notas</a>
+  <a class="{% if tab == 'habitos' %}active{% endif %}" href="/app/m/matrimonio?tab=habitos">❤️ Hábitos</a>
+</nav>
+
+{% if tab == 'citas' %}
+<section>
+  <form method="get" action="/app/m/matrimonio" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+    <input type="hidden" name="tab" value="citas" />
+    <select name="estado">
+      <option value="">Todos los estados</option>
+      {% for e in estados_cita %}
+      <option value="{{ e }}" {% if filtro_estado == e %}selected{% endif %}>{{ e }}</option>
+      {% endfor %}
+    </select>
+    <select name="ambito">
+      <option value="">Todos los ámbitos</option>
+      {% for a in ambitos %}
+      <option value="{{ a }}" {% if filtro_ambito == a %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn secondary" type="submit">Filtrar</button>
+  </form>
+
+  <div class="card">
+    {% if not citas %}
+    <p class="muted">Sin citas en los últimos 60 días. <a href="/app/m/matrimonio?tab=nueva">Crear una</a>.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for c in citas %}
+      <li>
+        <span>
+          {{ c.emoji }} <strong>{{ c.titulo }}</strong>
+          · {{ c.fecha }}{% if c.hora %} {{ c.hora }}{% endif %}
+          · <span style="color:{{ c.color }}">{{ c.estado_planificacion }}</span>
+          · {{ c.ambito or 'Matrimonio' }}
+          {% if c.lugar %}<br><span class="muted">{{ c.lugar }}</span>{% endif %}
+          {% if c.descripcion %}<br><span class="muted">{{ c.descripcion[:100] }}{% if c.descripcion|length > 100 %}…{% endif %}</span>{% endif %}
+        </span>
+        <span style="display:flex;gap:0.35rem;flex-wrap:wrap">
+          <a class="btn secondary" href="/app/m/matrimonio?tab=nueva&edit={{ c.id }}">Editar</a>
+          <form method="post" action="/app/m/matrimonio/cita/{{ c.id }}/eliminar" onsubmit="return confirm('¿Eliminar cita?')">
+            <button class="btn secondary" type="submit">Eliminar</button>
+          </form>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'nueva' %}
+<section>
+  <div class="card">
+    <h2>{% if cita_edit %}Editar cita{% else %}Nueva cita{% endif %}</h2>
+    <form method="post" action="{% if cita_edit %}/app/m/matrimonio/cita/{{ cita_edit.id }}/actualizar{% else %}/app/m/matrimonio/cita{% endif %}">
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Fecha *</label>
+          <input name="fecha" type="date" required value="{{ cita_edit.fecha if cita_edit else hoy }}" />
+        </div>
+        <div>
+          <label>Hora</label>
+          <input name="hora" type="time" value="{{ cita_edit.hora if cita_edit and cita_edit.hora else '' }}" />
+        </div>
+        <div>
+          <label>Ámbito</label>
+          <select name="ambito">
+            {% for a in ambitos %}
+            <option value="{{ a }}" {% if (cita_edit.ambito if cita_edit else 'Matrimonio') == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div>
+          <label>Tipo</label>
+          <select name="tipo_cita">
+            {% for t in tipos_flat %}
+            <option value="{{ t }}" {% if (cita_edit.tipo_cita if cita_edit else '') == t %}selected{% endif %}>{{ emojis_tipo.get(t, '') }} {{ t.replace('_', ' ') }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if cita_edit %}
+        <div>
+          <label>Estado</label>
+          <select name="estado">
+            {% for e in estados_cita %}
+            <option value="{{ e }}" {% if cita_edit.estado_planificacion == e %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+      </div>
+      <div>
+        <label>Título *</label>
+        <input name="titulo" required value="{{ cita_edit.titulo if cita_edit else '' }}" placeholder="Cena en casa / Parque con los niños" />
+      </div>
+      <div class="grid" style="grid-template-columns:2fr 1fr">
+        <div>
+          <label>Lugar</label>
+          <input name="lugar" value="{{ cita_edit.lugar if cita_edit else '' }}" />
+        </div>
+        <div>
+          <label>Presupuesto</label>
+          <input name="presupuesto" type="number" min="0" step="0.01" value="{{ cita_edit.presupuesto_estimado if cita_edit else 0 }}" />
+        </div>
+      </div>
+      <div>
+        <label>Descripción</label>
+        <textarea name="descripcion" rows="2">{{ cita_edit.descripcion if cita_edit else '' }}</textarea>
+      </div>
+      <div>
+        <label>Notas de preparación</label>
+        <textarea name="preparacion" rows="2">{{ cita_edit.notas_preparacion if cita_edit else '' }}</textarea>
+      </div>
+      <div style="margin-top:1rem">
+        <button class="btn" type="submit">{% if cita_edit %}💾 Guardar cambios{% else %}➕ Crear cita{% endif %}</button>
+        {% if cita_edit %}<a class="btn secondary" href="/app/m/matrimonio?tab=nueva">Cancelar</a>{% endif %}
+      </div>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'notas' %}
+<section>
+  <form method="get" action="/app/m/matrimonio" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+    <input type="hidden" name="tab" value="notas" />
+    <select name="cat">
+      <option value="">Todas las categorías</option>
+      {% for c in categorias_nota %}
+      <option value="{{ c }}" {% if filtro_cat == c %}selected{% endif %}>{{ c.replace('_', ' ') }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn secondary" type="submit">Filtrar</button>
+  </form>
+
+  <div class="card" style="margin-bottom:1rem">
+    <h2>{% if nota_edit %}Editar nota{% else %}Nueva nota{% endif %}</h2>
+    <form method="post" action="{% if nota_edit %}/app/m/matrimonio/nota/{{ nota_edit.id }}/actualizar{% else %}/app/m/matrimonio/nota{% endif %}">
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Categoría</label>
+          <select name="categoria">
+            {% for c in categorias_nota %}
+            <option value="{{ c }}" {% if (nota_edit.categoria if nota_edit else '') == c %}selected{% endif %}>{{ c.replace('_', ' ') }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Urgencia (1–5)</label>
+          <input name="urgencia" type="number" min="1" max="5" value="{{ nota_edit.urgencia if nota_edit else 2 }}" />
+        </div>
+        {% if not nota_edit %}
+        <div>
+          <label>Fecha mención</label>
+          <input name="fecha_mencion" type="date" value="{{ hoy }}" />
+        </div>
+        {% endif %}
+      </div>
+      <div>
+        <label>Contenido *</label>
+        <textarea name="contenido" rows="3" required>{{ nota_edit.contenido if nota_edit else '' }}</textarea>
+      </div>
+      <div>
+        <label>Contexto</label>
+        <input name="contexto" value="{{ nota_edit.contexto if nota_edit else '' }}" placeholder="Cuándo / por qué lo anotaste" />
+      </div>
+      <div style="margin-top:1rem">
+        <button class="btn" type="submit">{% if nota_edit %}💾 Guardar{% else %}➕ Añadir nota{% endif %}</button>
+        {% if nota_edit %}<a class="btn secondary" href="/app/m/matrimonio?tab=notas">Cancelar</a>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    {% if not notas %}
+    <p class="muted">Aún no hay notas.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for n in notas %}
+      <li>
+        <span>
+          {{ n.emoji }} <strong>{{ (n.categoria or 'Otro').replace('_', ' ') }}</strong>
+          · urgencia {{ n.urgencia }}
+          {% if n.fecha_mencion %}· {{ n.fecha_mencion }}{% endif %}
+          <br>{{ n.contenido }}
+          {% if n.contexto %}<br><span class="muted">{{ n.contexto }}</span>{% endif %}
+        </span>
+        <span style="display:flex;gap:0.35rem;flex-wrap:wrap">
+          <a class="btn secondary" href="/app/m/matrimonio?tab=notas&edit={{ n.id }}">Editar</a>
+          <form method="post" action="/app/m/matrimonio/nota/{{ n.id }}/eliminar" onsubmit="return confirm('¿Eliminar nota?')">
+            <button class="btn secondary" type="submit">Eliminar</button>
+          </form>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'habitos' %}
+<section>
+  <div class="card" style="margin-bottom:1rem">
+    <h2>Registrar conexión del día</h2>
+    <form method="post" action="/app/m/matrimonio/habito">
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div>
+          <label>Fecha</label>
+          <input name="fecha" type="date" value="{{ hoy }}" />
+        </div>
+        <div>
+          <label>Minutos de calidad</label>
+          <input name="minutos" type="number" min="0" max="600" value="30" />
+        </div>
+        <div>
+          <label>Satisfacción (1–5)</label>
+          <input name="satisfaccion" type="number" min="1" max="5" value="4" />
+        </div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div>
+          <label>Tipo de conexión</label>
+          <select name="tipo_conexion">
+            {% for t in tipos_conexion %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Iniciado por</label>
+          <select name="iniciado_por">
+            {% for i in iniciado_por %}
+            <option value="{{ i }}">{{ i }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label>Notas</label>
+        <textarea name="notas" rows="2"></textarea>
+      </div>
+      <div style="margin-top:0.5rem">
+        <label><input type="checkbox" name="modo_pareja" value="1" /> Modo pareja activado</label>
+      </div>
+      <div style="margin-top:1rem"><button class="btn" type="submit">💾 Guardar hábito</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Últimos 14 días</h2>
+    {% if not habitos %}
+    <p class="muted">Sin registros recientes.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for h in habitos %}
+      <li>
+        <span>
+          <strong>{{ h.fecha }}</strong>
+          · {{ h.tiempo_calidad_minutos }}min
+          · {{ h.tipo_conexion }}
+          · {{ h.iniciado_por }}
+          · ★{{ h.satisfaccion }}
+          {% if h.modo_pareja_activado %}· modo pareja{% endif %}
+          {% if h.notas %}<br><span class="muted">{{ h.notas }}</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

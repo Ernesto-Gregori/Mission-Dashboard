@@ -178,45 +178,43 @@ def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
 def _oauth_client_bootstrap() -> dict:
     """Solo client_id / client_secret de la app OAuth — nunca refresh_token ajeno."""
     out: dict = {}
+
+    def _put(key: str, value) -> None:
+        if value and not out.get(key):
+            out[key] = value
+
+    # Preferido: env / secrets.toml / Streamlit (app.secrets)
     try:
-        import streamlit as st
-        # Preferido: [google_oauth] (cliente Web)
-        if "google_oauth" in st.secrets:
-            m = st.secrets["google_oauth"]
-            if m.get("client_id"):
-                out["client_id"] = m["client_id"]
-            if m.get("client_secret"):
-                out["client_secret"] = m["client_secret"]
-            if m.get("token_uri"):
-                out["token_uri"] = m["token_uri"]
-        # Compat: client_id/secret en [google_fit_token] (sin usar refresh_token)
-        if "google_fit_token" in st.secrets:
-            m = st.secrets["google_fit_token"]
-            out.setdefault("client_id", m.get("client_id"))
-            out.setdefault("client_secret", m.get("client_secret"))
-            out.setdefault("token_uri", m.get("token_uri"))
-        # Variables sueltas
-        out.setdefault("client_id", st.secrets.get("GOOGLE_OAUTH_CLIENT_ID", ""))
-        out.setdefault("client_secret", st.secrets.get("GOOGLE_OAUTH_CLIENT_SECRET", ""))
+        from app.secrets import get_secret, get_secret_section
+
+        section = get_secret_section("google_oauth")
+        _put("client_id", section.get("client_id"))
+        _put("client_secret", section.get("client_secret"))
+        _put("token_uri", section.get("token_uri"))
+        fit = get_secret_section("google_fit_token")
+        _put("client_id", fit.get("client_id"))
+        _put("client_secret", fit.get("client_secret"))
+        _put("token_uri", fit.get("token_uri"))
+        _put("client_id", get_secret("GOOGLE_OAUTH_CLIENT_ID"))
+        _put("client_secret", get_secret("GOOGLE_OAUTH_CLIENT_SECRET"))
     except Exception:
         pass
-    # Env
-    out.setdefault("client_id", os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""))
-    out.setdefault("client_secret", os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", ""))
+    # Env directo (por si secrets no cargó dotenv)
+    _put("client_id", os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""))
+    _put("client_secret", os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", ""))
     if CREDENTIALS_FILE.exists():
         try:
             cred_file = json.loads(CREDENTIALS_FILE.read_text())
-            # Preferir bloque "web" para redirect URI
             block = cred_file.get("web") or cred_file.get("installed") or {}
-            out.setdefault("client_id", block.get("client_id"))
-            out.setdefault("client_secret", block.get("client_secret"))
-            out.setdefault(
+            _put("client_id", block.get("client_id"))
+            _put("client_secret", block.get("client_secret"))
+            _put(
                 "token_uri",
                 block.get("token_uri") or "https://oauth2.googleapis.com/token",
             )
         except Exception:
             pass
-    out.setdefault("token_uri", "https://oauth2.googleapis.com/token")
+    _put("token_uri", "https://oauth2.googleapis.com/token")
     return {k: v for k, v in out.items() if v}
 
 
@@ -247,7 +245,12 @@ def guardar_token_desde_json(texto: str) -> tuple[bool, str]:
 
 def _load_token_from_secrets() -> Optional[dict]:
     try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        if get_script_run_ctx() is None:
+            return None
         import streamlit as st
+
         if "google_fit_token" not in st.secrets:
             return None
         return _token_dict_from_mapping(st.secrets["google_fit_token"])
@@ -352,32 +355,42 @@ def iniciar_oauth_local() -> tuple[bool, str]:
 
 def get_oauth_redirect_uri() -> str:
     """URI de retorno. Debe coincidir EXACTO con Google Cloud Console."""
+    # 1) Env explícito (FastAPI / Railway)
+    env = (os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or "").strip()
+    if env:
+        return env
+    # 2) secrets.toml / Streamlit [google_oauth].redirect_uri
     try:
-        import streamlit as st
-        if "google_oauth" in st.secrets:
-            uri = (st.secrets["google_oauth"].get("redirect_uri") or "").strip()
-            if uri:
-                return uri
-        uri = (st.secrets.get("GOOGLE_OAUTH_REDIRECT_URI") or "").strip()
+        from app.secrets import get_secret, get_secret_section
+
+        section = get_secret_section("google_oauth")
+        uri = (section.get("redirect_uri") or "").strip()
+        if uri:
+            return uri
+        uri = get_secret("GOOGLE_OAUTH_REDIRECT_URI").strip()
         if uri:
             return uri
     except Exception:
         pass
-    env = (os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or "").strip()
-    if env:
-        return env
-    # Auto-detect en Streamlit Cloud
+    # 3) APP_URL → callback FastAPI canónico
+    app_url = (os.getenv("APP_URL") or "").rstrip("/")
+    if app_url:
+        return f"{app_url}/oauth/google/callback"
+    # 4) Auto-detect en Streamlit Cloud
     try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
         import streamlit as st
-        headers = getattr(st.context, "headers", None) or {}
-        host = headers.get("Host") or headers.get("host") or ""
-        proto = (
-            headers.get("X-Forwarded-Proto")
-            or headers.get("x-forwarded-proto")
-            or "https"
-        )
-        if host:
-            return f"{proto}://{host}/"
+
+        if get_script_run_ctx() is not None:
+            headers = getattr(st.context, "headers", None) or {}
+            host = headers.get("Host") or headers.get("host") or ""
+            proto = (
+                headers.get("X-Forwarded-Proto")
+                or headers.get("x-forwarded-proto")
+                or "https"
+            )
+            if host:
+                return f"{proto}://{host}/"
     except Exception:
         pass
     return ""
@@ -392,11 +405,12 @@ def oauth_web_disponible() -> bool:
 def _state_signing_key() -> bytes:
     key = os.getenv("OAUTH_STATE_SECRET") or os.getenv("GROQ_API_KEY") or ""
     try:
-        import streamlit as st
+        from app.secrets import get_secret, get_secret_section
+
         if not key:
-            key = st.secrets.get("OAUTH_STATE_SECRET") or st.secrets.get("GROQ_API_KEY") or ""
-        if not key and "google_oauth" in st.secrets:
-            key = st.secrets["google_oauth"].get("client_secret") or ""
+            key = get_secret("OAUTH_STATE_SECRET") or get_secret("GROQ_API_KEY") or ""
+        if not key:
+            key = get_secret_section("google_oauth").get("client_secret") or ""
     except Exception:
         pass
     if not key:
@@ -512,6 +526,69 @@ def crear_url_autorizacion_web(user_id: int | None = None) -> tuple[str | None, 
         return None, f"No se pudo crear URL OAuth: {e}"
 
 
+def intercambiar_oauth_code(
+    code: str,
+    state: str,
+    *,
+    session_uid: int | None = None,
+) -> tuple[bool, str]:
+    """
+    Intercambia ?code=&state= por tokens y los guarda en oauth_tokens.
+    Agnóstico de Streamlit — usado por FastAPI y por procesar_oauth_callback.
+    """
+    global _ultimo_error_auth
+
+    user_from_state = _verificar_oauth_state(str(state))
+    if user_from_state is None:
+        return False, "State OAuth inválido o expirado. Vuelve a pulsar Conectar con Google."
+
+    if session_uid is not None and int(session_uid) != int(user_from_state):
+        return False, (
+            "La cuenta con la que iniciaste sesión no coincide con la que "
+            "empezó el vínculo de Google. Entra con el mismo usuario e inténtalo de nuevo."
+        )
+
+    redirect_uri = get_oauth_redirect_uri()
+    flow, err = _build_web_flow(redirect_uri)
+    if not flow:
+        return False, err
+
+    try:
+        flow.fetch_token(code=str(code))
+        creds = flow.credentials
+        data = json.loads(creds.to_json())
+        bootstrap = _oauth_client_bootstrap()
+        data.setdefault("client_id", bootstrap.get("client_id"))
+        data.setdefault("client_secret", bootstrap.get("client_secret"))
+        data["scopes"] = _normalize_scopes(data.get("scopes") or SCOPES)
+        if not data.get("refresh_token"):
+            existing = None
+            try:
+                from app.database import ejecutar
+
+                rows = (
+                    ejecutar(
+                        "SELECT token_json FROM oauth_tokens WHERE user_id = ? AND provider = ?",
+                        [user_from_state, PROVIDER],
+                        fetchall=True,
+                    )
+                    or []
+                )
+                if rows:
+                    existing = json.loads(rows[0]["token_json"])
+            except Exception:
+                pass
+            if existing and existing.get("refresh_token"):
+                data["refresh_token"] = existing["refresh_token"]
+        if not _save_token_dict(data, user_id=user_from_state):
+            return False, "OAuth ok pero no se pudo guardar el token en BD."
+        _ultimo_error_auth = ""
+        return True, "Google Fit/Calendar vinculados. Token guardado en tu cuenta (BD)."
+    except Exception as e:
+        _ultimo_error_auth = str(e)
+        return False, f"Error al intercambiar el código OAuth: {e}"
+
+
 def procesar_oauth_callback() -> tuple[bool, str] | None:
     """
     Si la URL trae ?code=&state= (vuelta de Google), intercambia el code
@@ -554,74 +631,21 @@ def procesar_oauth_callback() -> tuple[bool, str] | None:
             pass
         return None
 
-    user_from_state = _verificar_oauth_state(str(state))
-    if user_from_state is None:
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-        return False, "State OAuth inválido o expirado. Vuelve a pulsar Conectar con Google."
-
     from app.tenant import try_uid
+
     session_uid = try_uid()
-    if session_uid is not None and int(session_uid) != int(user_from_state):
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-        return False, (
-            "La cuenta con la que iniciaste sesión no coincide con la que "
-            "empezó el vínculo de Google. Entra con el mismo usuario e inténtalo de nuevo."
-        )
-
-    redirect_uri = get_oauth_redirect_uri()
-    flow, err = _build_web_flow(redirect_uri)
-    if not flow:
-        return False, err
-
+    ok, msg = intercambiar_oauth_code(
+        str(code),
+        str(state),
+        session_uid=int(session_uid) if session_uid is not None else None,
+    )
     try:
-        flow.fetch_token(code=str(code))
-        creds = flow.credentials
-        data = json.loads(creds.to_json())
-        # Asegurar client fields
-        bootstrap = _oauth_client_bootstrap()
-        data.setdefault("client_id", bootstrap.get("client_id"))
-        data.setdefault("client_secret", bootstrap.get("client_secret"))
-        data["scopes"] = _normalize_scopes(data.get("scopes") or SCOPES)
-        if not data.get("refresh_token"):
-            # A veces Google no lo reenvía si ya se dio consentimiento antes
-            existing = None
-            try:
-                from app.database import ejecutar
-                rows = ejecutar(
-                    "SELECT token_json FROM oauth_tokens WHERE user_id = ? AND provider = ?",
-                    [user_from_state, PROVIDER],
-                    fetchall=True,
-                ) or []
-                if rows:
-                    existing = json.loads(rows[0]["token_json"])
-            except Exception:
-                pass
-            if existing and existing.get("refresh_token"):
-                data["refresh_token"] = existing["refresh_token"]
-        if not _save_token_dict(data, user_id=user_from_state):
-            return False, "OAuth ok pero no se pudo guardar el token en BD."
+        st.query_params.clear()
+    except Exception:
+        pass
+    if ok:
         st.session_state["_oauth_code_done"] = code
-        _ultimo_error_auth = ""
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-        return True, (
-            "Google Fit/Calendar vinculados. Token guardado en tu cuenta (BD)."
-        )
-    except Exception as e:
-        _ultimo_error_auth = str(e)
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-        return False, f"Error al intercambiar el código OAuth: {e}"
+    return ok, msg
 
 
 def manejar_oauth_retorno() -> None:

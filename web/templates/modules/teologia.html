@@ -1,0 +1,234 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+<p class="muted">Devocional 05:45 · método inductivo · oración</p>
+
+{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<div class="agenda-rachas">
+  <span>✝️ Racha {{ racha }}d</span>
+</div>
+
+<nav class="agenda-tabs">
+  <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/teologia?tab=hoy&fecha={{ fecha }}">📖 Hoy</a>
+  <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/teologia?tab=historial">🗂️ Historial</a>
+  <a class="{% if tab == 'oracion' %}active{% endif %}" href="/app/m/teologia?tab=oracion">🙏 Oración</a>
+  <a class="{% if tab == 'metodo' %}active{% endif %}" href="/app/m/teologia?tab=metodo">📚 Método</a>
+</nav>
+
+{% if tab == 'hoy' %}
+<section>
+  <div class="card">
+    <form method="get" action="/app/m/teologia" style="display:flex;gap:0.5rem;align-items:end;flex-wrap:wrap;margin-bottom:0.75rem">
+      <input type="hidden" name="tab" value="hoy" />
+      <div><label>Fecha</label><input name="fecha" type="date" value="{{ fecha }}" /></div>
+      <button class="btn secondary" type="submit">Ir</button>
+      {% if dev_existe %}<span class="badge ok">Guardado</span>{% endif %}
+    </form>
+
+    <form method="post" action="/app/m/teologia/sugerir" style="display:flex;gap:0.5rem;align-items:end;flex-wrap:wrap;margin-bottom:1rem">
+      <div style="flex:1;min-width:160px">
+        <label>Sugerir lectura (IA)</label>
+        <input name="tema" placeholder="ánimo, fe, matrimonio…" />
+      </div>
+      <button class="btn secondary" type="submit" {% if not ia_ok %}disabled{% endif %}>Sugerir</button>
+    </form>
+    {% if sugerencia %}
+    <div class="flash-warn" style="white-space:pre-wrap">{{ sugerencia }}</div>
+    {% endif %}
+
+    <form method="post" action="/app/m/teologia/devocional">
+      <input type="hidden" name="fecha" value="{{ fecha }}" />
+      <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
+        <div>
+          <label>Pasaje *</label>
+          <input name="pasaje_referencia" required value="{{ form.pasaje_referencia }}" placeholder="Juan 15:1-8" />
+        </div>
+        <div>
+          <label>Versión</label>
+          <select name="version_biblia">
+            {% for v in versiones %}
+            <option value="{{ v }}" {% if form.version_biblia == v %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Minutos</label>
+          <input name="duracion_minutos" type="number" min="5" max="120" value="{{ form.duracion_minutos }}" />
+        </div>
+      </div>
+      <div><label>Texto / notas del pasaje</label><textarea name="pasaje_texto" rows="3">{{ form.pasaje_texto }}</textarea></div>
+      <h3>Observación · Interpretación · Aplicación</h3>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div><label>Observación</label><textarea name="observacion" rows="4">{{ form.observacion }}</textarea></div>
+        <div><label>Interpretación</label><textarea name="interpretacion" rows="4">{{ form.interpretacion }}</textarea></div>
+        <div><label>Aplicación</label><textarea name="aplicacion" rows="4">{{ form.aplicacion }}</textarea></div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Conexión instituto</label><textarea name="conexion_instituto" rows="2">{{ form.conexion_instituto }}</textarea></div>
+        <div><label>Conexión situación</label><textarea name="conexion_situacion" rows="2">{{ form.conexion_situacion }}</textarea></div>
+      </div>
+      <div><label>Oración</label><textarea name="oracion_escrita" rows="3">{{ form.oracion_escrita }}</textarea></div>
+      <div style="margin-top:1rem"><button class="btn" type="submit">💾 Guardar devocional</button></div>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'historial' %}
+<section>
+  <div class="card">
+    <h2>Últimos 14 días</h2>
+    {% if not historial %}
+    <p class="muted">Aún no hay devocionales.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for d in historial %}
+      <li>
+        <span>
+          <a href="/app/m/teologia?tab=hoy&fecha={{ d.fecha }}">{{ d.fecha }}</a>
+          · <strong>{{ d.pasaje_referencia }}</strong>
+          · {{ d.duracion_minutos or '—' }}min
+          {% if d.aplicacion %}<br><span class="muted">{{ d.aplicacion[:80] }}{% if d.aplicacion|length > 80 %}…{% endif %}</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'oracion' %}
+<section>
+  {% if hoy_pedidos %}
+  <div class="card">
+    <h2>🗓️ Orar hoy</h2>
+    <ul class="agenda-ev-list">
+      {% for p in hoy_pedidos %}
+      <li><span>{{ p.titulo }} · {{ p.categoria }} · {{ p.urgencia_label }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>➕ Nuevo pedido</h2>
+    <form method="post" action="/app/m/teologia/pedido">
+      <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
+        <div><label>Título *</label><input name="titulo" required /></div>
+        <div>
+          <label>Categoría</label>
+          <select name="categoria">{% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+        </div>
+        <div>
+          <label>Urgencia</label>
+          <select name="urgencia">
+            {% for n, lab in urgencia_labels.items() %}
+            <option value="{{ n }}" {% if n == 3 %}selected{% endif %}>{{ n }} · {{ lab }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div><label>Descripción</label><textarea name="descripcion" rows="2"></textarea></div>
+      <div style="margin:0.5rem 0">
+        <label>Días de oración</label>
+        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(90px,1fr))">
+          {% for n, lab in dias_oracion %}
+          <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal">
+            <input type="checkbox" name="dias" value="{{ n }}" {% if n <= 5 %}checked{% endif %} /> {{ lab }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <button class="btn" type="submit">Agregar</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Pedidos</h2>
+    <p>
+      {% for e in [''] + estados_pedido %}
+      <a href="/app/m/teologia?tab=oracion{% if e %}&estado={{ e }}{% endif %}" class="{% if filtro_estado == e %}badge ok{% else %}muted{% endif %}">{% if e %}{{ e }}{% else %}Todos{% endif %}</a>
+      {% endfor %}
+    </p>
+    {% if not pedidos %}
+    <p class="muted">Sin pedidos.</p>
+    {% endif %}
+    {% for p in pedidos %}
+    <div class="card" style="margin-top:0.5rem">
+      <strong>{{ p.titulo }}</strong>
+      <span class="muted"> · {{ p.categoria }} · {{ p.urgencia_label }} · {{ p.estado }} · {{ p.dias_txt }}</span>
+      {% if p.descripcion %}<p>{{ p.descripcion }}</p>{% endif %}
+      {% if p.nota_respuesta %}<p class="muted">Respuesta: {{ p.nota_respuesta }}</p>{% endif %}
+
+      <form method="post" action="/app/m/teologia/pedido/{{ p.id }}/estado" style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:end;margin-top:0.5rem">
+        <div>
+          <label>Estado</label>
+          <select name="estado">
+            {% for e in estados_pedido %}
+            <option value="{{ e }}" {% if p.estado == e %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="flex:1;min-width:140px">
+          <label>Nota respuesta</label>
+          <input name="nota_respuesta" value="{{ p.nota_respuesta or '' }}" />
+        </div>
+        <button class="btn secondary" type="submit">Actualizar</button>
+      </form>
+
+      <details style="margin-top:0.5rem">
+        <summary class="muted">Editar</summary>
+        <form method="post" action="/app/m/teologia/pedido/{{ p.id }}/editar" style="margin-top:0.5rem">
+          <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
+            <div><label>Título</label><input name="titulo" value="{{ p.titulo }}" required /></div>
+            <div>
+              <label>Categoría</label>
+              <select name="categoria">{% for c in categorias %}<option value="{{ c }}" {% if p.categoria == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+            </div>
+            <div>
+              <label>Urgencia</label>
+              <select name="urgencia">
+                {% for n, lab in urgencia_labels.items() %}
+                <option value="{{ n }}" {% if p.urgencia == n %}selected{% endif %}>{{ n }} · {{ lab }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div><label>Descripción</label><textarea name="descripcion" rows="2">{{ p.descripcion or '' }}</textarea></div>
+          <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(90px,1fr));margin:0.4rem 0">
+            {% for n, lab in dias_oracion %}
+            <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal">
+              <input type="checkbox" name="dias" value="{{ n }}" {% if n in p.dias_list %}checked{% endif %} /> {{ lab }}
+            </label>
+            {% endfor %}
+          </div>
+          <button class="btn" type="submit">Guardar cambios</button>
+        </form>
+      </details>
+
+      <form method="post" action="/app/m/teologia/pedido/{{ p.id }}/eliminar" style="margin-top:0.4rem" onsubmit="return confirm('¿Eliminar pedido?')">
+        <button class="btn secondary" type="submit">🗑️ Eliminar</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'metodo' %}
+<section>
+  <div class="card">
+    <h2>📚 Método inductivo</h2>
+    <ol>
+      <li><strong>Observación</strong> — ¿Qué dice el texto? Hechos, palabras clave, repeticiones.</li>
+      <li><strong>Interpretación</strong> — ¿Qué significa? Contexto, intención del autor.</li>
+      <li><strong>Aplicación</strong> — ¿Qué hago yo? Una acción concreta hoy.</li>
+    </ol>
+    <p class="muted">Inspirado en Kay Arthur y el estudio bíblico práctico. Meta: 05:45 · ~20–30 min.</p>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

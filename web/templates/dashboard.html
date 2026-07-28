@@ -7,6 +7,14 @@
 <div class="flash-ok">¡Listo! Tu sistema quedó configurado con el Coach.</div>
 {% endif %}
 
+{% if checkout_flash %}
+  {% if checkout_flash.kind == 'ok' %}
+  <div class="flash-ok">{{ checkout_flash.message }}</div>
+  {% else %}
+  <div class="flash-warn">{{ checkout_flash.message }}</div>
+  {% endif %}
+{% endif %}
+
 {% if just_finished and just_finished.resto %}
 <div class="card">
   <h2>También te pueden servir (Premium)</h2>
@@ -31,7 +39,6 @@
       <div style="margin-top:0.5rem">
         {% if m.activo %}<span class="badge ok">activo</span>
         {% else %}<span class="badge">inactivo</span>{% endif %}
-        <span class="badge stub">stub</span>
       </div>
     </a>
     {% endfor %}

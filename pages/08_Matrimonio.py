@@ -10,7 +10,26 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 from app.stability import ensure_database, invalidate_data_caches
-from app.database import ejecutar, ejecutar_cached
+from app.database import (
+    AMBITOS,
+    CATEGORIAS_NOTA,
+    COLORES_ESTADO,
+    EMOJIS_NOTA,
+    EMOJIS_TIPO,
+    ESTADOS_CITA,
+    TIPOS_CITA,
+    actualizar_cita,
+    actualizar_nota,
+    eliminar_cita,
+    eliminar_nota,
+    guardar_cita,
+    guardar_nota,
+    obtener_citas,
+    obtener_habitos_recientes,
+    obtener_notas,
+    registrar_habito,
+    verificar_alerta_20_30,
+)
 from app.tenant import uid
 from app.ai_client import generar_alerta_matrimonio, api_key_configurada, chat_simple
 from app.timezone_config import (
@@ -31,258 +50,6 @@ require_auth()
 require_onboarding()
 require_module("matrimonio")
 ensure_database()
-
-# ═══════════════════════════════════════════════════════════════
-# CONSTANTES
-# ═══════════════════════════════════════════════════════════════
-
-AMBITOS = ["Matrimonio", "Familia"]
-
-TIPOS_CITA = {
-    "Matrimonio": [
-        "Cena_Romantica","Salida_Casual","Estadia_Casa",
-        "Viaje_Corto","Aniversario","Cumpleanos_Esposa",
-        "Sorpresa","Otra",
-    ],
-    "Familia": [
-        "Salida_Familiar","Vacaciones","Actividad_Recreativa",
-        "Visita_Familiares","Celebracion","Deporte_Juntos",
-        "Cine_Teatro","Parque","Otra",
-    ],
-}
-EMOJIS_TIPO = {
-    "Cena_Romantica":"🍷","Salida_Casual":"☕","Estadia_Casa":"🏠",
-    "Viaje_Corto":"🚗","Aniversario":"💍","Cumpleanos_Esposa":"🎂",
-    "Sorpresa":"🎉","Salida_Familiar":"👨‍👩‍👧","Vacaciones":"🏖️",
-    "Actividad_Recreativa":"🎮","Visita_Familiares":"🏡",
-    "Celebracion":"🎊","Deporte_Juntos":"⚽","Cine_Teatro":"🎬",
-    "Parque":"🌳","Otra":"💑",
-}
-ESTADOS_CITA = ["Idea","Planeando","Confirmada","Completada","Cancelada"]
-COLORES_ESTADO = {
-    "Idea":"#8b949e","Planeando":"#58a6ff",
-    "Confirmada":"#3fb950","Completada":"#a371f7","Cancelada":"#f85149",
-}
-CATEGORIAS_NOTA = [
-    "Preferencias_Esposa","Ideas_Regalo","Frases_Recordar",
-    "Momentos_Especiales","Metas_Pareja","Conversaciones_Pendientes",
-    "Familia","Hijos","Otro",
-]
-EMOJIS_NOTA = {
-    "Preferencias_Esposa":"💝","Ideas_Regalo":"🎁",
-    "Frases_Recordar":"💬","Momentos_Especiales":"✨",
-    "Metas_Pareja":"🎯","Conversaciones_Pendientes":"🗣️",
-    "Familia":"👨‍👩‍👧","Hijos":"👶","Otro":"📝",
-}
-
-# ═══════════════════════════════════════════════════════════════
-# FUNCIONES DB
-# ═══════════════════════════════════════════════════════════════
-
-# ── CITAS ─────────────────────────────────────────────────────
-
-def obtener_citas(fecha_desde=None, estado=None, ambito=None) -> list:
-    conditions = ["user_id = ?"]
-    params     = [uid()]
-    if fecha_desde:
-        conditions.append("fecha >= ?")
-        params.append(str(fecha_desde))
-    if estado:
-        conditions.append("estado_planificacion = ?")
-        params.append(estado)
-    if ambito:
-        conditions.append("ambito = ?")
-        params.append(ambito)
-    where = " AND ".join(conditions)
-    return ejecutar(
-        f"SELECT * FROM matrimonio_citas WHERE {where} ORDER BY fecha, hora",
-        params, fetchall=True
-    ) or []
-
-
-def guardar_cita(fecha: str, hora, tipo: str, titulo: str,
-                 descripcion: str, lugar: str, presupuesto,
-                 ambito: str = "Matrimonio",
-                 preparacion: str = "") -> int:
-    """FIX Turso: todos los valores como tipos primitivos."""
-    rid = ejecutar("""
-        INSERT INTO matrimonio_citas
-            (user_id, fecha, hora, tipo_cita, titulo, descripcion,
-             lugar, presupuesto_estimado, estado_planificacion,
-             ambito, notas_preparacion)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Planeando', ?, ?)
-    """, [
-        uid(),
-        str(fecha),
-        str(hora) if hora else None,
-        str(tipo),
-        str(titulo),
-        str(descripcion or ""),
-        str(lugar or ""),
-        float(presupuesto) if presupuesto else 0.0,
-        str(ambito),
-        str(preparacion or ""),
-    ])
-    invalidate_data_caches()
-    return rid
-
-
-def actualizar_cita(cita_id: int, fecha: str, hora, tipo: str,
-                    titulo: str, descripcion: str, lugar: str,
-                    presupuesto, estado: str, ambito: str,
-                    preparacion: str) -> None:
-    ejecutar("""
-        UPDATE matrimonio_citas
-        SET fecha=?, hora=?, tipo_cita=?, titulo=?,
-            descripcion=?, lugar=?, presupuesto_estimado=?,
-            estado_planificacion=?, ambito=?,
-            notas_preparacion=?, actualizado_en=?
-        WHERE id=? AND user_id=?
-    """, [
-        str(fecha),
-        str(hora) if hora else None,
-        str(tipo),
-        str(titulo),
-        str(descripcion or ""),
-        str(lugar or ""),
-        float(presupuesto) if presupuesto else 0.0,
-        str(estado),
-        str(ambito),
-        str(preparacion or ""),
-        iso_ahora(),        # ← str ISO local
-        int(cita_id),
-        uid(),
-    ])
-    invalidate_data_caches()
-
-
-def eliminar_cita(cita_id: int) -> None:
-    ejecutar("DELETE FROM matrimonio_citas WHERE id=? AND user_id=?", [int(cita_id), uid()])
-    invalidate_data_caches()
-
-
-# ── NOTAS ─────────────────────────────────────────────────────
-
-def obtener_notas(categoria=None, urgencia_min: int = 1) -> list:
-    conditions = ["user_id = ?", "urgencia >= ?"]
-    params     = [uid(), int(urgencia_min)]
-    if categoria:
-        conditions.append("categoria = ?")
-        params.append(categoria)
-    where = " AND ".join(conditions)
-    return ejecutar(
-        f"""SELECT * FROM matrimonio_notas WHERE {where}
-            ORDER BY urgencia DESC, creado_en DESC""",
-        params, fetchall=True
-    ) or []
-
-
-def guardar_nota(categoria: str, contenido: str, contexto: str,
-                 fecha_mencion: str, urgencia: int) -> int:
-    rid = ejecutar("""
-        INSERT INTO matrimonio_notas
-            (user_id, categoria, contenido, contexto, fecha_mencion, urgencia)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, [
-        uid(),
-        str(categoria),
-        str(contenido),
-        str(contexto or ""),
-        str(fecha_mencion),     # ← str ISO, no objeto date
-        int(urgencia),
-    ])
-    invalidate_data_caches()
-    return rid
-
-
-def actualizar_nota(nota_id: int, categoria: str, contenido: str,
-                    contexto: str, urgencia: int) -> None:
-    ejecutar("""
-        UPDATE matrimonio_notas
-        SET categoria=?, contenido=?, contexto=?,
-            urgencia=?, actualizado_en=?
-        WHERE id=? AND user_id=?
-    """, [
-        str(categoria),
-        str(contenido),
-        str(contexto or ""),
-        int(urgencia),
-        iso_ahora(),            # ← str ISO local
-        int(nota_id),
-        uid(),
-    ])
-    invalidate_data_caches()
-
-
-def eliminar_nota(nota_id: int) -> None:
-    ejecutar("DELETE FROM matrimonio_notas WHERE id=? AND user_id=?", [int(nota_id), uid()])
-    invalidate_data_caches()
-
-
-# ── HÁBITOS ───────────────────────────────────────────────────
-
-def registrar_habito(fecha: str, minutos: int, tipo_conexion: str,
-                     iniciado_por: str, satisfaccion: int,
-                     notas: str, modo_pareja: int) -> None:
-    ejecutar("""
-        INSERT INTO matrimonio_habitos
-            (user_id, fecha, tiempo_calidad_minutos, tipo_conexion,
-             iniciado_por, satisfaccion, notas,
-             modo_pareja_activado)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, fecha) DO UPDATE SET
-            tiempo_calidad_minutos = excluded.tiempo_calidad_minutos,
-            tipo_conexion          = excluded.tipo_conexion,
-            iniciado_por           = excluded.iniciado_por,
-            satisfaccion           = excluded.satisfaccion,
-            notas                  = excluded.notas,
-            modo_pareja_activado   = excluded.modo_pareja_activado
-    """, [
-        uid(),
-        str(fecha),             # ← str ISO, no objeto date
-        int(minutos),
-        str(tipo_conexion),
-        str(iniciado_por),
-        int(satisfaccion),
-        str(notas or ""),
-        int(modo_pareja),
-    ])
-
-
-def obtener_habitos_recientes(dias: int = 14) -> list:
-    fecha_desde = (_hoy() - timedelta(days=dias)).isoformat()  # ← local
-    return ejecutar_cached("""
-        SELECT * FROM matrimonio_habitos
-        WHERE fecha >= ? AND user_id = ?
-        ORDER BY fecha DESC
-    """, (fecha_desde, uid())) or []
-
-
-def verificar_alerta_20_30(hoy_local) -> tuple:
-    """
-    FIX: recibe hoy_local para no llamar a date.today() ni datetime.now()
-    internamente — todo usa zona horaria local.
-    """
-    hoy_iso    = hoy_local.isoformat()
-    manana_iso = (hoy_local + timedelta(days=1)).isoformat()
-
-    citas_hoy    = obtener_citas(fecha_desde=hoy_iso,    estado="Confirmada")
-    citas_manana = obtener_citas(fecha_desde=manana_iso)
-    proxima = (citas_hoy[0]    if citas_hoy
-               else citas_manana[0] if citas_manana
-               else None)
-
-    ahora_local = datetime.now()           # desde timezone_config → local
-    hora        = ahora_local.hour
-    minuto      = ahora_local.minute
-    alerta = (
-        proxima is not None
-        and proxima["fecha"] == hoy_iso
-        and ((hora == 20 and minuto >= 30) or
-             (hora == 21 and minuto <= 15))
-    )
-    return alerta, proxima
-
 
 # ═══════════════════════════════════════════════════════════════
 # HEADER

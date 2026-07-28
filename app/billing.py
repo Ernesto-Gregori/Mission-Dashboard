@@ -88,21 +88,30 @@ def ensure_billing_schema() -> None:
         except Exception:
             pass
 
-    # Grandfather: admins legacy sin plan → premium (no bloquear al dueño)
+    # Grandfather: todo admin tiene al menos Premium (dueño de la app)
     try:
         ejecutar(
             """
             UPDATE usuarios
-            SET plan = 'premium'
-            WHERE (plan IS NULL OR plan = '')
-              AND rol = 'admin'
+            SET plan = 'premium', plan_expira_en = NULL
+            WHERE rol = 'admin'
+              AND COALESCE(LOWER(TRIM(plan)), 'free') NOT IN ('premium', 'familia')
+            """
+        )
+        ejecutar(
+            """
+            UPDATE usuarios
+            SET plan_expira_en = NULL
+            WHERE rol = 'admin'
+              AND plan_expira_en IS NOT NULL
             """
         )
         ejecutar(
             """
             UPDATE usuarios
             SET plan = 'free'
-            WHERE plan IS NULL OR plan = ''
+            WHERE (plan IS NULL OR plan = '')
+              AND COALESCE(rol, 'usuario') != 'admin'
             """
         )
     except Exception as e:
@@ -120,8 +129,32 @@ def limites(plan: str | None) -> dict[str, Any]:
     return PLAN_LIMITES[normalizar_plan(plan)]
 
 
+def es_admin(user: dict | None = None) -> bool:
+    """True si el usuario es administrador (dueño)."""
+    if user is None and st is not None:
+        try:
+            user = st.session_state.get("user") or {}
+        except Exception:
+            user = {}
+    user = user or {}
+    if str(user.get("rol") or "").lower() == "admin":
+        return True
+    try:
+        from app.tenant import current_user
+
+        cu = current_user() or {}
+        return str(cu.get("rol") or "").lower() == "admin"
+    except Exception:
+        return False
+
+
 def plan_vigente(user: dict | None = None) -> str:
-    """Plan efectivo: si plan_expira_en pasó → free."""
+    """
+    Plan efectivo del usuario.
+
+    - Admin: siempre Premium (o Familia si ya lo tiene). Sin expiración.
+    - Otros: si plan_expira_en pasó → free.
+    """
     ensure_billing_schema()
     if user is None and st is not None:
         try:
@@ -129,6 +162,14 @@ def plan_vigente(user: dict | None = None) -> str:
         except Exception:
             user = {}
     user = user or {}
+
+    # Dueño / admin: acceso completo a lo Premium (Google, módulos ilimitados, IA…)
+    if str(user.get("rol") or "").lower() == "admin":
+        plan = normalizar_plan(user.get("plan"))
+        if plan == PLAN_FAMILIA:
+            return PLAN_FAMILIA
+        return PLAN_PREMIUM
+
     plan = normalizar_plan(user.get("plan"))
     exp = user.get("plan_expira_en")
     if exp and plan != PLAN_FREE:
@@ -233,6 +274,38 @@ def app_base_url() -> str:
     return ""
 
 
+def use_web_checkout_return() -> bool:
+    """True → success/cancel apuntan a FastAPI (/app/billing)."""
+    import os
+
+    if os.getenv("MISSION_WEB", "").strip().lower() in ("1", "true", "yes"):
+        return True
+    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("FLY_APP_NAME") or os.getenv("RENDER"):
+        return True
+    # Sin ScriptRunContext de Streamlit → asumimos FastAPI / scripts
+    if st is None:
+        return True
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        return get_script_run_ctx() is None
+    except Exception:
+        return True
+
+
+def checkout_return_urls(plan_destino: str) -> tuple[str, str]:
+    """(success_url, cancel_url) absolutas para Stripe Checkout."""
+    base = app_base_url() or "https://localhost"
+    plan_destino = normalizar_plan(plan_destino)
+    if use_web_checkout_return():
+        success = f"{base}/app/billing?checkout=success&plan={plan_destino}"
+        cancel = f"{base}/app/billing?checkout=cancel"
+    else:
+        success = f"{base}/?checkout=success&plan={plan_destino}"
+        cancel = f"{base}/?checkout=cancel"
+    return success, cancel
+
+
 def crear_checkout_session(
     plan_destino: str,
     user_id: int,
@@ -265,9 +338,7 @@ def crear_checkout_session(
         return None, "Instala el paquete stripe (requirements.txt)"
 
     stripe.api_key = secret
-    base = app_base_url() or "https://localhost"
-    success = f"{base}/?checkout=success&plan={plan_destino}"
-    cancel = f"{base}/?checkout=cancel"
+    success, cancel = checkout_return_urls(plan_destino)
 
     try:
         session = stripe.checkout.Session.create(

@@ -27,12 +27,26 @@ if str(ROOT) not in sys.path:
 
 load_dotenv()
 
-from web.deps import NotAuthenticated, NeedsOnboarding, init_app_state
+from web.deps import (
+    NotAuthenticated,
+    NeedsOnboarding,
+    TenantMiddleware,
+    init_app_state,
+)
 from web.routers import auth as auth_router
 from web.routers import billing as billing_router
 from web.routers import coach as coach_router
 from web.routers import dashboard as dash_router
+from web.routers import agenda as agenda_router
 from web.routers import finanzas as finanzas_router
+from web.routers import salud as salud_router
+from web.routers import deep_work as deep_work_router
+from web.routers import teologia as teologia_router
+from web.routers import biblioteca as biblioteca_router
+from web.routers import matrimonio as matrimonio_router
+from web.routers import sandbox as sandbox_router
+from web.routers import usuarios as usuarios_router
+from web.routers import oauth_google as oauth_router
 from web.routers import modules as modules_router
 from web.routers import stripe_hook as stripe_router
 
@@ -53,6 +67,9 @@ def create_app() -> FastAPI:
         redoc_url=None,
         lifespan=lifespan,
     )
+    # Orden: el último add_middleware es el más externo.
+    # Request: Session → Tenant → rutas (Tenant ve request.session).
+    app.add_middleware(TenantMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=SESSION_SECRET,
@@ -67,11 +84,20 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     app.include_router(auth_router.router)
+    app.include_router(oauth_router.router)  # /oauth/google/callback (sin auth)
     app.include_router(coach_router.router)
     app.include_router(dash_router.router)
+    app.include_router(agenda_router.router)  # antes del catch-all /m/{clave}
     app.include_router(finanzas_router.router)  # antes del catch-all /m/{clave}
+    app.include_router(salud_router.router)  # antes del catch-all /m/{clave}
+    app.include_router(deep_work_router.router)  # antes del catch-all /m/{clave}
+    app.include_router(teologia_router.router)  # antes del catch-all /m/{clave}
+    app.include_router(biblioteca_router.router)  # antes del catch-all /m/{clave}
+    app.include_router(matrimonio_router.router)  # antes del catch-all /m/{clave}
+    app.include_router(sandbox_router.router)  # antes del catch-all /m/{clave}
     app.include_router(modules_router.router)
     app.include_router(billing_router.router)
+    app.include_router(usuarios_router.router)
     app.include_router(stripe_router.router)
 
     @app.exception_handler(NotAuthenticated)
@@ -95,6 +121,16 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     def root(request: Request):
+        # Compat Streamlit-style return: /?checkout=success → billing web
+        checkout = (request.query_params.get("checkout") or "").strip().lower()
+        if checkout in ("success", "cancel"):
+            q = request.url.query
+            dest = f"/app/billing?{q}" if q else "/app/billing"
+            if not request.session.get("user_id"):
+                # Guardar destino post-login sería ideal; por ahora a login
+                request.session["post_login_redirect"] = dest
+                return RedirectResponse("/login", status_code=303)
+            return RedirectResponse(dest, status_code=303)
         if request.session.get("user_id"):
             return RedirectResponse("/app", status_code=303)
         return RedirectResponse("/login", status_code=303)

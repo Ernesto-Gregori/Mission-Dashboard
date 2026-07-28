@@ -1,5 +1,8 @@
 """
 🏠 Mission Dashboard - Control de Mando Personal
+
+LEGADO Streamlit — la app canónica es FastAPI + HTMX (`web/`).
+Ver CUTOVER.md / MIGRATION.md. No añadir features nuevas aquí.
 """
 
 import streamlit as st

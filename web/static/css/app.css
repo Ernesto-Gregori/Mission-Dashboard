@@ -139,3 +139,110 @@ label { color: var(--muted); font-size: 0.9rem; }
 h1 { margin-top: 0; font-size: 1.6rem; letter-spacing: -0.02em; }
 h2 { font-size: 1.15rem; }
 .muted { color: var(--muted); }
+
+/* Agenda */
+.agenda-rachas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.agenda-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+.agenda-tabs a {
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.agenda-tabs a.active,
+.agenda-tabs a:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+  text-decoration: none;
+}
+.agenda-week-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.agenda-week-nav h2 {
+  margin: 0;
+  text-align: center;
+  flex: 1;
+  font-size: 1.05rem;
+}
+.agenda-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+@media (max-width: 900px) {
+  .agenda-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.agenda-day {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 120px;
+  padding: 0.35rem;
+}
+.agenda-day.hoy { border-color: var(--ok); }
+.agenda-day-h {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+  padding: 0.2rem 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.chip {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  margin-bottom: 2px;
+  background: #0d1117;
+  border-left: 3px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-devo { border-left-color: var(--ok); color: #9be9a8; }
+.chip-dw { border-left-color: var(--accent); opacity: 0.7; }
+.chip-dw.ok { opacity: 1; }
+.chip-ev { color: var(--text); }
+.chip-salud { border-left-color: #f0883e; color: #f0883e; }
+.agenda-ev-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.agenda-ev-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+textarea {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  resize: vertical;
+}

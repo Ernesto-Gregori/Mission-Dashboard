@@ -1,0 +1,258 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+<p class="muted">Calendario unificado · Bitácora · Rachas</p>
+
+{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<div class="agenda-rachas">
+  <span>✝️ {{ rachas.devocional }}d</span>
+  <span>💪 {{ rachas.ejercicio }}sem</span>
+  <span>⏱️ {{ rachas.deepwork }}d</span>
+  {% if google_ok %}<span class="muted">📅 Google OK</span>{% else %}<span class="muted">Sin Google Cal</span>{% endif %}
+</div>
+
+<nav class="agenda-tabs">
+  <a class="{% if tab == 'calendario' %}active{% endif %}" href="/app/m/agenda?tab=calendario&w={{ offset }}">📅 Calendario</a>
+  <a class="{% if tab == 'bitacora' %}active{% endif %}" href="/app/m/agenda?tab=bitacora&semana={{ lunes_bit.isoformat() }}">📋 Bitácora</a>
+  <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/agenda?tab=historial">🗂️ Historial</a>
+</nav>
+
+{% if tab == 'calendario' %}
+<section>
+  <div class="agenda-week-nav">
+    <form method="post" action="/app/m/agenda/semana"><button class="btn secondary" name="action" value="prev" type="submit">◀ Anterior</button></form>
+    <h2>Semana {{ lunes.strftime('%d/%m') }} — {{ domingo.strftime('%d/%m/%Y') }}</h2>
+    <form method="post" action="/app/m/agenda/semana" style="display:flex;gap:0.4rem">
+      <button class="btn secondary" name="action" value="hoy" type="submit">Hoy</button>
+      <button class="btn secondary" name="action" value="next" type="submit">Siguiente ▶</button>
+    </form>
+  </div>
+
+  <div class="agenda-grid">
+    {% for d in dias %}
+    <div class="agenda-day {% if d.es_hoy %}hoy{% endif %}">
+      <div class="agenda-day-h">
+        <strong>{{ d.label }}</strong>
+        <span>{{ d.fecha.strftime('%d/%m') }}</span>
+      </div>
+      {% if d.devocional %}
+      <div class="chip chip-devo">✝️ {{ (d.devocional.pasaje_referencia or '')[:16] }}</div>
+      {% endif %}
+      {% for s in d.deepwork %}
+      <div class="chip chip-dw {% if s.completado %}ok{% endif %}">⏱️ {% if s.completado %}✓ {% endif %}{{ (s.bloque_nombre or 'DW')[:14] }}</div>
+      {% endfor %}
+      {% for e in d.eventos %}
+      <div class="chip chip-ev" style="border-left-color:{{ e.color or '#58a6ff' }}">
+        {{ (e.titulo or '')[:16] }}{% if e.hora_inicio %} {{ e.hora_inicio[:5] }}{% endif %}
+      </div>
+      {% endfor %}
+      {% if d.salud and d.salud.hizo_ejercicio %}
+      <div class="chip chip-salud">💪 Ejercicio</div>
+      {% endif %}
+      {% if d.salud and d.salud.nivel_energia %}
+      <div class="chip muted">⚡ {{ d.salud.nivel_energia }}/10</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="grid" style="margin-top:1rem">
+    <div class="card">
+      <h3>Resumen</h3>
+      <p>✝️ {{ resumen_cal.devos }}/7 · ⏱️ DW {{ resumen_cal.dw }} · 📅 {{ resumen_cal.eventos }} · 💪 {{ resumen_cal.ejercicios }}
+        {% if resumen_cal.energia %} · ⚡ {{ '%.1f'|format(resumen_cal.energia) }}/10{% endif %}
+      </p>
+    </div>
+    <div class="card">
+      <h3>Gestionar eventos</h3>
+      {% if not eventos_pers %}
+      <p class="muted">Sin eventos personalizados aún</p>
+      {% else %}
+      <ul class="agenda-ev-list">
+        {% for ep in eventos_pers %}
+        <li>
+          <span>{{ ep.fecha }} — {{ ep.titulo[:28] }}</span>
+          <form method="post" action="/app/m/agenda/evento/{{ ep.id }}/eliminar" style="display:inline">
+            <button class="btn secondary" type="submit" title="Eliminar">🗑️</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h3>➕ Nuevo evento</h3>
+    <form method="post" action="/app/m/agenda/evento" class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+      <div>
+        <label>Fecha</label>
+        <input name="fecha" type="date" value="{{ hoy }}" required />
+      </div>
+      <div>
+        <label>Título</label>
+        <input name="titulo" required placeholder="Ej: Lectura" />
+      </div>
+      <div>
+        <label>Tipo</label>
+        <select name="tipo">
+          {% for t in tipos_evento %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Inicio</label>
+        <input name="hora_inicio" type="time" value="19:30" />
+      </div>
+      <div>
+        <label>Fin</label>
+        <input name="hora_fin" type="time" value="21:00" />
+      </div>
+      <div style="grid-column:1 / -1">
+        <label>Descripción</label>
+        <input name="descripcion" placeholder="opcional" />
+      </div>
+      <div style="grid-column:1 / -1">
+        <button class="btn" type="submit">Guardar evento</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'bitacora' %}
+<section>
+  <div class="card">
+    <h2>📋 Bitácora semanal</h2>
+    <p class="muted">Semana {{ lunes_bit.strftime('%d/%m/%Y') }} — {{ domingo_bit.strftime('%d/%m/%Y') }}
+      {% if bit_existe %}· guardada{% else %}· nueva{% endif %}
+    </p>
+    <form method="post" action="/app/m/agenda/bitacora/semana" style="display:flex;gap:0.5rem;align-items:end;margin-bottom:1rem">
+      <div>
+        <label>Elegir semana (cualquier día)</label>
+        <input name="fecha" type="date" value="{{ lunes_bit.isoformat() }}" />
+      </div>
+      <button class="btn secondary" type="submit">Ir</button>
+    </form>
+
+    {% if citas_hint %}
+    <div class="flash-warn">Cita programada: {{ citas_hint.titulo }} ({{ citas_hint.fecha }})</div>
+    {% endif %}
+
+    <form method="post" action="/app/m/agenda/bitacora">
+      <input type="hidden" name="semana_inicio" value="{{ lunes_bit.isoformat() }}" />
+
+      <h3>🏆 3 victorias</h3>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div><label>Victoria 1</label><textarea name="victoria_1" rows="3">{{ bit.victoria_1 }}</textarea></div>
+        <div><label>Victoria 2</label><textarea name="victoria_2" rows="3">{{ bit.victoria_2 }}</textarea></div>
+        <div><label>Victoria 3</label><textarea name="victoria_3" rows="3">{{ bit.victoria_3 }}</textarea></div>
+      </div>
+
+      <h3>💰 Monitor financiero</h3>
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+        <div><label>Ingreso $</label><input name="ingreso_actual" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.ingreso_actual) }}" /></div>
+        <div><label>Aporte transición $</label><input name="aporte_transicion" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.aporte_transicion) }}" /></div>
+        <div><label>Presupuesto cita $</label><input name="presupuesto_cita" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.presupuesto_cita) }}" /></div>
+        <div><label>Gasto a pausar</label><input name="gasto_pausado" value="{{ bit.gasto_pausado }}" /></div>
+        <div style="display:flex;align-items:center;gap:0.4rem;padding-top:1.2rem">
+          <input type="checkbox" name="sobre_supervivencia" id="ss" {% if bit.sobre_supervivencia %}checked{% endif %} />
+          <label for="ss" style="margin:0">Sobre supervivencia OK</label>
+        </div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:0.5rem">
+        {% for key, label in [('semaforo_superv','Supervivencia'),('semaforo_ahorros','Ahorros'),('semaforo_extras','Extras')] %}
+        <div>
+          <label>{{ label }}</label>
+          <select name="{{ key }}">
+            {% for o in opciones_sem %}
+            <option value="{{ o }}" {% if bit[key] == o %}selected{% endif %}>{{ semaforos[o] }} {{ o }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endfor %}
+      </div>
+
+      <h3>💑 Cita / conexión</h3>
+      <div class="grid" style="grid-template-columns:2fr 1fr">
+        <div><label>Actividad</label><input name="actividad_cita" value="{{ bit.actividad_cita }}" /></div>
+        <div><label>Costo $</label><input name="costo_cita" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.costo_cita) }}" /></div>
+      </div>
+
+      <h3>📚 Lectura</h3>
+      <div class="grid" style="grid-template-columns:2fr 1fr">
+        <div><label>Libro</label><input name="libro_actual" value="{{ bit.libro_actual }}" /></div>
+        <div><label>Página</label><input name="pagina_actual" type="number" min="0" value="{{ bit.pagina_actual }}" /></div>
+        <div style="grid-column:1 / -1"><label>Frase favorita</label><textarea name="frase_favorita" rows="2">{{ bit.frase_favorita }}</textarea></div>
+      </div>
+
+      <h3>🌙 Vaciado mental</h3>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Pendientes a soltar</label><textarea name="pendientes_soltar" rows="4">{{ bit.pendientes_soltar }}</textarea></div>
+        <div><label>Reflexión</label><textarea name="reflexion_semana" rows="4">{{ bit.reflexion_semana }}</textarea></div>
+      </div>
+
+      <p class="muted" style="margin-top:0.75rem">
+        Auto semana: ✝️ {{ auto_semana.devos }}/7 · ⏱️ DW {{ auto_semana.dw }} · 💪 {{ auto_semana.ejercicios }}
+      </p>
+
+      <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+        <button class="btn" type="submit">💾 Guardar bitácora</button>
+      </div>
+    </form>
+
+    <form method="post" action="/app/m/agenda/consejo" style="margin-top:0.75rem">
+      <button class="btn secondary" type="submit" {% if not ia_ok %}disabled{% endif %}>🤖 Análisis IA</button>
+      {% if not ia_ok %}<span class="muted"> Configura GROQ_API_KEY</span>{% endif %}
+    </form>
+    {% if consejo %}
+    <div class="card" style="margin-top:0.75rem;white-space:pre-wrap">{{ consejo }}</div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'historial' %}
+<section>
+  <div class="card">
+    <h2>🗂️ Historial</h2>
+    {% if not historial %}
+    <p class="muted">Aún no hay bitácoras guardadas.</p>
+    {% else %}
+    <form method="get" action="/app/m/agenda" style="margin-bottom:1rem">
+      <input type="hidden" name="tab" value="historial" />
+      <label>Semana</label>
+      <select name="hist" onchange="this.form.submit()">
+        {% for b in historial %}
+        <option value="{{ b.semana_inicio }}" {% if b.semana_inicio == hist_sel %}selected{% endif %}>{{ b.semana_inicio }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% if hist_bit %}
+    <h3>Victorias</h3>
+    <ul>
+      <li>{{ hist_bit.victoria_1 or '—' }}</li>
+      <li>{{ hist_bit.victoria_2 or '—' }}</li>
+      <li>{{ hist_bit.victoria_3 or '—' }}</li>
+    </ul>
+    <p>
+      Semáforo: {{ semaforos.get(hist_bit.semaforo_superv, '') }} /
+      {{ semaforos.get(hist_bit.semaforo_ahorros, '') }} /
+      {{ semaforos.get(hist_bit.semaforo_extras, '') }}
+    </p>
+    {% if hist_bit.actividad_cita %}<p>💑 {{ hist_bit.actividad_cita }}</p>{% endif %}
+    {% if hist_bit.libro_actual %}<p>📚 {{ hist_bit.libro_actual }} (pág. {{ hist_bit.pagina_actual or 0 }})</p>{% endif %}
+    {% if hist_bit.reflexion_semana %}
+    <h3>Reflexión</h3>
+    <p style="white-space:pre-wrap">{{ hist_bit.reflexion_semana }}</p>
+    {% endif %}
+    <p><a href="/app/m/agenda?tab=bitacora&semana={{ hist_bit.semana_inicio }}">Editar esta semana →</a></p>
+    {% endif %}
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -195,6 +195,51 @@ def test_billing_planes_y_cuota(isolated_db, monkeypatch):
     assert row["plan"] == "premium"
 
 
+def test_admin_siempre_premium(isolated_db, monkeypatch):
+    """El admin (dueño) tiene acceso Premium aunque plan en BD diga free/expirado."""
+    from app import billing as bil
+    from datetime import date, timedelta
+
+    db = isolated_db
+    bil.ensure_billing_schema()
+    ok, _ = db.crear_usuario("boss", "password1", rol="admin", plan="free")
+    assert ok
+    uid = int(
+        db.ejecutar(
+            "SELECT id FROM usuarios WHERE username='boss'", fetchall=True
+        )[0]["id"]
+    )
+    # Simular plan free + expirado en BD
+    db.ejecutar(
+        "UPDATE usuarios SET plan=?, plan_expira_en=? WHERE id=?",
+        ["free", (date.today() - timedelta(days=1)).isoformat(), uid],
+    )
+
+    admin = {
+        "id": uid,
+        "username": "boss",
+        "rol": "admin",
+        "plan": "free",
+        "plan_expira_en": (date.today() - timedelta(days=1)).isoformat(),
+    }
+    assert bil.plan_vigente(admin) == "premium"
+    assert bil.puede_google(bil.plan_vigente(admin)) is True
+    assert bil.modulos_max(bil.plan_vigente(admin)) is None
+    assert bil.puede_reconfigurar_coach(bil.plan_vigente(admin)) is True
+
+    # Familia se respeta si ya la tiene
+    admin["plan"] = "familia"
+    assert bil.plan_vigente(admin) == "familia"
+
+    # Grandfather en schema sube admins free → premium en BD
+    bil.ensure_billing_schema()
+    row = db.ejecutar(
+        "SELECT plan, plan_expira_en FROM usuarios WHERE id=?", [uid], fetchall=True
+    )[0]
+    assert row["plan"] == "premium"
+    assert row["plan_expira_en"] in (None, "")
+
+
 def test_stripe_checkout_event_aplica_plan(isolated_db, monkeypatch):
     from app import billing as bil
 
@@ -253,6 +298,22 @@ def test_crear_checkout_fallback_payment_link(monkeypatch):
     assert url is not None
     assert "client_reference_id=42" in url
     assert "buy.stripe.com" in url
+
+
+def test_checkout_return_urls_web(monkeypatch):
+    from app import billing as bil
+
+    monkeypatch.setenv("MISSION_WEB", "1")
+    monkeypatch.setattr(
+        bil,
+        "_secret",
+        lambda name, default="": {
+            "APP_URL": "https://mission.example.com",
+        }.get(name, default),
+    )
+    success, cancel = bil.checkout_return_urls("premium")
+    assert success == "https://mission.example.com/app/billing?checkout=success&plan=premium"
+    assert cancel == "https://mission.example.com/app/billing?checkout=cancel"
 
 
 def test_aplicar_modulos_respeta_cupo_free(isolated_db, monkeypatch):

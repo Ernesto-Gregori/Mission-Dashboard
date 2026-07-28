@@ -73,13 +73,16 @@ def get_secret(name: str, default: str = "") -> str:
     """Obtiene un secret string por nombre (p.ej. GROQ_API_KEY)."""
     _load_dotenv()
 
-    # 1) Streamlit runtime
+    # 1) Streamlit runtime (solo si hay ScriptRunContext; evita warnings en uvicorn)
     try:
-        import streamlit as st
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-        val = st.secrets.get(name)
-        if val is not None and str(val).strip():
-            return str(val).strip()
+        if get_script_run_ctx() is not None:
+            import streamlit as st
+
+            val = st.secrets.get(name)
+            if val is not None and str(val).strip():
+                return str(val).strip()
     except Exception:
         pass
 
@@ -94,6 +97,32 @@ def get_secret(name: str, default: str = "") -> str:
         return str(data[name]).strip()
     # tablas tipo [google_oauth] no aplican a GROQ plano
     return default
+
+
+def get_secret_section(name: str) -> dict:
+    """Tabla TOML (p.ej. google_oauth) desde secrets.toml / Streamlit."""
+    _load_dotenv()
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        if get_script_run_ctx() is not None:
+            import streamlit as st
+
+            if name in st.secrets:
+                m = st.secrets[name]
+                if hasattr(m, "to_dict"):
+                    return dict(m.to_dict())
+                if isinstance(m, dict):
+                    return dict(m)
+                try:
+                    return {k: m[k] for k in m}
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    data = _secrets_toml()
+    section = data.get(name)
+    return dict(section) if isinstance(section, dict) else {}
 
 
 def clear_secrets_cache() -> None:
