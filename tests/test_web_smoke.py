@@ -160,3 +160,52 @@ def test_require_auth_redirect(web_client):
     r = web_client.get("/app", follow_redirects=False)
     assert r.status_code in (303, 307)
     assert "/login" in r.headers.get("location", "")
+
+
+def test_tenant_uid_in_threadpool_via_finanzas(web_client):
+    """
+    Regresión: sync endpoint + uid() en threadpool (como uvicorn).
+    Sin TenantMiddleware → RuntimeError: No hay usuario autenticado (uid).
+    """
+    _setup_user(web_client, "tenant_tp")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "soltero",
+            "objetivos": "orden",
+            "tiempo": "15",
+            "notas": "",
+            "areas": ["finanzas"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["finanzas"]},
+        follow_redirects=False,
+    )
+    r = web_client.get("/app/m/finanzas")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Finanzas" in r.content
+    assert b"Internal Server Error" not in r.content
+    assert b"No hay usuario autenticado" not in r.content
+
+
+def test_tenant_contextvar_copied_to_threadpool():
+    """El ContextVar seteado en el hilo async se copia al threadpool (mecanismo)."""
+    import asyncio
+
+    from starlette.concurrency import run_in_threadpool
+
+    from app.tenant import reset_current_user, set_current_user, uid
+
+    async def _run():
+        token = set_current_user({"id": 42, "username": "tp"})
+        try:
+            got = await run_in_threadpool(uid)
+            assert got == 42
+        finally:
+            reset_current_user(token)
+
+    asyncio.run(_run())

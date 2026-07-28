@@ -27,7 +27,12 @@ if str(ROOT) not in sys.path:
 
 load_dotenv()
 
-from web.deps import NotAuthenticated, NeedsOnboarding, init_app_state
+from web.deps import (
+    NotAuthenticated,
+    NeedsOnboarding,
+    TenantMiddleware,
+    init_app_state,
+)
 from web.routers import auth as auth_router
 from web.routers import billing as billing_router
 from web.routers import coach as coach_router
@@ -53,6 +58,9 @@ def create_app() -> FastAPI:
         redoc_url=None,
         lifespan=lifespan,
     )
+    # Orden: el último add_middleware es el más externo.
+    # Request: Session → Tenant → rutas (Tenant ve request.session).
+    app.add_middleware(TenantMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=SESSION_SECRET,

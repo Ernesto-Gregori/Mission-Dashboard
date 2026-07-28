@@ -6,14 +6,48 @@ from pathlib import Path
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
-from app.tenant import clear_current_user, set_current_user
+from app.tenant import clear_current_user, reset_current_user, set_current_user
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
 class NotAuthenticated(Exception):
     """Redirige a /login (handler en web.app)."""
+
+
+class TenantMiddleware(BaseHTTPMiddleware):
+    """
+    Fija ContextVar del usuario en el contexto async del request.
+
+    FastAPI ejecuta deps/endpoints sync en un threadpool; un set_current_user
+    hecho solo en Depends no se propaga al endpoint. Al setear aquí (antes de
+    call_next), la copia de contextvars al hilo sí incluye el usuario.
+    """
+
+    def __init__(self, app: ASGIApp):
+        super().__init__(app)
+
+    async def dispatch(self, request: Request, call_next):
+        token = set_current_user(None)
+        request.state.user = None
+        try:
+            uid = request.session.get("user_id")
+            if uid:
+                from app.database import obtener_usuario_activo
+
+                user = obtener_usuario_activo(int(uid))
+                if user:
+                    reset_current_user(token)
+                    token = set_current_user(user)
+                    request.state.user = user
+                else:
+                    request.session.clear()
+            return await call_next(request)
+        finally:
+            reset_current_user(token)
 
 
 def init_app_state() -> None:
@@ -42,6 +76,12 @@ def init_app_state() -> None:
 
 
 def get_session_user(request: Request) -> dict | None:
+    # Preferido: ya resuelto por TenantMiddleware
+    cached = getattr(request.state, "user", None)
+    if cached is not None:
+        set_current_user(cached)
+        return cached
+
     uid = request.session.get("user_id")
     if not uid:
         clear_current_user()
@@ -54,6 +94,7 @@ def get_session_user(request: Request) -> dict | None:
         clear_current_user()
         return None
     set_current_user(user)
+    request.state.user = user
     return user
 
 

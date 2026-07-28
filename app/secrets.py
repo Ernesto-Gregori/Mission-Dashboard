@@ -73,13 +73,16 @@ def get_secret(name: str, default: str = "") -> str:
     """Obtiene un secret string por nombre (p.ej. GROQ_API_KEY)."""
     _load_dotenv()
 
-    # 1) Streamlit runtime
+    # 1) Streamlit runtime (solo si hay ScriptRunContext; evita warnings en uvicorn)
     try:
-        import streamlit as st
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-        val = st.secrets.get(name)
-        if val is not None and str(val).strip():
-            return str(val).strip()
+        if get_script_run_ctx() is not None:
+            import streamlit as st
+
+            val = st.secrets.get(name)
+            if val is not None and str(val).strip():
+                return str(val).strip()
     except Exception:
         pass
 

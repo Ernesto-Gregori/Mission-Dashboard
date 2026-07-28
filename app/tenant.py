@@ -16,9 +16,14 @@ from typing import Any
 _user_ctx: ContextVar[dict | None] = ContextVar("mission_user", default=None)
 
 
-def set_current_user(user: dict | None) -> None:
-    """Fija el usuario del request (FastAPI middleware / depends)."""
-    _user_ctx.set(user)
+def set_current_user(user: dict | None):
+    """Fija el usuario del request. Devuelve Token para reset_current_user."""
+    return _user_ctx.set(user)
+
+
+def reset_current_user(token) -> None:
+    """Restaura el ContextVar al valor previo (usar tras set_current_user)."""
+    _user_ctx.reset(token)
 
 
 def clear_current_user() -> None:
@@ -30,8 +35,12 @@ def current_user() -> dict | None:
     u = _user_ctx.get()
     if u:
         return u
-    # 2) Streamlit session
+    # 2) Streamlit session (solo con ScriptRunContext)
     try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        if get_script_run_ctx() is None:
+            return None
         import streamlit as st
 
         return st.session_state.get("user")
