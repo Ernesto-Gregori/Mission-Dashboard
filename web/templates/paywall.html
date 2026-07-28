@@ -1,0 +1,16 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+{% if plan_free %}
+<div class="flash-warn">
+  Este módulo no está en tu cupo Free (máx. {{ lim_free.modulos_max }} módulos).
+  Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX.
+</div>
+<a class="btn" href="/app/billing">Ver Premium / Familia</a>
+{% else %}
+<div class="flash-warn">
+  El módulo no está activo en tu sistema. Actívalo con el Coach (fase 2 de migración).
+</div>
+{% endif %}
+<p style="margin-top:1rem"><a href="/app">← Volver</a></p>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="auth-wrap">
+  <div class="card">
+    <h1>Primer acceso</h1>
+    <p class="muted">Crea el usuario administrador. La contraseña se guarda con hash (mín. 8).</p>
+    {% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+    <form method="post" action="/setup">
+      <label>Usuario</label>
+      <input name="username" value="admin" required />
+      <label>Contraseña</label>
+      <input name="password" type="password" required minlength="8" />
+      <label>Repetir contraseña</label>
+      <input name="password2" type="password" required minlength="8" />
+      <button class="btn block" type="submit">Crear y entrar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

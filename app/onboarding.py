@@ -106,24 +106,30 @@ def listar_modulos_usuario(user_id: int | None = None) -> list[dict]:
 
 
 def modulos_activos(user_id: int | None = None) -> set[str]:
-    import streamlit as st
-
     user_id = user_id or uid()
-    # Cache de sesión: evita query en cada navegación
-    if (
-        st.session_state.get("_modulos_activos_uid") == user_id
-        and isinstance(st.session_state.get("_modulos_activos"), set)
-    ):
-        return st.session_state["_modulos_activos"]
+    # Cache solo en Streamlit (si hay runtime de script)
+    try:
+        import streamlit as st
 
-    activos = {
-        r["modulo"]
-        for r in listar_modulos_usuario(user_id)
-        if int(r.get("activo") or 0) == 1
-    }
-    st.session_state["_modulos_activos"] = activos
-    st.session_state["_modulos_activos_uid"] = user_id
-    return activos
+        if (
+            st.session_state.get("_modulos_activos_uid") == user_id
+            and isinstance(st.session_state.get("_modulos_activos"), set)
+        ):
+            return st.session_state["_modulos_activos"]
+        activos = {
+            r["modulo"]
+            for r in listar_modulos_usuario(user_id)
+            if int(r.get("activo") or 0) == 1
+        }
+        st.session_state["_modulos_activos"] = activos
+        st.session_state["_modulos_activos_uid"] = user_id
+        return activos
+    except Exception:
+        return {
+            r["modulo"]
+            for r in listar_modulos_usuario(user_id)
+            if int(r.get("activo") or 0) == 1
+        }
 
 
 def modulo_activo(clave: str, user_id: int | None = None) -> bool:

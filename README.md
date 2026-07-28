@@ -2,9 +2,11 @@
 Sistema de gestión de vida personal — uso privado.
 
 ## Stack
-- Streamlit + SQLite → Turso (opcional)
+- **Nuevo (migración):** FastAPI + HTMX en `web/` — ver [MIGRATION.md](./MIGRATION.md)
+- Streamlit (legado, aún en producción hasta cortar) + Turso
 - **Groq** IA (`llama-3.3-70b-versatile`)
 - Google Fit + Google Calendar OAuth2
+- Stripe Checkout + webhook
 
 ## Setup local
 1. Crear `.env` con `GROQ_API_KEY=` (y opcionalmente `TURSO_URL`, `TURSO_TOKEN`)

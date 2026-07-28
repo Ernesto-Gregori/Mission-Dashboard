@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">Mission Dashboard</div>
+    <div class="meta">{{ user.username }} · {{ user.rol }}</div>
+    <nav>
+      <a href="/app" class="{% if request.url.path.rstrip('/') == '/app' %}active{% endif %}">🏠 Control de mando</a>
+      <a href="/app/billing">💳 Plan</a>
+      {% if modulos_nav is defined %}
+        {% for m in modulos_nav %}
+          <a href="{{ m.href }}" class="{% if not m.activo %}dim{% endif %}{% if request.url.path == m.href %} active{% endif %}">
+            {{ m.emoji }} {{ m.nombre }}
+          </a>
+        {% endfor %}
+      {% endif %}
+    </nav>
+    <form method="post" action="/logout" style="margin-top:1.5rem">
+      <button class="btn secondary block" type="submit">Cerrar sesión</button>
+    </form>
+  </aside>
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>Plan y cobros</h1>
+<p class="muted">Plan actual: <strong>{{ plan_label }}</strong> ({{ plan }})</p>
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+{% if not stripe_ok %}
+<div class="flash-warn">
+  Stripe no está configurado. Añade <code>STRIPE_SECRET_KEY</code> y
+  <code>STRIPE_PRICE_PREMIUM</code> (y <code>APP_URL</code>).
+</div>
+{% endif %}
+
+<div class="grid">
+  {% for p in planes %}
+  <div class="card">
+    <h2>{{ p.nombre }}</h2>
+    <p>{{ p.precio }}</p>
+    <ul class="muted">
+      <li>Módulos ilimitados</li>
+      <li>Coach reconfigurable</li>
+      <li>Google Fit / Calendar</li>
+    </ul>
+    <form method="post" action="/app/billing/checkout/{{ p.clave }}">
+      <button class="btn block" type="submit" {% if plan == p.clave %}disabled{% endif %}>
+        {% if plan == p.clave %}Plan actual{% else %}Upgrade{% endif %}
+      </button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

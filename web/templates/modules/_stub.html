@@ -1,0 +1,18 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+<span class="badge stub">{{ status }} — en migración</span>
+<div class="card" style="margin-top:1rem">
+  <p>{{ meta.descripcion }}</p>
+  <p class="muted">{{ meta.para_quien }}</p>
+  <p class="muted">
+    Esta pantalla es el <strong>esqueleto HTMX</strong>. La lógica real se porta
+    desde <code>pages/</code> (Streamlit) en las siguientes fases, reutilizando
+    <code>app/</code> (db, billing, AI, Google).
+  </p>
+  {% if clave == 'salud' and not puede_google %}
+  <div class="flash-warn">Google Fit/Calendar requiere Premium o Familia.</div>
+  {% endif %}
+</div>
+<p><a href="/app">← Control de mando</a></p>
+{% endblock %}
