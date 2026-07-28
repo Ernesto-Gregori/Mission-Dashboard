@@ -15,6 +15,8 @@ La app nueva vive en `web/` y reutiliza `app/` (db, billing, audit, AI, Google).
 ### Arranque local
 ```bash
 pip install -r requirements.txt
+# Copia la misma GROQ_API_KEY de Streamlit a .env o .streamlit/secrets.toml
+echo 'GROQ_API_KEY=gsk_...' >> .env
 MISSION_ALLOW_SQLITE=1 SESSION_SECRET=dev uvicorn web.app:app --reload --port 8000
 ```
 Abre http://127.0.0.1:8000 → setup o login.
@@ -38,17 +40,18 @@ Health: `GET /health`
 - [ ] Refrescar sesión tras Stripe (`?checkout=success`) — parcial en Streamlit; pendiente banner web
 
 ## Fase 2 — Portar módulos (orden sugerido)
-1. Finanzas (más crítico / ya encapsulado en `app/db/finanzas.py`)
-2. Agenda / bitácora
-3. Salud (+ Google OAuth callbacks en FastAPI)
-4. Deep Work
-5. Teología
-6. Biblioteca
-7. Matrimonio
-8. Sandbox
-9. Usuarios (admin)
+1. [x] Finanzas (ingreso, sobres, gastos, consejo IA) — `web/routers/finanzas.py`
+2. [ ] Agenda / bitácora
+3. [ ] Salud (+ Google OAuth callbacks en FastAPI)
+4. [ ] Deep Work
+5. [ ] Teología
+6. [ ] Biblioteca
+7. [ ] Matrimonio
+8. [ ] Sandbox
+9. [ ] Usuarios (admin)
 
-Cada módulo: template HTMX + rutas en `web/routers/` + reusar `ejecutar()` / helpers de `app/`.
+**Groq en FastAPI:** la clave de Streamlit Cloud no se comparte sola.
+Usa `GROQ_API_KEY` en el entorno, `.env`, o `.streamlit/secrets.toml` (leído por `app/secrets.py`).
 
 ## Fase 3 — Cortar Streamlit
 - [ ] Parity funcional mínima

@@ -118,6 +118,42 @@ def test_coach_flow_activa_modulos(web_client):
     r = web_client.get("/app/m/finanzas")
     assert r.status_code == 200
     assert b"Finanzas" in r.content
+    assert b"Nuevo gasto" in r.content or b"ingreso" in r.content.lower()
+
+    # Guardar ingreso + gasto
+    r = web_client.post(
+        "/app/m/finanzas/periodo",
+        data={"mes": "7", "anio": "2026", "monto": "1000", "notas": "test"},
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 307)
+
+    r = web_client.post(
+        "/app/m/finanzas/gasto",
+        data={
+            "fecha": "2026-07-15",
+            "sobre": "Supervivencia",
+            "subcategoria": "Comida",
+            "descripcion": "super",
+            "monto": "50",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"super" in r.content
+
+
+def test_secrets_reads_env(monkeypatch, tmp_path):
+    from app import secrets as sec
+
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test_from_env_12345678901234567890")
+    sec.clear_secrets_cache()
+    assert sec.get_secret("GROQ_API_KEY").startswith("gsk_test_from_env")
+
+    from app.ai_client import api_key_configurada, _get_api_key
+
+    assert _get_api_key().startswith("gsk_test")
+    assert api_key_configurada() is True
 
 
 def test_require_auth_redirect(web_client):

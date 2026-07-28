@@ -185,17 +185,10 @@ def fecha_minima_historial(plan: str | None = None) -> date | None:
 
 
 def _secret(name: str, default: str = "") -> str:
-    """Lee secret de Streamlit o variable de entorno."""
-    if st is not None:
-        try:
-            val = st.secrets.get(name)
-            if val:
-                return str(val).strip()
-        except Exception:
-            pass
-    import os
+    """Lee secret unificado (Streamlit / env / secrets.toml)."""
+    from app.secrets import get_secret
 
-    return (os.getenv(name) or default).strip()
+    return get_secret(name, default)
 
 
 def stripe_configured() -> bool:

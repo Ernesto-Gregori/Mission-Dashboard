@@ -1,0 +1,173 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
+<p class="muted">Sistema de 3 sobres · {% for n, label in meses %}{% if n == mes %}{{ label }}{% endif %}{% endfor %} {{ anio }}</p>
+
+{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>📅 Período e ingreso</h2>
+  <form method="post" action="/app/m/finanzas/periodo" style="display:grid;gap:0.5rem;grid-template-columns:1fr 1fr 1fr;align-items:end">
+    <div>
+      <label>Mes</label>
+      <select name="mes">
+        {% for n, label in meses %}
+        <option value="{{ n }}" {% if n == mes %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Año</label>
+      <input name="anio" type="number" value="{{ anio }}" min="2020" max="2035" />
+    </div>
+    <div>
+      <label>Ingreso del mes</label>
+      <input name="monto" type="number" step="0.01" min="0" value="{{ '%.2f'|format(ingreso) if ingreso else '' }}" placeholder="0.00" />
+    </div>
+    <div style="grid-column:1 / -1">
+      <label>Notas</label>
+      <input name="notas" placeholder="opcional" />
+    </div>
+    <div style="grid-column:1 / -1">
+      <button class="btn" type="submit">Guardar período / ingreso</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Resumen</h2>
+  {% if resumen.sin_ingreso %}
+  <div class="flash-warn">Sin ingreso este mes — registra uno arriba para ver presupuestos.</div>
+  {% else %}
+  <p>
+    Ingreso <strong>${{ '%.0f'|format(resumen.ingreso) }}</strong> ·
+    Gastado <strong>${{ '%.0f'|format(resumen.total_gastado) }}</strong> ·
+    Disponible <strong>${{ '%.0f'|format(resumen.total_disponible) }}</strong>
+    ({{ '%.0f'|format(resumen.pct_global) }}%)
+  </p>
+  {% endif %}
+</div>
+
+<div class="grid">
+  {% for s in sobres_ui %}
+  <div class="card" style="border-left:4px solid {{ s.color }}">
+    <div>{{ s.emoji }} <strong>{{ s.nombre }}</strong></div>
+    <p class="muted" style="font-size:0.85rem">{{ s.descripcion }}</p>
+    <p>
+      ${{ '%.0f'|format(s.gastado) }} / ${{ '%.0f'|format(s.presupuesto) }}
+      · {{ '%.0f'|format(s.pct_usado) }}%
+    </p>
+    <p class="{% if s.disponible < 0 %}flash-error{% else %}muted{% endif %}" style="padding:0.3rem 0;border:none;background:none">
+      Disponible: ${{ '%.0f'|format(s.disponible) }}
+    </p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>➕ Nuevo gasto</h2>
+  <form method="post" action="/app/m/finanzas/gasto">
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+      <div>
+        <label>Fecha</label>
+        <input name="fecha" type="date" value="{{ hoy }}" required />
+      </div>
+      <div>
+        <label>Sobre</label>
+        <select name="sobre" id="sobre_sel" required>
+          {% for s in sobres_ui %}
+          <option value="{{ s.key }}">{{ s.emoji }} {{ s.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Subcategoría</label>
+        <select name="subcategoria" id="sub_sel" required>
+          {% for s in sobres_ui[0].subs %}
+          <option value="{{ s.clave }}">{{ s.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Monto</label>
+        <input name="monto" type="number" step="0.01" min="0.01" required />
+      </div>
+    </div>
+    <label>Descripción</label>
+    <input name="descripcion" required placeholder="Ej: supermercado" />
+    <label style="display:flex;gap:0.4rem;align-items:center;color:var(--text)">
+      <input type="checkbox" name="es_fijo" value="1" style="width:auto;margin:0" /> Gasto fijo
+    </label>
+    <button class="btn" type="submit" style="margin-top:0.75rem">Agregar gasto</button>
+  </form>
+</div>
+
+<script>
+  const sobres = {{ sobres_ui | tojson }};
+  const sobreSel = document.getElementById('sobre_sel');
+  const subSel = document.getElementById('sub_sel');
+  function fillSubs() {
+    const key = sobreSel.value;
+    const s = sobres.find(x => x.key === key);
+    subSel.innerHTML = '';
+    (s ? s.subs : []).forEach(sub => {
+      const o = document.createElement('option');
+      o.value = sub.clave; o.textContent = sub.label;
+      subSel.appendChild(o);
+    });
+  }
+  if (sobreSel) { sobreSel.addEventListener('change', fillSubs); }
+</script>
+
+<div class="card">
+  <h2>Historial</h2>
+  {% if not gastos %}
+  <p class="muted">Sin gastos este mes.</p>
+  {% else %}
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+      <thead>
+        <tr style="text-align:left;color:var(--muted)">
+          <th style="padding:0.35rem">Fecha</th>
+          <th>Sobre</th>
+          <th>Detalle</th>
+          <th>Monto</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in gastos %}
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:0.4rem">{{ g.fecha }}</td>
+          <td>{{ g.sobre }}</td>
+          <td>{{ g.descripcion }} <span class="badge">{{ g.sub_label }}</span></td>
+          <td>${{ '%.2f'|format(g.monto) }}</td>
+          <td>
+            <form method="post" action="/app/m/finanzas/gasto/{{ g.id }}/eliminar" onsubmit="return confirm('¿Eliminar gasto?')">
+              <button class="btn secondary" type="submit" style="padding:0.2rem 0.5rem;font-size:0.8rem">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>💡 Consejo IA</h2>
+  {% if not ia_ok %}
+  <div class="flash-warn">
+    IA offline. En FastAPI la clave no sale de Streamlit Cloud sola:
+    exporta <code>GROQ_API_KEY</code> o ponla en <code>.streamlit/secrets.toml</code> / <code>.env</code>.
+  </div>
+  {% else %}
+  <form method="post" action="/app/m/finanzas/consejo">
+    <button class="btn secondary" type="submit">Pedir consejo del mes</button>
+  </form>
+  {% if consejo %}<p style="margin-top:0.75rem">{{ consejo }}</p>{% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -32,6 +32,7 @@ from web.routers import auth as auth_router
 from web.routers import billing as billing_router
 from web.routers import coach as coach_router
 from web.routers import dashboard as dash_router
+from web.routers import finanzas as finanzas_router
 from web.routers import modules as modules_router
 from web.routers import stripe_hook as stripe_router
 
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router.router)
     app.include_router(coach_router.router)
     app.include_router(dash_router.router)
+    app.include_router(finanzas_router.router)  # antes del catch-all /m/{clave}
     app.include_router(modules_router.router)
     app.include_router(billing_router.router)
     app.include_router(stripe_router.router)

@@ -28,21 +28,11 @@ def _get_turso_config():
     Lee secrets UNA SOLA VEZ y cachea el resultado.
     lru_cache(maxsize=1) = singleton — nunca vuelve a leer secrets.
     """
-    url = None
-    token = None
-    if st is not None:
-        try:
-            url = st.secrets.get("TURSO_URL")
-            token = st.secrets.get("TURSO_TOKEN")
-        except Exception:
-            pass
-    if not url or not token:
-        from dotenv import load_dotenv
+    from app.secrets import get_secret
 
-        load_dotenv()
-        url = os.getenv("TURSO_URL")
-        token = os.getenv("TURSO_TOKEN")
-    return url, token
+    url = get_secret("TURSO_URL")
+    token = get_secret("TURSO_TOKEN")
+    return url or None, token or None
 
 
 @functools.lru_cache(maxsize=1)

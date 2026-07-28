@@ -1,7 +1,10 @@
 """CRUD finanzas (sobres) + cálculo de presupuestos."""
 from __future__ import annotations
 
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 
 from app.db.core import ejecutar, invalidate_data_caches
 from app.db.schema import SOBRES_CONFIG
@@ -289,8 +292,11 @@ def obtener_tipos_bloque() -> list:
         return defaults
 
 
-# Cache por (mes, anio, user_id)
-_calcular_sobres_cached = st.cache_data(ttl=30)(_calcular_sobres_uncached)
+# Cache por (mes, anio, user_id) — Streamlit si hay runtime; si no, directo
+if st is not None:
+    _calcular_sobres_cached = st.cache_data(ttl=30)(_calcular_sobres_uncached)
+else:
+    _calcular_sobres_cached = _calcular_sobres_uncached
 
 
 def calcular_sobres(mes: int, anio: int) -> dict:

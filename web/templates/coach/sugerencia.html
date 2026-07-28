@@ -22,8 +22,15 @@
 
 <div class="flash-ok">{{ sug.resumen }}</div>
 <p class="muted" style="font-size:0.85rem">
-  Fuente: {% if sug.fuente == 'ia' %}Groq IA{% else %}reglas / fallback{% endif %}
+  Fuente: {% if sug.fuente == 'ia' %}Groq IA{% else %}reglas / fallback (IA offline){% endif %}
 </p>
+{% if sug.fuente != 'ia' %}
+<div class="flash-warn">
+  El Coach IA está offline. FastAPI lee <code>GROQ_API_KEY</code> desde el entorno
+  o <code>.streamlit/secrets.toml</code> / <code>.env</code> — no desde el panel de Streamlit Cloud
+  si corres uvicorn aparte. Reinicia el servidor tras añadir la clave.
+</div>
+{% endif %}
 
 <form method="post" action="/app/coach/activar">
   <h2>Módulos</h2>

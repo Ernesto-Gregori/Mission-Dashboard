@@ -28,20 +28,11 @@ except ImportError:
 def _get_api_key() -> str:
     """
     Orden de prioridad:
-      1. st.secrets["GROQ_API_KEY"]  ← Streamlit Cloud
-      2. os.environ["GROQ_API_KEY"]  ← .env local / variable de entorno
+      1. st.secrets / env / .streamlit/secrets.toml  ← app.secrets
     """
-    # 1. Intentar st.secrets (solo disponible cuando Streamlit está corriendo)
-    try:
-        import streamlit as st
-        key = st.secrets.get("GROQ_API_KEY", "")
-        if key:
-            return key
-    except Exception:
-        pass
+    from app.secrets import get_secret
 
-    # 2. Fallback a variable de entorno (.env local)
-    return os.getenv("GROQ_API_KEY", "")
+    return get_secret("GROQ_API_KEY", "")
 
 
 MODELO = "llama-3.3-70b-versatile"
