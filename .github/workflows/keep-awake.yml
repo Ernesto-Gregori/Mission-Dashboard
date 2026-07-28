@@ -1,19 +1,17 @@
 # Mantiene despierta la app en Streamlit Community Cloud.
-# Un GET HTTP no basta: hay que abrir la app en un navegador (WebSocket).
+# FASE 3: desactivado por defecto (la app canónica es FastAPI en Railway).
+# Solo corre con workflow_dispatch si aún tienes Streamlit vivo.
 #
-# Setup (una vez):
-# 1. Repo → Settings → Secrets and variables → Actions
-# 2. Crear secret STREAMLIT_APP_URL = https://TU-APP.streamlit.app
-# 3. Actions → Keep Streamlit Awake → Run workflow (probar)
-#
-# Si el secret no existe, el job se omite sin fallar.
+# Setup (legado):
+# 1. Repo → Settings → Secrets → STREAMLIT_APP_URL
+# 2. Actions → Keep Streamlit Awake → Run workflow
 
 name: Keep Streamlit Awake
 
 on:
-  schedule:
-    # Cada 6 horas (umbral oficial de sleep ≈ 12 h de inactividad)
-    - cron: "0 */6 * * *"
+  # schedule desactivado tras cutover FastAPI — reactivar solo si Streamlit sigue en prod
+  # schedule:
+  #   - cron: "0 */6 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -32,7 +30,7 @@ jobs:
         run: |
           if [ -z "$APP_URL" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Falta el secret STREAMLIT_APP_URL. Añádelo en Settings → Secrets → Actions."
+            echo "::warning::Falta STREAMLIT_APP_URL (legado). Si ya cortaste Streamlit, ignora este workflow."
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
             echo "URL configurada (no se imprime por seguridad)."
@@ -65,7 +63,6 @@ jobs:
               page.goto(url, wait_until="domcontentloaded", timeout=120_000)
               time.sleep(3)
 
-              # Botón típico cuando la app está dormida
               for label in (
                   "Yes, get this app back up!",
                   "Yes, get this app back up",
@@ -81,7 +78,6 @@ jobs:
                   except Exception as e:
                       print(f"Botón '{label}': {e}")
 
-              # Dar tiempo a que arranque el proceso Python + WebSocket
               page.wait_for_timeout(20_000)
               title = page.title()
               print(f"Listo. title={title!r}")

@@ -1,9 +1,11 @@
 # Migración Streamlit → FastAPI + HTMX
 
-Streamlit **sigue vivo** en `Mission_Dashboard.py` / `pages/` hasta completar parity.
-La app nueva vive en `web/` y reutiliza `app/` (db, billing, audit, AI, Google).
+Streamlit queda como **legado** (`Mission_Dashboard.py` / `pages/`).
+La app canónica vive en `web/` y reutiliza `app/` (db, billing, audit, AI, Google).
 
-## Fase 0 — Esqueleto (esta PR) ✅
+Cutover operativo: **[CUTOVER.md](./CUTOVER.md)**.
+
+## Fase 0 — Esqueleto ✅
 - [x] FastAPI app (`web/app.py`)
 - [x] Sesión cookie + login / setup / logout
 - [x] Dashboard + nav de módulos
@@ -23,14 +25,15 @@ Abre http://127.0.0.1:8000 → setup o login.
 
 ### Producción (Railway)
 Variables:
+- `MISSION_WEB=1`, `MISSION_HTTPS=1`
 - `TURSO_URL`, `TURSO_TOKEN`
 - `SESSION_SECRET` (largo, aleatorio)
 - `GROQ_API_KEY`
-- `APP_URL` (URL pública Railway)
+- `APP_URL` (URL pública Railway / dominio)
 - `STRIPE_*` + `STRIPE_WEBHOOK_SECRET`
-- `MISSION_HTTPS=1` cuando tengas HTTPS
+- Google OAuth (`GOOGLE_OAUTH_*`) si usas Salud
 
-Health: `GET /health`
+Health: `GET /health` — también `python scripts/verify_deploy.py $APP_URL`
 
 ## Fase 1 — Auth + Coach HTMX ✅
 - [x] Pantalla Coach (perfil → sugerencia → activar módulos)
@@ -39,25 +42,28 @@ Health: `GET /health`
 - [x] Reconfig Premium / paywall Free
 - [x] Refrescar sesión tras Stripe (`?checkout=success`) — banner web en `/app/billing` + URLs de retorno FastAPI
 
-## Fase 2 — Portar módulos (orden sugerido)
-1. [x] Finanzas (ingreso, sobres, gastos, consejo IA) — `web/routers/finanzas.py`
+## Fase 2 — Portar módulos ✅
+1. [x] Finanzas — `web/routers/finanzas.py`
 2. [x] Agenda / bitácora — `web/routers/agenda.py` + `app/db/agenda.py`
-3. [x] Salud (+ Google OAuth callbacks en FastAPI) — `web/routers/salud.py`, `web/routers/oauth_google.py`
+3. [x] Salud (+ Google OAuth) — `web/routers/salud.py`, `web/routers/oauth_google.py`
 4. [x] Deep Work — `web/routers/deep_work.py` + `app/db/deep_work.py`
 5. [x] Teología — `web/routers/teologia.py` + `app/db/teologia.py`
-6. [x] Biblioteca (MVP catálogo/progreso/resaltados; PDF/ISBN IA sigue en Streamlit) — `web/routers/biblioteca.py`
-7. [x] Matrimonio (citas, notas, hábitos; IA consejero / chart historial siguen en Streamlit) — `web/routers/matrimonio.py`
-8. [x] Sandbox (ideas, snippets, sesiones, mentor IA) — `web/routers/sandbox.py`
-9. [x] Usuarios (plan propio + admin: crear, set plan, backup, auditoría) — `web/routers/usuarios.py`
+6. [x] Biblioteca (MVP; PDF/ISBN IA sigue en Streamlit) — `web/routers/biblioteca.py`
+7. [x] Matrimonio (MVP; IA/chart siguen en Streamlit) — `web/routers/matrimonio.py`
+8. [x] Sandbox — `web/routers/sandbox.py`
+9. [x] Usuarios (admin) — `web/routers/usuarios.py`
 
-**Groq en FastAPI:** la clave de Streamlit Cloud no se comparte sola.
-Usa `GROQ_API_KEY` en el entorno, `.env`, o `.streamlit/secrets.toml` (leído por `app/secrets.py`).
+**Groq en FastAPI:** usa `GROQ_API_KEY` en el entorno, `.env`, o `.streamlit/secrets.toml` (`app/secrets.py`).
 
 ## Fase 3 — Cortar Streamlit
-- [ ] Parity funcional mínima
-- [ ] Apuntar dominio al servicio FastAPI
-- [ ] Apagar Streamlit Cloud + keep-awake
-- [ ] Archivar `pages/` o dejar solo como referencia
+- [x] Parity funcional mínima documentada (MVP aceptado; ver CUTOVER.md)
+- [x] Deploy config lista (`Procfile`, `railway.json`, `scripts/verify_deploy.py`)
+- [x] Keep-awake Streamlit desactivado por defecto
+- [x] `pages/` marcado como legado
+- [ ] **Humano:** merge PRs → Railway + `APP_URL` / Stripe / Google
+- [ ] **Humano:** apuntar dominio al servicio FastAPI
+- [ ] **Humano:** apagar Streamlit Cloud + quitar `STREAMLIT_APP_URL`
+- [ ] (Opcional) borrar `pages/` tras estabilizar
 
 ## Notas
 - No reescribas lógica de negocio en templates: vive en `app/`.

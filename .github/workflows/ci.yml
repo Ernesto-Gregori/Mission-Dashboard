@@ -39,3 +39,6 @@ jobs:
         env:
           TURSO_URL: ""
           TURSO_TOKEN: ""
+
+      - name: Compile deploy helper
+        run: python -m py_compile scripts/verify_deploy.py
