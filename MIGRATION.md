@@ -43,7 +43,7 @@ Health: `GET /health`
 1. [x] Finanzas (ingreso, sobres, gastos, consejo IA) — `web/routers/finanzas.py`
 2. [x] Agenda / bitácora — `web/routers/agenda.py` + `app/db/agenda.py`
 3. [x] Salud (+ Google OAuth callbacks en FastAPI) — `web/routers/salud.py`, `web/routers/oauth_google.py`
-4. [ ] Deep Work
+4. [x] Deep Work — `web/routers/deep_work.py` + `app/db/deep_work.py`
 5. [ ] Teología
 6. [ ] Biblioteca
 7. [ ] Matrimonio

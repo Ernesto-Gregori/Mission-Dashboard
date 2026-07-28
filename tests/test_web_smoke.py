@@ -193,6 +193,77 @@ def test_admin_setup_tiene_google_premium(web_client):
     assert b"Conectar con Google" in r.content or b"Vinculado" in r.content or b"Google Fit" in r.content
 
 
+def test_deep_work_dia_y_bloque(web_client):
+    _setup_user(web_client, "dw_user")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "soltero",
+            "objetivos": "enfoque",
+            "tiempo": "30",
+            "notas": "",
+            "areas": ["deep_work"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["deep_work"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/m/deep_work")
+    assert r.status_code == 200, r.text[:500]
+    assert b"Deep Work" in r.content
+
+    r = web_client.post(
+        "/app/m/deep_work/bloque",
+        data={
+            "nombre": "Codigo manana",
+            "hora_inicio": "06:15",
+            "hora_fin": "08:00",
+            "tipo": "Código",
+            "color": "Azul",
+            "dias": ["1", "2", "3", "4", "5", "6", "7"],
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Codigo manana" in r.content
+
+    from app.timezone_config import hoy as _hoy
+
+    fecha = str(_hoy())
+    r = web_client.get(f"/app/m/deep_work?tab=dia&fecha={fecha}")
+    assert r.status_code == 200
+    assert b"Codigo manana" in r.content
+
+    # Extraer bloque_id del HTML (hidden input)
+    import re
+
+    m = re.search(rb'name="bloque_id" value="(\d+)"', r.content)
+    assert m, r.content[:800]
+    bid = m.group(1).decode()
+
+    r = web_client.post(
+        "/app/m/deep_work/sesion",
+        data={
+            "fecha": fecha,
+            "bloque_id": bid,
+            "estado": "Completado",
+            "notas": "pomodoro ok",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Completado" in r.content or b"pomodoro" in r.content
+
+    r = web_client.get("/app/m/deep_work?tab=semana")
+    assert r.status_code == 200
+    assert b"Semana" in r.content
+
+
 def test_tenant_uid_in_threadpool_via_finanzas(web_client):
     """
     Regresión: sync endpoint + uid() en threadpool (como uvicorn).

@@ -40,6 +40,7 @@ from web.routers import dashboard as dash_router
 from web.routers import agenda as agenda_router
 from web.routers import finanzas as finanzas_router
 from web.routers import salud as salud_router
+from web.routers import deep_work as deep_work_router
 from web.routers import oauth_google as oauth_router
 from web.routers import modules as modules_router
 from web.routers import stripe_hook as stripe_router
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(agenda_router.router)  # antes del catch-all /m/{clave}
     app.include_router(finanzas_router.router)  # antes del catch-all /m/{clave}
     app.include_router(salud_router.router)  # antes del catch-all /m/{clave}
+    app.include_router(deep_work_router.router)  # antes del catch-all /m/{clave}
     app.include_router(modules_router.router)
     app.include_router(billing_router.router)
     app.include_router(stripe_router.router)

@@ -79,6 +79,25 @@ from app.db.salud import (  # noqa: F401
     obtener_registro_salud,
     obtener_registros_rango,
 )
+from app.db.deep_work import (  # noqa: F401
+    COLORES as COLORES_DW,
+    DIAS_LABELS as DIAS_LABELS_DW,
+    DIAS_NOMBRES as DIAS_NOMBRES_DW,
+    ESTADOS_SESION,
+    SYSTEM_COACH_DW,
+    actualizar_bloque,
+    bloques_para_fecha,
+    construir_resumen_semana,
+    crear_bloque,
+    desactivar_bloque,
+    obtener_bloques_fijos,
+    obtener_estado_sesion,
+    obtener_sesiones_semana,
+    obtener_todos_bloques,
+    parse_dias_bloque,
+    reactivar_bloque,
+    registrar_sesion,
+)
 from app.db.migrate import migrar_local_a_turso  # noqa: F401
 
 if __name__ == "__main__":
