@@ -16,6 +16,11 @@ from app.billing import (
     resumen_plan_ui,
     stripe_configured,
 )
+from app.coach_insights import (
+    generar_briefing,
+    resumen_cuota_briefing,
+    ultimo_briefing,
+)
 from app.onboarding import (
     aplicar_habitos_sugeridos,
     aplicar_modulos,
@@ -80,48 +85,22 @@ def coach_home(request: Request, user: Annotated[dict, Depends(require_user)]):
     done = usuario_onboarding_completo(uid)
     force = request.query_params.get("reconfig") == "1"
 
-    # Ya onboarded y no pidió reconfig → resumen
+    # Ya onboarded y no pidió reconfig → resumen + briefing cruzado
     if done and not force and not request.session.get("coach_reconfig"):
-        activos = sorted(modulos_activos(uid))
-        bloqueados = [k for k in MODULE_TEMPLATES if k not in activos]
-        return render(
-            request,
-            "coach/status.html",
-            title="Coach",
-            user=user,
-            plan=plan,
-            plan_label=limites(plan)["nombre"],
-            plan_resumen=resumen_plan_ui(user),
-            activos=[{"clave": k, **MODULE_TEMPLATES[k]} for k in activos],
-            bloqueados=[{"clave": k, **MODULE_TEMPLATES[k]} for k in bloqueados[:8]],
-            puede_reconfig=puede_reconfigurar_coach(plan),
-            stripe_ok=stripe_configured(),
-            modulos_nav=_nav(uid),
-            tope=modulos_max(plan),
-        )
+        return _render_status(request, user, plan, error=None)
 
     # Reconfig Free bloqueado
     if done and (force or request.session.get("coach_reconfig")):
         if not puede_reconfigurar_coach(plan):
             request.session.pop("coach_reconfig", None)
-            return render(
+            return _render_status(
                 request,
-                "coach/status.html",
-                title="Coach",
-                user=user,
-                plan=plan,
-                plan_label=limites(plan)["nombre"],
-                plan_resumen=resumen_plan_ui(user),
-                activos=[
-                    {"clave": k, **MODULE_TEMPLATES[k]}
-                    for k in sorted(modulos_activos(uid))
-                ],
-                bloqueados=[],
-                puede_reconfig=False,
-                stripe_ok=stripe_configured(),
-                modulos_nav=_nav(uid),
-                tope=modulos_max(plan),
-                error="Plan Free: el Coach IA de setup es una sola vez. Upgrade a Premium para reconfigurar.",
+                user,
+                plan,
+                error=(
+                    "Plan Free: el Coach IA de setup es una sola vez. "
+                    "Upgrade a Premium para reconfigurar."
+                ),
             )
         request.session["coach_reconfig"] = True
 
@@ -187,6 +166,47 @@ async def coach_perfil_submit(
             if isinstance(h, dict)
         ],
         "fuente": str(sug.get("fuente") or "fallback"),
+    }
+    return RedirectResponse("/app/coach", status_code=303)
+
+
+def _render_status(request: Request, user: dict, plan: str, *, error: str | None = None):
+    uid = int(user["id"])
+    activos = sorted(modulos_activos(uid))
+    bloqueados = [k for k in MODULE_TEMPLATES if k not in activos]
+    briefing = ultimo_briefing(uid)
+    flash = request.session.pop("coach_briefing_flash", None)
+    return render(
+        request,
+        "coach/status.html",
+        title="Coach",
+        user=user,
+        plan=plan,
+        plan_label=limites(plan)["nombre"],
+        plan_resumen=resumen_plan_ui(user),
+        activos=[{"clave": k, **MODULE_TEMPLATES[k]} for k in activos],
+        bloqueados=[{"clave": k, **MODULE_TEMPLATES[k]} for k in bloqueados[:8]],
+        puede_reconfig=puede_reconfigurar_coach(plan),
+        stripe_ok=stripe_configured(),
+        modulos_nav=_nav(uid),
+        tope=modulos_max(plan),
+        error=error,
+        briefing=briefing,
+        briefing_cuota=resumen_cuota_briefing(uid, plan),
+        briefing_flash=flash,
+    )
+
+
+@router.post("/briefing")
+def coach_briefing_generate(request: Request, user: Annotated[dict, Depends(require_user)]):
+    uid = int(user["id"])
+    plan = plan_vigente(user)
+    if not usuario_onboarding_completo(uid):
+        return RedirectResponse("/app/coach", status_code=303)
+    ok, msg, _briefing = generar_briefing(uid, plan=plan)
+    request.session["coach_briefing_flash"] = {
+        "ok": ok,
+        "message": msg,
     }
     return RedirectResponse("/app/coach", status_code=303)
 

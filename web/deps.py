@@ -73,6 +73,12 @@ def init_app_state() -> None:
         ensure_billing_schema()
     except Exception as e:
         print(f"[web.startup] billing: {e}")
+    try:
+        from app.coach_insights import ensure_coach_insights_schema
+
+        ensure_coach_insights_schema()
+    except Exception as e:
+        print(f"[web.startup] coach_insights: {e}")
 
 
 def get_session_user(request: Request) -> dict | None:

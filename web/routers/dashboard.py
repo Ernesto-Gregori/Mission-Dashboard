@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from app.billing import limites, plan_vigente, resumen_plan_ui
+from app.coach_insights import ultimo_briefing
 from app.onboarding import listar_modulos_usuario
 from app.templates import MODULE_TEMPLATES
 from web.checkout_flash import consume_checkout_query, pop_checkout_flash
@@ -36,6 +37,10 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
     just = request.session.pop("coach_just_finished", None)
     onboarded_flash = request.query_params.get("onboarded") == "1"
     checkout_flash = pop_checkout_flash(request)
+    briefing = ultimo_briefing(int(user["id"]))
+    insight_destacado = None
+    if briefing and briefing.get("insights"):
+        insight_destacado = briefing["insights"][0]
     return render(
         request,
         "dashboard.html",
@@ -51,4 +56,5 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         just_finished=just,
         onboarded_flash=onboarded_flash,
         checkout_flash=checkout_flash,
+        insight_destacado=insight_destacado,
     )

@@ -856,6 +856,35 @@ def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
     assert get_oauth_redirect_uri() == "http://127.0.0.1:8000/oauth/google/callback"
 
 
+def test_coach_briefing_cruzado(web_client, monkeypatch):
+    """Briefing en /app/coach: genera insights heurísticos y aparece en dashboard."""
+    monkeypatch.setattr("app.coach_insights._llamar_llm_briefing", lambda signals: None)
+
+    _setup_user(web_client, "briefing_admin")
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["agenda", "finanzas", "deep_work"]},
+        follow_redirects=False,
+    )
+
+    r = web_client.get("/app/coach")
+    assert r.status_code == 200
+    assert b"Briefing cruzado" in r.content
+
+    r = web_client.post("/app/coach/briefing", follow_redirects=False)
+    assert r.status_code in (303, 307)
+
+    r = web_client.get("/app/coach")
+    assert r.status_code == 200
+    body = r.content.lower()
+    assert b"briefing generado" in body or b"faltan datos" in body or b"periodo estable" in body
+    assert b"cupo esta semana" in body
+
+    r = web_client.get("/app")
+    assert r.status_code == 200
+    assert b"Del Coach" in r.content
+
+
 def test_tenant_contextvar_copied_to_threadpool():
     """El ContextVar seteado en el hilo async se copia al threadpool (mecanismo)."""
     import asyncio
