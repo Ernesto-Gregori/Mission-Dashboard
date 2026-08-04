@@ -11,11 +11,17 @@
 {% endif %}
 {% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
 
-{% if not stripe_ok %}
+{% if not payments_ok %}
 <div class="flash-warn">
-  Stripe no está configurado. Añade <code>STRIPE_SECRET_KEY</code> y
-  <code>STRIPE_PRICE_PREMIUM</code> (y <code>APP_URL</code>).
+  Cobros no configurados. Preferido: <strong>Lemon Squeezy</strong>
+  (<code>LEMON_SQUEEZY_API_KEY</code>, <code>LEMON_SQUEEZY_STORE_ID</code>,
+  <code>LEMON_SQUEEZY_VARIANT_PREMIUM</code>, <code>LEMON_SQUEEZY_WEBHOOK_SECRET</code>)
+  y <code>APP_URL</code>. Stripe queda como alternativa.
 </div>
+{% elif payment_provider == 'lemon' %}
+<p class="muted">Pagos con Lemon Squeezy (Merchant of Record).</p>
+{% elif payment_provider == 'stripe' %}
+<p class="muted">Pagos con Stripe.</p>
 {% endif %}
 
 <div class="grid">
@@ -26,10 +32,11 @@
     <ul class="muted">
       <li>Módulos ilimitados</li>
       <li>Coach reconfigurable</li>
+      <li>Briefings diarios</li>
       <li>Google Fit / Calendar</li>
     </ul>
     <form method="post" action="/app/billing/checkout/{{ p.clave }}">
-      <button class="btn block" type="submit" {% if plan == p.clave %}disabled{% endif %}>
+      <button class="btn block" type="submit" {% if plan == p.clave or not payments_ok %}disabled{% endif %}>
         {% if plan == p.clave %}Plan actual{% else %}Upgrade{% endif %}
       </button>
     </form>
