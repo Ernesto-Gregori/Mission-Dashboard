@@ -15,6 +15,14 @@
   {% endif %}
 {% endif %}
 
+{% if insight_destacado %}
+<section class="briefing-block">
+  <h2>Del Coach</h2>
+  <p><strong>{{ insight_destacado.titulo }}</strong> — {{ insight_destacado.cuerpo }}</p>
+  <p class="muted"><a href="/app/coach">Ver briefing completo</a></p>
+</section>
+{% endif %}
+
 {% if just_finished and just_finished.resto %}
 <div class="card">
   <h2>También te pueden servir (Premium)</h2>

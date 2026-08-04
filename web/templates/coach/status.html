@@ -3,6 +3,59 @@
 <h1>🤖 Coach</h1>
 <p class="muted">{{ plan_resumen }}</p>
 {% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+{% if briefing_flash %}
+  {% if briefing_flash.ok %}
+  <div class="flash-ok">{{ briefing_flash.message }}</div>
+  {% else %}
+  <div class="flash-warn">{{ briefing_flash.message }}</div>
+  {% endif %}
+{% endif %}
+
+<section class="briefing-block">
+  <h2>Briefing cruzado</h2>
+  <p class="muted">
+    Una lectura de tus módulos juntos (finanzas, deep work, matrimonio, salud, hábitos) —
+    no un chat por sección.
+    {% if briefing_cuota and briefing_cuota.limite is not none %}
+    Cupo esta semana: {{ briefing_cuota.usados }}/{{ briefing_cuota.limite }}.
+    {% else %}
+    Cupo esta semana: ilimitado (sujeto a techo del servicio).
+    {% endif %}
+  </p>
+
+  {% if briefing and briefing.insights %}
+  <ul class="insight-list">
+    {% for item in briefing.insights %}
+    <li class="insight-item">
+      <strong>{{ item.titulo }}</strong>
+      <p>{{ item.cuerpo }}</p>
+      {% if item.modulos %}
+      <p class="muted insight-mods">{{ item.modulos | join(" · ") }}</p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted" style="font-size:0.85rem">
+    Generado {{ briefing.created_at }}
+    · fuente {{ briefing.source }}
+    · ventana {{ briefing.period_days }} días
+  </p>
+  {% else %}
+  <p class="muted">Aún no hay briefing. Genera el primero cuando tengas unos días de registros.</p>
+  {% endif %}
+
+  {% if briefing_cuota and briefing_cuota.ok %}
+  <form method="post" action="/app/coach/briefing">
+    <button class="btn" type="submit">
+      {% if briefing %}Actualizar briefing{% else %}Generar briefing{% endif %}
+    </button>
+  </form>
+  {% else %}
+  <p class="muted">Cupo de briefings agotado esta semana.
+    {% if plan == 'free' %}<a href="/app/billing">Premium permite uno al día</a>.{% endif %}
+  </p>
+  {% endif %}
+</section>
 
 <div class="card">
   <h2>Tu sistema actual</h2>

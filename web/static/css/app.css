@@ -246,3 +246,25 @@ textarea {
   font: inherit;
   resize: vertical;
 }
+
+.briefing-block {
+  margin: 1.25rem 0 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.briefing-block h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+.insight-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 1rem;
+}
+.insight-item {
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--border);
+}
+.insight-item:first-child { border-top: none; }
+.insight-item p { margin: 0.35rem 0 0; }
+.insight-mods { font-size: 0.8rem; margin-top: 0.25rem !important; }

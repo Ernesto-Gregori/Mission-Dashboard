@@ -31,6 +31,7 @@ PLAN_LIMITES: dict[str, dict[str, Any]] = {
         "precio": "$0",
         "modulos_max": 3,
         "ia_mensual": 15,          # chats Groq / mes (además del coach de setup)
+        "briefings_semana": 1,    # análisis cruzado Coach (no chat por módulo)
         "coach_reconfig": False,  # solo 1 setup inicial
         "google": False,
         "historial_dias": 90,     # UI: no borrar datos, solo acotar vistas
@@ -42,6 +43,7 @@ PLAN_LIMITES: dict[str, dict[str, Any]] = {
         "precio": "$7/mes",
         "modulos_max": None,      # todos
         "ia_mensual": None,       # ilimitado (sujeto a techo global Groq)
+        "briefings_semana": 7,    # diario / bajo demanda
         "coach_reconfig": True,
         "google": True,
         "historial_dias": None,
@@ -53,6 +55,7 @@ PLAN_LIMITES: dict[str, dict[str, Any]] = {
         "precio": "$14/mes",
         "modulos_max": None,
         "ia_mensual": None,
+        "briefings_semana": 7,
         "coach_reconfig": True,
         "google": True,
         "historial_dias": None,
@@ -776,4 +779,9 @@ def resumen_plan_ui(user: dict | None = None) -> str:
         pass
     ia = lim.get("ia_mensual")
     ia_txt = "IA ilimitada" if ia is None else f"IA {usados}/{ia} este mes"
-    return f"{lim['nombre']} · {ia_txt}"
+    br = lim.get("briefings_semana")
+    if br is None:
+        br_txt = "briefings ilimitados/sem"
+    else:
+        br_txt = f"{br} briefing{'s' if int(br) != 1 else ''}/sem"
+    return f"{lim['nombre']} · {ia_txt} · {br_txt}"
