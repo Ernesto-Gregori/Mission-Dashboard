@@ -1,0 +1,14 @@
+---
+description: Mission Dashboard stack and cutover constraints
+alwaysApply: true
+---
+
+# Mission Dashboard
+
+- Canonical app: FastAPI + HTMX in `web/` (Railway). Business logic in `app/`.
+- Streamlit (`Mission_Dashboard.py`, `pages/`) is legacy — do not add features there.
+- Production DB: Turso (`TURSO_URL` / `TURSO_TOKEN`). Never commit `.env` or secrets.
+- Stripe webhook canónico: `POST /stripe/webhook`. Checkout return: `/app/billing?checkout=…`.
+- Prefer small PRs on `cursor/<name>-8925`; base `main`.
+- Tests: `pytest -q tests/` (includes `test_web_smoke.py`). Deploy check: `python scripts/verify_deploy.py $APP_URL`.
+- Cutover docs: `CUTOVER.md`, `MIGRATION.md`.
