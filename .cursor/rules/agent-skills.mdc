@@ -1,0 +1,13 @@
+---
+description: Use agent-skills workflows from .cursor/skills
+alwaysApply: true
+---
+
+Before non-trivial technical work in this repo:
+
+1. Route via `.cursor/skills/using-agent-skills/SKILL.md`.
+2. Read and follow the matching skill under `.cursor/skills/<name>/SKILL.md`.
+3. Shared checklists live in `.cursor/references/` (security, testing, DoD, observability).
+4. Prefer project skills over guessing; the user does not need to say "read skill" each time.
+
+Lifecycle shortcuts when the user asks for a phase: plan → `planning-and-task-breakdown`; build → `incremental-implementation` + TDD; review → `code-review-and-quality`; ship → `shipping-and-launch`.
