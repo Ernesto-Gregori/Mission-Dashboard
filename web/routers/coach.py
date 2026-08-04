@@ -14,7 +14,7 @@ from app.billing import (
     plan_vigente,
     puede_reconfigurar_coach,
     resumen_plan_ui,
-    stripe_configured,
+    payments_configured,
 )
 from app.coach_insights import (
     generar_briefing,
@@ -187,7 +187,7 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
         activos=[{"clave": k, **MODULE_TEMPLATES[k]} for k in activos],
         bloqueados=[{"clave": k, **MODULE_TEMPLATES[k]} for k in bloqueados[:8]],
         puede_reconfig=puede_reconfigurar_coach(plan),
-        stripe_ok=stripe_configured(),
+        stripe_ok=payments_configured(),
         modulos_nav=_nav(uid),
         tope=modulos_max(plan),
         error=error,
@@ -240,7 +240,7 @@ def _render_sugerencia(request: Request, user: dict, sug: dict, plan: str):
         hide_nav=not usuario_onboarding_completo(uid),
         premium=PLAN_PREMIUM,
         free=PLAN_FREE,
-        stripe_ok=stripe_configured(),
+        stripe_ok=payments_configured(),
     )
 
 
@@ -292,7 +292,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
             hide_nav=True,
             premium=PLAN_PREMIUM,
             free=PLAN_FREE,
-            stripe_ok=stripe_configured(),
+            stripe_ok=payments_configured(),
             status_code=400,
         )
 
@@ -333,7 +333,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
             hide_nav=True,
             premium=PLAN_PREMIUM,
             free=PLAN_FREE,
-            stripe_ok=stripe_configured(),
+            stripe_ok=payments_configured(),
             status_code=400,
         )
 
