@@ -8,7 +8,8 @@
 - [ ] Confirmar con humano antes de Fase 2
 
 ## Fase 2
-- [ ] Función extracción (prompt + parse) — mostrar antes de UI
+- [x] Función extracción (prompt + parse) — `app/receipt_ocr.py`
+- [ ] Confirmar con humano antes de UI completa
 - [ ] Upload + resize + confirmación HTMX
 - [ ] Persistencia gasto + items
 
