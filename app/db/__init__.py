@@ -10,7 +10,7 @@ from app.db.core import (
     _get_turso_config,
     _get_turso_conn,
 )
-from app.db.schema import SOBRES_CONFIG, init_sobres, init_database
+from app.db.schema import SOBRES_CONFIG, init_sobres, init_database, init_finanzas_receipts
 from app.db.finanzas import (
     guardar_ingreso,
     obtener_ingreso,
@@ -43,6 +43,7 @@ __all__ = [
     "invalidate_data_caches",
     "usar_turso",
     "init_sobres",
+    "init_finanzas_receipts",
     "init_database",
     "guardar_ingreso",
     "obtener_ingreso",

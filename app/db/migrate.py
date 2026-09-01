@@ -51,7 +51,9 @@ def migrar_local_a_turso():
         'sandbox_ideas', 'sandbox_snippets', 'sandbox_sesiones',
         'matrimonio_citas', 'matrimonio_notas', 'matrimonio_habitos',
         'habitos_config', 'habitos_diarios_v2', 'pedidos_oracion',
-        'ingreso_mensual', 'gastos_sobres', 'eventos_calendario',
+        'ingreso_mensual', 'gastos_sobres', 'receipt_items',
+        'supermarket_products', 'price_matches', 'scrape_runs',
+        'eventos_calendario',
         'usuarios', 'oauth_tokens',
     ]
 

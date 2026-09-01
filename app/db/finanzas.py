@@ -72,16 +72,34 @@ def obtener_ingreso(mes: int, anio: int) -> float:
     """, [uid(), mes, anio], fetchall=True) or []
     return float(rows[0]["monto_total"]) if rows else 0.0
 
-def agregar_gasto_sobre(fecha, sobre: str, subcategoria: str,
-                        descripcion: str, monto: float,
-                        es_fijo: bool = False, notas: str = "") -> int:
+def agregar_gasto_sobre(
+    fecha,
+    sobre: str,
+    subcategoria: str,
+    descripcion: str,
+    monto: float,
+    es_fijo: bool = False,
+    notas: str = "",
+    *,
+    comercio: str | None = None,
+    metodo_pago: str | None = None,
+    origen: str = "manual",
+    imagen_url: str | None = None,
+    raw_ocr_data: str | None = None,
+    ocr_estado: str = "ninguno",
+) -> int:
     from app.tenant import uid
     gid = ejecutar("""
         INSERT INTO gastos_sobres
-            (user_id, fecha, sobre, subcategoria, descripcion, monto, es_fijo, notas)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, [uid(), str(fecha), sobre, subcategoria, descripcion, monto,
-          1 if es_fijo else 0, notas])
+            (user_id, fecha, sobre, subcategoria, descripcion, monto, es_fijo, notas,
+             comercio, metodo_pago, origen, imagen_url, raw_ocr_data, ocr_estado)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, [
+        uid(), str(fecha), sobre, subcategoria, descripcion, monto,
+        1 if es_fijo else 0, notas,
+        comercio, metodo_pago, origen or "manual",
+        imagen_url, raw_ocr_data, ocr_estado or "ninguno",
+    ])
     try:
         invalidate_data_caches()
     except NameError:
@@ -98,6 +116,7 @@ def agregar_gasto_sobre(fecha, sobre: str, subcategoria: str,
                 "sobre": sobre,
                 "subcategoria": subcategoria,
                 "monto": monto,
+                "origen": origen or "manual",
             },
         )
     except Exception:
@@ -126,7 +145,9 @@ def actualizar_gasto_sobre(gasto_id: int, **kwargs) -> bool:
     from app.tenant import uid
     campos_permitidos = {
         'fecha', 'sobre', 'subcategoria',
-        'descripcion', 'monto', 'es_fijo', 'notas'
+        'descripcion', 'monto', 'es_fijo', 'notas',
+        'comercio', 'metodo_pago', 'origen',
+        'imagen_url', 'raw_ocr_data', 'ocr_estado',
     }
     campos = {}
     for k, v in kwargs.items():

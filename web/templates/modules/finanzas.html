@@ -66,6 +66,42 @@
 </div>
 
 <div class="card">
+  <h2>📷 Escanear recibo / transferencia</h2>
+  <p class="muted" style="font-size:0.9rem">
+    Foto de factura o captura de banco. Revisarás los datos antes de guardar.
+    Default: Supervivencia → Comida (editable).
+  </p>
+  {% if not vision_ok %}
+  <div class="flash-warn">
+    Visión offline: configura <code>GROQ_API_KEY</code> para escanear.
+  </div>
+  {% else %}
+  <form method="post" action="/app/m/finanzas/escanear" enctype="multipart/form-data"
+        id="form_escanear" style="display:grid;gap:0.6rem">
+    <label>Imagen
+      <input name="imagen" type="file" accept="image/*" capture="environment" required />
+    </label>
+    <button class="btn" type="submit" id="btn_escanear">Analizar imagen</button>
+    <p class="muted" id="scan_loading" hidden style="font-size:0.85rem">
+      Leyendo el comprobante… puede tardar unos segundos.
+    </p>
+  </form>
+  <script>
+    (function () {
+      const form = document.getElementById('form_escanear');
+      const btn = document.getElementById('btn_escanear');
+      const loading = document.getElementById('scan_loading');
+      if (!form) return;
+      form.addEventListener('submit', function () {
+        if (btn) { btn.disabled = true; btn.textContent = 'Analizando…'; }
+        if (loading) loading.hidden = false;
+      });
+    })();
+  </script>
+  {% endif %}
+</div>
+
+<div class="card">
   <h2>➕ Nuevo gasto</h2>
   <form method="post" action="/app/m/finanzas/gasto">
     <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
@@ -141,7 +177,11 @@
         <tr style="border-top:1px solid var(--border)">
           <td style="padding:0.4rem">{{ g.fecha }}</td>
           <td>{{ g.sobre }}</td>
-          <td>{{ g.descripcion }} <span class="badge">{{ g.sub_label }}</span></td>
+          <td>{{ g.descripcion }} <span class="badge">{{ g.sub_label }}</span>
+            {% if g.origen_label and g.origen_label != 'manual' %}
+            <span class="badge">{{ g.origen_label }}</span>
+            {% endif %}
+          </td>
           <td>${{ '%.2f'|format(g.monto) }}</td>
           <td>
             <form method="post" action="/app/m/finanzas/gasto/{{ g.id }}/eliminar" onsubmit="return confirm('¿Eliminar gasto?')">

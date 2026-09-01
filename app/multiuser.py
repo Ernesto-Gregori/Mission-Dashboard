@@ -10,6 +10,8 @@ from typing import Optional
 USER_TABLES = [
     "ingreso_mensual",
     "gastos_sobres",
+    "receipt_items",
+    "price_matches",
     "bitacora_semanal",
     "bloques_fijos",
     "sesiones_completadas",
