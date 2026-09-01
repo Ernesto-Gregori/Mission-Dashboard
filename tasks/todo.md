@@ -9,9 +9,9 @@
 
 ## Fase 2
 - [x] Función extracción (prompt + parse) — `app/receipt_ocr.py`
-- [ ] Confirmar con humano antes de UI completa
-- [ ] Upload + resize + confirmación HTMX
-- [ ] Persistencia gasto + items
+- [x] Upload + resize + confirmación HTMX
+- [x] Persistencia gasto + items
+- [ ] Probar end-to-end con GROQ_API_KEY y foto real
 
 ## Fase 3
 - [ ] Inspección Selectos (HTML vs API) + robots.txt
