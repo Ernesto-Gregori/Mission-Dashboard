@@ -16,10 +16,11 @@ para servidor casero / uso personal. **No merge a main** hasta validar.
 ## Phases
 - [x] Fase 0: inventario del código actual
 - [x] Fase 1: schema + CRUD satélite + tests
-- [ ] Fase 2: extracción visión (función + UI confirmación)
+- [x] Fase 2a: extracción visión (prompt + parse) — pendiente OK humano antes de UI
+- [ ] Fase 2b: upload + confirmación HTMX + persistencia
 - [ ] Fase 3: scraper Selectos → luego Walmart / Despensa
 - [ ] Fase 4: matching fuzzy + UI comparación
 
-## Checkpoint Fase 1
-- [ ] `pytest -q tests/test_finanzas_receipts_schema.py`
-- [ ] Suite existente no regresa
+## Checkpoint Fase 2a
+- [x] `pytest -q tests/test_receipt_ocr.py`
+- [ ] Humano revisa prompt/parse antes de UI
