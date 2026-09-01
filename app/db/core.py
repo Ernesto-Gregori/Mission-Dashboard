@@ -248,6 +248,61 @@ def ensure_remote_schema():
             UNIQUE(user_id, anio, mes)
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS receipt_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            gasto_id INTEGER NOT NULL,
+            nombre_original TEXT NOT NULL,
+            nombre_normalizado TEXT,
+            cantidad REAL NOT NULL DEFAULT 1,
+            precio_unitario REAL,
+            precio_total REAL,
+            orden INTEGER NOT NULL DEFAULT 0,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS supermarket_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supermercado TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            nombre_normalizado TEXT,
+            categoria TEXT,
+            precio REAL,
+            unidad TEXT,
+            sku_o_id_externo TEXT,
+            url_producto TEXT,
+            fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            activo INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(supermercado, sku_o_id_externo)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS price_matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            receipt_item_id INTEGER NOT NULL,
+            supermarket_product_id INTEGER NOT NULL,
+            score REAL NOT NULL,
+            metodo TEXT NOT NULL DEFAULT 'fuzzy',
+            es_mejor_precio INTEGER NOT NULL DEFAULT 0,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS scrape_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supermercado TEXT NOT NULL,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            finished_at TIMESTAMP,
+            status TEXT NOT NULL DEFAULT 'running',
+            products_upserted INTEGER NOT NULL DEFAULT 0,
+            products_unchanged INTEGER NOT NULL DEFAULT 0,
+            error_message TEXT,
+            meta_json TEXT
+        )
+        """,
     ]
     for sql in statements:
         try:
@@ -261,6 +316,12 @@ def ensure_remote_schema():
         "ALTER TABLE usuarios ADD COLUMN coach_ia_usado INTEGER DEFAULT 0",
         "ALTER TABLE usuarios ADD COLUMN stripe_customer_id TEXT",
         "ALTER TABLE usuarios ADD COLUMN stripe_subscription_id TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN comercio TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN metodo_pago TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN origen TEXT DEFAULT 'manual'",
+        "ALTER TABLE gastos_sobres ADD COLUMN imagen_url TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN raw_ocr_data TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN ocr_estado TEXT DEFAULT 'ninguno'",
     ):
         try:
             ejecutar(sql)

@@ -55,8 +55,40 @@ SOBRES_CONFIG = {
     }
 }
 
+# ── Finanzas extendidas (rama experimental: foto + precios ES) ──
+GASTO_ORIGEN_MANUAL = "manual"
+GASTO_ORIGEN_RECIBO = "recibo"
+GASTO_ORIGEN_TRANSFERENCIA = "transferencia"
+GASTO_ORIGENES = (
+    GASTO_ORIGEN_MANUAL,
+    GASTO_ORIGEN_RECIBO,
+    GASTO_ORIGEN_TRANSFERENCIA,
+)
+
+OCR_ESTADO_NINGUNO = "ninguno"
+OCR_ESTADO_PENDIENTE = "pendiente_confirmacion"
+OCR_ESTADO_CONFIRMADO = "confirmado"
+OCR_ESTADO_RECHAZADO = "rechazado"
+
+# Default al escanear súper / compra de comida (editable en confirmación)
+DEFAULT_SOBRE_SCAN = "Supervivencia"
+DEFAULT_SUBCAT_SCAN = "Comida"
+
+SUPERMERCADO_SELECTOS = "super_selectos"
+SUPERMERCADO_WALMART = "walmart_sv"
+SUPERMERCADO_DESPENSA = "despensa_don_juan"
+SUPERMERCADOS = (
+    SUPERMERCADO_SELECTOS,
+    SUPERMERCADO_WALMART,
+    SUPERMERCADO_DESPENSA,
+)
+
+# Umbral v1 matching fuzzy (Fase 4)
+PRICE_MATCH_SCORE_MIN = 0.78
+
+
 def init_sobres(cursor):
-    """Crea tablas del sistema de 3 sobres"""
+    """Crea tablas del sistema de 3 sobres + extensión recibos/precios."""
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ingreso_mensual (
@@ -94,6 +126,111 @@ def init_sobres(cursor):
         CREATE INDEX IF NOT EXISTS idx_gastos_sobres_sobre
         ON gastos_sobres(sobre)
     """)
+
+    init_finanzas_receipts(cursor)
+
+
+def init_finanzas_receipts(cursor):
+    """
+    Extiende gastos_sobres y crea tablas satélite para OCR + catálogo SV.
+    Idempotente (ALTER tolerante + CREATE IF NOT EXISTS).
+    """
+    for sql in (
+        "ALTER TABLE gastos_sobres ADD COLUMN comercio TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN metodo_pago TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN origen TEXT DEFAULT 'manual'",
+        "ALTER TABLE gastos_sobres ADD COLUMN imagen_url TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN raw_ocr_data TEXT",
+        "ALTER TABLE gastos_sobres ADD COLUMN ocr_estado TEXT DEFAULT 'ninguno'",
+    ):
+        try:
+            cursor.execute(sql)
+        except Exception:
+            pass
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS receipt_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            gasto_id INTEGER NOT NULL,
+            nombre_original TEXT NOT NULL,
+            nombre_normalizado TEXT,
+            cantidad REAL NOT NULL DEFAULT 1,
+            precio_unitario REAL,
+            precio_total REAL,
+            orden INTEGER NOT NULL DEFAULT 0,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (gasto_id) REFERENCES gastos_sobres(id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_receipt_items_gasto "
+        "ON receipt_items(gasto_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_receipt_items_user "
+        "ON receipt_items(user_id, gasto_id)"
+    )
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS supermarket_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supermercado TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            nombre_normalizado TEXT,
+            categoria TEXT,
+            precio REAL,
+            unidad TEXT,
+            sku_o_id_externo TEXT,
+            url_producto TEXT,
+            fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            activo INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(supermercado, sku_o_id_externo)
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_supermarket_nombre "
+        "ON supermarket_products(supermercado, nombre_normalizado)"
+    )
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS price_matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            receipt_item_id INTEGER NOT NULL,
+            supermarket_product_id INTEGER NOT NULL,
+            score REAL NOT NULL,
+            metodo TEXT NOT NULL DEFAULT 'fuzzy',
+            es_mejor_precio INTEGER NOT NULL DEFAULT 0,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (receipt_item_id) REFERENCES receipt_items(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (supermarket_product_id)
+                REFERENCES supermarket_products(id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_price_matches_item "
+        "ON price_matches(receipt_item_id)"
+    )
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS scrape_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supermercado TEXT NOT NULL,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            finished_at TIMESTAMP,
+            status TEXT NOT NULL DEFAULT 'running',
+            products_upserted INTEGER NOT NULL DEFAULT 0,
+            products_unchanged INTEGER NOT NULL DEFAULT 0,
+            error_message TEXT,
+            meta_json TEXT
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_scrape_runs_super "
+        "ON scrape_runs(supermercado, started_at DESC)"
+    )
 
 
 def init_database():
