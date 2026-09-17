@@ -325,7 +325,8 @@ h3 { font-size: 1rem; line-height: 1.35; }
     margin: 0;
     white-space: nowrap;
   }
-  .sidebar-footer { display: none; }
+  .sidebar-footer { margin-top: 0.5rem; }
+  .sidebar-footer .btn { width: auto; }
   .main { padding-top: 1.5rem; }
   .page-header { align-items: flex-start; }
   .module-grid { grid-template-columns: 1fr; }
