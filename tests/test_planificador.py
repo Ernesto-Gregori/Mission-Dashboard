@@ -66,7 +66,9 @@ def test_planificador_pagina(web_client):
     assert b"chip-google" in r.content
     assert b"chip-local" in r.content
     assert b'for="plan-title"' in r.content
-    assert b"Bloque solo en el dashboard" in r.content
+    assert b"solo_local" in r.content
+    assert b"data-planner-grid" in r.content
+    assert b"/app/planificador/vista/dia" in r.content
 
 
 def test_planificador_bloque_local_no_sync_google(web_client, monkeypatch):
@@ -87,6 +89,7 @@ def test_planificador_bloque_local_no_sync_google(web_client, monkeypatch):
             "tipo": "Personal",
             "hora_inicio": "09:00",
             "hora_fin": "10:00",
+            "solo_local": "1",
         },
         follow_redirects=True,
     )
@@ -103,7 +106,7 @@ def test_planificador_mezcla_google(web_client, monkeypatch):
 
     lunes = inicio_semana(_hoy(), "lun")
 
-    def fake_events(inicio, fin):
+    def fake_events(inicio, fin, **kwargs):
         return [
             {
                 "google_id": "gcal-1",
@@ -115,6 +118,8 @@ def test_planificador_mezcla_google(web_client, monkeypatch):
                 "tipo": "Personal",
                 "color": "#5484ed",
                 "fuente": "google_calendar",
+                "updated": "2026-09-17T12:00:00Z",
+                "status": "confirmed",
             }
         ]
 
@@ -141,3 +146,72 @@ def test_planificador_semana_domingo(web_client):
     idx_lun = r.content.find(b"<strong>Lun</strong>")
     assert idx_dom != -1 and idx_lun != -1
     assert idx_dom < idx_lun
+
+
+def test_planificador_bloque_default_sync_google(web_client, monkeypatch):
+    _onboard(web_client)
+    created = []
+    monkeypatch.setattr("app.google_calendar.calendar_disponible", lambda: True)
+    monkeypatch.setattr(
+        "app.google_calendar.crear_evento_google",
+        lambda datos: created.append(datos) or "gid-sync",
+    )
+    from app.timezone_config import hoy as _hoy
+
+    r = web_client.post(
+        "/app/planificador/bloque",
+        data={
+            "fecha": str(_hoy()),
+            "titulo": "BloqueSyncTest",
+            "tipo": "Personal",
+            "hora_inicio": "11:00",
+            "hora_fin": "12:00",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert created and created[0]["titulo"] == "BloqueSyncTest"
+    assert b"BloqueSyncTest" in r.content
+
+
+def test_planificador_vista_dia_y_mover(web_client):
+    _onboard(web_client)
+    from app.timezone_config import hoy as _hoy
+
+    r = web_client.get("/app/planificador/vista/dia", follow_redirects=True)
+    assert r.status_code == 200
+    assert b"data-planner-grid" in r.content
+    assert b"vista-dia" in r.content
+
+    r = web_client.post(
+        "/app/planificador/bloque",
+        data={
+            "fecha": str(_hoy()),
+            "titulo": "MoverTest",
+            "tipo": "Personal",
+            "hora_inicio": "09:00",
+            "hora_fin": "10:00",
+            "solo_local": "1",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    from app.db.core import ejecutar
+
+    row = ejecutar(
+        "SELECT id FROM eventos_calendario WHERE titulo = 'MoverTest'",
+        fetchall=True,
+    )[0]
+    r = web_client.post(
+        "/app/planificador/mover",
+        data={
+            "evento_id": str(row["id"]),
+            "fecha": str(_hoy()),
+            "hora_inicio": "14:00",
+            "hora_fin": "15:00",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"14:00" in r.content
+    assert b"MoverTest" in r.content

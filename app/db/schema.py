@@ -304,6 +304,31 @@ def init_fase3_tables(cursor):
         pass
 
 
+def init_fase4_tables(cursor):
+    """Sync Calendar: timestamps locales y estado de polling por usuario (Fase 4)."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS calendar_sync_state (
+            user_id INTEGER PRIMARY KEY,
+            last_poll_at TEXT,
+            last_error TEXT,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    for sql in [
+        "ALTER TABLE eventos_calendario ADD COLUMN actualizado_en TEXT",
+        "ALTER TABLE eventos_calendario ADD COLUMN google_updated TEXT",
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_eventos_user_google
+            ON eventos_calendario(user_id, google_id)
+            WHERE google_id IS NOT NULL AND google_id != ''
+        """,
+    ]:
+        try:
+            cursor.execute(sql)
+        except Exception:
+            pass
+
+
 def init_fase1_tables(cursor):
     """Alma, planificador prefs y objetivo de salud (Fase 1)."""
     cursor.execute("""
@@ -945,6 +970,7 @@ def init_database():
     init_fase1_tables(cursor)
     init_fase2_tables(cursor)
     init_fase3_tables(cursor)
+    init_fase4_tables(cursor)
     init_sobres(cursor)
     from app.db.exercises import init_exercise_library
     init_exercise_library(cursor)

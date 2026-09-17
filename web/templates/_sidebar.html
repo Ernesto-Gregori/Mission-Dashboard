@@ -7,7 +7,8 @@
     <a href="/app" class="{% if request.url.path.rstrip('/') == '/app' %}active{% endif %}"{% if request.url.path.rstrip('/') == '/app' %} aria-current="page"{% endif %}>🏠 Control de mando</a>
     <a href="/app/coach" class="{% if '/coach' in request.url.path %}active{% endif %}"{% if '/coach' in request.url.path %} aria-current="page"{% endif %}>🤖 Coach</a>
     <a href="/app/asistente" class="{% if '/asistente' in request.url.path %}active{% endif %}"{% if '/asistente' in request.url.path %} aria-current="page"{% endif %}>💬 Alma</a>
-    <a href="/app/planificador" class="{% if '/planificador' in request.url.path %}active{% endif %}"{% if '/planificador' in request.url.path %} aria-current="page"{% endif %}>🗓️ Semana</a>
+    <a href="/app/foco" class="{% if '/foco' in request.url.path %}active{% endif %}"{% if '/foco' in request.url.path %} aria-current="page"{% endif %}>🎯 Foco</a>
+    <a href="/app/planificador" class="{% if '/planificador' in request.url.path %}active{% endif %}"{% if '/planificador' in request.url.path %} aria-current="page"{% endif %}>🗓️ Planificador</a>
     <a href="/app/presupuesto" class="{% if '/presupuesto' in request.url.path %}active{% endif %}"{% if '/presupuesto' in request.url.path %} aria-current="page"{% endif %}>📊 Presupuesto</a>
     <a href="/app/familia" class="{% if '/familia' in request.url.path %}active{% endif %}"{% if '/familia' in request.url.path %} aria-current="page"{% endif %}>👨‍👩‍👧‍👦 Familia</a>
     <a href="/app/ritual" class="{% if '/ritual' in request.url.path %}active{% endif %}"{% if '/ritual' in request.url.path %} aria-current="page"{% endif %}>🌅 Ritual</a>

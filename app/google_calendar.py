@@ -183,7 +183,13 @@ def sincronizar_bloques_semana(lunes: date, domingo: date) -> int:
 # ═══════════════════════════════════════════════════════════════
 # LEER EVENTOS DE GOOGLE CALENDAR
 # ═══════════════════════════════════════════════════════════════
-def obtener_eventos_google(fecha_inicio: date, fecha_fin: date) -> List[Dict]:
+def obtener_eventos_google(
+    fecha_inicio: date,
+    fecha_fin: date,
+    *,
+    include_deleted: bool = False,
+    max_results: int = 250,
+) -> List[Dict]:
     """
     Obtiene eventos de Google Calendar para un rango de fechas.
     Retorna lista compatible con eventos_calendario local.
@@ -205,7 +211,8 @@ def obtener_eventos_google(fecha_inicio: date, fecha_fin: date) -> List[Dict]:
             timeMax=time_max,
             singleEvents=True,
             orderBy="startTime",
-            maxResults=50,
+            maxResults=max_results,
+            showDeleted=bool(include_deleted),
         ).execute()
         
         eventos = events_result.get("items", [])
@@ -254,6 +261,8 @@ def obtener_eventos_google(fecha_inicio: date, fecha_fin: date) -> List[Dict]:
                 "color":        color,
                 "todo_el_dia":  todo_el_dia,
                 "fuente":       "google_calendar",
+                "updated":      evento.get("updated") or "",
+                "status":       evento.get("status") or "confirmed",
             })
     
     except Exception as e:

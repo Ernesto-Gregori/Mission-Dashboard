@@ -49,6 +49,7 @@ TABLAS_BACKUP = [
     "presupuesto_recurrentes",
     "ritual_diario",
     "rueda_vida",
+    "calendar_sync_state",
     "audit_log",
 ]
 

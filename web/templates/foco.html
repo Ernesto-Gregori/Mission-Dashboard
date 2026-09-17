@@ -1,0 +1,72 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Foco del Día</h1>
+    <p class="muted">Eventos de Calendar mezclados con hábitos y tareas que viven solo en el dashboard.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<div class="agenda-week-nav">
+  <form method="post" action="/app/foco/dia"><button class="btn secondary" name="action" value="prev" type="submit">◀ Ayer</button></form>
+  <h2>{{ fecha.strftime('%A %d/%m/%Y') }}</h2>
+  <form class="button-group" method="post" action="/app/foco/dia">
+    <button class="btn secondary" name="action" value="hoy" type="submit">Hoy</button>
+    <button class="btn secondary" name="action" value="next" type="submit">Mañana ▶</button>
+  </form>
+</div>
+
+{% if not puede_google %}
+<div class="flash-warn">Ver Calendar requiere plan Premium o Familia. Hábitos y bloques locales sí se muestran.
+  <a href="/app/billing">Ver planes</a>
+</div>
+{% elif not google_ok %}
+<p class="muted">Sin Google Calendar vinculado. Conectalo desde <a href="/app/m/salud">Salud</a>.</p>
+{% endif %}
+<form method="post" action="/app/foco/sync" class="inline-form">
+  <button class="btn secondary" type="submit">Sincronizar Calendar</button>
+</form>
+
+<section class="foco-layout" aria-label="Agenda de hoy">
+  <div class="card">
+    <h2>En Calendar</h2>
+    {% if not en_cal %}
+    <p class="muted empty-state">Nada sincronizado con Google para este día.</p>
+    {% else %}
+    <ol class="foco-list">
+      {% for e in en_cal %}
+      <li class="foco-item origen-google">
+        <time>{{ (e.hora_inicio or 'todo el día')[:5] }}{% if e.hora_fin %}–{{ e.hora_fin[:5] }}{% endif %}</time>
+        <span>{{ e.titulo }}</span>
+        <span class="chip chip-google">📅</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Solo en el dashboard</h2>
+    {% if not solo_dash %}
+    <p class="muted empty-state">Sin hábitos ni bloques locales para este día.</p>
+    {% else %}
+    <ol class="foco-list">
+      {% for e in solo_dash %}
+      <li class="foco-item origen-{{ e.origen }} kind-{{ e.kind }}">
+        <time>{{ (e.hora_inicio or '—')[:5] }}</time>
+        <span>{{ e.titulo }}{% if e.completado %} ✓{% endif %}</span>
+        {% if e.kind == 'habito' %}<span class="chip chip-local">hábito</span>
+        {% elif e.kind == 'entrenamiento' %}<span class="chip chip-salud">salud</span>
+        {% elif e.origen == 'matrimonio' %}<span class="chip chip-mat">💑</span>
+        {% else %}<span class="chip chip-local">📌</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+  </div>
+</section>
+
+<p class="muted"><a href="/app/planificador?vista=dia">Abrir en la línea de tiempo →</a></p>
+{% endblock %}

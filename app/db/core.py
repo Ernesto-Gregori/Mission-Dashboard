@@ -360,6 +360,14 @@ def ensure_remote_schema():
             actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS calendar_sync_state (
+            user_id INTEGER PRIMARY KEY,
+            last_poll_at TEXT,
+            last_error TEXT,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
     ]
     for sql in statements:
         try:
@@ -380,6 +388,8 @@ def ensure_remote_schema():
         "ALTER TABLE gastos_sobres ADD COLUMN raw_ocr_data TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN ocr_estado TEXT DEFAULT 'ninguno'",
         "ALTER TABLE user_prefs ADD COLUMN theme TEXT DEFAULT 'dark'",
+        "ALTER TABLE eventos_calendario ADD COLUMN actualizado_en TEXT",
+        "ALTER TABLE eventos_calendario ADD COLUMN google_updated TEXT",
     ):
         try:
             ejecutar(sql)

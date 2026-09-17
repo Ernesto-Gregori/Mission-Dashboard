@@ -100,6 +100,21 @@ def _ctx(
     domingo = lunes + timedelta(days=6)
     hoy = _hoy()
 
+    google_ok = False
+    try:
+        from app.google_calendar import calendar_disponible
+
+        google_ok = bool(calendar_disponible())
+    except Exception:
+        google_ok = False
+    if google_ok:
+        try:
+            from app.calendar_sync import pull_range
+
+            pull_range(lunes, domingo, user_id=int(user["id"]))
+        except Exception:
+            pass
+
     eventos = obtener_eventos_semana(lunes, domingo)
     dw_ses = obtener_deepwork_semana(lunes, domingo)
     devos = obtener_devocionales_semana(lunes, domingo)
@@ -181,14 +196,6 @@ def _ctx(
     historial = obtener_bitacoras_recientes(12)
     hist_sel = request.query_params.get("hist") or (historial[0]["semana_inicio"] if historial else None)
     hist_bit = next((b for b in historial if b["semana_inicio"] == hist_sel), None) if hist_sel else None
-
-    google_ok = False
-    try:
-        from app.google_calendar import calendar_disponible
-
-        google_ok = bool(calendar_disponible())
-    except Exception:
-        google_ok = False
 
     return {
         "title": "Agenda",

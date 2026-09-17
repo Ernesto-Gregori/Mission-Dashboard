@@ -58,6 +58,7 @@ from app.db.agenda import (  # noqa: F401
     eliminar_evento,
     guardar_bitacora,
     guardar_evento,
+    actualizar_evento,
     obtener_bitacora,
     obtener_bitacoras_recientes,
     obtener_deepwork_semana,

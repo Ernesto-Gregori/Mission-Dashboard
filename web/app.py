@@ -39,6 +39,7 @@ from web.routers import coach as coach_router
 from web.routers import dashboard as dash_router
 from web.routers import asistente as asistente_router
 from web.routers import planificador as planificador_router
+from web.routers import foco as foco_router
 from web.routers import presupuesto as presupuesto_router
 from web.routers import familia as familia_router
 from web.routers import ritual as ritual_router
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(dash_router.router)
     app.include_router(asistente_router.router)
     app.include_router(planificador_router.router)
+    app.include_router(foco_router.router)
     app.include_router(presupuesto_router.router)
     app.include_router(familia_router.router)
     app.include_router(ritual_router.router)

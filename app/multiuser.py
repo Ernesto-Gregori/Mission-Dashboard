@@ -29,6 +29,7 @@ USER_TABLES = [
     "habitos_diarios_v2",
     "pedidos_oracion",
     "eventos_calendario",
+    "calendar_sync_state",
     "exercises",
     "user_equipment",
 ]

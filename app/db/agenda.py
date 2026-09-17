@@ -164,7 +164,8 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
             """
             SELECT id, fecha, hora_inicio, hora_fin, titulo, tipo,
                    '' AS estado_planificacion, tipo AS ambito,
-                   color, google_id, COALESCE(fuente, 'local') AS fuente
+                   color, google_id, COALESCE(fuente, 'local') AS fuente,
+                   actualizado_en, google_updated
             FROM eventos_calendario
             WHERE fecha >= ? AND fecha <= ? AND user_id = ?
             ORDER BY fecha, hora_inicio
@@ -401,24 +402,32 @@ def obtener_eventos_personalizados(fecha: str | None = None) -> list:
 
 
 def guardar_evento(datos: dict, *, sync_google: bool = True) -> int:
-    google_id = None
-    if sync_google:
+    from app.calendar_sync import ensure_calendar_sync_schema
+
+    ensure_calendar_sync_schema()
+    google_id = datos.get("google_id")
+    google_updated = datos.get("google_updated") or ""
+    if sync_google and not google_id:
         try:
             from app.google_calendar import calendar_disponible, crear_evento_google
 
             if calendar_disponible():
                 google_id = crear_evento_google(datos)
+                google_updated = iso_ahora()
         except Exception:
-            google_id = None
+            google_id = google_id or None
     fuente = str(datos.get("fuente") or "local")
     if fuente not in ("local", "google_calendar"):
         fuente = "local"
+    if google_id:
+        fuente = fuente if fuente == "google_calendar" else "local"
+    stamp = datos.get("actualizado_en") or iso_ahora()
     return ejecutar(
         """
         INSERT INTO eventos_calendario
             (user_id, fecha, hora_inicio, hora_fin, titulo, descripcion,
-             tipo, color, google_id, fuente)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             tipo, color, google_id, fuente, actualizado_en, google_updated)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             uid(),
@@ -431,8 +440,93 @@ def guardar_evento(datos: dict, *, sync_google: bool = True) -> int:
             datos.get("color", COLORES_TIPO.get(datos.get("tipo", "Personal"), "#58a6ff")),
             google_id,
             fuente,
+            stamp,
+            google_updated,
         ],
     )
+
+
+def actualizar_evento(evento_id: int, datos: dict, *, sync_google: bool = True) -> bool:
+    """Edita un evento local y, si tiene google_id, el de Calendar.
+
+    Conflict rule: newest timestamp wins — this write stamps actualizado_en
+    now, so a later pull will push this version if Google is older.
+    """
+    from app.calendar_sync import ensure_calendar_sync_schema
+
+    ensure_calendar_sync_schema()
+    rows = ejecutar(
+        """
+        SELECT * FROM eventos_calendario
+        WHERE id = ? AND user_id = ?
+        """,
+        [int(evento_id), uid()],
+        fetchall=True,
+    )
+    if not rows:
+        return False
+    prev = rows[0]
+    tipo = datos.get("tipo") or prev.get("tipo") or "Personal"
+    if tipo not in COLORES_TIPO:
+        tipo = "Personal"
+    stamp = iso_ahora()
+    google_id = prev.get("google_id")
+    payload = {
+        "fecha": str(datos.get("fecha") or prev.get("fecha")),
+        "hora_inicio": datos.get("hora_inicio", prev.get("hora_inicio")),
+        "hora_fin": datos.get("hora_fin", prev.get("hora_fin")),
+        "titulo": str(datos.get("titulo") or prev.get("titulo") or ""),
+        "descripcion": str(datos.get("descripcion", prev.get("descripcion") or "")),
+        "tipo": tipo,
+        "color": datos.get("color") or COLORES_TIPO.get(tipo, prev.get("color") or "#58a6ff"),
+    }
+    google_updated = prev.get("google_updated") or ""
+    if sync_google and google_id:
+        try:
+            from app.google_calendar import actualizar_evento_google, calendar_disponible
+
+            if calendar_disponible():
+                if actualizar_evento_google(str(google_id), payload):
+                    google_updated = stamp
+        except Exception:
+            pass
+    elif sync_google and not google_id:
+        try:
+            from app.google_calendar import calendar_disponible, crear_evento_google
+
+            if calendar_disponible():
+                google_id = crear_evento_google(payload)
+                if google_id:
+                    google_updated = stamp
+        except Exception:
+            pass
+    ejecutar(
+        """
+        UPDATE eventos_calendario
+           SET fecha=?, hora_inicio=?, hora_fin=?, titulo=?, descripcion=?,
+               tipo=?, color=?, google_id=?, actualizado_en=?, google_updated=?
+         WHERE id=? AND user_id=?
+        """,
+        [
+            payload["fecha"],
+            payload.get("hora_inicio"),
+            payload.get("hora_fin"),
+            payload["titulo"],
+            payload.get("descripcion"),
+            payload["tipo"],
+            payload["color"],
+            google_id,
+            stamp,
+            google_updated,
+            int(evento_id),
+            uid(),
+        ],
+    )
+    try:
+        invalidate_data_caches()
+    except Exception:
+        pass
+    return True
 
 
 def eliminar_evento(evento_id: int) -> bool:

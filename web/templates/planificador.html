@@ -2,8 +2,8 @@
 {% block content %}
 <header class="page-header">
   <div>
-    <h1>Planificador semanal</h1>
-    <p class="muted">Google Calendar mezclado con bloques que viven solo en el dashboard.</p>
+    <h1>Planificador</h1>
+    <p class="muted">Línea de tiempo arrastrable, sincronizada con Google Calendar.</p>
   </div>
 </header>
 
@@ -11,6 +11,11 @@
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
 <div class="planner-toolbar">
+  <nav class="planner-views" aria-label="Vista del planificador">
+    <a class="btn secondary{% if vista == 'dia' %} is-current{% endif %}" href="/app/planificador/vista/dia"{% if vista == 'dia' %} aria-current="page"{% endif %}>Día</a>
+    <a class="btn secondary{% if vista == 'semana' %} is-current{% endif %}" href="/app/planificador/vista/semana"{% if vista == 'semana' %} aria-current="page"{% endif %}>Semana</a>
+    <a class="btn secondary{% if vista == 'mes' %} is-current{% endif %}" href="/app/planificador/vista/mes"{% if vista == 'mes' %} aria-current="page"{% endif %}>Mes</a>
+  </nav>
   <form method="post" action="/app/planificador/inicio" class="planner-start">
     <label for="week-start">La semana empieza</label>
     <select id="week-start" name="week_start" onchange="this.form.submit()">
@@ -21,55 +26,115 @@
   </form>
   <p class="planner-legend" aria-label="Leyenda">
     <span class="chip chip-google">📅 Google Calendar</span>
-    <span class="chip chip-local">📌 Bloque del dashboard</span>
+    <span class="chip chip-local">📌 Dashboard</span>
   </p>
 </div>
 
 {% if not puede_google %}
-<div class="flash-warn">Ver eventos de Google Calendar requiere plan Premium o Familia. Los bloques locales sí se pueden cargar.
+<div class="flash-warn">Sync con Google Calendar requiere plan Premium o Familia. Los bloques locales sí se pueden cargar.
   <a href="/app/billing">Ver planes</a>
 </div>
 {% elif not google_ok %}
-<p class="muted">Sin Google Calendar vinculado. Conectalo desde <a href="/app/m/salud">Salud</a>. Los bloques del dashboard se muestran igual.</p>
+<p class="muted">Sin Google Calendar vinculado. Conectalo desde <a href="/app/m/salud">Salud</a>.</p>
 {% else %}
-<p class="muted">📅 Calendar vinculado. Los eventos de Google no se editan acá; los bloques 📌 no se suben a Calendar.</p>
+<p class="muted">📅 Calendar vinculado. Crear, mover o borrar un bloque con horario lo sincroniza. Podés marcar “solo dashboard” para no subirlo.</p>
+<form method="post" action="/app/planificador/sync" class="inline-form">
+  <button class="btn secondary" type="submit">Sincronizar ahora</button>
+</form>
 {% endif %}
 {% if google_error %}<p class="muted">{{ google_error }}</p>{% endif %}
 
 <div class="agenda-week-nav">
   <form method="post" action="/app/planificador/semana"><button class="btn secondary" name="action" value="prev" type="submit">◀ Anterior</button></form>
-  <h2>{{ inicio.strftime('%d/%m') }} — {{ fin.strftime('%d/%m/%Y') }}</h2>
+  <h2>{{ titulo_rango }}</h2>
   <form class="button-group" method="post" action="/app/planificador/semana">
     <button class="btn secondary" name="action" value="hoy" type="submit">Hoy</button>
     <button class="btn secondary" name="action" value="next" type="submit">Siguiente ▶</button>
   </form>
 </div>
 
-<div class="agenda-grid planner-grid">
-  {% for d in dias %}
-  <div class="agenda-day {% if d.es_hoy %}hoy{% endif %}">
-    <div class="agenda-day-h">
-      <strong>{{ d.label }}</strong>
-      <span>{{ d.fecha.strftime('%d/%m') }}</span>
-    </div>
-    {% if not d.eventos %}
-    <p class="muted planner-empty">Sin eventos</p>
-    {% endif %}
-    {% for e in d.eventos %}
-    <div class="chip {% if e.origen == 'google' %}chip-google{% elif e.origen == 'matrimonio' %}chip-mat{% else %}chip-local{% endif %}" {% if e.color %}style="--event-color:{{ e.color }}"{% endif %}>
+{% if vista == 'mes' %}
+<div class="tl-month" role="grid" aria-label="Mes">
+  {% for lab in weekday_labels %}
+  <div class="tl-month-h" role="columnheader">{{ lab }}</div>
+  {% endfor %}
+  {% for c in month_cells %}
+  <div class="tl-month-cell{% if c.es_hoy %} hoy{% endif %}{% if c.fuera %} is-out{% endif %}"
+       data-fecha="{{ c.iso }}" role="gridcell">
+    {% if c.fecha %}<span class="tl-month-num">{{ c.fecha.day }}</span>{% endif %}
+    {% for e in c.eventos[:4] %}
+    <button type="button" class="tl-block tl-month-block origen-{{ e.origen }}"
+            {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="{{ e.hora_inicio or '' }}" data-end="{{ e.hora_fin or '' }}"{% endif %}
+            {% if e.color %}style="--event-color:{{ e.color }}"{% endif %}>
       {% if e.origen == 'google' %}📅{% elif e.origen == 'matrimonio' %}💑{% else %}📌{% endif %}
-      {{ (e.titulo or '')[:22] }}{% if e.hora_inicio %} {{ e.hora_inicio[:5] }}{% endif %}
-    </div>
+      {{ (e.titulo or '')[:18] }}
+    </button>
     {% endfor %}
   </div>
   {% endfor %}
 </div>
+{% else %}
+<div class="tl-wrap">
+  <div class="tl-hours-gutter" aria-hidden="true">
+    <div class="tl-gutter-allday">Todo el día</div>
+    {% for h in horas %}
+    <div class="tl-gutter-hour" style="height:{{ px_per_hour }}px">{{ '%02d:00'|format(h) }}</div>
+    {% endfor %}
+  </div>
+  <div class="tl-grid vista-{{ vista }}"
+       data-planner-grid
+       data-hour-start="{{ hour_start }}"
+       data-hour-end="{{ hour_end }}"
+       data-px-per-hour="{{ px_per_hour }}"
+       data-move-url="/app/planificador/mover">
+    {% for d in dias %}
+    <div class="tl-col{% if d.es_hoy %} hoy{% endif %}" data-fecha="{{ d.iso }}">
+      <div class="tl-col-h">
+        <strong>{{ d.label }}</strong>
+        <span>{{ d.fecha.strftime('%d/%m') }}</span>
+      </div>
+      <div class="tl-allday">
+        {% for e in d.allday %}
+        <button type="button" class="tl-block origen-{{ e.origen }}"
+                {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="" data-end="" data-allday="1"{% endif %}
+                {% if e.color %}style="--event-color:{{ e.color }}"{% endif %}>
+          {% if e.origen == 'google' %}📅{% elif e.origen == 'matrimonio' %}💑{% else %}📌{% endif %}
+          {{ (e.titulo or '')[:22] }}
+        </button>
+        {% endfor %}
+      </div>
+      <div class="tl-hours" style="height:{{ (hour_end - hour_start) * px_per_hour }}px">
+        {% for h in horas %}
+        <div class="tl-hour-line" style="top:{{ (h - hour_start) * px_per_hour }}px"></div>
+        {% endfor %}
+        {% for e in d.timed %}
+        <button type="button" class="tl-block is-timed origen-{{ e.origen }}"
+                {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="{{ e.hora_inicio }}" data-end="{{ e.hora_fin }}"{% endif %}
+                style="{{ e.style }}{% if e.color %}--event-color:{{ e.color }};{% endif %}">
+          <span class="tl-block-time">{{ (e.hora_inicio or '')[:5] }}</span>
+          <span class="tl-block-title">{% if e.origen == 'google' %}📅 {% elif e.origen == 'matrimonio' %}💑 {% else %}📌 {% endif %}{{ e.titulo }}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<form id="planner-move" class="sr-only" method="post" action="/app/planificador/mover">
+  <label>Id <input name="evento_id" /></label>
+  <label>Fecha <input name="fecha" /></label>
+  <label>Inicio <input name="hora_inicio" /></label>
+  <label>Fin <input name="hora_fin" /></label>
+  <button type="submit">Mover</button>
+</form>
 
 <div class="agenda-summary-grid">
   <div class="card">
     <h3>Bloques del dashboard</h3>
     {% if not locales %}
-    <p class="muted">Todavía no hay bloques propios en esta semana.</p>
+    <p class="muted">Todavía no hay bloques propios en este rango.</p>
     {% else %}
     <ul class="agenda-ev-list">
       {% for ep in locales %}
@@ -85,8 +150,8 @@
   </div>
 
   <div class="card agenda-event-card">
-    <h3>➕ Bloque solo en el dashboard</h3>
-    <p class="muted">No se crea en Google Calendar.</p>
+    <h3>➕ Bloque con horario</h3>
+    <p class="muted">Por defecto se crea también en Google Calendar.</p>
     <form method="post" action="/app/planificador/bloque" class="agenda-form-grid">
       <div>
         <label for="plan-date">Fecha</label>
@@ -116,10 +181,15 @@
         <label for="plan-desc">Notas</label>
         <input id="plan-desc" name="descripcion" placeholder="Opcional" />
       </div>
+      <div class="field-wide check-row">
+        <input id="plan-local" type="checkbox" name="solo_local" value="1" />
+        <label for="plan-local">Solo en el dashboard (no sincronizar con Calendar)</label>
+      </div>
       <div class="form-actions field-wide">
         <button class="btn" type="submit">Agregar bloque</button>
       </div>
     </form>
   </div>
 </div>
+<script src="/static/js/planner-dnd.js"></script>
 {% endblock %}
