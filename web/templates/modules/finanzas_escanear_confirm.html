@@ -89,20 +89,16 @@
           {% for it in draft.lineas %}
           <tr>
             <td>
-              <label class="sr-only" for="scan-item-name-{{ loop.index0 }}">Nombre ítem {{ loop.index }}</label>
-              <input id="scan-item-name-{{ loop.index0 }}" name="item_nombre_{{ loop.index0 }}" value="{{ it.nombre }}" />
+              <input id="scan-item-name-{{ loop.index0 }}" name="item_nombre_{{ loop.index0 }}" value="{{ it.nombre }}" aria-label="Nombre ítem {{ loop.index }}" />
             </td>
             <td class="col-qty">
-              <label class="sr-only" for="scan-item-qty-{{ loop.index0 }}">Cantidad ítem {{ loop.index }}</label>
-              <input id="scan-item-qty-{{ loop.index0 }}" name="item_cantidad_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.cantidad }}" />
+              <input id="scan-item-qty-{{ loop.index0 }}" name="item_cantidad_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.cantidad }}" aria-label="Cantidad ítem {{ loop.index }}" />
             </td>
             <td class="col-unit">
-              <label class="sr-only" for="scan-item-unit-{{ loop.index0 }}">Precio unitario ítem {{ loop.index }}</label>
-              <input id="scan-item-unit-{{ loop.index0 }}" name="item_pu_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.precio_unitario if it.precio_unitario is not none else '' }}" />
+              <input id="scan-item-unit-{{ loop.index0 }}" name="item_pu_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.precio_unitario if it.precio_unitario is not none else '' }}" aria-label="Precio unitario ítem {{ loop.index }}" />
             </td>
             <td class="col-total">
-              <label class="sr-only" for="scan-item-total-{{ loop.index0 }}">Total ítem {{ loop.index }}</label>
-              <input id="scan-item-total-{{ loop.index0 }}" name="item_pt_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.precio_total if it.precio_total is not none else '' }}" />
+              <input id="scan-item-total-{{ loop.index0 }}" name="item_pt_{{ loop.index0 }}" type="number" step="0.01" value="{{ it.precio_total if it.precio_total is not none else '' }}" aria-label="Total ítem {{ loop.index }}" />
             </td>
           </tr>
           {% endfor %}

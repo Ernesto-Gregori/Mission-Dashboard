@@ -126,6 +126,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   margin-inline: auto;
 }
 .card {
+  min-width: 0;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -690,6 +691,8 @@ textarea {
 .receipt-items-table .col-total { width: 6.5rem; }
 .finance-form-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .table-scroll {
+  position: relative;
+  width: 100%;
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
