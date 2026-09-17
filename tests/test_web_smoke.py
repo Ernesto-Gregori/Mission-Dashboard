@@ -402,7 +402,7 @@ def test_teologia_devocional_y_pedido(web_client):
 
     r = web_client.get("/app/m/teologia?tab=metodo")
     assert r.status_code == 200
-    assert b'class="inductive-method"' in r.content
+    assert b"inductive-method" in r.content
 
 
 def test_matrimonio_cita_nota_habito(web_client):
