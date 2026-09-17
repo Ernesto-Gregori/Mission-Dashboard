@@ -611,10 +611,14 @@ def test_usuarios_admin_crear_plan_backup(web_client):
     assert r.status_code == 200, r.text[:500]
     assert b"Usuarios" in r.content or b"plan" in r.content.lower()
     assert b"/app/usuarios" in r.content or b"Gesti" in r.content
+    assert b'class="users-page-header"' in r.content
 
     r = web_client.get("/app/usuarios?tab=gestion")
     assert r.status_code == 200
     assert b"usr_admin" in r.content
+    assert b'class="user-plan-form"' in r.content
+    assert b'class="user-create-form"' in r.content
+    assert b'for="new-user-username"' in r.content
 
     r = web_client.post(
         "/app/usuarios/crear",
