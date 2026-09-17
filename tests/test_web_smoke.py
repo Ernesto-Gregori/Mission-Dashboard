@@ -512,6 +512,9 @@ def test_sandbox_idea_snippet_sesion(web_client):
     r = web_client.get("/app/m/sandbox")
     assert r.status_code == 200, r.text[:500]
     assert b"Sandbox" in r.content or b"Ideas" in r.content
+    assert b'class="module-header"' in r.content
+    assert b'class="sandbox-metrics"' in r.content
+    assert b'class="sandbox-filter-form"' in r.content
 
     from app.timezone_config import hoy as _hoy
 
@@ -533,6 +536,7 @@ def test_sandbox_idea_snippet_sesion(web_client):
     )
     assert r.status_code == 200
     assert b"API FastAPI demo" in r.content
+    assert b'class="idea-card"' in r.content
 
     r = web_client.post(
         "/app/m/sandbox/snippet",
@@ -549,6 +553,7 @@ def test_sandbox_idea_snippet_sesion(web_client):
     assert r.status_code == 200
     assert b"Hello HTMX" in r.content
     assert b"print" in r.content
+    assert b'class="snippet-card"' in r.content
 
     r = web_client.post(
         "/app/m/sandbox/sesion",
@@ -566,10 +571,12 @@ def test_sandbox_idea_snippet_sesion(web_client):
     )
     assert r.status_code == 200
     assert b"Port sandbox" in r.content or b"Codificando" in r.content
+    assert b"class=\"session-history\"" in r.content
 
     r = web_client.get("/app/m/sandbox?tab=mentor")
     assert r.status_code == 200
     assert b"Mentor" in r.content
+    assert b'class="mentor-form"' in r.content
 
 
 def test_usuarios_admin_crear_plan_backup(web_client):
