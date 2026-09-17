@@ -21,9 +21,11 @@ para servidor casero / uso personal. **No merge a main** hasta validar.
 - [x] Fase 3a: scraper Súper Selectos (HTML categorías + fallback Bitworks)
 - [x] Fase 3b: Walmart SV + Despensa (API VTEX catalog_system)
 - [x] Fase 4: matching fuzzy + UI comparación al guardar escaneo
+- [x] UI catálogo SV: sección Precios supermercados (estado + Actualizar + búsqueda)
 
 ## Checkpoint Fase 4
 - [x] Normalización SV + fuzzy (difflib/tokens), umbral 0.78
 - [x] Tests con nombres típicos de recibo
 - [x] Al confirmar escaneo → `price_matches` + tarjeta “Comparación de precios”
+- [x] Sección visible de Selectos / Walmart / Despensa en Finanzas
 

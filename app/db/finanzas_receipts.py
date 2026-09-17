@@ -247,3 +247,96 @@ def finalizar_scrape_run(
             run_id,
         ],
     )
+
+
+def contar_productos_activos(supermercado: str | None = None) -> int:
+    if supermercado:
+        rows = (
+            ejecutar(
+                """
+                SELECT COUNT(*) AS n FROM supermarket_products
+                WHERE activo = 1 AND supermercado = ?
+                """,
+                [supermercado],
+                fetchall=True,
+            )
+            or []
+        )
+    else:
+        rows = (
+            ejecutar(
+                """
+                SELECT COUNT(*) AS n FROM supermarket_products WHERE activo = 1
+                """,
+                fetchall=True,
+            )
+            or []
+        )
+    return int((rows[0] if rows else {}).get("n") or 0)
+
+
+def ultimo_scrape_run(supermercado: str) -> dict | None:
+    rows = (
+        ejecutar(
+            """
+            SELECT * FROM scrape_runs
+            WHERE supermercado = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            [supermercado],
+            fetchall=True,
+        )
+        or []
+    )
+    return rows[0] if rows else None
+
+
+def resumen_catalogo_sv() -> list[dict]:
+    """Estado por tienda para la UI de Finanzas."""
+    from app.db.schema import SUPERMERCADO_LABELS, SUPERMERCADOS
+
+    out: list[dict] = []
+    for key in SUPERMERCADOS:
+        last = ultimo_scrape_run(key)
+        out.append(
+            {
+                "key": key,
+                "label": SUPERMERCADO_LABELS.get(key, key),
+                "productos": contar_productos_activos(key),
+                "ultimo_status": (last or {}).get("status"),
+                "ultimo_finished_at": (last or {}).get("finished_at"),
+                "ultimo_upserted": int((last or {}).get("products_upserted") or 0),
+                "ultimo_error": (last or {}).get("error_message"),
+            }
+        )
+    return out
+
+
+def buscar_productos(
+    q: str = "",
+    *,
+    supermercado: str | None = None,
+    limit: int = 40,
+) -> list[dict]:
+    limit = max(1, min(100, int(limit)))
+    q = (q or "").strip()
+    params: list[Any] = []
+    where = ["activo = 1"]
+    if supermercado:
+        where.append("supermercado = ?")
+        params.append(supermercado)
+    if q:
+        where.append("(nombre LIKE ? OR COALESCE(nombre_normalizado,'') LIKE ?)")
+        like = f"%{q}%"
+        params.extend([like, like])
+    params.append(limit)
+    sql = f"""
+        SELECT id, supermercado, nombre, precio, unidad, categoria,
+               url_producto, fecha_actualizacion
+        FROM supermarket_products
+        WHERE {' AND '.join(where)}
+        ORDER BY nombre ASC
+        LIMIT ?
+    """
+    return ejecutar(sql, params, fetchall=True) or []

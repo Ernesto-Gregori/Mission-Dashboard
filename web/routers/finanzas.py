@@ -1,10 +1,11 @@
-"""Finanzas HTMX — ingreso, sobres, gastos y escaneo de recibos."""
+"""Finanzas HTMX — ingreso, sobres, gastos, escaneo y precios SV."""
 from __future__ import annotations
 
 import json
+import os
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from app.ai_client import api_key_configurada, chat_simple
@@ -26,6 +27,8 @@ from app.db.schema import (
     OCR_ESTADO_CONFIRMADO,
     OCR_ESTADO_PENDIENTE,
     OCR_ESTADO_RECHAZADO,
+    SUPERMERCADO_LABELS,
+    SUPERMERCADOS,
 )
 from app.onboarding import listar_modulos_usuario, modulo_activo
 from app.receipt_ocr import extract_from_image
@@ -62,6 +65,7 @@ SYSTEM_FINANZAS = (
 
 SESSION_DRAFT_KEY = "finanzas_scan_draft"
 SESSION_MATCHES_KEY = "finanzas_last_matches"
+SESSION_FLASH_KEY = "finanzas_flash"
 MAX_SCAN_BYTES = 8 * 1024 * 1024
 
 
@@ -95,8 +99,13 @@ def _periodo(request: Request) -> tuple[int, int]:
 
 def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str | None = None):
     mes, anio = _periodo(request)
-    if request.query_params.get("flash") == "escaneado" and not flash:
+    if not flash:
+        flash = request.session.pop(SESSION_FLASH_KEY, None)
+    flash_q = request.query_params.get("flash") or ""
+    if not flash and flash_q == "escaneado":
         flash = "Gasto escaneado guardado. Revisa el historial."
+    elif not flash and flash_q == "catalogo":
+        flash = "Catálogo de supermercados actualizado."
     resumen = calcular_sobres(mes, anio)
     gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=80)
     for g in gastos:
@@ -112,6 +121,18 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
                 for s in data.get("subcategorias", SOBRES_CONFIG[key]["subcategorias"])
             ],
         })
+    q_precios = (request.query_params.get("q_precios") or "").strip()
+    filtro_super = (request.query_params.get("super") or "").strip() or None
+    if filtro_super and filtro_super not in SUPERMERCADOS:
+        filtro_super = None
+    catalogo_sv = fr.resumen_catalogo_sv()
+    productos_sv = (
+        fr.buscar_productos(q_precios, supermercado=filtro_super, limit=40)
+        if q_precios or filtro_super
+        else fr.buscar_productos("", limit=12)
+    )
+    for p in productos_sv:
+        p["label"] = SUPERMERCADO_LABELS.get(p.get("supermercado"), p.get("supermercado"))
     return {
         "title": "Finanzas",
         "user": user,
@@ -131,6 +152,11 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "consejo": None,
         "vision_ok": api_key_configurada(),
         "price_matches": request.session.pop(SESSION_MATCHES_KEY, None),
+        "catalogo_sv": catalogo_sv,
+        "productos_sv": productos_sv,
+        "q_precios": q_precios,
+        "filtro_super": filtro_super or "",
+        "total_productos_sv": sum(int(c.get("productos") or 0) for c in catalogo_sv),
     }
 
 
@@ -560,3 +586,70 @@ def servir_upload(
     if not path:
         return HTMLResponse("No encontrado", status_code=404)
     return FileResponse(path, media_type="image/jpeg")
+
+
+def _scrape_ui_env_defaults() -> dict[str, str]:
+    """Límites cortos para no colgar la petición HTTP del home server."""
+    defaults: dict[str, str] = {}
+    if not os.environ.get("VTEX_MAX_PAGES", "").strip():
+        defaults["VTEX_MAX_PAGES"] = "2"
+    if not os.environ.get("SELECTOS_CATEGORIES", "").strip():
+        # Un par de categorías típicas (comida) — scrape completo vía CLI/cron.
+        defaults["SELECTOS_CATEGORIES"] = "01,02"
+    return defaults
+
+
+@router.post("/precios/actualizar")
+async def actualizar_catalogo_sv(
+    request: Request,
+    user: Annotated[dict, Depends(require_onboarded)],
+    supermercado: Annotated[str, Form(...)],
+):
+    """Dispara scrape de una tienda y vuelve a Finanzas con flash."""
+    from app.scrapers import SCRAPERS, run_scraper
+
+    mes, anio = _periodo(request)
+    key = (supermercado or "").strip()
+    if key not in SCRAPERS:
+        return render(
+            request,
+            "modules/finanzas.html",
+            **_ctx(
+                request,
+                user,
+                error=f"Supermercado desconocido: {key}",
+            ),
+        )
+
+    applied = _scrape_ui_env_defaults()
+    prev = {k: os.environ.get(k) for k in applied}
+    try:
+        for k, v in applied.items():
+            os.environ[k] = v
+        result = run_scraper(key)
+    except Exception as e:
+        return render(
+            request,
+            "modules/finanzas.html",
+            **_ctx(
+                request,
+                user,
+                error=f"No se pudo actualizar {SUPERMERCADO_LABELS.get(key, key)}: {e}",
+            ),
+        )
+    finally:
+        for k, old in prev.items():
+            if old is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = old
+
+    label = SUPERMERCADO_LABELS.get(key, key)
+    request.session[SESSION_FLASH_KEY] = (
+        f"{label}: {result.upserted} productos nuevos/actualizados"
+        f" ({len(result.products)} leídos)."
+    )
+    return RedirectResponse(
+        f"/app/m/finanzas?mes={mes}&anio={anio}&flash=catalogo",
+        status_code=303,
+    )

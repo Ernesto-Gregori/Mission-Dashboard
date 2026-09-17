@@ -27,6 +27,97 @@
 </div>
 {% endif %}
 
+<div class="card" id="precios-sv">
+  <h2>🛒 Precios supermercados SV</h2>
+  <p class="muted" style="font-size:0.9rem">
+    Catálogo local de Selectos, Walmart y Despensa. Al escanear un recibo se cruzan
+    precios automáticamente. Actualizar desde aquí hace un scrape corto; el completo
+    sigue siendo por CLI/cron.
+  </p>
+  {% if total_productos_sv == 0 %}
+  <div class="flash-warn">
+    Catálogo vacío — pulsa <strong>Actualizar</strong> en una tienda para cargar precios.
+  </div>
+  {% endif %}
+  <div style="display:grid;gap:0.75rem;margin-top:0.75rem">
+    {% for c in catalogo_sv %}
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem 1rem;align-items:center;justify-content:space-between;padding:0.55rem 0;border-top:1px solid var(--border)">
+      <div>
+        <strong>{{ c.label }}</strong>
+        <span class="badge">{{ c.productos }} productos</span>
+        {% if c.ultimo_status %}
+        <p class="muted" style="margin:0.2rem 0 0;font-size:0.85rem">
+          Último scrape: {{ c.ultimo_status }}
+          {% if c.ultimo_finished_at %}· {{ c.ultimo_finished_at }}{% endif %}
+          {% if c.ultimo_upserted %}· +{{ c.ultimo_upserted }}{% endif %}
+        </p>
+        {% if c.ultimo_error %}
+        <p class="flash-error" style="margin:0.25rem 0 0;padding:0.25rem 0.4rem;font-size:0.85rem">{{ c.ultimo_error }}</p>
+        {% endif %}
+        {% else %}
+        <p class="muted" style="margin:0.2rem 0 0;font-size:0.85rem">Sin scrapes todavía</p>
+        {% endif %}
+      </div>
+      <form method="post" action="/app/m/finanzas/precios/actualizar"
+            onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Actualizando…';">
+        <input type="hidden" name="supermercado" value="{{ c.key }}" />
+        <button class="btn secondary" type="submit">Actualizar</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+
+  <form method="get" action="/app/m/finanzas" style="display:grid;gap:0.5rem;grid-template-columns:1fr auto auto;align-items:end;margin-top:1rem">
+    <input type="hidden" name="mes" value="{{ mes }}" />
+    <input type="hidden" name="anio" value="{{ anio }}" />
+    <div>
+      <label for="q_precios">Buscar en catálogo</label>
+      <input id="q_precios" name="q_precios" value="{{ q_precios }}" placeholder="Ej: leche, papel higiénico" />
+    </div>
+    <div>
+      <label for="super_filtro">Tienda</label>
+      <select id="super_filtro" name="super">
+        <option value="">Todas</option>
+        {% for c in catalogo_sv %}
+        <option value="{{ c.key }}" {% if filtro_super == c.key %}selected{% endif %}>{{ c.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn secondary" type="submit">Buscar</button>
+  </form>
+
+  {% if productos_sv %}
+  <div style="overflow-x:auto;margin-top:0.75rem">
+    <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+      <thead>
+        <tr style="text-align:left;color:var(--muted)">
+          <th style="padding:0.35rem">Producto</th>
+          <th>Tienda</th>
+          <th>Precio</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in productos_sv %}
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:0.4rem">
+            {% if p.url_producto %}
+            <a href="{{ p.url_producto }}" target="_blank" rel="noopener">{{ p.nombre }}</a>
+            {% else %}
+            {{ p.nombre }}
+            {% endif %}
+          </td>
+          <td>{{ p.label }}</td>
+          <td>{% if p.precio is not none %}${{ '%.2f'|format(p.precio) }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif q_precios or filtro_super %}
+  <p class="muted" style="margin-top:0.75rem">Sin resultados en el catálogo.</p>
+  {% endif %}
+</div>
+
 <div class="card">
   <h2>📅 Período e ingreso</h2>
   <form method="post" action="/app/m/finanzas/periodo" style="display:grid;gap:0.5rem;grid-template-columns:1fr 1fr 1fr;align-items:end">
