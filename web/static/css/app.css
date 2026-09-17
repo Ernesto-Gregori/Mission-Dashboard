@@ -118,6 +118,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 
 .main {
   width: 100%;
+  min-width: 0;
   max-width: 1280px;
   padding: 2rem clamp(1rem, 3vw, 2.5rem) 4rem;
   margin-inline: auto;
@@ -296,8 +297,9 @@ h3 { font-size: 1rem; line-height: 1.35; }
 .card-compact { max-width: 46rem; }
 
 @media (max-width: 800px) {
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar {
+    min-width: 0;
     border-right: none;
     border-bottom: 1px solid var(--border);
     padding: 0.75rem 1rem;
