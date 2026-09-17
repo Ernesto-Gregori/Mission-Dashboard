@@ -135,6 +135,7 @@ def _llamar_ai(
     prompt: str,
     system: str = "",
     max_tokens: int = 500,
+    historial: list | None = None,
 ) -> Optional[str]:
     """Llama a Groq. Retorna texto o None si falla."""
     global MODELO
@@ -166,6 +167,14 @@ def _llamar_ai(
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
+    if historial:
+        for item in historial[-16:]:
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get("role") or item.get("rol") or "")
+            content = str(item.get("content") or item.get("contenido") or "").strip()
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content[:4000]})
     messages.append({"role": "user", "content": prompt})
 
     try:
@@ -314,6 +323,23 @@ def chat_simple(mensaje: str, contexto: str = "") -> str:
     """
     system = (contexto or "").strip() or SYSTEM_MISION
     resultado = _llamar_ai(mensaje, system=system)
+    return resultado or _fallback("chat_bienvenida")
+
+
+def chat_con_historial(
+    mensaje: str,
+    contexto: str = "",
+    historial: list | None = None,
+    max_tokens: int = 700,
+) -> str:
+    """Chat Groq con turnos previos (Alma). `contexto` es el system prompt."""
+    system = (contexto or "").strip() or SYSTEM_MISION
+    resultado = _llamar_ai(
+        mensaje,
+        system=system,
+        max_tokens=max_tokens,
+        historial=historial,
+    )
     return resultado or _fallback("chat_bienvenida")
 
 

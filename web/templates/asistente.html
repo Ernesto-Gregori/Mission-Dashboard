@@ -1,0 +1,94 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Alma</h1>
+    <p class="muted">Asistente personal. Nada del dashboard se comparte hasta que lo marques.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<div class="alma-layout">
+  <aside class="card alma-share" aria-labelledby="alma-share-title">
+    <h2 id="alma-share-title">Qué puede leer Alma</h2>
+    <p class="muted">Por defecto, nada. Cada categoría es un permiso explícito.</p>
+    <form method="post" action="/app/asistente/permisos">
+      <label class="check-row" for="share-habitos">
+        <input id="share-habitos" type="checkbox" name="share_habitos" value="1" {% if prefs.habitos %}checked{% endif %} />
+        Hábitos recientes
+      </label>
+      <label class="check-row" for="share-tareas">
+        <input id="share-tareas" type="checkbox" name="share_tareas" value="1" {% if prefs.tareas %}checked{% endif %} />
+        Tareas pendientes
+      </label>
+      <label class="check-row" for="share-salud">
+        <input id="share-salud" type="checkbox" name="share_salud" value="1" {% if prefs.salud %}checked{% endif %} />
+        Resumen de salud
+      </label>
+      <label class="check-row" for="share-calendario">
+        <input id="share-calendario" type="checkbox" name="share_calendario" value="1" {% if prefs.calendario %}checked{% endif %} />
+        Calendario de la semana
+      </label>
+      <div class="form-actions">
+        <button class="btn secondary" type="submit">Guardar permisos</button>
+      </div>
+    </form>
+    {% if not ia_ok %}
+    <p class="flash-warn">IA offline — configura GROQ_API_KEY.</p>
+    {% endif %}
+  </aside>
+
+  <section class="card alma-chat" aria-labelledby="alma-chat-title">
+    <div class="alma-chat-head">
+      <h2 id="alma-chat-title">Conversación</h2>
+      {% if mensajes %}
+      <form method="post" action="/app/asistente/borrar" onsubmit="return confirm('¿Borrar el historial de Alma?')">
+        <button class="btn secondary" type="submit">Borrar historial</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="alma-thread" role="log" aria-live="polite">
+      {% if not mensajes %}
+      <p class="muted empty-state">Hola, soy Alma. Contame qué necesitás hoy. Si querés que mire hábitos, tareas, salud o el calendario, marcá las casillas de la izquierda.</p>
+      {% else %}
+        {% for m in mensajes %}
+        <article class="alma-bubble alma-{{ m.rol }}">
+          <p class="alma-meta">{% if m.rol == 'user' %}Vos{% else %}Alma{% endif %}{% if m.categorias %} · {{ m.categorias|join(', ') }}{% endif %}</p>
+          <p class="alma-body">{{ m.contenido }}</p>
+        </article>
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <form class="alma-compose" method="post" action="/app/asistente/mensaje">
+      <label for="alma-mensaje">Mensaje</label>
+      <textarea id="alma-mensaje" name="mensaje" rows="3" required maxlength="2000" placeholder="Ej: ¿Qué me conviene priorizar esta tarde?"></textarea>
+      <fieldset class="alma-compose-share">
+        <legend class="sr-only">Permisos de este mensaje</legend>
+        <label class="check-row" for="msg-habitos">
+          <input id="msg-habitos" type="checkbox" name="share_habitos" value="1" {% if prefs.habitos %}checked{% endif %} />
+          Hábitos
+        </label>
+        <label class="check-row" for="msg-tareas">
+          <input id="msg-tareas" type="checkbox" name="share_tareas" value="1" {% if prefs.tareas %}checked{% endif %} />
+          Tareas
+        </label>
+        <label class="check-row" for="msg-salud">
+          <input id="msg-salud" type="checkbox" name="share_salud" value="1" {% if prefs.salud %}checked{% endif %} />
+          Salud
+        </label>
+        <label class="check-row" for="msg-calendario">
+          <input id="msg-calendario" type="checkbox" name="share_calendario" value="1" {% if prefs.calendario %}checked{% endif %} />
+          Calendario
+        </label>
+      </fieldset>
+      <div class="form-actions">
+        <button class="btn" type="submit">Enviar a Alma</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

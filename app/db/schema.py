@@ -239,6 +239,49 @@ def init_finanzas_receipts(cursor):
     )
 
 
+def init_fase1_tables(cursor):
+    """Alma, planificador prefs y objetivo de salud (Fase 1)."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS asistente_mensajes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            rol TEXT NOT NULL CHECK(rol IN ('user', 'assistant')),
+            contenido TEXT NOT NULL,
+            contexto_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_asistente_msg_user "
+        "ON asistente_mensajes(user_id, creado_en)"
+    )
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS asistente_prefs (
+            user_id INTEGER PRIMARY KEY,
+            share_habitos INTEGER NOT NULL DEFAULT 0,
+            share_tareas INTEGER NOT NULL DEFAULT 0,
+            share_salud INTEGER NOT NULL DEFAULT 0,
+            share_calendario INTEGER NOT NULL DEFAULT 0,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_prefs (
+            user_id INTEGER PRIMARY KEY,
+            week_start TEXT NOT NULL DEFAULT 'lun',
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS salud_objetivo (
+            user_id INTEGER PRIMARY KEY,
+            tipo TEXT NOT NULL DEFAULT 'ejercicio',
+            valor REAL NOT NULL DEFAULT 1,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
 def init_database():
     """
     Inicializa la base de datos con todas las tablas necesarias.
@@ -834,6 +877,7 @@ def init_database():
         "CREATE INDEX IF NOT EXISTS idx_audit_creado ON audit_log(creado_en DESC)"
     )
 
+    init_fase1_tables(cursor)
     init_sobres(cursor)
     conn.commit()
     conn.close()

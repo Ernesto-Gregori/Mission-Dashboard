@@ -79,6 +79,12 @@ def init_app_state() -> None:
         ensure_coach_insights_schema()
     except Exception as e:
         print(f"[web.startup] coach_insights: {e}")
+    try:
+        from app.asistente import ensure_asistente_schema
+
+        ensure_asistente_schema()
+    except Exception as e:
+        print(f"[web.startup] asistente: {e}")
 
 
 def get_session_user(request: Request) -> dict | None:

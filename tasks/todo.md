@@ -1,23 +1,22 @@
-# Finanzas receipts / price compare — TODOs
+# Fase 1 — TODOs
 
-## Fase 1 (esta PR)
-- [x] Rama `cursor/finanzas-receipts-prices-5638`
-- [x] Schema extendido + tablas satélite
-- [x] CRUD `app/db/finanzas_receipts.py`
-- [x] Tests schema
-- [ ] Confirmar con humano antes de Fase 2
+## 1.1 Alma
+- [ ] `app/asistente.py` schema/CRUD/contexto
+- [ ] `web/routers/asistente.py` + template
+- [ ] Nav + CSS + tests
+- [ ] `pytest -q tests/`
+
+## 1.2 Planificador
+- [ ] `guardar_evento(..., sync_google=False)` + fuente en query
+- [ ] `web/routers/planificador.py` + template
+- [ ] Prefs `week_start` + tests
+- [ ] `pytest -q tests/`
+
+## 1.3 Salud rachas
+- [ ] Objetivo + racha + serie en `app/db/salud.py`
+- [ ] UI en `salud.html` + CSS
+- [ ] Tests
+- [ ] `pytest -q tests/`
 
 ## Fase 2
-- [x] Función extracción (prompt + parse) — `app/receipt_ocr.py`
-- [x] Upload + resize + confirmación HTMX
-- [x] Persistencia gasto + items
-- [ ] Probar end-to-end con GROQ_API_KEY y foto real
-
-## Fase 3
-- [x] Inspección Selectos (HTML vs API) + robots (CF bloquea www)
-- [x] Scraper Selectos + scrape_runs + script cron
-- [x] Walmart SV + Despensa (VTEX API)
-
-## Fase 4
-- [x] Normalización + fuzzy + tests con nombres reales
-- [x] Integrar al flujo de guardado + UI comparación
+- [ ] Esperar confirmación humana

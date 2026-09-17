@@ -1502,3 +1502,60 @@ textarea {
 .insight-item:first-child { border-top: none; }
 .insight-item p { margin: 0.35rem 0 0; }
 .insight-mods { font-size: 0.8rem; margin-top: 0.25rem !important; }
+
+/* Alma */
+.alma-layout {
+  display: grid;
+  grid-template-columns: minmax(16rem, 18rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.alma-share h2,
+.alma-chat h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+.alma-chat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.alma-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-height: 12rem;
+  max-height: 28rem;
+  overflow: auto;
+  padding: 0.35rem 0.15rem 0.75rem;
+}
+.alma-bubble {
+  max-width: 42rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.alma-user {
+  align-self: flex-end;
+  border-color: var(--accent);
+}
+.alma-assistant { align-self: flex-start; }
+.alma-meta {
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.alma-body { margin: 0; white-space: pre-wrap; }
+.alma-compose { margin-top: 0.85rem; }
+.alma-compose-share {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  border: 0;
+}
+@media (max-width: 800px) {
+  .alma-layout { grid-template-columns: 1fr; }
+}

@@ -6,6 +6,7 @@
   <nav aria-label="Navegación principal">
     <a href="/app" class="{% if request.url.path.rstrip('/') == '/app' %}active{% endif %}"{% if request.url.path.rstrip('/') == '/app' %} aria-current="page"{% endif %}>🏠 Control de mando</a>
     <a href="/app/coach" class="{% if '/coach' in request.url.path %}active{% endif %}"{% if '/coach' in request.url.path %} aria-current="page"{% endif %}>🤖 Coach</a>
+    <a href="/app/asistente" class="{% if '/asistente' in request.url.path %}active{% endif %}"{% if '/asistente' in request.url.path %} aria-current="page"{% endif %}>💬 Alma</a>
     <a href="/app/billing" class="{% if '/billing' in request.url.path %}active{% endif %}"{% if '/billing' in request.url.path %} aria-current="page"{% endif %}>💳 Plan</a>
     <a href="/app/usuarios" class="{% if '/usuarios' in request.url.path %}active{% endif %}"{% if '/usuarios' in request.url.path %} aria-current="page"{% endif %}>🔐 Usuarios</a>
     {% if modulos_nav is defined %}

@@ -303,6 +303,41 @@ def ensure_remote_schema():
             meta_json TEXT
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS asistente_mensajes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            rol TEXT NOT NULL,
+            contenido TEXT NOT NULL,
+            contexto_json TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS asistente_prefs (
+            user_id INTEGER PRIMARY KEY,
+            share_habitos INTEGER NOT NULL DEFAULT 0,
+            share_tareas INTEGER NOT NULL DEFAULT 0,
+            share_salud INTEGER NOT NULL DEFAULT 0,
+            share_calendario INTEGER NOT NULL DEFAULT 0,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS user_prefs (
+            user_id INTEGER PRIMARY KEY,
+            week_start TEXT NOT NULL DEFAULT 'lun',
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS salud_objetivo (
+            user_id INTEGER PRIMARY KEY,
+            tipo TEXT NOT NULL DEFAULT 'ejercicio',
+            valor REAL NOT NULL DEFAULT 1,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
     ]
     for sql in statements:
         try:
