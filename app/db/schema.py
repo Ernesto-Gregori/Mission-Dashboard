@@ -88,8 +88,9 @@ SUPERMERCADO_LABELS = {
     SUPERMERCADO_DESPENSA: "Despensa de Don Juan",
 }
 
-# Umbral v1 matching fuzzy (Fase 4)
-PRICE_MATCH_SCORE_MIN = 0.78
+# Umbral matching fuzzy (afinado): rechaza cercanos engañosos (p.ej. frijol rojo≠negro)
+# y marcas sueltas; TPs típicos de recibo SV quedan ≥ 0.90.
+PRICE_MATCH_SCORE_MIN = 0.82
 
 
 def init_sobres(cursor):
