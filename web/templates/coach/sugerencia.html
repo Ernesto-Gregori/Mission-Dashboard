@@ -3,73 +3,15 @@
 {% if hide_nav %}
 <main class="auth-wrap coach-suggestion-wrap" id="main-content" tabindex="-1">
   <div class="card">
+    {% include "coach/_sugerencia_form.html" %}
+  </div>
+</main>
 {% else %}
 <div class="shell">
-  <aside class="sidebar">
-    <header class="sidebar-header">
-      <a class="brand" href="/app">Mission Dashboard</a>
-      <div class="meta">{{ user.username }} · Coach</div>
-    </header>
-    <nav aria-label="Navegación principal">
-      <a href="/app">🏠 Control de mando</a>
-      <a href="/app/coach" class="active" aria-current="page">🤖 Coach</a>
-    </nav>
-  </aside>
+  {% include "_sidebar.html" %}
   <main class="main" id="main-content" tabindex="-1">
-{% endif %}
-
-<h1>Tu sistema propuesto</h1>
-<p class="muted">{{ plan_resumen }}{% if tope %} · elige hasta {{ tope }} módulos{% endif %}</p>
-{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
-
-<div class="flash-ok" role="status">{{ sug.resumen }}</div>
-<p class="muted" style="font-size:0.85rem">
-  Fuente: {% if sug.fuente == 'ia' %}Groq IA{% else %}reglas / fallback (IA offline){% endif %}
-</p>
-{% if sug.fuente != 'ia' %}
-<div class="flash-warn">
-  El Coach IA está offline. FastAPI lee <code>GROQ_API_KEY</code> desde el entorno
-  o <code>.streamlit/secrets.toml</code> / <code>.env</code> — no desde el panel de Streamlit Cloud
-  si corres uvicorn aparte. Reinicia el servidor tras añadir la clave.
+    {% include "coach/_sugerencia_form.html" %}
+  </main>
 </div>
 {% endif %}
-
-<form method="post" action="/app/coach/activar">
-  <h2>Módulos</h2>
-  {% for m in mods_ui %}
-  <label class="card" style="display:block;cursor:pointer">
-    <span style="display:flex;gap:0.6rem;align-items:flex-start">
-      <input type="checkbox" name="modulos" value="{{ m.clave }}" style="width:auto;margin-top:0.25rem"
-             {% if m.checked %}checked{% endif %} />
-      <span>
-        <strong>{{ m.emoji }} {{ m.nombre }}</strong>
-        <div class="muted" style="font-size:0.85rem">{{ m.razon }}</div>
-      </span>
-    </span>
-  </label>
-  {% endfor %}
-
-  {% if sug.habitos %}
-  <h2>Hábitos sugeridos</h2>
-  <ul class="muted">
-    {% for h in sug.habitos[:6] %}
-    <li>{{ h.emoji or '⭐' }} {{ h.label or h.clave }} · {{ h.hora or '—' }}</li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-
-  <div style="display:flex;gap:0.75rem;margin-top:1rem">
-    <button class="btn secondary" type="submit" formaction="/app/coach/atras" formmethod="post">← Atrás</button>
-    <button class="btn" type="submit" style="flex:1">✅ Activar mi sistema</button>
-  </div>
-</form>
-
-{% if plan == free and stripe_ok %}
-<div class="card" style="margin-top:1rem">
-  <p class="muted">¿Necesitas más de {{ tope }} módulos? Premium desbloquea todos.</p>
-  <a class="btn secondary" href="/app/billing">Ver Premium</a>
-</div>
-{% endif %}
-
-{% if hide_nav %}</div></main>{% else %}</main></div>{% endif %}
 {% endblock %}

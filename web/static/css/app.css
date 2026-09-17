@@ -202,6 +202,50 @@ label { color: var(--muted); font-size: 0.9rem; }
 }
 .coach-auth-wrap { max-width: 640px; }
 .coach-suggestion-wrap { max-width: 720px; }
+.coach-area-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 0 0.75rem;
+  margin: 0 0 0.85rem;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.coach-area-grid legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+}
+.coach-module-option {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  cursor: pointer;
+  margin-bottom: 0.65rem;
+  min-height: 44px;
+  padding: 0.75rem 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.coach-module-option input {
+  width: auto;
+  min-height: auto;
+  margin: 0.35rem 0 0;
+}
+.coach-module-option span { min-width: 0; }
+.coach-module-option .compact-copy { display: block; margin-top: 0.2rem; }
+.coach-source { margin-top: 0.35rem; }
+.coach-upsell { margin-top: 1rem; }
+.coach-profile-form .form-actions { display: block; }
+.coach-profile-form .form-actions .btn { width: 100%; }
+.coach-suggestion-form .form-actions .btn:last-child { flex: 1; }
+@media (max-width: 600px) {
+  .coach-suggestion-form .form-actions { align-items: stretch; }
+  .coach-suggestion-form .form-actions .btn {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+}
 .form-label {
   display: block;
   color: var(--muted);
