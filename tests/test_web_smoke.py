@@ -420,6 +420,8 @@ def test_matrimonio_cita_nota_habito(web_client):
     r = web_client.get("/app/m/matrimonio")
     assert r.status_code == 200, r.text[:500]
     assert b"Matrimonio" in r.content or b"Citas" in r.content
+    assert b'class="module-header"' in r.content
+    assert b'class="appointment-filter-form"' in r.content
 
     from app.timezone_config import hoy as _hoy
 
@@ -441,6 +443,7 @@ def test_matrimonio_cita_nota_habito(web_client):
     )
     assert r.status_code == 200
     assert b"Cena aniversario" in r.content
+    assert b'class="appointment-list"' in r.content
 
     r = web_client.post(
         "/app/m/matrimonio/nota",
@@ -455,9 +458,11 @@ def test_matrimonio_cita_nota_habito(web_client):
     )
     assert r.status_code == 200
     assert b"poesia" in r.content
+    assert b'class="relationship-note-form"' in r.content
 
     r = web_client.get("/app/m/matrimonio?tab=habitos")
     assert r.status_code == 200
+    assert b'class="connection-form"' in r.content
 
     r = web_client.post(
         "/app/m/matrimonio/habito",
