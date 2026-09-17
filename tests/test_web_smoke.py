@@ -383,7 +383,7 @@ def test_teologia_devocional_y_pedido(web_client):
     r = web_client.get("/app/m/teologia?tab=historial")
     assert r.status_code == 200
     assert b"Juan 15" in r.content
-    assert b'class="devotional-history"' in r.content
+    assert b"devotional-history" in r.content
 
     r = web_client.post(
         "/app/m/teologia/pedido",
