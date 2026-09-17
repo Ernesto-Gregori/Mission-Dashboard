@@ -199,6 +199,13 @@ label { color: var(--muted); font-size: 0.9rem; }
   margin: 8vh auto;
   padding: 0 1rem;
 }
+.coach-auth-wrap { max-width: 640px; }
+.coach-suggestion-wrap { max-width: 720px; }
+.form-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 .badge {
   display: inline-block;
   font-size: 0.75rem;

@@ -66,6 +66,11 @@ def test_setup_redirects_to_coach(web_client):
     assert r.status_code in (303, 307)
     assert "/setup" in r.headers.get("location", "")
 
+    r = web_client.get("/setup")
+    assert r.status_code == 200
+    assert b'id="main-content"' in r.content
+    assert b'for="setup-username"' in r.content
+
     _setup_user(web_client)
 
     # Sin onboarding → /app redirige a coach
@@ -77,6 +82,8 @@ def test_setup_redirects_to_coach(web_client):
     assert r.status_code == 200
     assert b"Coach" in r.content
     assert b"Cu" in r.content or b"llam" in r.content  # formulario perfil
+    assert b'id="main-content"' in r.content
+    assert b'for="coach-name"' in r.content
 
 
 def test_coach_flow_activa_modulos(web_client):
@@ -100,6 +107,7 @@ def test_coach_flow_activa_modulos(web_client):
     r = web_client.get("/app/coach")
     assert r.status_code == 200
     assert b"sistema propuesto" in r.content.lower() or b"Activar" in r.content
+    assert b'id="main-content"' in r.content
 
     # Activar agenda + finanzas + matrimonio (Free admin es premium en setup)
     r = web_client.post(
