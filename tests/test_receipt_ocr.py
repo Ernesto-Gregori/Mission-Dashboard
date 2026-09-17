@@ -157,7 +157,7 @@ def test_extract_from_image_usa_vision_mock(monkeypatch):
     )
 
     def _fake_vision(**kwargs):
-        return fake_json
+        return fake_json, None
 
     monkeypatch.setattr("app.receipt_ocr._llamar_vision_groq", _fake_vision)
     result = extract_from_image(payload)
@@ -173,7 +173,89 @@ def test_extract_falla_si_api_none(monkeypatch):
 
     buf = BytesIO()
     Image.new("RGB", (40, 40), color=(1, 1, 1)).save(buf, format="JPEG")
-    monkeypatch.setattr("app.receipt_ocr._llamar_vision_groq", lambda **kw: None)
+    monkeypatch.setattr(
+        "app.receipt_ocr._llamar_vision_groq",
+        lambda **kw: (None, "Falta GROQ_API_KEY en el entorno (.env / secrets)."),
+    )
     result = extract_from_image(buf.getvalue())
     assert not result.ok
-    assert result.error
+    assert "GROQ_API_KEY" in (result.error or "")
+
+
+def test_vision_model_default_es_llama4_scout():
+    from app.receipt_ocr import VISION_MODEL_DEFAULT, vision_model
+
+    assert "llama-4-scout" in VISION_MODEL_DEFAULT
+    assert vision_model() == VISION_MODEL_DEFAULT
+
+
+def test_vision_model_alias_qwen_legacy(monkeypatch):
+    from app import receipt_ocr
+
+    monkeypatch.setenv("GROQ_VISION_MODEL", "qwen/qwen3.6-27b")
+    monkeypatch.setattr(
+        "app.secrets.get_secret",
+        lambda name, default="": "",
+    )
+    assert receipt_ocr.vision_model() == receipt_ocr.VISION_MODEL_DEFAULT
+
+
+def test_humanize_model_not_found():
+    from app.receipt_ocr import _humanize_vision_error
+
+    msg = _humanize_vision_error(
+        "Error code: 404 - model_not_found",
+        model="qwen/qwen3.6-27b",
+    )
+    assert "no está disponible" in msg
+    assert "llama-4-scout" in msg
+
+
+def test_llamar_vision_prueba_fallback_si_modelo_falla(monkeypatch):
+    from app import receipt_ocr
+
+    calls: list[str] = []
+
+    class _Msg:
+        content = '{"tipo":"recibo","comercio":"X","fecha":null,"monto_total":1,"metodo_pago":null,"items":[]}'
+
+    class _Choice:
+        message = _Msg()
+
+    class _Resp:
+        choices = [_Choice()]
+
+    class _FakeCompletions:
+        def create(self, **kwargs):
+            model = kwargs["model"]
+            calls.append(model)
+            if "scout" not in model:
+                raise RuntimeError("model_not_found: does not exist")
+            return _Resp()
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    class _FakeClient:
+        chat = _FakeChat()
+
+    monkeypatch.setenv("GROQ_VISION_MODEL", "modelo-inexistente-xyz")
+    monkeypatch.setattr("app.secrets.get_secret", lambda name, default="": "")
+    monkeypatch.setattr("app.ai_client._get_api_key", lambda: "gsk_test_key_1234567890")
+    monkeypatch.setattr("app.ai_client._hay_cuota", lambda: True)
+    monkeypatch.setattr("app.ai_client._get_client", lambda: _FakeClient())
+    monkeypatch.setattr("app.ai_client._registrar_llamada", lambda: None)
+    monkeypatch.setattr(
+        "app.billing.cuota_ia_ok",
+        lambda *a, **k: True,
+    )
+    monkeypatch.setattr(
+        "app.billing.registrar_llamada_ia",
+        lambda *a, **k: 1,
+    )
+
+    text, err = receipt_ocr._llamar_vision_groq(image_b64="abc", mime="image/jpeg")
+    assert err is None
+    assert text and "recibo" in text
+    assert calls[0] == "modelo-inexistente-xyz"
+    assert any("scout" in c for c in calls)
