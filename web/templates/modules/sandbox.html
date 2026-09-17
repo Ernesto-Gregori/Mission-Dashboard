@@ -1,71 +1,76 @@
 {% extends "layout_app.html" %}
 {% block content %}
-<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
-<p class="muted">Ideas · snippets · sesiones · mentor IA</p>
+<header class="module-header" data-module="sandbox">
+  <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
+  <div>
+    <h1>{{ meta.nombre }}</h1>
+    <p class="muted">Ideas · snippets · sesiones · mentor IA</p>
+  </div>
+</header>
 
-{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
-{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
-<div class="agenda-rachas">
-  <span>💡 {{ stats.activas }} activas</span>
-  <span>✅ {{ stats.completadas }} completadas</span>
-  <span>🧩 {{ stats.snippets }} snippets</span>
-</div>
+<dl class="sandbox-metrics">
+  <div><dt>Ideas activas</dt><dd>💡 {{ stats.activas }}</dd></div>
+  <div><dt>Completadas</dt><dd>✅ {{ stats.completadas }}</dd></div>
+  <div><dt>Snippets</dt><dd>🧩 {{ stats.snippets }}</dd></div>
+</dl>
 
-<nav class="agenda-tabs">
-  <a class="{% if tab == 'ideas' %}active{% endif %}" href="/app/m/sandbox?tab=ideas">💡 Ideas</a>
-  <a class="{% if tab == 'nueva' %}active{% endif %}" href="/app/m/sandbox?tab=nueva">➕ Nueva</a>
-  <a class="{% if tab == 'snippets' %}active{% endif %}" href="/app/m/sandbox?tab=snippets">🧩 Snippets</a>
-  <a class="{% if tab == 'sesiones' %}active{% endif %}" href="/app/m/sandbox?tab=sesiones">⏱️ Sesiones</a>
-  <a class="{% if tab == 'mentor' %}active{% endif %}" href="/app/m/sandbox?tab=mentor">🤖 Mentor</a>
+<nav class="agenda-tabs sandbox-tabs" aria-label="Secciones de Sandbox">
+  <a class="{% if tab == 'ideas' %}active{% endif %}" href="/app/m/sandbox?tab=ideas"{% if tab == 'ideas' %} aria-current="page"{% endif %}>💡 Ideas</a>
+  <a class="{% if tab == 'nueva' %}active{% endif %}" href="/app/m/sandbox?tab=nueva"{% if tab == 'nueva' %} aria-current="page"{% endif %}>➕ Nueva</a>
+  <a class="{% if tab == 'snippets' %}active{% endif %}" href="/app/m/sandbox?tab=snippets"{% if tab == 'snippets' %} aria-current="page"{% endif %}>🧩 Snippets</a>
+  <a class="{% if tab == 'sesiones' %}active{% endif %}" href="/app/m/sandbox?tab=sesiones"{% if tab == 'sesiones' %} aria-current="page"{% endif %}>⏱️ Sesiones</a>
+  <a class="{% if tab == 'mentor' %}active{% endif %}" href="/app/m/sandbox?tab=mentor"{% if tab == 'mentor' %} aria-current="page"{% endif %}>🤖 Mentor</a>
 </nav>
 
 {% if tab == 'ideas' %}
 <section>
-  <form method="get" action="/app/m/sandbox" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+  <form class="sandbox-filter-form" method="get" action="/app/m/sandbox">
     <input type="hidden" name="tab" value="ideas" />
-    <select name="dominio">
+    <label class="sr-only" for="idea-domain-filter">Dominio</label>
+    <select id="idea-domain-filter" name="dominio">
       <option value="">Todos los dominios</option>
       {% for d in dominios %}
       <option value="{{ d }}" {% if f_dominio == d %}selected{% endif %}>{{ emojis_dominio.get(d, '') }} {{ d }}</option>
       {% endfor %}
     </select>
-    <select name="estado">
+    <label class="sr-only" for="idea-state-filter">Estado</label>
+    <select id="idea-state-filter" name="estado">
       <option value="">Todos los estados</option>
       {% for e in estados_idea %}
       <option value="{{ e }}" {% if f_estado == e %}selected{% endif %}>{{ e.replace('_', ' ') }}</option>
       {% endfor %}
     </select>
-    <input name="q" value="{{ f_q }}" placeholder="Buscar…" style="min-width:160px" />
+    <label class="sr-only" for="idea-query">Buscar</label>
+    <input id="idea-query" name="q" value="{{ f_q }}" placeholder="Buscar…" />
     <button class="btn secondary" type="submit">Filtrar</button>
   </form>
 
-  <div class="card">
-    {% if not ideas %}
-    <p class="muted">Sin ideas con estos filtros. <a href="/app/m/sandbox?tab=nueva">Crear una</a>.</p>
-    {% else %}
-    <ul class="agenda-ev-list">
-      {% for i in ideas %}
-      <li>
-        <span>
-          {{ i.emoji }} <strong>{{ i.titulo }}</strong>
-          · <span style="color:{{ i.color }}">{{ (i.estado or 'Idea').replace('_', ' ') }}</span>
-          · ⭐{{ i.prioridad }}/5 · 💪{{ i.motivacion }}/10
-          <br><span class="muted">{{ i.dominio }}{% if i.categoria %} · {{ i.categoria }}{% endif %}</span>
-          {% if i.descripcion %}<br>{{ i.descripcion[:120] }}{% if i.descripcion|length > 120 %}…{% endif %}{% endif %}
-          {% if i.tags %}<br><span class="muted">{% for t in i.tags[:5] %}#{{ t }} {% endfor %}</span>{% endif %}
-        </span>
-        <span style="display:flex;gap:0.35rem;flex-wrap:wrap">
+  {% if not ideas %}
+  <div class="card empty-state"><p class="muted">Sin ideas con estos filtros. <a href="/app/m/sandbox?tab=nueva">Crear una</a>.</p></div>
+  {% else %}
+  <div class="idea-list">
+    {% for i in ideas %}
+    <article class="idea-card">
+      <header class="sandbox-item-header">
+        <div><strong>{{ i.emoji }} {{ i.titulo }}</strong><span class="sandbox-item-meta">{{ i.dominio }}{% if i.categoria %} · {{ i.categoria }}{% endif %}</span></div>
+        <span class="badge">{{ (i.estado or 'Idea').replace('_', ' ') }}</span>
+      </header>
+      <p class="idea-scores">⭐ {{ i.prioridad }}/5 · 💪 {{ i.motivacion }}/10</p>
+      {% if i.descripcion %}<p>{{ i.descripcion[:120] }}{% if i.descripcion|length > 120 %}…{% endif %}</p>{% endif %}
+      {% if i.tags %}<p class="muted sandbox-tags">{% for t in i.tags[:5] %}#{{ t }} {% endfor %}</p>{% endif %}
+      <div class="item-actions">
           <a class="btn secondary" href="/app/m/sandbox?tab=nueva&edit={{ i.id }}">Editar</a>
           <form method="post" action="/app/m/sandbox/idea/{{ i.id }}/eliminar" onsubmit="return confirm('¿Eliminar idea?')">
             <button class="btn secondary" type="submit">Eliminar</button>
           </form>
-        </span>
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
+      </div>
+    </article>
+    {% endfor %}
   </div>
+  {% endif %}
 </section>
 {% endif %}
 
@@ -73,37 +78,37 @@
 <section>
   <div class="card">
     <h2>{% if idea_edit %}Editar idea{% else %}Nueva idea{% endif %}</h2>
-    <form method="post" action="{% if idea_edit %}/app/m/sandbox/idea/{{ idea_edit.id }}/actualizar{% else %}/app/m/sandbox/idea{% endif %}">
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+    <form class="idea-form" method="post" action="{% if idea_edit %}/app/m/sandbox/idea/{{ idea_edit.id }}/actualizar{% else %}/app/m/sandbox/idea{% endif %}">
+      <div class="sandbox-form-grid cols-3">
         <div>
-          <label>Dominio</label>
-          <select name="dominio">
+          <label for="idea-domain">Dominio</label>
+          <select id="idea-domain" name="dominio">
             {% for d in dominios %}
             <option value="{{ d }}" {% if dominio_form == d %}selected{% endif %}>{{ emojis_dominio.get(d, '') }} {{ d }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label>Categoría</label>
-          <select name="categoria">
+          <label for="idea-category">Categoría</label>
+          <select id="idea-category" name="categoria">
             {% for c in categorias %}
             <option value="{{ c }}" {% if idea_edit and idea_edit.categoria == c %}selected{% endif %}>{{ c }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label>O nueva categoría</label>
-          <input name="categoria_custom" placeholder="Opcional" />
+          <label for="idea-custom-category">O nueva categoría</label>
+          <input id="idea-custom-category" name="categoria_custom" placeholder="Opcional" />
         </div>
       </div>
-      <div class="grid" style="grid-template-columns:2fr 1fr">
+      <div class="sandbox-form-grid title-grid">
         <div>
-          <label>Título *</label>
-          <input name="titulo" required value="{{ idea_edit.titulo if idea_edit else '' }}" />
+          <label for="idea-title">Título *</label>
+          <input id="idea-title" name="titulo" required value="{{ idea_edit.titulo if idea_edit else '' }}" />
         </div>
         <div>
-          <label>Estado</label>
-          <select name="estado">
+          <label for="idea-state">Estado</label>
+          <select id="idea-state" name="estado">
             {% for e in estados_idea %}
             <option value="{{ e }}" {% if (idea_edit.estado if idea_edit else 'Idea') == e %}selected{% endif %}>{{ e.replace('_', ' ') }}</option>
             {% endfor %}
@@ -111,28 +116,28 @@
         </div>
       </div>
       <div>
-        <label>Descripción</label>
-        <textarea name="descripcion" rows="3">{{ idea_edit.descripcion if idea_edit else '' }}</textarea>
+        <label for="idea-description">Descripción</label>
+        <textarea id="idea-description" name="descripcion" rows="3">{{ idea_edit.descripcion if idea_edit else '' }}</textarea>
       </div>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="sandbox-form-grid cols-3">
         <div>
-          <label>Prioridad (1–5)</label>
-          <input name="prioridad" type="number" min="1" max="5" value="{{ idea_edit.prioridad if idea_edit else 3 }}" />
+          <label for="idea-priority">Prioridad (1–5)</label>
+          <input id="idea-priority" name="prioridad" type="number" min="1" max="5" value="{{ idea_edit.prioridad if idea_edit else 3 }}" />
         </div>
         <div>
-          <label>Motivación (1–10)</label>
-          <input name="motivacion" type="number" min="1" max="10" value="{{ idea_edit.motivacion if idea_edit else 7 }}" />
+          <label for="idea-motivation">Motivación (1–10)</label>
+          <input id="idea-motivation" name="motivacion" type="number" min="1" max="10" value="{{ idea_edit.motivacion if idea_edit else 7 }}" />
         </div>
         <div>
-          <label>Etiquetas (comas)</label>
-          <input name="etiquetas" value="{{ idea_edit.tags_txt if idea_edit else '' }}" placeholder="urgente, largo plazo" />
+          <label for="idea-tags">Etiquetas (comas)</label>
+          <input id="idea-tags" name="etiquetas" value="{{ idea_edit.tags_txt if idea_edit else '' }}" placeholder="urgente, largo plazo" />
         </div>
       </div>
       <div>
-        <label>Notas</label>
-        <textarea name="notas" rows="2">{{ idea_edit.notas if idea_edit else '' }}</textarea>
+        <label for="idea-notes">Notas</label>
+        <textarea id="idea-notes" name="notas" rows="2">{{ idea_edit.notas if idea_edit else '' }}</textarea>
       </div>
-      <div style="margin-top:1rem">
+      <div class="form-actions">
         <button class="btn" type="submit">{% if idea_edit %}💾 Guardar{% else %}➕ Crear idea{% endif %}</button>
         {% if idea_edit %}<a class="btn secondary" href="/app/m/sandbox?tab=nueva">Cancelar</a>{% endif %}
       </div>
@@ -143,43 +148,46 @@
 
 {% if tab == 'snippets' %}
 <section>
-  <form method="get" action="/app/m/sandbox" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+  <form class="sandbox-filter-form" method="get" action="/app/m/sandbox">
     <input type="hidden" name="tab" value="snippets" />
-    <select name="lang">
+    <label class="sr-only" for="snippet-language-filter">Lenguaje</label>
+    <select id="snippet-language-filter" name="lang">
       <option value="">Todos los lenguajes</option>
       {% for l in lenguajes %}
       <option value="{{ l }}" {% if f_lang == l %}selected{% endif %}>{{ emojis_lang.get(l, '') }} {{ l }}</option>
       {% endfor %}
     </select>
-    <select name="sdom">
+    <label class="sr-only" for="snippet-domain-filter">Dominio</label>
+    <select id="snippet-domain-filter" name="sdom">
       <option value="">Todos los dominios</option>
       {% for d in dominios %}
       <option value="{{ d }}" {% if f_snip_dom == d %}selected{% endif %}>{{ d }}</option>
       {% endfor %}
     </select>
-    <input name="sq" value="{{ f_snip_q }}" placeholder="Buscar…" />
+    <label class="sr-only" for="snippet-query">Buscar</label>
+    <input id="snippet-query" name="sq" value="{{ f_snip_q }}" placeholder="Buscar…" />
     <button class="btn secondary" type="submit">Filtrar</button>
   </form>
 
-  <div class="card" style="margin-bottom:1rem">
+  <div class="card">
     <h2>{% if snip_edit %}Editar snippet{% else %}Nuevo snippet{% endif %}</h2>
-    <form method="post" action="{% if snip_edit %}/app/m/sandbox/snippet/{{ snip_edit.id }}/actualizar{% else %}/app/m/sandbox/snippet{% endif %}">
-      <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
+    <form class="snippet-form" method="post" action="{% if snip_edit %}/app/m/sandbox/snippet/{{ snip_edit.id }}/actualizar{% else %}/app/m/sandbox/snippet{% endif %}">
+      <div class="sandbox-form-grid snippet-heading-grid">
         <div>
-          <label>Título *</label>
-          <input name="titulo" required value="{{ snip_edit.titulo if snip_edit else '' }}" />
+          <label for="snippet-title">Título *</label>
+          <input id="snippet-title" name="titulo" required value="{{ snip_edit.titulo if snip_edit else '' }}" />
         </div>
         <div>
-          <label>Lenguaje</label>
-          <select name="lenguaje">
+          <label for="snippet-language">Lenguaje</label>
+          <select id="snippet-language" name="lenguaje">
             {% for l in lenguajes %}
             <option value="{{ l }}" {% if (snip_edit.lenguaje if snip_edit else 'Python') == l %}selected{% endif %}>{{ l }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label>Dominio</label>
-          <select name="dominio">
+          <label for="snippet-domain">Dominio</label>
+          <select id="snippet-domain" name="dominio">
             {% for d in dominios %}
             <option value="{{ d }}" {% if (snip_edit.dominio if snip_edit else 'Programacion') == d %}selected{% endif %}>{{ d }}</option>
             {% endfor %}
@@ -187,42 +195,40 @@
         </div>
       </div>
       <div>
-        <label>Código *</label>
-        <textarea name="codigo" rows="8" required style="font-family:ui-monospace,monospace">{{ snip_edit.codigo if snip_edit else '' }}</textarea>
+        <label for="snippet-code">Código *</label>
+        <textarea class="code-input" id="snippet-code" name="codigo" rows="8" required>{{ snip_edit.codigo if snip_edit else '' }}</textarea>
       </div>
-      <div class="grid" style="grid-template-columns:2fr 1fr">
+      <div class="sandbox-form-grid title-grid">
         <div>
-          <label>Descripción</label>
-          <input name="descripcion" value="{{ snip_edit.descripcion if snip_edit else '' }}" />
+          <label for="snippet-description">Descripción</label>
+          <input id="snippet-description" name="descripcion" value="{{ snip_edit.descripcion if snip_edit else '' }}" />
         </div>
         <div>
-          <label>Tags (comas)</label>
-          <input name="tags" value="{{ snip_edit.tags_txt if snip_edit else '' }}" />
+          <label for="snippet-tags">Tags (comas)</label>
+          <input id="snippet-tags" name="tags" value="{{ snip_edit.tags_txt if snip_edit else '' }}" />
         </div>
       </div>
-      <div style="margin-top:1rem">
+      <div class="form-actions">
         <button class="btn" type="submit">{% if snip_edit %}💾 Guardar{% else %}➕ Guardar snippet{% endif %}</button>
         {% if snip_edit %}<a class="btn secondary" href="/app/m/sandbox?tab=snippets">Cancelar</a>{% endif %}
       </div>
     </form>
   </div>
 
-  <div class="card">
-    {% if not snippets %}
-    <p class="muted">Aún no hay snippets.</p>
-    {% else %}
-    <ul class="agenda-ev-list">
-      {% for s in snippets %}
-      <li style="flex-direction:column;align-items:stretch">
-        <div style="display:flex;justify-content:space-between;gap:0.5rem;flex-wrap:wrap">
-          <span>
-            {{ s.emoji_lang }} <strong>{{ s.titulo }}</strong>
-            · {{ s.emoji_dom }} {{ s.dominio }}
-            · {{ s.veces_usado or 0 }} usos
-            {% if s.tags %}<br><span class="muted">{% for t in s.tags[:5] %}#{{ t }} {% endfor %}</span>{% endif %}
-            {% if s.descripcion %}<br><span class="muted">{{ s.descripcion }}</span>{% endif %}
-          </span>
-          <span style="display:flex;gap:0.35rem;flex-wrap:wrap">
+  {% if not snippets %}
+  <div class="card empty-state"><p class="muted">Aún no hay snippets.</p></div>
+  {% else %}
+  <div class="snippet-list">
+    {% for s in snippets %}
+    <article class="snippet-card">
+      <header class="sandbox-item-header">
+        <div>
+          <strong>{{ s.emoji_lang }} {{ s.titulo }}</strong>
+          <span class="sandbox-item-meta">{{ s.emoji_dom }} {{ s.dominio }} · {{ s.veces_usado or 0 }} usos</span>
+          {% if s.tags %}<span class="muted sandbox-tags">{% for t in s.tags[:5] %}#{{ t }} {% endfor %}</span>{% endif %}
+          {% if s.descripcion %}<span class="muted sandbox-item-description">{{ s.descripcion }}</span>{% endif %}
+        </div>
+        <div class="item-actions compact-actions">
             <form method="post" action="/app/m/sandbox/snippet/{{ s.id }}/usar">
               <button class="btn secondary" type="submit">Usado</button>
             </form>
@@ -230,56 +236,55 @@
             <form method="post" action="/app/m/sandbox/snippet/{{ s.id }}/eliminar" onsubmit="return confirm('¿Eliminar snippet?')">
               <button class="btn secondary" type="submit">Eliminar</button>
             </form>
-          </span>
         </div>
-        <pre style="margin:0.5rem 0 0;padding:0.75rem;overflow:auto;background:#0d1117;border-radius:6px;font-size:0.85rem">{{ s.codigo }}</pre>
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
+      </header>
+      <pre class="code-block"><code>{{ s.codigo }}</code></pre>
+    </article>
+    {% endfor %}
   </div>
+  {% endif %}
 </section>
 {% endif %}
 
 {% if tab == 'sesiones' %}
 <section>
-  <div class="card" style="margin-bottom:1rem">
+  <div class="card">
     <h2>Registrar sesión</h2>
-    <form method="post" action="/app/m/sandbox/sesion">
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+    <form class="sandbox-session-form" method="post" action="/app/m/sandbox/sesion">
+      <div class="sandbox-form-grid cols-3">
         <div>
-          <label>Fecha</label>
-          <input name="fecha" type="date" value="{{ hoy }}" />
+          <label for="session-date">Fecha</label>
+          <input id="session-date" name="fecha" type="date" value="{{ hoy }}" />
         </div>
         <div>
-          <label>Duración (min)</label>
-          <input name="duracion" type="number" min="5" max="480" step="5" value="60" />
+          <label for="session-duration">Duración (min)</label>
+          <input id="session-duration" name="duracion" type="number" min="5" max="480" step="5" value="60" />
         </div>
         <div>
-          <label>Satisfacción (1–10)</label>
-          <input name="satisfaccion" type="number" min="1" max="10" value="7" />
+          <label for="session-rating">Satisfacción (1–10)</label>
+          <input id="session-rating" name="satisfaccion" type="number" min="1" max="10" value="7" />
         </div>
       </div>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="sandbox-form-grid cols-3">
         <div>
-          <label>Dominio</label>
-          <select name="dominio">
+          <label for="session-domain">Dominio</label>
+          <select id="session-domain" name="dominio">
             {% for d in dominios %}
             <option value="{{ d }}">{{ d }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label>Tipo</label>
-          <select name="tipo">
+          <label for="session-type">Tipo</label>
+          <select id="session-type" name="tipo">
             {% for t in tipos_sesion %}
             <option value="{{ t }}">{{ t }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label>Idea relacionada</label>
-          <select name="proyecto_id">
+          <label for="session-project">Idea relacionada</label>
+          <select id="session-project" name="proyecto_id">
             <option value="">Sin proyecto</option>
             {% for i in ideas_activas %}
             <option value="{{ i.id }}">{{ i.emoji }} {{ i.titulo }}</option>
@@ -288,14 +293,14 @@
         </div>
       </div>
       <div>
-        <label>¿Qué hiciste? *</label>
-        <textarea name="descripcion" rows="3" required></textarea>
+        <label for="session-description">¿Qué hiciste? *</label>
+        <textarea id="session-description" name="descripcion" rows="3" required></textarea>
       </div>
       <div>
-        <label>Código / notas (opcional)</label>
-        <textarea name="codigo" rows="4" style="font-family:ui-monospace,monospace"></textarea>
+        <label for="session-code">Código / notas (opcional)</label>
+        <textarea class="code-input" id="session-code" name="codigo" rows="4"></textarea>
       </div>
-      <div style="margin-top:1rem"><button class="btn" type="submit">💾 Guardar sesión</button></div>
+      <div class="form-actions"><button class="btn" type="submit">💾 Guardar sesión</button></div>
     </form>
   </div>
 
@@ -304,20 +309,18 @@
     {% if not sesiones %}
     <p class="muted">Sin sesiones aún.</p>
     {% else %}
-    <ul class="agenda-ev-list">
+    <div class="session-history">
       {% for s in sesiones %}
-      <li>
-        <span>
-          {{ s.emoji }} <strong>{{ s.fecha }}</strong>
-          · {{ s.tipo_actividad }} · {{ s.duracion_minutos }}min
-          · ★{{ s.satisfaccion }}/10
-          {% if s.proyecto_titulo %}· {{ s.proyecto_titulo }}{% endif %}
-          {% if s.descripcion %}<br>{{ s.descripcion }}{% endif %}
-          {% if s.codigo_producido %}<br><pre style="margin:0.35rem 0 0;padding:0.5rem;overflow:auto;background:#0d1117;border-radius:6px;font-size:0.8rem">{{ s.codigo_producido }}</pre>{% endif %}
-        </span>
-      </li>
+      <article class="session-card">
+        <header class="sandbox-item-header">
+          <div><strong>{{ s.emoji }} {{ s.fecha }}</strong><span class="sandbox-item-meta">{{ s.tipo_actividad }} · {{ s.duracion_minutos }}min · ★ {{ s.satisfaccion }}/10</span></div>
+          {% if s.proyecto_titulo %}<span class="badge">{{ s.proyecto_titulo }}</span>{% endif %}
+        </header>
+        {% if s.descripcion %}<p>{{ s.descripcion }}</p>{% endif %}
+        {% if s.codigo_producido %}<pre class="code-block compact-code"><code>{{ s.codigo_producido }}</code></pre>{% endif %}
+      </article>
       {% endfor %}
-    </ul>
+    </div>
     {% endif %}
   </div>
 </section>
@@ -330,19 +333,19 @@
     {% if not ia_ok %}
     <div class="flash-warn">IA offline — configura GROQ_API_KEY.</div>
     {% endif %}
-    <form method="post" action="/app/m/sandbox/mentor">
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+    <form class="mentor-form" method="post" action="/app/m/sandbox/mentor">
+      <div class="sandbox-form-grid cols-3">
         <div>
-          <label>Área</label>
-          <select name="dominio">
+          <label for="mentor-domain">Área</label>
+          <select id="mentor-domain" name="dominio">
             {% for d in dominios %}
             <option value="{{ d }}">{{ emojis_dominio.get(d, '') }} {{ d }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label>Tipo de ayuda</label>
-          <select name="tipo_ayuda">
+          <label for="mentor-help-type">Tipo de ayuda</label>
+          <select id="mentor-help-type" name="tipo_ayuda">
             <option>Consejo general</option>
             <option>Plan de acción</option>
             <option>Recursos útiles</option>
@@ -352,8 +355,8 @@
           </select>
         </div>
         <div>
-          <label>Idea (opcional)</label>
-          <select name="idea_id">
+          <label for="mentor-idea">Idea (opcional)</label>
+          <select id="mentor-idea" name="idea_id">
             <option value="">Ninguna</option>
             {% for i in ideas %}
             <option value="{{ i.id }}">{{ i.titulo }}</option>
@@ -362,15 +365,15 @@
         </div>
       </div>
       <div>
-        <label>Pregunta *</label>
-        <textarea name="pregunta" rows="4" required placeholder="¿Por dónde empiezo con este proyecto?"></textarea>
+        <label for="mentor-question">Pregunta *</label>
+        <textarea id="mentor-question" name="pregunta" rows="4" required placeholder="¿Por dónde empiezo con este proyecto?"></textarea>
       </div>
-      <div style="margin-top:1rem">
+      <div class="form-actions">
         <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>🚀 Consultar mentor</button>
       </div>
     </form>
     {% if mentor_reply %}
-    <div class="flash-ok" style="margin-top:1rem;white-space:pre-wrap">{{ mentor_reply }}</div>
+    <div class="coach-response">{{ mentor_reply }}</div>
     {% endif %}
   </div>
 </section>
