@@ -1,18 +1,12 @@
 """
 billing.py — Planes Free / Premium / Familia (app web).
 
-Stripe Checkout (Streamlit) + webhook FastAPI (webhook/main.py)
-actualizan usuarios.plan en Turso.
+Stripe/Lemon Checkout + webhook FastAPI actualizan usuarios.plan en Turso.
 """
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from typing import Any
-
-try:
-    import streamlit as st
-except ImportError:
-    st = None
 
 from app.logging_config import get_logger
 from app.templates import MODULE_TEMPLATES
@@ -134,14 +128,20 @@ def limites(plan: str | None) -> dict[str, Any]:
     return PLAN_LIMITES[normalizar_plan(plan)]
 
 
+def _resolve_user(user: dict | None = None) -> dict:
+    if user is not None:
+        return user or {}
+    try:
+        from app.tenant import current_user
+
+        return current_user() or {}
+    except Exception:
+        return {}
+
+
 def es_admin(user: dict | None = None) -> bool:
     """True si el usuario es administrador (dueño)."""
-    if user is None and st is not None:
-        try:
-            user = st.session_state.get("user") or {}
-        except Exception:
-            user = {}
-    user = user or {}
+    user = _resolve_user(user)
     if str(user.get("rol") or "").lower() == "admin":
         return True
     try:
@@ -161,12 +161,7 @@ def plan_vigente(user: dict | None = None) -> str:
     - Otros: si plan_expira_en pasó → free.
     """
     ensure_billing_schema()
-    if user is None and st is not None:
-        try:
-            user = st.session_state.get("user") or {}
-        except Exception:
-            user = {}
-    user = user or {}
+    user = _resolve_user(user)
 
     # Dueño / admin: acceso completo a lo Premium (Google, módulos ilimitados, IA…)
     if str(user.get("rol") or "").lower() == "admin":
@@ -231,7 +226,7 @@ def fecha_minima_historial(plan: str | None = None) -> date | None:
 
 
 def _secret(name: str, default: str = "") -> str:
-    """Lee secret unificado (Streamlit / env / secrets.toml)."""
+    """Lee secret unificado (env / secrets.toml)."""
     from app.secrets import get_secret
 
     return get_secret(name, default)
@@ -292,32 +287,12 @@ def app_base_url() -> str:
     url = _secret("APP_URL") or _secret("STREAMLIT_APP_URL")
     if url:
         return url.rstrip("/")
-    if st is not None:
-        try:
-            # Streamlit ≥1.30
-            return st.get_option("browser.serverAddress") or ""
-        except Exception:
-            pass
     return ""
 
 
 def use_web_checkout_return() -> bool:
     """True → success/cancel apuntan a FastAPI (/app/billing)."""
-    import os
-
-    if os.getenv("MISSION_WEB", "").strip().lower() in ("1", "true", "yes"):
-        return True
-    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("FLY_APP_NAME") or os.getenv("RENDER"):
-        return True
-    # Sin ScriptRunContext de Streamlit → asumimos FastAPI / scripts
-    if st is None:
-        return True
-    try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-
-        return get_script_run_ctx() is None
-    except Exception:
-        return True
+    return True
 
 
 def checkout_return_urls(plan_destino: str) -> tuple[str, str]:
@@ -403,123 +378,9 @@ def crear_checkout_session(
         return None, str(e)[:200]
 
 
-def render_upgrade_buttons(plan_sugerido: str = PLAN_PREMIUM) -> None:
-    """CTA de pago: Checkout Session o Payment Link."""
-    if st is None:
-        return
-    user = st.session_state.get("user") or {}
-    uid = user.get("id")
-    planes = [plan_sugerido]
-    if plan_sugerido == PLAN_PREMIUM:
-        planes = [PLAN_PREMIUM, PLAN_FAMILIA]
-
-    for plan in planes:
-        lim = limites(plan)
-        label = f"Upgrade a {lim['nombre']} ({lim['precio']})"
-        if st.button(label, type="primary", use_container_width=True, key=f"upgrade_{plan}"):
-            if not uid:
-                st.error("Inicia sesión para pagar.")
-                return
-            url, err = crear_checkout_session(
-                plan, int(uid), username=user.get("username")
-            )
-            if url:
-                st.markdown(f"[Continuar al pago seguro en Stripe →]({url})")
-                st.link_button("Abrir Stripe Checkout", url, use_container_width=True)
-            else:
-                st.error(err or "No se pudo crear el checkout")
-                if st.session_state.get("user", {}).get("rol") == "admin":
-                    st.caption("Admin: asigna el plan manualmente en Usuarios mientras configuras Stripe.")
-
-
-def render_paywall(
-    motivo: str,
-    *,
-    modulo: str | None = None,
-    plan_sugerido: str = PLAN_PREMIUM,
-) -> None:
-    """Bloqueo amable + CTA de upgrade (Stripe Checkout)."""
-    lim = limites(plan_sugerido)
-    st.warning(motivo)
-    meta = MODULE_TEMPLATES.get(modulo or "", {})
-    if meta:
-        st.caption(
-            f"Módulo: {meta.get('emoji', '')} {meta.get('nombre', modulo)}"
-        )
-    st.markdown(
-        f"### Pasa a **{lim['nombre']}** ({lim['precio']}) para desbloquearlo"
-    )
-    st.markdown(
-        "- Todos los módulos\n"
-        "- Coach IA reconfigurable\n"
-        "- Google Calendar / Fit\n"
-        "- Historial completo + export"
-    )
-    if stripe_configured():
-        render_upgrade_buttons(plan_sugerido)
-    else:
-        link = stripe_link(plan_sugerido)
-        if link:
-            st.link_button(
-                f"Upgrade a {lim['nombre']}",
-                link,
-                type="primary",
-                use_container_width=True,
-            )
-        else:
-            st.info(
-                "Los cobros con Stripe se activan cuando configures "
-                "`STRIPE_SECRET_KEY` + `STRIPE_PRICE_PREMIUM` (y el webhook). "
-                "Si eres admin, puedes cambiar el plan en **Usuarios** mientras tanto."
-            )
-            if st.session_state.get("user", {}).get("rol") == "admin":
-                st.caption("Atajo temporal: Usuarios → plan del usuario.")
-    if st.button("🏠 Volver al dashboard", use_container_width=True):
-        st.switch_page("Mission_Dashboard.py")
-
-
-def require_plan_module(clave: str) -> None:
-    """
-    Si el módulo no está activo: paywall si Free (upsell) o aviso de activar.
-    Llamar después de require_onboarding / junto a require_module.
-    """
-    from app.onboarding import modulo_activo, usuario_onboarding_completo
-
-    if not usuario_onboarding_completo():
-        return
-    if modulo_activo(clave):
-        return
-
-    plan = plan_vigente()
-    meta = MODULE_TEMPLATES.get(clave, {})
-    nombre = meta.get("nombre", clave)
-    if plan == PLAN_FREE:
-        render_paywall(
-            f"**{nombre}** no está en tu cupo Free "
-            f"(máx. {limites(PLAN_FREE)['modulos_max']} módulos). "
-            "Activa Premium para usar todos, o reconfigura cuando tengas un plan que lo permita.",
-            modulo=clave,
-        )
-    else:
-        st.warning(f"El módulo **{nombre}** no está activo en tu sistema.")
-        st.caption("Actívalo desde el Coach en el dashboard.")
-        if st.button("🏠 Ir al dashboard", use_container_width=True, key=f"go_dash_{clave}"):
-            st.switch_page("Mission_Dashboard.py")
-    st.stop()
-
-
 def require_google_feature(nombre: str = "Google Fit / Calendar") -> bool:
-    """
-    True si el plan permite Google. Si no, muestra paywall y retorna False
-    (el caller decide si hace st.stop()).
-    """
-    if puede_google():
-        return True
-    render_paywall(
-        f"**{nombre}** está disponible en Premium y Familia.",
-        plan_sugerido=PLAN_PREMIUM,
-    )
-    return False
+    """True si el plan permite Google (sin UI)."""
+    return puede_google()
 
 
 # ── Cuota IA ───────────────────────────────────────────────────
@@ -595,7 +456,6 @@ def marcar_coach_ia_usado(user_id: int | None = None) -> None:
         "UPDATE usuarios SET coach_ia_usado = 1 WHERE id = ?",
         [user_id],
     )
-    # Refrescar contextvar / session_state si aplica
     try:
         u = current_user()
         if u and int(u.get("id", -1)) == user_id:
@@ -604,14 +464,6 @@ def marcar_coach_ia_usado(user_id: int | None = None) -> None:
             set_current_user(u)
     except Exception:
         pass
-    if st is not None:
-        try:
-            u = st.session_state.get("user")
-            if u and int(u.get("id", -1)) == user_id:
-                u["coach_ia_usado"] = 1
-                st.session_state.user = u
-        except Exception:
-            pass
 
 
 def coach_ia_ya_usado(user_id: int | None = None) -> bool:
@@ -619,11 +471,6 @@ def coach_ia_ya_usado(user_id: int | None = None) -> bool:
     from app.tenant import current_user, uid
 
     user = current_user() or {}
-    if st is not None and not user:
-        try:
-            user = st.session_state.get("user") or {}
-        except Exception:
-            user = {}
     if user_id is None or int(user.get("id", -1)) == int(user_id or user.get("id") or 0):
         if "coach_ia_usado" in user:
             return bool(int(user.get("coach_ia_usado") or 0))
@@ -696,16 +543,18 @@ def set_plan(
             )
         except Exception:
             pass
-        # refrescar sesión si es el mismo usuario
-        if st is not None:
-            try:
-                u = st.session_state.get("user")
-                if u and int(u.get("id", -1)) == int(user_id):
-                    u["plan"] = plan
-                    u["plan_expira_en"] = plan_expira_en
-                    st.session_state.user = u
-            except Exception:
-                pass
+        # refrescar ContextVar si es el mismo usuario
+        try:
+            from app.tenant import current_user, set_current_user
+
+            u = current_user()
+            if u and int(u.get("id", -1)) == int(user_id):
+                u = dict(u)
+                u["plan"] = plan
+                u["plan_expira_en"] = plan_expira_en
+                set_current_user(u)
+        except Exception:
+            pass
         return True, f"Plan actualizado a {plan}"
     except Exception as e:
         log.exception("set_plan: %s", e)
@@ -721,7 +570,6 @@ def plan_desde_price_id(price_id: str | None) -> str | None:
         return PLAN_PREMIUM
     if price_id and price_id == stripe_price_id(PLAN_FAMILIA):
         return PLAN_FAMILIA
-    # Env sin Streamlit (webhook)
     import os
 
     if price_id == (os.getenv("STRIPE_PRICE_PREMIUM") or "").strip():
@@ -737,7 +585,6 @@ def aplicar_evento_checkout(session: dict) -> tuple[bool, str]:
     Usado por el webhook FastAPI.
     """
     ensure_billing_schema()
-    from app.db.core import ejecutar
 
     meta = session.get("metadata") or {}
     user_id = session.get("client_reference_id") or meta.get("user_id")
@@ -746,7 +593,6 @@ def aplicar_evento_checkout(session: dict) -> tuple[bool, str]:
     # Inferir plan desde line items / price si falta metadata
     if plan not in PLANES_VALIDOS or plan == PLAN_FREE:
         plan = None
-        # session from webhook expanded? try amount lookup via price in metadata
         for key in ("price_id", "stripe_price"):
             inferred = plan_desde_price_id(meta.get(key))
             if inferred:
@@ -754,7 +600,6 @@ def aplicar_evento_checkout(session: dict) -> tuple[bool, str]:
                 break
 
     if not plan:
-        # Último recurso: mirar display name / mode subscription + default premium
         plan = PLAN_PREMIUM
 
     if not user_id:
@@ -813,7 +658,7 @@ def aplicar_cancelacion_subscription(subscription: dict) -> tuple[bool, str]:
 
 
 def resumen_plan_ui(user: dict | None = None) -> str:
-    user = user or (st.session_state.get("user") if st is not None else {}) or {}
+    user = _resolve_user(user)
     plan = plan_vigente(user)
     lim = limites(plan)
     usados = 0

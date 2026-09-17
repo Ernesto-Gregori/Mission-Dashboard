@@ -1,10 +1,9 @@
 """
-secrets.py — Lectura unificada de secrets para Streamlit y FastAPI.
+secrets.py — Lectura unificada de secrets para FastAPI.
 
 Orden:
-  1. st.secrets (si Streamlit está corriendo)
-  2. Variables de entorno / .env
-  3. Archivo .streamlit/secrets.toml (misma clave que en Cloud)
+  1. Variables de entorno / .env
+  2. Archivo .streamlit/secrets.toml (migración; solo lectura de archivo, sin paquete streamlit)
 """
 from __future__ import annotations
 
@@ -73,53 +72,21 @@ def get_secret(name: str, default: str = "") -> str:
     """Obtiene un secret string por nombre (p.ej. GROQ_API_KEY)."""
     _load_dotenv()
 
-    # 1) Streamlit runtime (solo si hay ScriptRunContext; evita warnings en uvicorn)
-    try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-
-        if get_script_run_ctx() is not None:
-            import streamlit as st
-
-            val = st.secrets.get(name)
-            if val is not None and str(val).strip():
-                return str(val).strip()
-    except Exception:
-        pass
-
-    # 2) Entorno
+    # 1) Entorno
     env = os.getenv(name)
     if env and env.strip():
         return env.strip()
 
-    # 3) secrets.toml (raíz o tablas planas)
+    # 2) secrets.toml (migración; lectura de archivo)
     data = _secrets_toml()
     if name in data and data[name] is not None:
         return str(data[name]).strip()
-    # tablas tipo [google_oauth] no aplican a GROQ plano
     return default
 
 
 def get_secret_section(name: str) -> dict:
-    """Tabla TOML (p.ej. google_oauth) desde secrets.toml / Streamlit."""
+    """Tabla TOML (p.ej. google_oauth) desde .streamlit/secrets.toml."""
     _load_dotenv()
-    try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-
-        if get_script_run_ctx() is not None:
-            import streamlit as st
-
-            if name in st.secrets:
-                m = st.secrets[name]
-                if hasattr(m, "to_dict"):
-                    return dict(m.to_dict())
-                if isinstance(m, dict):
-                    return dict(m)
-                try:
-                    return {k: m[k] for k in m}
-                except Exception:
-                    pass
-    except Exception:
-        pass
     data = _secrets_toml()
     section = data.get(name)
     return dict(section) if isinstance(section, dict) else {}

@@ -1,20 +1,16 @@
 """
-stability.py — Menos recargas dolorosas en Streamlit.
+stability.py — Helpers de invalidación post-escritura (FastAPI).
 
 Reexporta helpers de database y añade after_write().
 """
 from __future__ import annotations
 
-import streamlit as st
-
 from app.database import ensure_database, invalidate_data_caches
 
 
 def after_write(rerun: bool = True) -> None:
-    """Llamar justo después de INSERT/UPDATE/DELETE exitosos en la UI."""
+    """Llamar justo después de INSERT/UPDATE/DELETE exitosos."""
     invalidate_data_caches()
-    if rerun:
-        st.rerun()
 
 
 __all__ = [

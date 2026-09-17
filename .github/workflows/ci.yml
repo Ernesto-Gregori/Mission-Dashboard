@@ -25,8 +25,9 @@ jobs:
           assert not raw.startswith(b"\xff\xfe") and not raw.startswith(b"\xfe\xff"), "UTF-16 BOM"
           assert b"\x00" not in raw[:200], "null bytes — probablemente UTF-16"
           text = raw.decode("utf-8")
-          assert "streamlit" in text
-          print("requirements.txt OK (UTF-8)")
+          assert "fastapi" in text
+          assert "streamlit" not in text
+          print("requirements.txt OK (UTF-8, FastAPI)")
           PY
 
       - name: Install deps

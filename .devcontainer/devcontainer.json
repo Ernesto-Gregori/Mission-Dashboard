@@ -5,7 +5,7 @@
     "codespaces": {
       "openFiles": [
         "README.md",
-        "Mission_Dashboard.py"
+        "web/app.py"
       ]
     },
     "vscode": {
@@ -16,20 +16,17 @@
       ]
     }
   },
-  "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; pip3 install --user streamlit; echo '✅ Packages installed and Requirements met'",
+  "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; echo '✅ Packages installed and Requirements met'",
   "postAttachCommand": {
-    "server": "streamlit run Mission_Dashboard.py --server.address 127.0.0.1 --server.port 8501"
+    "server": "MISSION_ALLOW_SQLITE=1 SESSION_SECRET=dev uvicorn web.app:app --host 127.0.0.1 --port 8000 --reload"
   },
   "portsAttributes": {
-    "8501": {
-      "label": "Application",
+    "8000": {
+      "label": "Mission Dashboard (FastAPI)",
       "onAutoForward": "openPreview"
     }
   },
   "forwardPorts": [
-    8501
-  ],
-  "remoteEnv": {
-    "STREAMLIT_BROWSER_GATHER_USAGE_STATS": "false"
-  }
+    8000
+  ]
 }

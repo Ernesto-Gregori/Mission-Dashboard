@@ -1,5 +1,5 @@
 """
-Mission Dashboard — FastAPI + HTMX (migración desde Streamlit).
+Mission Dashboard — FastAPI + HTMX.
 
 Arranque local:
   MISSION_ALLOW_SQLITE=1 uvicorn web.app:app --reload --port 8000
@@ -128,7 +128,7 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     def root(request: Request):
-        # Compat Streamlit-style return: /?checkout=success → billing web
+        # Compat retorno checkout: /?checkout=success → billing web
         checkout = (request.query_params.get("checkout") or "").strip().lower()
         if checkout in ("success", "cancel"):
             q = request.url.query

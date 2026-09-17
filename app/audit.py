@@ -39,17 +39,15 @@ def ensure_audit_table() -> None:
 
 def _actor() -> tuple[int | None, str | None]:
     try:
-        import streamlit as st
+        from app.tenant import current_user, uid
 
-        user = st.session_state.get("user") or {}
-        uid = user.get("id")
-        return (int(uid) if uid is not None else None, user.get("username"))
-    except Exception:
-        pass
-    try:
-        from app.tenant import uid
-
-        return uid(), None
+        user = current_user() or {}
+        username = user.get("username")
+        try:
+            return uid(), username
+        except Exception:
+            uid_val = user.get("id")
+            return (int(uid_val) if uid_val is not None else None, username)
     except Exception:
         return None, None
 

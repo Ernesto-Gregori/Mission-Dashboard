@@ -9,7 +9,7 @@
 {% if sug.fuente != 'ia' %}
 <div class="flash-warn">
   El Coach IA está offline. FastAPI lee <code>GROQ_API_KEY</code> desde el entorno
-  o <code>.streamlit/secrets.toml</code> / <code>.env</code> — no desde el panel de Streamlit Cloud
+  o en <code>.env</code> / variables de Railway
   si corres uvicorn aparte. Reinicia el servidor tras añadir la clave.
 </div>
 {% endif %}

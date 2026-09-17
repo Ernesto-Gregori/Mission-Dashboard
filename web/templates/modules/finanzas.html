@@ -235,8 +235,7 @@
   <h2>💡 Consejo IA</h2>
   {% if not ia_ok %}
   <div class="flash-warn">
-    IA offline. En FastAPI la clave no sale de Streamlit Cloud sola:
-    exporta <code>GROQ_API_KEY</code> o ponla en <code>.streamlit/secrets.toml</code> / <code>.env</code>.
+    IA offline. Configura <code>GROQ_API_KEY</code> en Railway o en <code>.env</code>.
   </div>
   {% else %}
   <form method="post" action="/app/m/finanzas/consejo">

@@ -2,7 +2,7 @@
 #
 # Setup (una vez, si usas Turso):
 # 1. Repo → Settings → Secrets and variables → Actions
-# 2. Secrets: TURSO_URL, TURSO_TOKEN (mismos que en Streamlit)
+# 2. Secrets: TURSO_URL, TURSO_TOKEN (mismos que en Railway)
 # 3. Actions → Nightly Backup → Run workflow (probar)
 #
 # Sin Turso: exporta desde SQLite local del runner (casi vacío) —

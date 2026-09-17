@@ -4,9 +4,7 @@ tenant.py — Aislamiento multi-usuario
 Cada dato de negocio pertenece a un user_id.
 Usar uid() en INSERT/SELECT/UPDATE/DELETE.
 
-Soporta:
-- Streamlit (session_state)
-- FastAPI / scripts (contextvars)
+FastAPI / scripts: ContextVar (set_current_user por request).
 """
 from __future__ import annotations
 
@@ -31,21 +29,7 @@ def clear_current_user() -> None:
 
 
 def current_user() -> dict | None:
-    # 1) ContextVar (FastAPI)
-    u = _user_ctx.get()
-    if u:
-        return u
-    # 2) Streamlit session (solo con ScriptRunContext)
-    try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-
-        if get_script_run_ctx() is None:
-            return None
-        import streamlit as st
-
-        return st.session_state.get("user")
-    except Exception:
-        return None
+    return _user_ctx.get()
 
 
 def uid() -> int:

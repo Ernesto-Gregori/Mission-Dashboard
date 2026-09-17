@@ -332,7 +332,7 @@ async def consejo_ia(request: Request, user: Annotated[dict, Depends(require_onb
     if not api_key_configurada():
         ctx["error"] = (
             "Coach/IA offline: configura GROQ_API_KEY en el entorno "
-            "o en `.streamlit/secrets.toml` (FastAPI no lee solo secrets de Streamlit Cloud)."
+            "o en `.env` / variables de Railway."
         )
         return render(request, "modules/finanzas.html", **ctx)
     resumen = ctx["resumen"]

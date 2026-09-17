@@ -3,7 +3,7 @@ google_fit.py - Integración con Google Fit API
 Obtiene sueño, ejercicio, pasos y frecuencia cardíaca.
 
 Tokens OAuth se persisten en BD (Turso/SQLite) para sobrevivir
-cuando Streamlit Cloud se duerme o redeploya (el disco se borra).
+redeploys (el disco efímero se borra).
 """
 
 import os
@@ -183,7 +183,7 @@ def _oauth_client_bootstrap() -> dict:
         if value and not out.get(key):
             out[key] = value
 
-    # Preferido: env / secrets.toml / Streamlit (app.secrets)
+    # Preferido: env / secrets.toml (app.secrets)
     try:
         from app.secrets import get_secret, get_secret_section
 
@@ -244,19 +244,8 @@ def guardar_token_desde_json(texto: str) -> tuple[bool, str]:
 
 
 def _load_token_from_secrets() -> Optional[dict]:
-    try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-
-        if get_script_run_ctx() is None:
-            return None
-        import streamlit as st
-
-        if "google_fit_token" not in st.secrets:
-            return None
-        return _token_dict_from_mapping(st.secrets["google_fit_token"])
-    except Exception as e:
-        print(f"[GoogleFit] Secrets no disponibles: {e}")
-        return None
+    """Legacy no-op (ya no se leen tokens compartidos de secrets)."""
+    return None
 
 
 def _load_token_from_disk() -> Optional[dict]:
@@ -324,7 +313,7 @@ def _get_credentials():
 
 def iniciar_oauth_local() -> tuple[bool, str]:
     """
-    Flujo OAuth con navegador local (solo funciona en tu PC, no en Streamlit Cloud).
+    Flujo OAuth con navegador local (solo funciona en tu PC, no en cloud).
     Guarda el token en BD + disco.
     """
     global _ultimo_error_auth
@@ -350,7 +339,7 @@ def iniciar_oauth_local() -> tuple[bool, str]:
 
 
 # ═══════════════════════════════════════════════════════════════
-# OAUTH WEB (Streamlit Cloud — redirect URI, sin pegar JSON)
+# OAUTH WEB (FastAPI — redirect URI, sin pegar JSON)
 # ═══════════════════════════════════════════════════════════════
 
 def get_oauth_redirect_uri() -> str:
@@ -359,7 +348,7 @@ def get_oauth_redirect_uri() -> str:
     env = (os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or "").strip()
     if env:
         return env
-    # 2) secrets.toml / Streamlit [google_oauth].redirect_uri
+    # 2) secrets.toml [google_oauth].redirect_uri
     try:
         from app.secrets import get_secret, get_secret_section
 
@@ -376,23 +365,6 @@ def get_oauth_redirect_uri() -> str:
     app_url = (os.getenv("APP_URL") or "").rstrip("/")
     if app_url:
         return f"{app_url}/oauth/google/callback"
-    # 4) Auto-detect en Streamlit Cloud
-    try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-        import streamlit as st
-
-        if get_script_run_ctx() is not None:
-            headers = getattr(st.context, "headers", None) or {}
-            host = headers.get("Host") or headers.get("host") or ""
-            proto = (
-                headers.get("X-Forwarded-Proto")
-                or headers.get("x-forwarded-proto")
-                or "https"
-            )
-            if host:
-                return f"{proto}://{host}/"
-    except Exception:
-        pass
     return ""
 
 
@@ -475,7 +447,7 @@ def _build_web_flow(redirect_uri: str):
     if not redirect_uri:
         return None, (
             "Falta redirect_uri. Añade en secrets: "
-            '[google_oauth] redirect_uri = "https://TU-APP.streamlit.app/"'
+            '[google_oauth] redirect_uri = "https://TU-APP.ejemplo.com/oauth/google/callback"'
         )
     client_config = {
         "web": {
@@ -487,8 +459,8 @@ def _build_web_flow(redirect_uri: str):
         }
     }
     # Cliente confidencial (web + client_secret): sin PKCE.
-    # PKCE guardaría code_verifier en memoria; al volver de Google la sesión
-    # de Streamlit a menudo se pierde → "Missing code verifier".
+    # PKCE guardaría code_verifier en memoria; al volver de Google
+    # el proceso puede reiniciarse → "Missing code verifier".
     flow = Flow.from_client_config(
         client_config,
         scopes=SCOPES,
@@ -534,7 +506,7 @@ def intercambiar_oauth_code(
 ) -> tuple[bool, str]:
     """
     Intercambia ?code=&state= por tokens y los guarda en oauth_tokens.
-    Agnóstico de Streamlit — usado por FastAPI y por procesar_oauth_callback.
+    Usado por FastAPI (web/routers/oauth_google.py).
     """
     global _ultimo_error_auth
 
@@ -587,107 +559,6 @@ def intercambiar_oauth_code(
     except Exception as e:
         _ultimo_error_auth = str(e)
         return False, f"Error al intercambiar el código OAuth: {e}"
-
-
-def procesar_oauth_callback() -> tuple[bool, str] | None:
-    """
-    Si la URL trae ?code=&state= (vuelta de Google), intercambia el code
-    y guarda el token en oauth_tokens del usuario del state.
-
-    Returns:
-      None — no hay callback que procesar
-      (True, msg) / (False, msg) — resultado del intercambio
-    """
-    global _ultimo_error_auth
-    try:
-        import streamlit as st
-    except Exception:
-        return None
-
-    try:
-        params = st.query_params
-        code = params.get("code")
-        state = params.get("state")
-        err = params.get("error")
-    except Exception:
-        return None
-
-    if err:
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-        _ultimo_error_auth = f"Google OAuth: {err}"
-        return False, f"Google denegó el acceso: {err}"
-
-    if not code or not state:
-        return None
-
-    # Evitar procesar dos veces el mismo code en el mismo rerun loop
-    if st.session_state.get("_oauth_code_done") == code:
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
-        return None
-
-    from app.tenant import try_uid
-
-    session_uid = try_uid()
-    ok, msg = intercambiar_oauth_code(
-        str(code),
-        str(state),
-        session_uid=int(session_uid) if session_uid is not None else None,
-    )
-    try:
-        st.query_params.clear()
-    except Exception:
-        pass
-    if ok:
-        st.session_state["_oauth_code_done"] = code
-    return ok, msg
-
-
-def manejar_oauth_retorno() -> None:
-    """
-    Procesa el retorno de Google (?code=&state=).
-
-    Debe llamarse ANTES de require_auth(): al salir a Google y volver,
-    Streamlit Cloud a menudo pierde la sesión — si esperamos al login,
-    el code caduca y nunca se guarda el token.
-    """
-    try:
-        import streamlit as st
-    except Exception:
-        return
-
-    try:
-        params = st.query_params
-        if not (params.get("code") or params.get("error")):
-            return
-    except Exception:
-        return
-
-    # Asegurar BD aunque aún no haya sesión
-    try:
-        from app.database import ensure_database
-        ensure_database()
-    except Exception as e:
-        print(f"[GoogleFit] ensure_database en oauth retorno: {e}")
-
-    result = procesar_oauth_callback()
-    if result is None:
-        return
-    ok, msg = result
-    if ok:
-        st.success(msg)
-        st.info(
-            "Google ya quedó vinculado a tu cuenta. "
-            "Si te pide iniciar sesión otra vez, entra con tu usuario "
-            "y abre **Salud** — debe decir «token en BD»."
-        )
-    else:
-        st.error(msg)
 
 
 def get_fit_service():

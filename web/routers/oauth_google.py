@@ -1,7 +1,7 @@
 """Google OAuth callback (Fit + Calendar) — sin auth previa.
 
 El state firmado lleva user_id; la cookie de sesión puede haberse perdido
-al salir a Google (mismo patrón que Streamlit).
+al salir a Google.
 """
 from __future__ import annotations
 

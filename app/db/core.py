@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import functools
-import os
 import sqlite3
 from pathlib import Path
 
@@ -11,15 +10,12 @@ try:
 except ImportError:
     libsql = None
 
-try:
-    import streamlit as st
-except ImportError:  # webhook / scripts sin Streamlit
-    st = None
-
 from app.db.adapters import *  # noqa: F401,F403
 
 # app/db/core.py -> parents: db, app, repo
 DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "mission.db"
+
+_db_ready = False
 
 
 @functools.lru_cache(maxsize=1)
@@ -102,14 +98,8 @@ def ejecutar(sql: str, params: list = None, fetchall: bool = False):
 
 
 
-def _ejecutar_cached_impl(sql: str, params: tuple = ()) -> list:
+def ejecutar_cached(sql: str, params: tuple = ()) -> list:
     return ejecutar(sql, list(params), fetchall=True) or []
-
-
-if st is not None:
-    ejecutar_cached = st.cache_data(ttl=30)(_ejecutar_cached_impl)
-else:
-    ejecutar_cached = _ejecutar_cached_impl
 
 
 def invalidate_data_caches() -> None:
@@ -127,21 +117,16 @@ def invalidate_data_caches() -> None:
 
 def ensure_database() -> None:
     """
-    init_database() + migración multi-usuario + billing, una vez por sesión.
+    init_database() + migración multi-usuario + billing, una vez por proceso.
     En cloud web exige Turso.
     """
+    global _db_ready
     from app.db.schema import init_database
     from app.runtime import require_turso_web
 
     require_turso_web()
 
-    ready = False
-    if st is not None:
-        try:
-            ready = bool(st.session_state.get("_db_ready"))
-        except Exception:
-            ready = False
-    if ready:
+    if _db_ready:
         return
 
     try:
@@ -156,11 +141,7 @@ def ensure_database() -> None:
             ensure_billing_schema()
         except Exception as e:
             print(f"[ensure_database] billing: {e}")
-        if st is not None:
-            try:
-                st.session_state["_db_ready"] = True
-            except Exception:
-                pass
+        _db_ready = True
     except Exception:
         init_database()
         try:

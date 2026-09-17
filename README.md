@@ -2,11 +2,10 @@
 Sistema de gestión de vida personal — uso privado.
 
 ## Stack
-- **Canónico:** FastAPI + HTMX en `web/` — ver [MIGRATION.md](./MIGRATION.md) y [CUTOVER.md](./CUTOVER.md)
-- Streamlit en `Mission_Dashboard.py` / `pages/` = **legado** (referencia / emergencia)
-- **Turso** (producción) · **Groq** IA · Google Fit/Calendar OAuth2 · Stripe Checkout
+- **FastAPI + HTMX** en `web/`
+- **Turso** (producción) · **Groq** IA · Google Fit/Calendar OAuth2 · Lemon Squeezy / Stripe
 
-## Setup local (FastAPI)
+## Setup local
 1. Copia `.env.example` → `.env` y rellena al menos `SESSION_SECRET` y `GROQ_API_KEY`
 2. `pip install -r requirements.txt`
 3. Arranque:
@@ -24,7 +23,7 @@ Producción local con Turso: quita `MISSION_ALLOW_SQLITE` y define `TURSO_URL` /
 - Verificar: `python scripts/verify_deploy.py https://TU-APP`
 
 ## Google Fit + Calendar
-Cliente OAuth tipo **Aplicación web**. Redirect canónico FastAPI:
+Cliente OAuth tipo **Aplicación web**. Redirect canónico:
 
 `https://TU-DOMINIO/oauth/google/callback`
 
@@ -32,22 +31,18 @@ Variables: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH
 
 En la app: **Salud** → Conectar con Google.
 
-## Stripe
-- Checkout desde `/app/billing`
-- Webhook: `POST /stripe/webhook` (misma app FastAPI)
-- Retorno: `/app/billing?checkout=success|cancel` (banner + refresh de plan)
+## Cobros
+- Lemon Squeezy (preferido) o Stripe desde `/app/billing`
+- Webhooks: `POST /lemon/webhook` o `POST /stripe/webhook`
+- Retorno: `/app/billing?checkout=success|cancel`
 
 ## Seguridad
 - Login usuario + contraseña (PBKDF2)
 - Rate-limit de login
-- Admin: `/app/usuarios` (crear usuarios, plan manual, backup, auditoría)
+- Admin: `/app/usuarios`
 
 ## Tests
 ```bash
 pip install -r requirements.txt
 pytest -q tests/
 ```
-
-## Legado Streamlit
-`streamlit run Mission_Dashboard.py` sigue existiendo para comparar, pero **no** es el destino de producción.
-El workflow Keep Streamlit Awake está desactivado por defecto tras Fase 3.
