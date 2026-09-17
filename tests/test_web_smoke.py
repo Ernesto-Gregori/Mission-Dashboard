@@ -84,6 +84,8 @@ def test_setup_redirects_to_coach(web_client):
     assert b"Cu" in r.content or b"llam" in r.content  # formulario perfil
     assert b'id="main-content"' in r.content
     assert b'for="coach-name"' in r.content
+    assert b'class="coach-area-grid"' in r.content
+    assert b'for="coach-area-' in r.content
 
 
 def test_coach_flow_activa_modulos(web_client):
@@ -108,6 +110,9 @@ def test_coach_flow_activa_modulos(web_client):
     assert r.status_code == 200
     assert b"sistema propuesto" in r.content.lower() or b"Activar" in r.content
     assert b'id="main-content"' in r.content
+    assert b'class="coach-module-option"' in r.content
+    assert b'class="form-actions"' in r.content
+    assert b'for="coach-mod-' in r.content
 
     # Activar agenda + finanzas + matrimonio (Free admin es premium en setup)
     r = web_client.post(
@@ -158,6 +163,36 @@ def test_coach_flow_activa_modulos(web_client):
     assert r.status_code == 200
     assert b"super" in r.content
     assert b'class="data-table finance-table"' in r.content
+
+
+def test_coach_reconfig_uses_app_shell(web_client):
+    _setup_user(web_client, "coach_reconfig")
+    web_client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "reconfig",
+            "objetivos": "finanzas",
+            "tiempo": "15-20 min",
+            "notas": "",
+            "areas": ["finanzas"],
+        },
+        follow_redirects=False,
+    )
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["agenda", "finanzas"]},
+        follow_redirects=False,
+    )
+    r = web_client.post("/app/coach/reconfigurar", follow_redirects=False)
+    assert r.status_code in (303, 307)
+    r = web_client.get("/app/coach")
+    assert r.status_code == 200
+    assert b'for="coach-name"' in r.content
+    assert b'class="sidebar-footer"' in r.content
+    assert b"Cerrar sesi" in r.content
+    assert b"/app/usuarios" in r.content
+    assert b'class="coach-area-grid"' in r.content
 
 
 def test_secrets_reads_env(monkeypatch, tmp_path):
