@@ -778,6 +778,7 @@ def test_agenda_calendario_y_bitacora(web_client):
     assert b'class="module-header"' in r.content
     assert b'class="agenda-form-grid"' in r.content
     assert b'aria-current="page"' in r.content
+    assert b'for="agenda-event-date"' in r.content
 
     r = web_client.post(
         "/app/m/agenda/evento",
@@ -798,6 +799,8 @@ def test_agenda_calendario_y_bitacora(web_client):
     assert r.status_code == 200
     assert b"Bit" in r.content or b"victorias" in r.content.lower()
     assert b'class="journal-section"' in r.content
+    assert b'for="journal-victory-1"' in r.content
+    assert b'for="journal-semaforo_superv"' in r.content
 
     from app.db.agenda import obtener_lunes_semana
     from app.timezone_config import hoy as _hoy
@@ -833,6 +836,7 @@ def test_agenda_calendario_y_bitacora(web_client):
     assert r.status_code == 200
     assert b"Historial" in r.content
     assert lun.encode() in r.content or b"Orar" in r.content
+    assert b'for="agenda-history-week"' in r.content
 
 
 def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
