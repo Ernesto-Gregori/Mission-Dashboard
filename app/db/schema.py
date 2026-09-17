@@ -835,6 +835,8 @@ def init_database():
     )
 
     init_sobres(cursor)
+    from app.db.exercises import init_exercise_library
+    init_exercise_library(cursor)
     conn.commit()
     conn.close()
     # Si Turso está activo, asegurar tablas críticas también allá
