@@ -367,6 +367,7 @@ h3 { font-size: 1rem; line-height: 1.35; }
 .module-header[data-module="agenda"] { --module-current: var(--module-agenda); }
 .module-header[data-module="finanzas"] { --module-current: var(--module-finanzas); }
 .module-header[data-module="salud"] { --module-current: var(--module-salud); }
+.module-header[data-module="deep_work"] { --module-current: var(--module-deep-work); }
 
 /* Agenda */
 .agenda-rachas {
@@ -806,6 +807,120 @@ textarea {
   .health-history-metrics div:nth-child(n+3) { border-top: 1px solid var(--border); }
   .health-form-grid.cols-3 { grid-template-columns: 1fr; }
   .integration-status .btn { width: 100%; }
+}
+
+/* Deep Work */
+.deep-work-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-deep-work); }
+.deep-work-date-form {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.selected-date { margin: 0 0 0.7rem; }
+.empty-state { text-align: center; }
+.empty-state p { margin: 0.75rem auto; }
+.focus-block,
+.configured-block {
+  margin-bottom: 0.85rem;
+  padding: 1rem 1.15rem;
+  background: var(--bg-elev);
+  border: 1px solid color-mix(in srgb, var(--block-color) 45%, var(--border));
+  border-radius: var(--radius);
+}
+.configured-block.is-inactive { border-color: var(--border); }
+.focus-block-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.focus-block-meta {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.focus-session-form { margin-top: 0.75rem; }
+.focus-session-grid {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(12rem, 2fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+.deep-work-week-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.deep-work-week-summary h2,
+.deep-work-week-summary p { margin: 0; }
+.deep-work-week-summary .muted { margin-top: 0.25rem; }
+.week-rate {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.week-rate strong { font-size: 1.35rem; }
+.week-rate span { color: var(--muted); }
+.empty-day { margin: 0.3rem; font-size: 0.75rem; }
+.block-config-form { margin-top: 0.75rem; }
+.block-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.75rem;
+}
+.day-picker {
+  min-width: 0;
+  margin: 0.75rem 0;
+  padding: 0;
+  border: 0;
+}
+.day-picker > legend { color: var(--muted); font-size: 0.9rem; }
+.day-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+.day-picker-grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  color: var(--text);
+  font-weight: 400;
+}
+.day-picker-grid input {
+  width: auto;
+  min-height: auto;
+  margin: 0;
+}
+.day-summary { margin: 0.35rem 0 0; font-size: 0.8rem; }
+
+@media (max-width: 800px) {
+  .focus-session-grid { grid-template-columns: 1fr 2fr; }
+  .focus-session-grid .btn { grid-column: 1 / -1; }
+  .block-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .day-picker-grid { grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .deep-work-date-form > div,
+  .deep-work-date-form .btn { width: 100%; }
+  .selected-date { margin-bottom: 0; }
+  .focus-session-grid,
+  .block-form-grid { grid-template-columns: 1fr; }
+  .deep-work-week-summary { align-items: flex-start; flex-direction: column; }
 }
 
 .briefing-block {
