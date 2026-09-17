@@ -276,6 +276,12 @@ def test_deep_work_dia_y_bloque(web_client):
     r = web_client.get("/app/m/deep_work")
     assert r.status_code == 200, r.text[:500]
     assert b"Deep Work" in r.content
+    assert b'class="module-header"' in r.content
+    assert b'class="deep-work-date-form"' in r.content
+
+    r = web_client.get("/app/m/deep_work?tab=config")
+    assert r.status_code == 200
+    assert b'class="block-config-form"' in r.content
 
     r = web_client.post(
         "/app/m/deep_work/bloque",
@@ -322,6 +328,7 @@ def test_deep_work_dia_y_bloque(web_client):
     r = web_client.get("/app/m/deep_work?tab=semana")
     assert r.status_code == 200
     assert b"Semana" in r.content
+    assert b'class="deep-work-week-summary"' in r.content
 
 
 def test_teologia_devocional_y_pedido(web_client):
