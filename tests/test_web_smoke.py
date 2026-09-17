@@ -72,6 +72,17 @@ def test_htmx_is_self_hosted(web_client):
     assert b"htmx" in js.content.lower()
 
 
+def test_favicon_is_linked(web_client):
+    r = web_client.get("/setup")
+    assert r.status_code == 200
+    assert b'rel="icon"' in r.content
+    assert b"/static/favicon.svg" in r.content
+    icon = web_client.get("/static/favicon.svg")
+    assert icon.status_code == 200
+    assert b"<svg" in icon.content
+    assert b"#58a6ff" in icon.content
+
+
 def test_setup_redirects_to_coach(web_client):
     r = web_client.get("/login", follow_redirects=False)
     assert r.status_code in (303, 307)
