@@ -1298,6 +1298,7 @@ textarea {
 .idea-card,
 .snippet-card,
 .session-card {
+  min-width: 0;
   padding: 1rem 1.15rem;
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -1337,6 +1338,7 @@ textarea {
 .code-input,
 .code-block { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .code-block {
+  max-width: 100%;
   margin: 0.75rem 0 0;
   padding: 0.75rem;
   overflow: auto;
