@@ -354,6 +354,8 @@ def test_teologia_devocional_y_pedido(web_client):
     r = web_client.get("/app/m/teologia")
     assert r.status_code == 200, r.text[:500]
     assert b"Teolog" in r.content or b"Devocional" in r.content
+    assert b'class="module-header"' in r.content
+    assert b'class="devotional-form"' in r.content
 
     from app.timezone_config import hoy as _hoy
 
@@ -381,6 +383,7 @@ def test_teologia_devocional_y_pedido(web_client):
     r = web_client.get("/app/m/teologia?tab=historial")
     assert r.status_code == 200
     assert b"Juan 15" in r.content
+    assert b"devotional-history" in r.content
 
     r = web_client.post(
         "/app/m/teologia/pedido",
@@ -395,6 +398,11 @@ def test_teologia_devocional_y_pedido(web_client):
     )
     assert r.status_code == 200
     assert b"Sabiduria" in r.content
+    assert b'class="prayer-request"' in r.content
+
+    r = web_client.get("/app/m/teologia?tab=metodo")
+    assert r.status_code == 200
+    assert b"inductive-method" in r.content
 
 
 def test_matrimonio_cita_nota_habito(web_client):
