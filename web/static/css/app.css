@@ -369,6 +369,7 @@ h3 { font-size: 1rem; line-height: 1.35; }
 .module-header[data-module="salud"] { --module-current: var(--module-salud); }
 .module-header[data-module="deep_work"] { --module-current: var(--module-deep-work); }
 .module-header[data-module="biblioteca"] { --module-current: var(--module-biblioteca); }
+.module-header[data-module="matrimonio"] { --module-current: var(--module-matrimonio); }
 
 /* Agenda */
 .agenda-rachas {
@@ -1045,6 +1046,87 @@ textarea {
   .highlight-form-grid > :last-child { grid-column: auto; }
   .reading-progress-form .btn { width: 100%; }
   .book-progress { grid-template-columns: 1fr; }
+}
+
+/* Matrimonio */
+.relationship-next {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.relationship-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-matrimonio); }
+.appointment-filter-form,
+.relationship-filter-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+.appointment-filter-form select,
+.relationship-filter-form select { margin: 0; }
+.appointment-list,
+.relationship-note-list { display: grid; gap: 0.75rem; }
+.appointment-card,
+.relationship-note {
+  padding: 1rem 1.15rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.appointment-card { border-color: color-mix(in srgb, var(--module-matrimonio) 35%, var(--border)); }
+.appointment-card-header,
+.relationship-note-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.appointment-meta {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.appointment-detail { margin: 0.5rem 0 0; }
+.item-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+.appointment-form,
+.relationship-note-form,
+.connection-form { margin-top: 0.75rem; }
+.relationship-form-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+.relationship-form-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.relationship-form-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.relationship-form-grid.location-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.relationship-note-list { margin-top: 1rem; }
+.relationship-note p { margin-bottom: 0; }
+.connection-history li { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 600px) {
+  .relationship-next {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .appointment-filter-form,
+  .relationship-filter-form { display: grid; grid-template-columns: 1fr; }
+  .relationship-form-grid.cols-3,
+  .relationship-form-grid.cols-2,
+  .relationship-form-grid.location-grid { grid-template-columns: 1fr; }
+  .item-actions,
+  .item-actions form,
+  .item-actions .btn { width: 100%; }
 }
 
 .briefing-block {
