@@ -63,6 +63,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   font-weight: 700;
   transform: translateY(-150%);
 }
+.skip-link:hover { color: #04101f; text-decoration: none; }
 .skip-link:focus { transform: translateY(0); }
 .sr-only {
   position: absolute;
