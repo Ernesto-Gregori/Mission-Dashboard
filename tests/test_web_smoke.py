@@ -61,6 +61,17 @@ def test_health(web_client):
     assert r.json()["framework"] == "fastapi+htmx"
 
 
+def test_htmx_is_self_hosted(web_client):
+    r = web_client.get("/setup")
+    assert r.status_code == 200
+    assert b"unpkg.com" not in r.content
+    assert b"cdn.jsdelivr" not in r.content
+    assert b'src="/static/js/htmx.min.js"' in r.content
+    js = web_client.get("/static/js/htmx.min.js")
+    assert js.status_code == 200
+    assert b"htmx" in js.content.lower()
+
+
 def test_setup_redirects_to_coach(web_client):
     r = web_client.get("/login", follow_redirects=False)
     assert r.status_code in (303, 307)
