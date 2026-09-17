@@ -10,8 +10,9 @@ from app.billing import (
     PLAN_PREMIUM,
     crear_checkout_session,
     limites,
+    payment_provider,
+    payments_configured,
     plan_vigente,
-    stripe_configured,
 )
 from app.onboarding import listar_modulos_usuario
 from app.templates import MODULE_TEMPLATES
@@ -42,7 +43,8 @@ def _ctx(request: Request, user: dict, **extra):
         "user": user,
         "plan": plan,
         "plan_label": limites(plan)["nombre"],
-        "stripe_ok": stripe_configured(),
+        "payments_ok": payments_configured(),
+        "payment_provider": payment_provider(),
         "planes": [
             {"clave": PLAN_PREMIUM, **limites(PLAN_PREMIUM)},
             {"clave": PLAN_FAMILIA, **limites(PLAN_FAMILIA)},

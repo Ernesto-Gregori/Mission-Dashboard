@@ -14,8 +14,8 @@ from app.billing import (
     limites,
     plan_vigente,
     resumen_plan_ui,
+    payments_configured,
     set_plan,
-    stripe_configured,
 )
 from app.database import crear_usuario, listar_usuarios
 from app.multiuser import provision_user_defaults
@@ -84,7 +84,7 @@ def _ctx(
         "plan_resumen": resumen_plan_ui(user),
         "plan_free": PLAN_FREE,
         "lim_free": limites(PLAN_FREE),
-        "stripe_ok": stripe_configured(),
+        "stripe_ok": payments_configured(),
         "usuarios": usuarios,
         "planes_validos": list(PLANES_VALIDOS),
         "auditoria": auditoria,

@@ -75,6 +75,8 @@ def ensure_billing_schema() -> None:
         "ALTER TABLE usuarios ADD COLUMN coach_ia_usado INTEGER DEFAULT 0",
         "ALTER TABLE usuarios ADD COLUMN stripe_customer_id TEXT",
         "ALTER TABLE usuarios ADD COLUMN stripe_subscription_id TEXT",
+        "ALTER TABLE usuarios ADD COLUMN lemon_customer_id TEXT",
+        "ALTER TABLE usuarios ADD COLUMN lemon_subscription_id TEXT",
         """
         CREATE TABLE IF NOT EXISTS uso_ia (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -244,6 +246,28 @@ def stripe_configured() -> bool:
     ))
 
 
+def lemon_configured() -> bool:
+    try:
+        from app.lemon_squeezy import lemon_configured as _lc
+
+        return _lc()
+    except Exception:
+        return False
+
+
+def payments_configured() -> bool:
+    """Lemon Squeezy (preferido) o Stripe."""
+    return lemon_configured() or stripe_configured()
+
+
+def payment_provider() -> str:
+    if lemon_configured():
+        return "lemon"
+    if stripe_configured():
+        return "stripe"
+    return "none"
+
+
 def stripe_link(plan_destino: str) -> str:
     """Payment Link estático (fallback). Preferir Checkout Session."""
     key = {
@@ -316,17 +340,27 @@ def crear_checkout_session(
     username: str | None = None,
 ) -> tuple[str | None, str | None]:
     """
-    Crea Stripe Checkout Session (subscription).
+    Crea checkout de suscripción.
+    Preferencia: Lemon Squeezy (MoR) → Stripe Checkout / Payment Link.
     Retorna (url, error).
     """
     plan_destino = normalizar_plan(plan_destino)
     if plan_destino == PLAN_FREE:
         return None, "Plan Free no requiere pago"
 
+    if lemon_configured():
+        from app.lemon_squeezy import crear_checkout as lemon_checkout
+
+        return lemon_checkout(plan_destino, user_id, username=username)
+
     secret = _secret("STRIPE_SECRET_KEY")
     price = stripe_price_id(plan_destino)
     if not secret:
-        return None, "Falta STRIPE_SECRET_KEY en secrets"
+        return None, (
+            "Falta cobros: configura Lemon Squeezy "
+            "(LEMON_SQUEEZY_API_KEY + STORE_ID + VARIANT_*) "
+            "o STRIPE_SECRET_KEY"
+        )
     if not price:
         # Fallback: payment link
         link = stripe_link(plan_destino)
@@ -616,13 +650,15 @@ def set_plan(
     *,
     stripe_customer_id: str | None = None,
     stripe_subscription_id: str | None = None,
+    lemon_customer_id: str | None = None,
+    lemon_subscription_id: str | None = None,
 ) -> tuple[bool, str]:
     ensure_billing_schema()
     from app.db.core import ejecutar
 
     plan = normalizar_plan(plan)
     try:
-        # Construir UPDATE dinámico para no pisar stripe ids si no vienen
+        # Construir UPDATE dinámico para no pisar ids de cobro si no vienen
         sets = ["plan = ?", "plan_expira_en = ?"]
         params: list[Any] = [plan, plan_expira_en]
         if stripe_customer_id is not None:
@@ -631,6 +667,12 @@ def set_plan(
         if stripe_subscription_id is not None:
             sets.append("stripe_subscription_id = ?")
             params.append(stripe_subscription_id)
+        if lemon_customer_id is not None:
+            sets.append("lemon_customer_id = ?")
+            params.append(lemon_customer_id)
+        if lemon_subscription_id is not None:
+            sets.append("lemon_subscription_id = ?")
+            params.append(lemon_subscription_id)
         params.append(int(user_id))
         ejecutar(
             f"UPDATE usuarios SET {', '.join(sets)} WHERE id = ?",
@@ -648,6 +690,8 @@ def set_plan(
                     "plan_expira_en": plan_expira_en,
                     "stripe_customer_id": stripe_customer_id,
                     "stripe_subscription_id": stripe_subscription_id,
+                    "lemon_customer_id": lemon_customer_id,
+                    "lemon_subscription_id": lemon_subscription_id,
                 },
             )
         except Exception:

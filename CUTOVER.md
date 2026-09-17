@@ -32,7 +32,7 @@ Alternativa: mergear solo el tip (`cursor/fase3-cutover-8925`) si GitHub lo perm
 | Matrimonio (citas/notas/hábitos) | ✅ MVP (IA consejero / chart en Streamlit) |
 | Sandbox + Mentor IA | ✅ |
 | Usuarios admin / backup / auditoría | ✅ |
-| Stripe Checkout + webhook + banner retorno | ✅ |
+| Cobros: Lemon Squeezy (preferido) o Stripe + banner retorno | ✅ |
 
 Gaps conscientes (no bloquean cutover): PDF/ISBN Biblioteca, charts/IA rica Matrimonio.
 
@@ -49,17 +49,21 @@ TURSO_TOKEN=…
 SESSION_SECRET=…   # largo, aleatorio
 GROQ_API_KEY=…
 APP_URL=https://TU-DOMINIO-O-RAILWAY
-STRIPE_SECRET_KEY=…
-STRIPE_WEBHOOK_SECRET=…
-STRIPE_PRICE_PREMIUM=…
-STRIPE_PRICE_FAMILIA=…   # opcional
+# Preferido si Stripe no acepta tu país:
+LEMON_SQUEEZY_API_KEY=…
+LEMON_SQUEEZY_STORE_ID=…
+LEMON_SQUEEZY_VARIANT_PREMIUM=…
+LEMON_SQUEEZY_VARIANT_FAMILIA=…   # opcional
+LEMON_SQUEEZY_WEBHOOK_SECRET=…
+# Alternativa Stripe:
+# STRIPE_SECRET_KEY=… / STRIPE_WEBHOOK_SECRET=… / STRIPE_PRICE_*
 GOOGLE_OAUTH_CLIENT_ID=…
 GOOGLE_OAUTH_CLIENT_SECRET=…
 GOOGLE_OAUTH_REDIRECT_URI=https://TU-DOMINIO/oauth/google/callback
 ```
 
 3. Health: `GET /health` → `{"ok": true, "framework": "fastapi+htmx"}`.
-4. Stripe Dashboard → webhook endpoint: `https://TU-DOMINIO/stripe/webhook` (eventos `checkout.session.completed`, `customer.subscription.*`).
+4. Lemon Squeezy → Settings → Webhooks: `https://TU-DOMINIO/lemon/webhook` (subscription_created/updated/cancelled/expired/…). Si usas Stripe: `/stripe/webhook`.
 5. Google Cloud → redirect URI exacto al callback FastAPI.
 
 Verificación local/CI:
@@ -71,8 +75,8 @@ python scripts/verify_deploy.py http://127.0.0.1:8000
 ## 3. Dominio
 
 1. Apuntar DNS / custom domain de Railway al servicio FastAPI.
-2. Actualizar `APP_URL` y OAuth/Stripe URLs al dominio final.
-3. Probar login, un módulo, checkout test, OAuth Salud.
+2. Actualizar `APP_URL` y OAuth/Lemon (o Stripe) URLs al dominio final.
+3. Probar login, un módulo, checkout test (Lemon test mode), OAuth Salud.
 
 ## 4. Apagar Streamlit Cloud
 
