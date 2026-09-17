@@ -1,35 +1,42 @@
 {% extends "layout_app.html" %}
 {% block content %}
-<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
-<p class="muted">Sistema de 3 sobres · {% for n, label in meses %}{% if n == mes %}{{ label }}{% endif %}{% endfor %} {{ anio }}</p>
+<header class="module-header finance-header" data-module="finanzas">
+  <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
+  <div>
+    <h1>{{ meta.nombre }}</h1>
+    <p class="muted">Sistema de 3 sobres · {% for n, label in meses %}{% if n == mes %}{{ label }}{% endif %}{% endfor %} {{ anio }}</p>
+  </div>
+</header>
 
-{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
-{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
 {% if price_matches %}
-<div class="card">
+<section class="card price-match-card">
   <h2>🏷 Comparación de precios</h2>
-  <p class="muted" style="font-size:0.9rem">
+  <p class="muted compact-copy">
     Cruces automáticos con el catálogo scrapeado (umbral de confianza).
     Si el match es dudoso, aparece como sin coincidencia clara.
   </p>
-  <ul style="margin:0.5rem 0 0;padding-left:1.1rem">
+  <ul class="price-match-list">
     {% for m in price_matches %}
-    <li style="margin-bottom:0.45rem">
+    <li>
       <strong>{{ m.nombre }}</strong><br />
-      <span class="{% if m.sin_coincidencia_clara %}flash-warn{% else %}muted{% endif %}"
-            style="display:inline-block;margin-top:0.2rem;padding:0.25rem 0.45rem;border-radius:6px;font-size:0.9rem">
+      <span class="price-match-result{% if m.sin_coincidencia_clara %} is-uncertain{% endif %}">
         {{ m.resumen }}
       </span>
     </li>
     {% endfor %}
   </ul>
-</div>
+</section>
 {% endif %}
 
-<div class="card" id="precios-sv">
-  <h2>🛒 Precios supermercados SV</h2>
-  <p class="muted" style="font-size:0.9rem">
+<details class="card finance-disclosure" id="precios-sv"{% if q_precios or filtro_super or productos_sv %} open{% endif %}>
+  <summary>
+    <span>🛒 Precios supermercados SV</span>
+    <span class="badge">{{ total_productos_sv }} productos</span>
+  </summary>
+  <p class="muted compact-copy">
     Catálogo local de Selectos, Walmart y Despensa. Al escanear un recibo se cruzan
     precios automáticamente. Actualizar desde aquí hace un scrape corto; el completo
     sigue siendo por CLI/cron.
@@ -39,23 +46,23 @@
     Catálogo vacío — pulsa <strong>Actualizar</strong> en una tienda para cargar precios.
   </div>
   {% endif %}
-  <div style="display:grid;gap:0.75rem;margin-top:0.75rem">
+  <div class="store-list">
     {% for c in catalogo_sv %}
-    <div style="display:flex;flex-wrap:wrap;gap:0.5rem 1rem;align-items:center;justify-content:space-between;padding:0.55rem 0;border-top:1px solid var(--border)">
+    <div class="store-row">
       <div>
         <strong>{{ c.label }}</strong>
         <span class="badge">{{ c.productos }} productos</span>
         {% if c.ultimo_status %}
-        <p class="muted" style="margin:0.2rem 0 0;font-size:0.85rem">
+        <p class="muted store-meta">
           Último scrape: {{ c.ultimo_status }}
           {% if c.ultimo_finished_at %}· {{ c.ultimo_finished_at }}{% endif %}
           {% if c.ultimo_upserted %}· +{{ c.ultimo_upserted }}{% endif %}
         </p>
         {% if c.ultimo_error %}
-        <p class="flash-error" style="margin:0.25rem 0 0;padding:0.25rem 0.4rem;font-size:0.85rem">{{ c.ultimo_error }}</p>
+        <p class="flash-error compact-alert">{{ c.ultimo_error }}</p>
         {% endif %}
         {% else %}
-        <p class="muted" style="margin:0.2rem 0 0;font-size:0.85rem">Sin scrapes todavía</p>
+        <p class="muted store-meta">Sin scrapes todavía</p>
         {% endif %}
       </div>
       <form method="post" action="/app/m/finanzas/precios/actualizar"
@@ -67,7 +74,7 @@
     {% endfor %}
   </div>
 
-  <form method="get" action="/app/m/finanzas" style="display:grid;gap:0.5rem;grid-template-columns:1fr auto auto;align-items:end;margin-top:1rem">
+  <form class="catalog-search-form" method="get" action="/app/m/finanzas">
     <input type="hidden" name="mes" value="{{ mes }}" />
     <input type="hidden" name="anio" value="{{ anio }}" />
     <div>
@@ -87,19 +94,19 @@
   </form>
 
   {% if productos_sv %}
-  <div style="overflow-x:auto;margin-top:0.75rem">
-    <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+  <div class="table-scroll catalog-results">
+    <table class="data-table">
       <thead>
-        <tr style="text-align:left;color:var(--muted)">
-          <th style="padding:0.35rem">Producto</th>
+        <tr>
+          <th>Producto</th>
           <th>Tienda</th>
           <th>Precio</th>
         </tr>
       </thead>
       <tbody>
         {% for p in productos_sv %}
-        <tr style="border-top:1px solid var(--border)">
-          <td style="padding:0.4rem">
+        <tr>
+          <td>
             {% if p.url_producto %}
             <a href="{{ p.url_producto }}" target="_blank" rel="noopener">{{ p.nombre }}</a>
             {% else %}
@@ -114,72 +121,74 @@
     </table>
   </div>
   {% elif q_precios or filtro_super %}
-  <p class="muted" style="margin-top:0.75rem">Sin resultados en el catálogo.</p>
+  <p class="muted empty-inline">Sin resultados en el catálogo.</p>
   {% endif %}
-</div>
+</details>
 
-<div class="card">
+<div class="finance-overview">
+<section class="card">
   <h2>📅 Período e ingreso</h2>
-  <form method="post" action="/app/m/finanzas/periodo" style="display:grid;gap:0.5rem;grid-template-columns:1fr 1fr 1fr;align-items:end">
+  <form class="finance-period-form" method="post" action="/app/m/finanzas/periodo">
     <div>
-      <label>Mes</label>
-      <select name="mes">
+      <label for="finance-month">Mes</label>
+      <select id="finance-month" name="mes">
         {% for n, label in meses %}
         <option value="{{ n }}" {% if n == mes %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
     <div>
-      <label>Año</label>
-      <input name="anio" type="number" value="{{ anio }}" min="2020" max="2035" />
+      <label for="finance-year">Año</label>
+      <input id="finance-year" name="anio" type="number" value="{{ anio }}" min="2020" max="2035" />
     </div>
     <div>
-      <label>Ingreso del mes</label>
-      <input name="monto" type="number" step="0.01" min="0" value="{{ '%.2f'|format(ingreso) if ingreso else '' }}" placeholder="0.00" />
+      <label for="finance-income">Ingreso del mes</label>
+      <input id="finance-income" name="monto" type="number" step="0.01" min="0" value="{{ '%.2f'|format(ingreso) if ingreso else '' }}" placeholder="0.00" />
     </div>
-    <div style="grid-column:1 / -1">
-      <label>Notas</label>
-      <input name="notas" placeholder="opcional" />
+    <div class="field-wide">
+      <label for="finance-notes">Notas</label>
+      <input id="finance-notes" name="notas" placeholder="Opcional" />
     </div>
-    <div style="grid-column:1 / -1">
+    <div class="field-wide form-actions">
       <button class="btn" type="submit">Guardar período / ingreso</button>
     </div>
   </form>
-</div>
+</section>
 
-<div class="card">
+<section class="card finance-summary">
   <h2>Resumen</h2>
   {% if resumen.sin_ingreso %}
   <div class="flash-warn">Sin ingreso este mes — registra uno arriba para ver presupuestos.</div>
   {% else %}
-  <p>
-    Ingreso <strong>${{ '%.0f'|format(resumen.ingreso) }}</strong> ·
-    Gastado <strong>${{ '%.0f'|format(resumen.total_gastado) }}</strong> ·
-    Disponible <strong>${{ '%.0f'|format(resumen.total_disponible) }}</strong>
-    ({{ '%.0f'|format(resumen.pct_global) }}%)
-  </p>
+  <dl class="finance-metrics">
+    <div><dt>Ingreso</dt><dd>${{ '%.0f'|format(resumen.ingreso) }}</dd></div>
+    <div><dt>Gastado</dt><dd>${{ '%.0f'|format(resumen.total_gastado) }}</dd></div>
+    <div><dt>Disponible</dt><dd>${{ '%.0f'|format(resumen.total_disponible) }}</dd></div>
+    <div><dt>Uso global</dt><dd>{{ '%.0f'|format(resumen.pct_global) }}%</dd></div>
+  </dl>
   {% endif %}
+</section>
 </div>
 
-<div class="grid">
+<section class="envelope-grid" aria-label="Estado de los sobres">
   {% for s in sobres_ui %}
-  <div class="card" style="border-left:4px solid {{ s.color }}">
-    <div>{{ s.emoji }} <strong>{{ s.nombre }}</strong></div>
-    <p class="muted" style="font-size:0.85rem">{{ s.descripcion }}</p>
-    <p>
+  <article class="envelope-card" style="--envelope-color:{{ s.color }}">
+    <div class="envelope-heading"><span aria-hidden="true">{{ s.emoji }}</span> <strong>{{ s.nombre }}</strong></div>
+    <p class="muted compact-copy">{{ s.descripcion }}</p>
+    <p class="envelope-progress">
       ${{ '%.0f'|format(s.gastado) }} / ${{ '%.0f'|format(s.presupuesto) }}
       · {{ '%.0f'|format(s.pct_usado) }}%
     </p>
-    <p class="{% if s.disponible < 0 %}flash-error{% else %}muted{% endif %}" style="padding:0.3rem 0;border:none;background:none">
+    <p class="envelope-available{% if s.disponible < 0 %} is-negative{% endif %}">
       Disponible: ${{ '%.0f'|format(s.disponible) }}
     </p>
-  </div>
+  </article>
   {% endfor %}
-</div>
+</section>
 
 <div class="card">
   <h2>📷 Escanear recibo / transferencia</h2>
-  <p class="muted" style="font-size:0.9rem">
+  <p class="muted compact-copy">
     Foto de factura o captura de banco. Revisarás los datos antes de guardar.
     Default: Supervivencia → Comida (editable).
   </p>
@@ -189,12 +198,11 @@
   </div>
   {% else %}
   <form method="post" action="/app/m/finanzas/escanear" enctype="multipart/form-data"
-        id="form_escanear" style="display:grid;gap:0.6rem">
-    <label>Imagen
-      <input name="imagen" type="file" accept="image/*" capture="environment" required />
-    </label>
+        id="form_escanear" class="scan-form">
+    <label for="receipt-image">Imagen</label>
+    <input id="receipt-image" name="imagen" type="file" accept="image/*" capture="environment" required />
     <button class="btn" type="submit" id="btn_escanear">Analizar imagen</button>
-    <p class="muted" id="scan_loading" hidden style="font-size:0.85rem">
+    <p class="muted compact-copy" id="scan_loading" role="status" hidden>
       Leyendo el comprobante… puede tardar unos segundos.
     </p>
   </form>
@@ -215,14 +223,14 @@
 
 <div class="card">
   <h2>➕ Nuevo gasto</h2>
-  <form method="post" action="/app/m/finanzas/gasto">
-    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+  <form class="expense-form" method="post" action="/app/m/finanzas/gasto">
+    <div class="finance-form-grid">
       <div>
-        <label>Fecha</label>
-        <input name="fecha" type="date" value="{{ hoy }}" required />
+        <label for="expense-date">Fecha</label>
+        <input id="expense-date" name="fecha" type="date" value="{{ hoy }}" required />
       </div>
       <div>
-        <label>Sobre</label>
+        <label for="sobre_sel">Sobre</label>
         <select name="sobre" id="sobre_sel" required>
           {% for s in sobres_ui %}
           <option value="{{ s.key }}">{{ s.emoji }} {{ s.nombre }}</option>
@@ -230,7 +238,7 @@
         </select>
       </div>
       <div>
-        <label>Subcategoría</label>
+        <label for="sub_sel">Subcategoría</label>
         <select name="subcategoria" id="sub_sel" required>
           {% for s in sobres_ui[0].subs %}
           <option value="{{ s.clave }}">{{ s.label }}</option>
@@ -238,16 +246,16 @@
         </select>
       </div>
       <div>
-        <label>Monto</label>
-        <input name="monto" type="number" step="0.01" min="0.01" required />
+        <label for="expense-amount">Monto</label>
+        <input id="expense-amount" name="monto" type="number" step="0.01" min="0.01" required />
       </div>
     </div>
-    <label>Descripción</label>
-    <input name="descripcion" required placeholder="Ej: supermercado" />
-    <label style="display:flex;gap:0.4rem;align-items:center;color:var(--text)">
-      <input type="checkbox" name="es_fijo" value="1" style="width:auto;margin:0" /> Gasto fijo
+    <label for="expense-description">Descripción</label>
+    <input id="expense-description" name="descripcion" required placeholder="Ej: supermercado" />
+    <label class="check-row" for="fixed-expense">
+      <input id="fixed-expense" type="checkbox" name="es_fijo" value="1" /> Gasto fijo
     </label>
-    <button class="btn" type="submit" style="margin-top:0.75rem">Agregar gasto</button>
+    <div class="form-actions"><button class="btn" type="submit">Agregar gasto</button></div>
   </form>
 </div>
 
@@ -273,11 +281,11 @@
   {% if not gastos %}
   <p class="muted">Sin gastos este mes.</p>
   {% else %}
-  <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+  <div class="table-scroll">
+    <table class="data-table finance-table">
       <thead>
-        <tr style="text-align:left;color:var(--muted)">
-          <th style="padding:0.35rem">Fecha</th>
+        <tr>
+          <th>Fecha</th>
           <th>Sobre</th>
           <th>Detalle</th>
           <th>Monto</th>
@@ -286,8 +294,8 @@
       </thead>
       <tbody>
         {% for g in gastos %}
-        <tr style="border-top:1px solid var(--border)">
-          <td style="padding:0.4rem">{{ g.fecha }}</td>
+        <tr>
+          <td>{{ g.fecha }}</td>
           <td>{{ g.sobre }}</td>
           <td>{{ g.descripcion }} <span class="badge">{{ g.sub_label }}</span>
             {% if g.origen_label and g.origen_label != 'manual' %}
@@ -297,7 +305,7 @@
           <td>${{ '%.2f'|format(g.monto) }}</td>
           <td>
             <form method="post" action="/app/m/finanzas/gasto/{{ g.id }}/eliminar" onsubmit="return confirm('¿Eliminar gasto?')">
-              <button class="btn secondary" type="submit" style="padding:0.2rem 0.5rem;font-size:0.8rem">✕</button>
+              <button class="btn secondary icon-button" type="submit" aria-label="Eliminar gasto {{ g.descripcion }}">✕</button>
             </form>
           </td>
         </tr>
@@ -319,7 +327,7 @@
   <form method="post" action="/app/m/finanzas/consejo">
     <button class="btn secondary" type="submit">Pedir consejo del mes</button>
   </form>
-  {% if consejo %}<p style="margin-top:0.75rem">{{ consejo }}</p>{% endif %}
+  {% if consejo %}<p class="coach-response">{{ consejo }}</p>{% endif %}
   {% endif %}
 </div>
 {% endblock %}
