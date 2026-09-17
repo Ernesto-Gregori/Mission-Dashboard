@@ -816,6 +816,9 @@ def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
     assert r.status_code == 200, r.text[:500]
     assert b"Salud" in r.content
     assert b"Registro" in r.content or b"sue" in r.content.lower()
+    assert b'class="module-header"' in r.content
+    assert b'class="health-daily-form"' in r.content
+    assert b'class="health-form-section"' in r.content
 
     r = web_client.post(
         "/app/m/salud/guardar",
