@@ -93,32 +93,32 @@
     <h3>➕ Nuevo evento</h3>
     <form method="post" action="/app/m/agenda/evento" class="agenda-form-grid">
       <div>
-        <label>Fecha</label>
-        <input name="fecha" type="date" value="{{ hoy }}" required />
+        <label for="agenda-event-date">Fecha</label>
+        <input id="agenda-event-date" name="fecha" type="date" value="{{ hoy }}" required />
       </div>
       <div>
-        <label>Título</label>
-        <input name="titulo" required placeholder="Ej: Lectura" />
+        <label for="agenda-event-title">Título</label>
+        <input id="agenda-event-title" name="titulo" required placeholder="Ej: Lectura" />
       </div>
       <div>
-        <label>Tipo</label>
-        <select name="tipo">
+        <label for="agenda-event-type">Tipo</label>
+        <select id="agenda-event-type" name="tipo">
           {% for t in tipos_evento %}
           <option value="{{ t }}">{{ t }}</option>
           {% endfor %}
         </select>
       </div>
       <div>
-        <label>Inicio</label>
-        <input name="hora_inicio" type="time" value="19:30" />
+        <label for="agenda-event-start">Inicio</label>
+        <input id="agenda-event-start" name="hora_inicio" type="time" value="19:30" />
       </div>
       <div>
-        <label>Fin</label>
-        <input name="hora_fin" type="time" value="21:00" />
+        <label for="agenda-event-end">Fin</label>
+        <input id="agenda-event-end" name="hora_fin" type="time" value="21:00" />
       </div>
       <div class="field-wide">
-        <label>Descripción</label>
-        <input name="descripcion" placeholder="opcional" />
+        <label for="agenda-event-description">Descripción</label>
+        <input id="agenda-event-description" name="descripcion" placeholder="Opcional" />
       </div>
       <div class="field-wide form-actions">
         <button class="btn" type="submit">Guardar evento</button>
@@ -137,8 +137,8 @@
     </p>
     <form class="date-picker-row" method="post" action="/app/m/agenda/bitacora/semana">
       <div>
-        <label>Elegir semana (cualquier día)</label>
-        <input name="fecha" type="date" value="{{ lunes_bit.isoformat() }}" />
+        <label for="agenda-journal-week">Elegir semana (cualquier día)</label>
+        <input id="agenda-journal-week" name="fecha" type="date" value="{{ lunes_bit.isoformat() }}" />
       </div>
       <button class="btn secondary" type="submit">Ir</button>
     </form>
@@ -153,19 +153,19 @@
       <section class="journal-section">
         <h3>🏆 3 victorias</h3>
         <div class="agenda-form-grid cols-3">
-          <div><label>Victoria 1</label><textarea name="victoria_1" rows="3">{{ bit.victoria_1 }}</textarea></div>
-          <div><label>Victoria 2</label><textarea name="victoria_2" rows="3">{{ bit.victoria_2 }}</textarea></div>
-          <div><label>Victoria 3</label><textarea name="victoria_3" rows="3">{{ bit.victoria_3 }}</textarea></div>
+          <div><label for="journal-victory-1">Victoria 1</label><textarea id="journal-victory-1" name="victoria_1" rows="3">{{ bit.victoria_1 }}</textarea></div>
+          <div><label for="journal-victory-2">Victoria 2</label><textarea id="journal-victory-2" name="victoria_2" rows="3">{{ bit.victoria_2 }}</textarea></div>
+          <div><label for="journal-victory-3">Victoria 3</label><textarea id="journal-victory-3" name="victoria_3" rows="3">{{ bit.victoria_3 }}</textarea></div>
         </div>
       </section>
 
       <section class="journal-section">
         <h3>💰 Monitor financiero</h3>
         <div class="agenda-form-grid">
-          <div><label>Ingreso $</label><input name="ingreso_actual" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.ingreso_actual) }}" /></div>
-          <div><label>Aporte transición $</label><input name="aporte_transicion" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.aporte_transicion) }}" /></div>
-          <div><label>Presupuesto cita $</label><input name="presupuesto_cita" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.presupuesto_cita) }}" /></div>
-          <div><label>Gasto a pausar</label><input name="gasto_pausado" value="{{ bit.gasto_pausado }}" /></div>
+          <div><label for="journal-income">Ingreso $</label><input id="journal-income" name="ingreso_actual" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.ingreso_actual) }}" /></div>
+          <div><label for="journal-transition">Aporte transición $</label><input id="journal-transition" name="aporte_transicion" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.aporte_transicion) }}" /></div>
+          <div><label for="journal-date-budget">Presupuesto cita $</label><input id="journal-date-budget" name="presupuesto_cita" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.presupuesto_cita) }}" /></div>
+          <div><label for="journal-paused-expense">Gasto a pausar</label><input id="journal-paused-expense" name="gasto_pausado" value="{{ bit.gasto_pausado }}" /></div>
           <label class="check-row" for="ss">
             <input type="checkbox" name="sobre_supervivencia" id="ss" {% if bit.sobre_supervivencia %}checked{% endif %} />
             Sobre supervivencia OK
@@ -174,8 +174,8 @@
         <div class="agenda-form-grid cols-3">
           {% for key, label in [('semaforo_superv','Supervivencia'),('semaforo_ahorros','Ahorros'),('semaforo_extras','Extras')] %}
           <div>
-            <label>{{ label }}</label>
-            <select name="{{ key }}">
+            <label for="journal-{{ key }}">{{ label }}</label>
+            <select id="journal-{{ key }}" name="{{ key }}">
               {% for o in opciones_sem %}
               <option value="{{ o }}" {% if bit[key] == o %}selected{% endif %}>{{ semaforos[o] }} {{ o }}</option>
               {% endfor %}
@@ -188,25 +188,25 @@
       <section class="journal-section">
         <h3>💑 Cita / conexión</h3>
         <div class="agenda-form-grid cols-2">
-          <div><label>Actividad</label><input name="actividad_cita" value="{{ bit.actividad_cita }}" /></div>
-          <div><label>Costo $</label><input name="costo_cita" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.costo_cita) }}" /></div>
+          <div><label for="journal-date-activity">Actividad</label><input id="journal-date-activity" name="actividad_cita" value="{{ bit.actividad_cita }}" /></div>
+          <div><label for="journal-date-cost">Costo $</label><input id="journal-date-cost" name="costo_cita" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bit.costo_cita) }}" /></div>
         </div>
       </section>
 
       <section class="journal-section">
         <h3>📚 Lectura</h3>
         <div class="agenda-form-grid cols-2">
-          <div><label>Libro</label><input name="libro_actual" value="{{ bit.libro_actual }}" /></div>
-          <div><label>Página</label><input name="pagina_actual" type="number" min="0" value="{{ bit.pagina_actual }}" /></div>
-          <div class="field-wide"><label>Frase favorita</label><textarea name="frase_favorita" rows="2">{{ bit.frase_favorita }}</textarea></div>
+          <div><label for="journal-book">Libro</label><input id="journal-book" name="libro_actual" value="{{ bit.libro_actual }}" /></div>
+          <div><label for="journal-page">Página</label><input id="journal-page" name="pagina_actual" type="number" min="0" value="{{ bit.pagina_actual }}" /></div>
+          <div class="field-wide"><label for="journal-quote">Frase favorita</label><textarea id="journal-quote" name="frase_favorita" rows="2">{{ bit.frase_favorita }}</textarea></div>
         </div>
       </section>
 
       <section class="journal-section">
         <h3>🌙 Vaciado mental</h3>
         <div class="agenda-form-grid cols-2">
-          <div><label>Pendientes a soltar</label><textarea name="pendientes_soltar" rows="4">{{ bit.pendientes_soltar }}</textarea></div>
-          <div><label>Reflexión</label><textarea name="reflexion_semana" rows="4">{{ bit.reflexion_semana }}</textarea></div>
+          <div><label for="journal-release">Pendientes a soltar</label><textarea id="journal-release" name="pendientes_soltar" rows="4">{{ bit.pendientes_soltar }}</textarea></div>
+          <div><label for="journal-reflection">Reflexión</label><textarea id="journal-reflection" name="reflexion_semana" rows="4">{{ bit.reflexion_semana }}</textarea></div>
         </div>
       </section>
 
@@ -239,8 +239,8 @@
     {% else %}
     <form class="history-filter" method="get" action="/app/m/agenda">
       <input type="hidden" name="tab" value="historial" />
-      <label>Semana</label>
-      <select name="hist" onchange="this.form.submit()">
+      <label for="agenda-history-week">Semana</label>
+      <select id="agenda-history-week" name="hist" onchange="this.form.submit()">
         {% for b in historial %}
         <option value="{{ b.semana_inicio }}" {% if b.semana_inicio == hist_sel %}selected{% endif %}>{{ b.semana_inicio }}</option>
         {% endfor %}
