@@ -728,6 +728,9 @@ def test_agenda_calendario_y_bitacora(web_client):
     assert b"Agenda" in r.content
     assert b"Calendario" in r.content
     assert b"Nuevo evento" in r.content
+    assert b'class="module-header"' in r.content
+    assert b'class="agenda-form-grid"' in r.content
+    assert b'aria-current="page"' in r.content
 
     r = web_client.post(
         "/app/m/agenda/evento",
@@ -747,6 +750,7 @@ def test_agenda_calendario_y_bitacora(web_client):
     r = web_client.get("/app/m/agenda?tab=bitacora")
     assert r.status_code == 200
     assert b"Bit" in r.content or b"victorias" in r.content.lower()
+    assert b'class="journal-section"' in r.content
 
     from app.db.agenda import obtener_lunes_semana
     from app.timezone_config import hoy as _hoy
