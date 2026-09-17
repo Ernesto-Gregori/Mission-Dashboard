@@ -124,6 +124,9 @@ def test_coach_flow_activa_modulos(web_client):
     assert r.status_code == 200
     assert b"Finanzas" in r.content
     assert b"Nuevo gasto" in r.content or b"ingreso" in r.content.lower()
+    assert b'class="module-header"' in r.content
+    assert b'class="finance-overview"' in r.content
+    assert b'class="expense-form"' in r.content
 
     # Guardar ingreso + gasto
     r = web_client.post(
@@ -146,6 +149,7 @@ def test_coach_flow_activa_modulos(web_client):
     )
     assert r.status_code == 200
     assert b"super" in r.content
+    assert b'class="data-table finance-table"' in r.content
 
 
 def test_secrets_reads_env(monkeypatch, tmp_path):
