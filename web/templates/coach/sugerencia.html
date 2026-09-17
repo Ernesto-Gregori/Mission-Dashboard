@@ -1,26 +1,28 @@
 {% extends "base.html" %}
 {% block body %}
 {% if hide_nav %}
-<div class="auth-wrap" style="max-width:720px">
+<main class="auth-wrap coach-suggestion-wrap" id="main-content" tabindex="-1">
   <div class="card">
 {% else %}
 <div class="shell">
   <aside class="sidebar">
-    <div class="brand">Mission Dashboard</div>
-    <div class="meta">{{ user.username }} · Coach</div>
-    <nav>
+    <header class="sidebar-header">
+      <a class="brand" href="/app">Mission Dashboard</a>
+      <div class="meta">{{ user.username }} · Coach</div>
+    </header>
+    <nav aria-label="Navegación principal">
       <a href="/app">🏠 Control de mando</a>
-      <a href="/app/coach" class="active">🤖 Coach</a>
+      <a href="/app/coach" class="active" aria-current="page">🤖 Coach</a>
     </nav>
   </aside>
-  <main class="main">
+  <main class="main" id="main-content" tabindex="-1">
 {% endif %}
 
 <h1>Tu sistema propuesto</h1>
 <p class="muted">{{ plan_resumen }}{% if tope %} · elige hasta {{ tope }} módulos{% endif %}</p>
-{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
-<div class="flash-ok">{{ sug.resumen }}</div>
+<div class="flash-ok" role="status">{{ sug.resumen }}</div>
 <p class="muted" style="font-size:0.85rem">
   Fuente: {% if sug.fuente == 'ia' %}Groq IA{% else %}reglas / fallback (IA offline){% endif %}
 </p>
@@ -69,5 +71,5 @@
 </div>
 {% endif %}
 
-{% if hide_nav %}</div></div>{% else %}</main></div>{% endif %}
+{% if hide_nav %}</div></main>{% else %}</main></div>{% endif %}
 {% endblock %}
