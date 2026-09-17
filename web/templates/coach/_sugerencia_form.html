@@ -1,0 +1,49 @@
+<h1>Tu sistema propuesto</h1>
+<p class="muted">{{ plan_resumen }}{% if tope %} · elige hasta {{ tope }} módulos{% endif %}</p>
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<div class="flash-ok" role="status">{{ sug.resumen }}</div>
+<p class="muted compact-copy coach-source">
+  Fuente: {% if sug.fuente == 'ia' %}Groq IA{% else %}reglas / fallback (IA offline){% endif %}
+</p>
+{% if sug.fuente != 'ia' %}
+<div class="flash-warn">
+  El Coach IA está offline. FastAPI lee <code>GROQ_API_KEY</code> desde el entorno
+  o <code>.streamlit/secrets.toml</code> / <code>.env</code> — no desde el panel de Streamlit Cloud
+  si corres uvicorn aparte. Reinicia el servidor tras añadir la clave.
+</div>
+{% endif %}
+
+<form class="coach-suggestion-form" method="post" action="/app/coach/activar">
+  <h2>Módulos</h2>
+  {% for m in mods_ui %}
+  <label class="coach-module-option" for="coach-mod-{{ m.clave }}">
+    <input id="coach-mod-{{ m.clave }}" type="checkbox" name="modulos" value="{{ m.clave }}" {% if m.checked %}checked{% endif %} />
+    <span>
+      <strong>{{ m.emoji }} {{ m.nombre }}</strong>
+      <span class="muted compact-copy">{{ m.razon }}</span>
+    </span>
+  </label>
+  {% endfor %}
+
+  {% if sug.habitos %}
+  <h2>Hábitos sugeridos</h2>
+  <ul class="muted">
+    {% for h in sug.habitos[:6] %}
+    <li>{{ h.emoji or '⭐' }} {{ h.label or h.clave }} · {{ h.hora or '—' }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <div class="form-actions">
+    <button class="btn secondary" type="submit" formaction="/app/coach/atras" formmethod="post">← Atrás</button>
+    <button class="btn" type="submit">✅ Activar mi sistema</button>
+  </div>
+</form>
+
+{% if plan == free and stripe_ok %}
+<div class="card coach-upsell">
+  <p class="muted">¿Necesitas más de {{ tope }} módulos? Premium desbloquea todos.</p>
+  <a class="btn secondary" href="/app/billing">Ver Premium</a>
+</div>
+{% endif %}
