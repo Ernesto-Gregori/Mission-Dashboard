@@ -34,7 +34,9 @@ def max_video_bytes() -> int:
         mb = float(raw)
     except ValueError:
         mb = DEFAULT_MAX_MB
-    return int(max(1.0, mb) * 1024 * 1024)
+    if mb <= 0:
+        mb = DEFAULT_MAX_MB
+    return max(1, int(mb * 1024 * 1024))
 
 
 def max_video_seconds() -> int:

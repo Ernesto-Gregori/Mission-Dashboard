@@ -375,6 +375,35 @@ def _write_jpg(dest: Path) -> Path:
     return p
 
 
+def test_extract_keyframes_samples_short_clip(tmp_path):
+    clip = tmp_path / "clip.mp4"
+    proc = __import__("subprocess").run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=160x120:d=4",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-t",
+            "4",
+            str(clip),
+        ],
+        capture_output=True,
+    )
+    if proc.returncode != 0 or not clip.is_file():
+        pytest.skip("ffmpeg/libx264 no disponible para generar el clip de prueba")
+    from app.exercise_analysis import extract_keyframes
+
+    frames = extract_keyframes(clip, tmp_path / "frames", duration=4.0)
+    assert 1 <= len(frames) <= 10
+    assert all(p.suffix == ".jpg" and p.is_file() for p in frames)
+
+
 def test_duration_over_hard_max_rejected(tmp_path, monkeypatch):
     monkeypatch.setenv("EXERCISE_STORAGE_DIR", str(tmp_path))
     monkeypatch.setenv("EXERCISE_VIDEO_HARD_MAX_SECONDS", "90")

@@ -844,6 +844,7 @@ textarea {
 }
 
 .ex-library-cta { margin: 0.35rem 0 0.85rem; }
+.ex-library-wrap { padding-bottom: 0.35rem; }
 .ex-tab { display: grid; gap: 1rem; }
 .ex-upload-form { max-width: 34rem; }
 .ex-section h3 {
