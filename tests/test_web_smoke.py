@@ -817,7 +817,6 @@ def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
     assert b"Salud" in r.content
     assert b"Registro" in r.content or b"sue" in r.content.lower()
     assert b'class="module-header"' in r.content
-    assert b'class="health-metrics"' in r.content
     assert b'class="health-daily-form"' in r.content
     assert b'class="health-form-section"' in r.content
 
@@ -845,6 +844,7 @@ def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
     )
     assert r.status_code == 200
     assert b"pullups" in r.content or b"Calistenia" in r.content or b"7.5" in r.content
+    assert b'class="health-metrics"' in r.content
 
     r = web_client.get("/app/m/salud?tab=historial")
     assert r.status_code == 200
