@@ -4,11 +4,12 @@
   <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
   <div>
     <h1>{{ meta.nombre }}</h1>
-    <p class="muted">Sueño · energía · ejercicio · Google Fit</p>
+    <p class="muted">Sueño · energía · ejercicio · biblioteca de videos · Google Fit</p>
   </div>
 </header>
 
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if warn %}<div class="flash-warn" role="status">{{ warn }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
 {% if stats7 %}
@@ -21,6 +22,7 @@
 
 <nav class="agenda-tabs health-tabs" aria-label="Secciones de Salud">
   <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/salud?tab=hoy&fecha={{ fecha }}"{% if tab == 'hoy' %} aria-current="page"{% endif %}>📅 Hoy</a>
+  <a class="{% if tab == 'ejercicios' %}active{% endif %}" href="/app/m/salud?tab=ejercicios"{% if tab == 'ejercicios' %} aria-current="page"{% endif %}>Mis ejercicios</a>
   <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/salud?tab=historial"{% if tab == 'historial' %} aria-current="page"{% endif %}>🗂️ Historial</a>
   <a class="{% if tab == 'coach' %}active{% endif %}" href="/app/m/salud?tab=coach"{% if tab == 'coach' %} aria-current="page"{% endif %}>🤖 Coach IA</a>
 </nav>
@@ -106,6 +108,9 @@
 
       <fieldset class="health-form-section">
         <legend>Ejercicio</legend>
+        <p class="ex-library-cta">
+          <a class="btn secondary" href="/app/m/salud?tab=ejercicios">Agregar ejercicio desde video</a>
+        </p>
         <label class="check-row" for="ej">
           <input type="checkbox" name="hizo_ejercicio" id="ej" {% if form.hizo_ejercicio %}checked{% endif %} />
           Hice ejercicio
@@ -190,6 +195,90 @@
       {% endfor %}
     </ul>
     {% endif %}
+  </div>
+</section>
+{% endif %}
+
+{% if tab == 'ejercicios' %}
+<section class="ex-tab">
+  <div class="card">
+    <h2>Agregar ejercicio desde video</h2>
+    <p class="muted">Elige un clip ya guardado en tu galería (mp4 o mov). No se descarga nada de Instagram, TikTok, YouTube ni Facebook: tú aportas el archivo.</p>
+    <form class="ex-upload-form" method="post" action="/app/m/salud/ejercicios/subir" enctype="multipart/form-data">
+      <div>
+        <label for="ex-video">Video del ejercicio</label>
+        <input id="ex-video" name="video" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" required />
+      </div>
+      <div>
+        <label for="ex-platform">Plataforma de origen (opcional, solo atribución)</label>
+        <select id="ex-platform" name="source_platform">
+          <option value="">No indicar</option>
+          {% for p in platforms %}
+          <option value="{{ p }}">{{ platform_labels.get(p, p) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <p class="muted compact-copy">Máximo {{ video_max_mb }} MB. Lo ideal es un solo ejercicio de {{ video_max_seconds }} s o menos (se rechaza si supera {{ video_hard_max_seconds }} s).</p>
+      <div class="form-actions">
+        <button class="btn" type="submit" id="btn-ex-upload">Subir y analizar</button>
+      </div>
+      <p class="muted compact-copy" id="ex-upload-status" role="status" hidden>Subiendo video… el análisis empieza en segundo plano.</p>
+    </form>
+    <script>
+      (function () {
+        const form = document.querySelector('.ex-upload-form');
+        const input = document.getElementById('ex-video');
+        const btn = document.getElementById('btn-ex-upload');
+        const status = document.getElementById('ex-upload-status');
+        if (!form || !input) return;
+        const maxBytes = {{ video_max_mb }} * 1024 * 1024;
+        input.addEventListener('change', function () {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          if (file.size > maxBytes) {
+            input.setCustomValidity('El video supera el límite de {{ video_max_mb }} MB.');
+            input.reportValidity();
+            input.value = '';
+            return;
+          }
+          input.setCustomValidity('');
+        });
+        form.addEventListener('submit', function () {
+          if (btn) { btn.disabled = true; btn.textContent = 'Subiendo…'; }
+          if (status) status.hidden = false;
+        });
+      })();
+    </script>
+  </div>
+
+  <div class="card ex-library-wrap">
+    {% include "modules/_ejercicios_lista.html" %}
+  </div>
+
+  <div class="card">
+    <h2>Equipamiento disponible</h2>
+    <p class="muted">Para el armador de rutinas: qué tienes a mano (banda elástica, pesa rusa, etc.).</p>
+    {% if user_equipment %}
+    <ul class="ex-equip-list">
+      {% for eq in user_equipment %}
+      <li>
+        <span>{{ eq.equipment_name }}</span>
+        <form method="post" action="/app/m/salud/equipamiento/{{ eq.id }}/borrar">
+          <button class="btn secondary" type="submit">Quitar</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Todavía no registraste equipamiento.</p>
+    {% endif %}
+    <form class="ex-equip-form" method="post" action="/app/m/salud/equipamiento">
+      <label for="eq-name">Nuevo equipamiento</label>
+      <div class="ex-equip-row">
+        <input id="eq-name" name="equipment_name" maxlength="80" placeholder="Ej. banda elástica" required />
+        <button class="btn" type="submit">Añadir</button>
+      </div>
+    </form>
   </div>
 </section>
 {% endif %}
