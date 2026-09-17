@@ -816,6 +816,10 @@ def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
     assert r.status_code == 200, r.text[:500]
     assert b"Salud" in r.content
     assert b"Registro" in r.content or b"sue" in r.content.lower()
+    assert b'class="module-header"' in r.content
+    assert b'class="health-metrics"' in r.content
+    assert b'class="health-daily-form"' in r.content
+    assert b'class="health-form-section"' in r.content
 
     r = web_client.post(
         "/app/m/salud/guardar",
@@ -845,6 +849,7 @@ def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
     r = web_client.get("/app/m/salud?tab=historial")
     assert r.status_code == 200
     assert b"2026-07-28" in r.content
+    assert b'class="health-history-list"' in r.content
 
     # Callback sin code/state → redirect error
     r = web_client.get("/oauth/google/callback", follow_redirects=False)
