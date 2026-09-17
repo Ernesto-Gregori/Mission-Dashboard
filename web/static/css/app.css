@@ -1385,6 +1385,33 @@ textarea {
   .compact-actions .btn { width: 100%; }
 }
 
+/* Usuarios */
+.users-page-header { margin-bottom: 1rem; }
+.users-page-header h1,
+.users-page-header p { margin: 0; }
+.users-page-header p { margin-top: 0.35rem; }
+.users-tabs a.active { box-shadow: inset 0 -2px 0 var(--accent); }
+.users-notice,
+.backup-result { margin-top: 1rem; }
+.user-plan-form,
+.user-create-form { margin-top: 0.75rem; }
+.users-form-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+.users-form-grid.plan-grid { grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); }
+.users-form-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.users-form-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 700px) {
+  .users-form-grid.plan-grid,
+  .users-form-grid.cols-3 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .users-form-grid.cols-2 { grid-template-columns: 1fr; }
+}
+
 .briefing-block {
   margin: 1.25rem 0 1.75rem;
   padding-bottom: 1.25rem;
