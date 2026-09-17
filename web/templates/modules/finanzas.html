@@ -8,6 +8,12 @@
   </div>
 </header>
 
+<nav class="agenda-tabs" aria-label="Secciones de Finanzas">
+  <a class="{% if finanzas_section == 'sobres' %}active{% endif %}" href="/app/m/finanzas?mes={{ mes }}&anio={{ anio }}">📒 Sobres y gastos</a>
+  <a class="{% if finanzas_section == 'precios' %}active{% endif %}" href="/app/m/finanzas/precios?mes={{ mes }}&anio={{ anio }}">🛒 Precios supermercados</a>
+</nav>
+
+
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
@@ -28,102 +34,11 @@
     </li>
     {% endfor %}
   </ul>
+  <p class="muted compact-copy" style="margin-top:0.75rem">
+    <a href="/app/m/finanzas/precios?mes={{ mes }}&anio={{ anio }}">Ver catálogo de supermercados →</a>
+  </p>
 </section>
 {% endif %}
-
-<details class="card finance-disclosure" id="precios-sv"{% if q_precios or filtro_super or productos_sv %} open{% endif %}>
-  <summary>
-    <span>🛒 Precios supermercados SV</span>
-    <span class="badge">{{ total_productos_sv }} productos</span>
-  </summary>
-  <p class="muted compact-copy">
-    Catálogo local de Selectos, Walmart y Despensa. Al escanear un recibo se cruzan
-    precios automáticamente. Actualizar desde aquí hace un scrape corto; el completo
-    sigue siendo por CLI/cron.
-  </p>
-  {% if total_productos_sv == 0 %}
-  <div class="flash-warn">
-    Catálogo vacío — pulsa <strong>Actualizar</strong> en una tienda para cargar precios.
-  </div>
-  {% endif %}
-  <div class="store-list">
-    {% for c in catalogo_sv %}
-    <div class="store-row">
-      <div>
-        <strong>{{ c.label }}</strong>
-        <span class="badge">{{ c.productos }} productos</span>
-        {% if c.ultimo_status %}
-        <p class="muted store-meta">
-          Último scrape: {{ c.ultimo_status }}
-          {% if c.ultimo_finished_at %}· {{ c.ultimo_finished_at }}{% endif %}
-          {% if c.ultimo_upserted %}· +{{ c.ultimo_upserted }}{% endif %}
-        </p>
-        {% if c.ultimo_error %}
-        <p class="flash-error compact-alert">{{ c.ultimo_error }}</p>
-        {% endif %}
-        {% else %}
-        <p class="muted store-meta">Sin scrapes todavía</p>
-        {% endif %}
-      </div>
-      <form method="post" action="/app/m/finanzas/precios/actualizar"
-            onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Actualizando…';">
-        <input type="hidden" name="supermercado" value="{{ c.key }}" />
-        <button class="btn secondary" type="submit">Actualizar</button>
-      </form>
-    </div>
-    {% endfor %}
-  </div>
-
-  <form class="catalog-search-form" method="get" action="/app/m/finanzas">
-    <input type="hidden" name="mes" value="{{ mes }}" />
-    <input type="hidden" name="anio" value="{{ anio }}" />
-    <div>
-      <label for="q_precios">Buscar en catálogo</label>
-      <input id="q_precios" name="q_precios" value="{{ q_precios }}" placeholder="Ej: leche, papel higiénico" />
-    </div>
-    <div>
-      <label for="super_filtro">Tienda</label>
-      <select id="super_filtro" name="super">
-        <option value="">Todas</option>
-        {% for c in catalogo_sv %}
-        <option value="{{ c.key }}" {% if filtro_super == c.key %}selected{% endif %}>{{ c.label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button class="btn secondary" type="submit">Buscar</button>
-  </form>
-
-  {% if productos_sv %}
-  <div class="table-scroll catalog-results">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Producto</th>
-          <th>Tienda</th>
-          <th>Precio</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in productos_sv %}
-        <tr>
-          <td>
-            {% if p.url_producto %}
-            <a href="{{ p.url_producto }}" target="_blank" rel="noopener">{{ p.nombre }}</a>
-            {% else %}
-            {{ p.nombre }}
-            {% endif %}
-          </td>
-          <td>{{ p.label }}</td>
-          <td>{% if p.precio is not none %}${{ '%.2f'|format(p.precio) }}{% else %}—{% endif %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% elif q_precios or filtro_super %}
-  <p class="muted empty-inline">Sin resultados en el catálogo.</p>
-  {% endif %}
-</details>
 
 <div class="finance-overview">
 <section class="card">

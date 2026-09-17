@@ -11,8 +11,8 @@ para servidor casero / uso personal. **No merge a main** hasta validar.
 - Visión OCR: Groq vision (`qwen/qwen3.6-27b` u otro disponible) con `GROQ_API_KEY`.
 - Default al escanear súper: sobre `Supervivencia` / subcat `Comida` (editable en confirmación).
 - Scrapers: script + cron; empezar por Súper Selectos.
-- Matching v1: fuzzy + umbral `PRICE_MATCH_SCORE_MIN = 0.78`.
-
+- Matching v1: fuzzy + umbral `PRICE_MATCH_SCORE_MIN = 0.82` (afinado).
+- UI precios: sección aparte `/app/m/finanzas/precios` (no mezclada con sobres/gastos).
 ## Phases
 - [x] Fase 0: inventario del código actual
 - [x] Fase 1: schema + CRUD satélite + tests
@@ -24,8 +24,8 @@ para servidor casero / uso personal. **No merge a main** hasta validar.
 - [x] UI catálogo SV: sección Precios supermercados (estado + Actualizar + búsqueda)
 
 ## Checkpoint Fase 4
-- [x] Normalización SV + fuzzy (difflib/tokens), umbral 0.78
+- [x] Normalización SV + fuzzy (difflib/tokens), umbral 0.82
 - [x] Tests con nombres típicos de recibo
 - [x] Al confirmar escaneo → `price_matches` + tarjeta “Comparación de precios”
-- [x] Sección visible de Selectos / Walmart / Despensa en Finanzas
+- [x] Sección aparte `/app/m/finanzas/precios` (Selectos / Walmart / Despensa)
 

@@ -133,16 +133,30 @@ def test_resumen_y_busqueda_catalogo(isolated_db):
     assert hits[0]["nombre"].startswith("Leche")
 
 
-def test_finanzas_muestra_seccion_supermercados(web_client):
+def test_finanzas_sobres_sin_catalogo_inline(web_client):
     _setup_finanzas(web_client)
     r = web_client.get("/app/m/finanzas")
     assert r.status_code == 200
     body = r.text
-    assert "Precios supermercados SV" in body
+    assert "Sobres y gastos" in body
+    assert "Precios supermercados" in body
+    assert 'href="/app/m/finanzas/precios' in body
+    # catálogo vive en otra sección, no embebido
+    assert "Catálogo vacío" not in body
+    assert "Buscar en catálogo" not in body
+
+
+def test_finanzas_precios_es_seccion_aparte(web_client):
+    _setup_finanzas(web_client)
+    r = web_client.get("/app/m/finanzas/precios")
+    assert r.status_code == 200
+    body = r.text
+    assert "Precios supermercados" in body
     assert "Súper Selectos" in body
     assert "Walmart SV" in body
     assert "Despensa de Don Juan" in body
     assert "Catálogo vacío" in body
+    assert "Escanear recibo" not in body
 
 
 def test_actualizar_catalogo_dispara_scraper(web_client, monkeypatch):
@@ -164,7 +178,9 @@ def test_actualizar_catalogo_dispara_scraper(web_client, monkeypatch):
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert "flash=catalogo" in r.headers.get("location", "")
+    loc = r.headers.get("location", "")
+    assert "/app/m/finanzas/precios" in loc
+    assert "flash=catalogo" in loc
     assert called == ["super_selectos"]
 
     from app.db import finanzas_receipts as fr
@@ -176,6 +192,6 @@ def test_actualizar_catalogo_dispara_scraper(web_client, monkeypatch):
         precio=0.65,
         sku_o_id_externo="y1",
     )
-    r2 = web_client.get("/app/m/finanzas?q_precios=yogurt")
+    r2 = web_client.get("/app/m/finanzas/precios?q_precios=yogurt")
     assert r2.status_code == 200
     assert "Yogurt Fresa" in r2.text

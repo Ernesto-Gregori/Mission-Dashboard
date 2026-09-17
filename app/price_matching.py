@@ -2,7 +2,7 @@
 Matching de ítems de recibo ↔ catálogo supermarket_products (Fase 4).
 
 v1: normalización salvadoreña + similitud de texto (difflib + tokens).
-Umbral: PRICE_MATCH_SCORE_MIN (default 0.78). Por debajo → sin coincidencia clara.
+Umbral: PRICE_MATCH_SCORE_MIN (default 0.82). Por debajo → sin coincidencia clara.
 Embeddings: pospuesto.
 """
 from __future__ import annotations
@@ -36,18 +36,24 @@ _ABBREVS: list[tuple[str, str]] = [
     ("und", "unidad"),
     ("uds", "unidades"),
     ("ud", "unidad"),
-    ("lts", "litros"),
+    ("lts", "litro"),
+    ("litros", "litro"),
     ("lt", "litro"),
     ("litro", "litro"),
     ("ml", "ml"),
     ("kgs", "kg"),
     ("kg", "kg"),
+    ("lbs", "lb"),
+    ("lb", "lb"),
     ("grs", "g"),
     ("gr", "g"),
     ("pz", "pieza"),
     ("pza", "pieza"),
     ("cj", "caja"),
     ("doc", "docena"),
+    ("huevos", "huevo"),
+    ("rollos", "rollo"),
+    ("unidades", "unidad"),
 ]
 
 _STOP = frozenset(
@@ -84,8 +90,12 @@ def normalize_product_name(text: str) -> str:
     """Minúsculas, sin acentos, abreviaturas SV expandidas, espacios limpios."""
     t = strip_accents((text or "").lower())
     t = t.replace("&", " y ")
-    # separar número+unidad pegados: 52.7g → 52.7 g, 12u → 12 u
-    t = re.sub(r"(\d+[.,]?\d*)(ml|l|kg|g|u|und|uds|unid|pz)\b", r"\1 \2", t)
+    # separar número+unidad pegados: 52.7g → 52.7 g, 12u → 12 u, 2lb → 2 lb
+    t = re.sub(
+        r"(\d+[.,]?\d*)(ml|l|kg|g|u|und|uds|unid|pz|lb|lbs|r)\b",
+        r"\1 \2",
+        t,
+    )
     t = re.sub(r"[^a-z0-9\s./]", " ", t)
     t = t.replace("/", " ")
     t = t.replace(",", ".")
@@ -96,6 +106,8 @@ def normalize_product_name(text: str) -> str:
     t = re.sub(r"\b(\d+)\s*ml\b", r"\1 ml", t)
     t = re.sub(r"\b(\d+)\s*g\b", r"\1 g", t)
     t = re.sub(r"\b(\d+)\s*kg\b", r"\1 kg", t)
+    t = re.sub(r"\b(\d+)\s*lbs?\b", r"\1 lb", t)
+    t = re.sub(r"\b(\d+)\s*r\b", r"\1 rollo", t)  # 18R en papel higiénico
     # aplicar abreviaturas como tokens
     tokens = t.split()
     out: list[str] = []
@@ -124,7 +136,8 @@ def _tokens(text: str) -> set[str]:
 
 def similarity_score(a: str, b: str) -> float:
     """
-    Score 0..1: max entre SequenceMatcher, token-sort y contención de tokens núcleo.
+    Score 0..1: SequenceMatcher + tokens, con castigo por atributos en conflicto
+    y tope cuando la consulta es solo marca (ARIEL, SCOTT…).
     """
     na = normalize_product_name(a)
     nb = normalize_product_name(b)
@@ -144,10 +157,23 @@ def similarity_score(a: str, b: str) -> float:
     core_b = {t for t in tb if t.isalpha() and len(t) >= 4}
     if core_a:
         core_hit = len(core_a & core_b) / len(core_a)
+        exclusive_a = core_a - core_b
     else:
         core_hit = 0.0
+        exclusive_a = set()
     blended = 0.35 * seq + 0.25 * jaccard + 0.20 * containment + 0.20 * core_hit
-    return max(seq, sort_ratio, blended, core_hit * 0.85 + containment * 0.15)
+    # No usar el atajo core*0.85+contención: inflaba marcas sueltas a 1.0
+    score = max(seq, sort_ratio, blended)
+    if core_a and exclusive_a:
+        score -= 0.18 * (len(exclusive_a) / len(core_a))
+    # Todos los núcleos del recibo aparecen en el catálogo → piso alto
+    if core_a and core_hit >= 0.99 and containment >= 0.45:
+        score = max(score, 0.80 + 0.18 * containment)
+    # Marca suelta sin cantidad/tamaño → no promocionar por contención
+    has_qty = any(any(ch.isdigit() for ch in t) for t in ta)
+    if len(core_a) <= 1 and len(core_b - core_a) >= 1 and not has_qty:
+        score = min(score, max(blended, seq * 0.9))
+    return max(0.0, min(1.0, score))
 
 
 @dataclass

@@ -97,8 +97,7 @@ def _periodo(request: Request) -> tuple[int, int]:
     return mes, anio
 
 
-def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str | None = None):
-    mes, anio = _periodo(request)
+def _flash(request: Request, flash: str | None = None) -> str | None:
     if not flash:
         flash = request.session.pop(SESSION_FLASH_KEY, None)
     flash_q = request.query_params.get("flash") or ""
@@ -106,6 +105,12 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         flash = "Gasto escaneado guardado. Revisa el historial."
     elif not flash and flash_q == "catalogo":
         flash = "Catálogo de supermercados actualizado."
+    return flash
+
+
+def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str | None = None):
+    mes, anio = _periodo(request)
+    flash = _flash(request, flash)
     resumen = calcular_sobres(mes, anio)
     gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=80)
     for g in gastos:
@@ -121,18 +126,6 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
                 for s in data.get("subcategorias", SOBRES_CONFIG[key]["subcategorias"])
             ],
         })
-    q_precios = (request.query_params.get("q_precios") or "").strip()
-    filtro_super = (request.query_params.get("super") or "").strip() or None
-    if filtro_super and filtro_super not in SUPERMERCADOS:
-        filtro_super = None
-    catalogo_sv = fr.resumen_catalogo_sv()
-    productos_sv = (
-        fr.buscar_productos(q_precios, supermercado=filtro_super, limit=40)
-        if q_precios or filtro_super
-        else fr.buscar_productos("", limit=12)
-    )
-    for p in productos_sv:
-        p["label"] = SUPERMERCADO_LABELS.get(p.get("supermercado"), p.get("supermercado"))
     return {
         "title": "Finanzas",
         "user": user,
@@ -152,11 +145,41 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "consejo": None,
         "vision_ok": api_key_configurada(),
         "price_matches": request.session.pop(SESSION_MATCHES_KEY, None),
+        "finanzas_section": "sobres",
+    }
+
+
+def _precios_ctx(request: Request, user: dict, *, flash: str | None = None, error: str | None = None):
+    mes, anio = _periodo(request)
+    flash = _flash(request, flash)
+    q_precios = (request.query_params.get("q_precios") or "").strip()
+    filtro_super = (request.query_params.get("super") or "").strip() or None
+    if filtro_super and filtro_super not in SUPERMERCADOS:
+        filtro_super = None
+    catalogo_sv = fr.resumen_catalogo_sv()
+    productos_sv = (
+        fr.buscar_productos(q_precios, supermercado=filtro_super, limit=40)
+        if q_precios or filtro_super
+        else fr.buscar_productos("", limit=24)
+    )
+    for p in productos_sv:
+        p["label"] = SUPERMERCADO_LABELS.get(p.get("supermercado"), p.get("supermercado"))
+    return {
+        "title": "Precios supermercados",
+        "user": user,
+        "meta": MODULE_TEMPLATES["finanzas"],
+        "mes": mes,
+        "anio": anio,
+        "meses": list(enumerate(MESES, start=1)),
+        "flash": flash,
+        "error": error,
+        "modulos_nav": _nav(int(user["id"])),
         "catalogo_sv": catalogo_sv,
         "productos_sv": productos_sv,
         "q_precios": q_precios,
         "filtro_super": filtro_super or "",
         "total_productos_sv": sum(int(c.get("productos") or 0) for c in catalogo_sv),
+        "finanzas_section": "precios",
     }
 
 
@@ -211,6 +234,26 @@ def finanzas_page(request: Request, user: Annotated[dict, Depends(require_onboar
             modulos_nav=_nav(int(user["id"])),
         )
     return render(request, "modules/finanzas.html", **_ctx(request, user))
+
+
+@router.get("/precios", response_class=HTMLResponse)
+def finanzas_precios_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    from app.billing import PLAN_FREE, limites, plan_vigente
+
+    if not modulo_activo("finanzas", int(user["id"])):
+        return render(
+            request,
+            "paywall.html",
+            title="Finanzas",
+            user=user,
+            meta=MODULE_TEMPLATES["finanzas"],
+            clave="finanzas",
+            plan=plan_vigente(user),
+            plan_free=plan_vigente(user) == PLAN_FREE,
+            lim_free=limites(PLAN_FREE),
+            modulos_nav=_nav(int(user["id"])),
+        )
+    return render(request, "modules/finanzas_precios.html", **_precios_ctx(request, user))
 
 
 @router.post("/periodo")
@@ -605,7 +648,7 @@ async def actualizar_catalogo_sv(
     user: Annotated[dict, Depends(require_onboarded)],
     supermercado: Annotated[str, Form(...)],
 ):
-    """Dispara scrape de una tienda y vuelve a Finanzas con flash."""
+    """Dispara scrape de una tienda y vuelve a la sección de precios."""
     from app.scrapers import SCRAPERS, run_scraper
 
     mes, anio = _periodo(request)
@@ -613,8 +656,8 @@ async def actualizar_catalogo_sv(
     if key not in SCRAPERS:
         return render(
             request,
-            "modules/finanzas.html",
-            **_ctx(
+            "modules/finanzas_precios.html",
+            **_precios_ctx(
                 request,
                 user,
                 error=f"Supermercado desconocido: {key}",
@@ -630,8 +673,8 @@ async def actualizar_catalogo_sv(
     except Exception as e:
         return render(
             request,
-            "modules/finanzas.html",
-            **_ctx(
+            "modules/finanzas_precios.html",
+            **_precios_ctx(
                 request,
                 user,
                 error=f"No se pudo actualizar {SUPERMERCADO_LABELS.get(key, key)}: {e}",
@@ -650,6 +693,6 @@ async def actualizar_catalogo_sv(
         f" ({len(result.products)} leídos)."
     )
     return RedirectResponse(
-        f"/app/m/finanzas?mes={mes}&anio={anio}&flash=catalogo",
+        f"/app/m/finanzas/precios?mes={mes}&anio={anio}&flash=catalogo",
         status_code=303,
     )
