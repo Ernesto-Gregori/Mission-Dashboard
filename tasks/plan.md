@@ -1,51 +1,48 @@
-# Implementation Plan: Fase 1 — Quick wins (Alma, Planificador, Salud)
+# Implementation Plan: Fase 2 — Presupuesto, vencimientos, familia
 
 ## Overview
-Sumar valor en FastAPI + HTMX (`web/`) reutilizando Groq, Google Calendar/Fit y las tablas de hábitos/agenda/salud. Streamlit no se toca. Fase 2 queda en pausa hasta confirmación.
+Vistas derivadas de una sola carga. FastAPI + HTMX (`web/`). Streamlit no se toca. Fase 3 queda en pausa.
 
 ## Architecture Decisions
-- Páginas nuevas en el shell existente (`layout_app.html` + `_sidebar.html`), no módulos Coach: `/app/asistente` y `/app/planificador` siempre visibles post-onboarding.
-- Contexto de Alma **opt-in**: ninguna categoría se envía a Groq si el checkbox está apagado.
-- Bloques del planificador se guardan en `eventos_calendario` con `fuente='local'` **sin** sync a Google (a diferencia de Agenda).
-- Rachas de Salud usan un objetivo por usuario (ejercicio / pasos / sueño), no la racha semanal ya existente en Agenda.
-- Schema nuevo: `CREATE TABLE IF NOT EXISTS` en `app/db/schema.py` + `ensure_*` al arranque (mismo patrón que `coach_insights`).
+- `/app/presupuesto` y `/app/familia` siempre visibles post-onboarding (no módulos Coach).
+- 50/30/20 lee `ingreso_mensual` + `gastos_sobres`. Mapeo: Supervivencia→necesidades, Ministerio_Extras→deseos, Futuro_Hogar→ahorro.
+- Ratios en `presupuesto_config`; vencimientos en `presupuesto_recurrentes`. Escrituras vía `guardar_ingreso` / `agregar_gasto_sobre`.
+- Familia es admin-only; cada miembro se consulta con `as_user` + `user_id` explícito.
 
 ## Assumptions
-1. "Estilo Alma" = asistente personal en español, cálida y concreta; no un nuevo proveedor de IA.
-2. "Tareas pendientes" = hábitos incompletos de hoy + eventos locales próximos + `pendientes_soltar` de bitácora (no hay módulo de tareas).
-3. Semana configurable = lunes o domingo como primer día, persistido por usuario.
-4. Gráfico de progreso = barras CSS (sin librería JS), semanal y mensual.
+1. Los sobres 65/20/15 siguen siendo el almacén; 50/30/20 es una vista con ratios propios.
+2. Un recurrente de día 31 en meses cortos cae en el último día.
+3. “Tareas” en familia = hábitos de hoy incompletos + eventos locales próximos.
 
 ## Task List
 
-### 1.1 Asistente Alma
-- [ ] Schema + CRUD + contexto opt-in
-- [ ] Rutas HTMX + template + nav
-- [ ] Tests (página, prefs, historial, contexto vacío por defecto)
+### 2.1 Presupuesto 50/30/20
+- [x] Schema + resumen vs gasto real + gráfico
+- [x] Rutas HTMX + template + nav
+- [x] Tests (página, ingreso compartido con Finanzas, ratios)
 
-### Checkpoint 1.1
+### Checkpoint 2.1
 - [ ] `pytest -q tests/`
 
-### 1.2 Planificador semanal
-- [ ] Semana lun–dom (inicio configurable) + fetch Google + bloques locales
-- [ ] Diferenciar visualmente Calendar vs dashboard
-- [ ] Tests (página, bloque local, mock Google)
+### 2.2 Calendario de vencimientos
+- [x] CRUD recurrentes coloreados por tipo
+- [x] Tests (suscripción / factura / ingreso en el mes)
 
-### Checkpoint 1.2
+### Checkpoint 2.2
 - [ ] `pytest -q tests/`
 
-### 1.3 Rachas y progreso Salud
-- [ ] Objetivo + racha diaria + barras 7/30 días en Salud
-- [ ] Tests (objetivo, racha, UI)
+### 2.3 Vista familiar
+- [x] Comparativa admin + filtro por miembro
+- [x] Tests (comparativa, 403 no-admin)
 
-### Checkpoint Fase 1
+### Checkpoint Fase 2
 - [ ] Suite completa verde
 - [ ] `/health`, login y `/stripe/webhook` intactos
-- [ ] No pasar a Fase 2 sin confirmación
+- [ ] No pasar a Fase 3 sin confirmación
 
 ## Risks
 | Risk | Mitigation |
 |------|------------|
-| Groq en tests | Mock `chat_simple` / `api_key_configurada` como el resto de la suite |
-| `guardar_evento` sincroniza a Google | Nuevo flag `sync_google=False` para bloques del planificador |
-| Datos de salud/hábitos al LLM | Default off + recorte de tamaño + no loguear contenido |
+| Duplicar finanzas | Reusar ingreso/gastos; no segunda caja |
+| Fuga entre miembros | `as_user` + filtro `user_id`; 403 si no es admin |
+| Ratios inválidos | Rechazo 400 si no suman 100 |

@@ -45,6 +45,8 @@ TABLAS_BACKUP = [
     "asistente_prefs",
     "user_prefs",
     "salud_objetivo",
+    "presupuesto_config",
+    "presupuesto_recurrentes",
     "audit_log",
 ]
 

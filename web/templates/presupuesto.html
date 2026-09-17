@@ -1,0 +1,209 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Presupuesto 50/30/20</h1>
+    <p class="muted">Mismas cargas que Finanzas. Acá se ven como necesidades, deseos y ahorro — ratios a tu medida.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<div class="finance-overview">
+  <section class="card">
+    <h2>Período e ingreso</h2>
+    <form class="finance-period-form" method="post" action="/app/presupuesto/periodo">
+      <div>
+        <label for="pre-month">Mes</label>
+        <select id="pre-month" name="mes">
+          {% for n, label in meses %}
+          <option value="{{ n }}" {% if n == mes %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="pre-year">Año</label>
+        <input id="pre-year" name="anio" type="number" value="{{ anio }}" min="2020" max="2035" />
+      </div>
+      <div>
+        <label for="pre-income">Ingreso del mes</label>
+        <input id="pre-income" name="monto" type="number" step="0.01" min="0" value="{{ '%.2f'|format(resumen.ingreso) if resumen.ingreso else '' }}" placeholder="0.00" />
+      </div>
+      <div class="field-wide form-actions">
+        <button class="btn" type="submit">Guardar ingreso</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Ratios</h2>
+    <p class="muted compact-copy">Deben sumar 100. El default es 50 / 30 / 20.</p>
+    <form class="ratio-form" method="post" action="/app/presupuesto/ratios">
+      <div>
+        <label for="pct-necesidades">Necesidades %</label>
+        <input id="pct-necesidades" name="pct_necesidades" type="number" min="0" max="100" value="{{ ratios.necesidades }}" required />
+      </div>
+      <div>
+        <label for="pct-deseos">Deseos %</label>
+        <input id="pct-deseos" name="pct_deseos" type="number" min="0" max="100" value="{{ ratios.deseos }}" required />
+      </div>
+      <div>
+        <label for="pct-ahorro">Ahorro %</label>
+        <input id="pct-ahorro" name="pct_ahorro" type="number" min="0" max="100" value="{{ ratios.ahorro }}" required />
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary" type="submit">Aplicar ratios</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<section class="envelope-grid" aria-label="50/30/20 vs gasto real">
+  {% for c in resumen.categorias %}
+  <article class="envelope-card" style="--envelope-color:{{ c.color }}">
+    <div class="envelope-heading"><span aria-hidden="true">{{ c.emoji }}</span> <strong>{{ c.label }}</strong> · {{ c.pct }}%</div>
+    <p class="muted compact-copy">{{ c.descripcion }}</p>
+    <p class="envelope-progress">
+      ${{ '%.0f'|format(c.gastado) }} / ${{ '%.0f'|format(c.presupuesto) }}
+      · {{ '%.0f'|format(c.pct_usado) }}%
+    </p>
+    <p class="envelope-available{% if c.disponible < 0 %} is-negative{% endif %}">
+      Disponible: ${{ '%.0f'|format(c.disponible) }}
+    </p>
+  </article>
+  {% endfor %}
+</section>
+
+<section class="card" aria-labelledby="spend-title">
+  <h2 id="spend-title">A dónde va el dinero</h2>
+  {% if resumen.total_gastado <= 0 %}
+  <p class="muted">Sin gastos este mes. Cargá uno en Finanzas o abajo; el gráfico se arma solo.</p>
+  {% else %}
+  <div class="spend-chart" role="img" aria-label="Distribución del gasto por categoría 50/30/20">
+    {% for s in resumen.stacked %}
+    {% if s.pct > 0 %}
+    <div class="spend-seg spend-{{ s.key }}" style="width: {{ s.pct }}%; background: {{ s.color }}" title="{{ s.label }} {{ '%.0f'|format(s.pct) }}%">
+      <span class="sr-only">{{ s.label }} {{ '%.0f'|format(s.pct) }}%</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <ul class="spend-legend">
+    {% for s in resumen.stacked %}
+    <li><span class="swatch" style="background:{{ s.color }}"></span> {{ s.label }} ${{ '%.0f'|format(s.monto) }} ({{ '%.0f'|format(s.pct) }}%)</li>
+    {% endfor %}
+  </ul>
+  <div class="progress-chart spend-bars" aria-label="Destinos">
+    {% for d in resumen.chart %}
+    <div class="progress-col">
+      <div class="progress-bar is-met" style="height: {{ [d.pct, 8]|max }}%" title="{{ d.nombre }} {{ '%.0f'|format(d.pct) }}%"></div>
+      <span>{{ d.nombre[:10] }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Cargar gasto (escribe en Finanzas)</h2>
+  <form class="finance-form-grid" method="post" action="/app/presupuesto/gasto">
+    <div>
+      <label for="pre-fecha">Fecha</label>
+      <input id="pre-fecha" name="fecha" type="date" value="{{ hoy }}" required />
+    </div>
+    <div>
+      <label for="pre-cat">Categoría</label>
+      <select id="pre-cat" name="categoria">
+        <option value="necesidades">Necesidades</option>
+        <option value="deseos">Deseos</option>
+        <option value="ahorro">Ahorro</option>
+      </select>
+    </div>
+    <div>
+      <label for="pre-desc">Descripción</label>
+      <input id="pre-desc" name="descripcion" maxlength="120" required />
+    </div>
+    <div>
+      <label for="pre-monto">Monto</label>
+      <input id="pre-monto" name="monto" type="number" step="0.01" min="0.01" required />
+    </div>
+    <div class="form-actions field-wide">
+      <button class="btn" type="submit">Agregar gasto</button>
+    </div>
+  </form>
+</section>
+
+<section class="card due-calendar" aria-labelledby="due-title">
+  <h2 id="due-title">Vencimientos</h2>
+  <p class="muted compact-copy">Recurrentes del mes. Color por tipo: ingreso, suscripción, factura, deuda, ahorro.</p>
+  <p class="planner-legend" aria-label="Leyenda de tipos">
+    {% for t in cal.tipos %}
+    <span class="chip chip-{{ t.key }}" style="--event-color:{{ t.color }}">{{ t.emoji }} {{ t.label }}</span>
+    {% endfor %}
+  </p>
+  <div class="due-grid" role="grid" aria-label="Calendario de vencimientos">
+    <div class="due-head" role="row">
+      <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+    </div>
+    {% for semana in cal.semanas %}
+    <div class="due-week" role="row">
+      {% for celda in semana %}
+      {% if celda %}
+      <div class="due-day{% if celda.es_hoy %} is-today{% endif %}" role="gridcell">
+        <strong>{{ celda.dia }}</strong>
+        {% for it in celda.items %}
+        <div class="chip chip-{{ it.tipo }} due-{{ it.tipo }}" style="--event-color:{{ it.meta.color }}">
+          {{ it.meta.emoji }} {{ it.titulo[:16] }}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="due-day is-empty" role="gridcell"></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <h3>Nuevo recurrente</h3>
+  <form class="finance-form-grid" method="post" action="/app/presupuesto/recurrente">
+    <div>
+      <label for="rec-titulo">Título</label>
+      <input id="rec-titulo" name="titulo" maxlength="120" required />
+    </div>
+    <div>
+      <label for="rec-tipo">Tipo</label>
+      <select id="rec-tipo" name="tipo">
+        {% for t in cal.tipos %}
+        <option value="{{ t.key }}">{{ t.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="rec-dia">Día del mes</label>
+      <input id="rec-dia" name="dia" type="number" min="1" max="31" value="1" required />
+    </div>
+    <div>
+      <label for="rec-monto">Monto</label>
+      <input id="rec-monto" name="monto" type="number" step="0.01" min="0" value="0" />
+    </div>
+    <div class="form-actions field-wide">
+      <button class="btn" type="submit">Agregar vencimiento</button>
+    </div>
+  </form>
+
+  {% if cal.items %}
+  <ul class="agenda-ev-list due-list">
+    {% for it in cal.items %}
+    <li>
+      <span>Día {{ it.dia }} · {{ it.meta.emoji }} {{ it.titulo }} · ${{ '%.2f'|format(it.monto) }}</span>
+      <form class="inline-form" method="post" action="/app/presupuesto/recurrente/{{ it.id }}/eliminar">
+        <button class="btn secondary icon-button" type="submit" aria-label="Eliminar {{ it.titulo }}">🗑️</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}

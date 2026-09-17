@@ -239,6 +239,38 @@ def init_finanzas_receipts(cursor):
     )
 
 
+def init_fase2_tables(cursor):
+    """Presupuesto 50/30/20 y vencimientos (Fase 2)."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS presupuesto_config (
+            user_id INTEGER PRIMARY KEY,
+            pct_necesidades INTEGER NOT NULL DEFAULT 50,
+            pct_deseos INTEGER NOT NULL DEFAULT 30,
+            pct_ahorro INTEGER NOT NULL DEFAULT 20,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS presupuesto_recurrentes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            tipo TEXT NOT NULL CHECK(tipo IN (
+                'ingreso', 'suscripcion', 'factura', 'deuda', 'ahorro'
+            )),
+            monto REAL NOT NULL DEFAULT 0,
+            dia INTEGER NOT NULL CHECK(dia >= 1 AND dia <= 31),
+            notas TEXT,
+            activo INTEGER NOT NULL DEFAULT 1,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_presupuesto_rec_user "
+        "ON presupuesto_recurrentes(user_id, dia)"
+    )
+
+
 def init_fase1_tables(cursor):
     """Alma, planificador prefs y objetivo de salud (Fase 1)."""
     cursor.execute("""
@@ -878,6 +910,7 @@ def init_database():
     )
 
     init_fase1_tables(cursor)
+    init_fase2_tables(cursor)
     init_sobres(cursor)
     conn.commit()
     conn.close()

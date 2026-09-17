@@ -1,0 +1,106 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Familia</h1>
+    <p class="muted">Comparativa de gastos, hábitos y tareas por miembro. Solo administradores.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+{% if is_admin %}
+<form class="planner-toolbar familia-filter" method="get" action="/app/familia">
+  <div>
+    <label for="fam-miembro">Miembro</label>
+    <select id="fam-miembro" name="miembro" onchange="this.form.submit()">
+      <option value="">Todos</option>
+      {% for m in miembros %}
+      <option value="{{ m.id }}" {% if miembro_id and miembro_id|int == m.id %}selected{% endif %}>{{ m.username }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="fam-mes">Mes</label>
+    <select id="fam-mes" name="mes" onchange="this.form.submit()">
+      {% for n, label in meses %}
+      <option value="{{ n }}" {% if n == mes %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="fam-anio">Año</label>
+    <input id="fam-anio" name="anio" type="number" value="{{ anio }}" min="2020" max="2035" onchange="this.form.submit()" />
+  </div>
+  <noscript><button class="btn secondary" type="submit">Filtrar</button></noscript>
+</form>
+
+<section class="card" aria-labelledby="fam-table-title">
+  <h2 id="fam-table-title">Comparativa del mes</h2>
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Miembro</th>
+          <th>Ingreso</th>
+          <th>Gastos</th>
+          <th>Hábitos hoy</th>
+          <th>Tareas pendientes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in miembros %}
+        <tr {% if seleccionado and seleccionado.id == m.id %}class="is-selected"{% endif %}>
+          <td><a href="/app/familia?miembro={{ m.id }}&mes={{ mes }}&anio={{ anio }}">{{ m.username }}</a></td>
+          <td>${{ '%.0f'|format(m.ingreso) }}</td>
+          <td>${{ '%.0f'|format(m.total_gastos) }}</td>
+          <td>{{ m.habitos_hechos }}/{{ m.habitos_total }}</td>
+          <td>{{ m.tareas_pendientes|length }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if seleccionado %}
+<section class="card" aria-labelledby="fam-detail-title">
+  <h2 id="fam-detail-title">{{ seleccionado.username }}</h2>
+  <h3>Gastos</h3>
+  {% if not seleccionado.gastos %}
+  <p class="muted">Sin gastos este mes.</p>
+  {% else %}
+  <ul class="agenda-ev-list">
+    {% for g in seleccionado.gastos %}
+    <li>{{ g.fecha }} · {{ g.descripcion }} · ${{ '%.2f'|format(g.monto) }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <h3>Hábitos de hoy</h3>
+  {% if not seleccionado.habitos %}
+  <p class="muted">Sin hábitos configurados.</p>
+  {% else %}
+  <ul class="agenda-ev-list">
+    {% for h in seleccionado.habitos %}
+    <li>{% if h.hecho %}✓{% else %}○{% endif %} {{ h.emoji }} {{ h.label }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <h3>Tareas pendientes</h3>
+  {% if not seleccionado.tareas_pendientes and not seleccionado.eventos %}
+  <p class="muted">Nada pendiente.</p>
+  {% else %}
+  <ul class="agenda-ev-list">
+    {% for h in seleccionado.tareas_pendientes %}
+    <li>Hábitos: {{ h.emoji }} {{ h.label }}</li>
+    {% endfor %}
+    {% for e in seleccionado.eventos %}
+    <li>Agenda: {{ e.fecha }} {{ (e.titulo or '')[:28] }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

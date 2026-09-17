@@ -55,6 +55,7 @@ def migrar_local_a_turso():
         'supermarket_products', 'price_matches', 'scrape_runs',
         'eventos_calendario',
         'asistente_mensajes', 'asistente_prefs', 'user_prefs', 'salud_objetivo',
+        'presupuesto_config', 'presupuesto_recurrentes',
         'usuarios', 'oauth_tokens',
     ]
 

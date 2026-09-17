@@ -91,6 +91,12 @@ def init_app_state() -> None:
         ensure_salud_objetivo_schema()
     except Exception as e:
         print(f"[web.startup] salud_objetivo: {e}")
+    try:
+        from app.presupuesto import ensure_presupuesto_schema
+
+        ensure_presupuesto_schema()
+    except Exception as e:
+        print(f"[web.startup] presupuesto: {e}")
 
 
 def get_session_user(request: Request) -> dict | None:

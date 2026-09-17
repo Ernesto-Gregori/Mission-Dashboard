@@ -338,6 +338,28 @@ def ensure_remote_schema():
             actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS presupuesto_config (
+            user_id INTEGER PRIMARY KEY,
+            pct_necesidades INTEGER NOT NULL DEFAULT 50,
+            pct_deseos INTEGER NOT NULL DEFAULT 30,
+            pct_ahorro INTEGER NOT NULL DEFAULT 20,
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS presupuesto_recurrentes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            monto REAL NOT NULL DEFAULT 0,
+            dia INTEGER NOT NULL,
+            notas TEXT,
+            activo INTEGER NOT NULL DEFAULT 1,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
     ]
     for sql in statements:
         try:
