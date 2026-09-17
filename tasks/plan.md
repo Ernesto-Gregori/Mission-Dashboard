@@ -18,10 +18,14 @@ para servidor casero / uso personal. **No merge a main** hasta validar.
 - [x] Fase 1: schema + CRUD satélite + tests
 - [x] Fase 2a: extracción visión (prompt + parse) — pendiente OK humano antes de UI
 - [x] Fase 2b: upload + confirmación HTMX + persistencia
-- [ ] Fase 3: scraper Selectos → luego Walmart / Despensa
+- [x] Fase 3a: scraper Súper Selectos (HTML categorías + fallback Bitworks)
+- [ ] Fase 3b: Walmart SV / Despensa (mismo patrón)
 - [ ] Fase 4: matching fuzzy + UI comparación
 
-## Checkpoint Fase 2b
-- [x] `pytest -q tests/test_finanzas_escanear.py`
-- [x] UI visible en /app/m/finanzas (bloque Escanear)
-- [ ] Probar con GROQ_API_KEY + foto real
+## Checkpoint Fase 3a
+- [x] Inspección: API ecom-products sin precio; HTML storefront con `strong.precio`
+- [x] www CF 403 desde cloud → fallback `selectospp.bitworks.com.sv`
+- [x] `pytest -q tests/test_scraper_super_selectos.py`
+- [x] dry-run real categoría 012
+- Frecuencia recomendada: **1 corrida/día** (`scripts/run_supermarket_scrape.py`), delays 1.2–2.8s
+

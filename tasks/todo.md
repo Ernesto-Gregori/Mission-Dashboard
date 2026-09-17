@@ -14,8 +14,8 @@
 - [ ] Probar end-to-end con GROQ_API_KEY y foto real
 
 ## Fase 3
-- [ ] Inspección Selectos (HTML vs API) + robots.txt
-- [ ] Scraper Selectos + scrape_runs
+- [x] Inspección Selectos (HTML vs API) + robots (CF bloquea www)
+- [x] Scraper Selectos + scrape_runs + script cron
 - [ ] Replicar Walmart / Despensa
 
 ## Fase 4
