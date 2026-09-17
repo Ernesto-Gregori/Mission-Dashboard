@@ -1559,3 +1559,84 @@ textarea {
 @media (max-width: 800px) {
   .alma-layout { grid-template-columns: 1fr; }
 }
+
+/* Planificador */
+.planner-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.planner-start {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.planner-legend {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  flex-wrap: wrap;
+}
+.chip-google { border-color: var(--accent); }
+.chip-local { border-color: var(--module-biblioteca); }
+.chip-mat { border-color: var(--module-matrimonio); }
+.planner-empty { font-size: 0.75rem; margin: 0.35rem 0 0; }
+
+/* Salud — racha y progreso */
+.health-streak { margin: 1rem 0 1.25rem; }
+.streak-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.streak-head h2 { margin: 0; }
+.streak-count {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--module-salud);
+}
+.streak-goal-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.75rem;
+  margin: 0.85rem 0 1rem;
+  align-items: end;
+}
+.progress-block { margin-top: 0.85rem; }
+.progress-block h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.progress-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+  height: 5.5rem;
+}
+.progress-chart.is-month { gap: 2px; height: 4.2rem; }
+.progress-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  height: 100%;
+  gap: 0.2rem;
+}
+.progress-col span {
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+.progress-bar {
+  width: 100%;
+  min-height: 4px;
+  background: var(--border-strong);
+  border-radius: 3px 3px 0 0;
+}
+.progress-bar.is-met { background: var(--ok); }

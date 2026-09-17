@@ -19,6 +19,14 @@ from app.database import (
     obtener_registro_salud,
     obtener_registros_rango,
 )
+from app.db.salud import (
+    OBJETIVO_LABELS,
+    TIPOS_OBJETIVO,
+    calcular_racha_objetivo,
+    guardar_objetivo,
+    obtener_objetivo,
+    serie_progreso,
+)
 from app.onboarding import listar_modulos_usuario, modulo_activo
 from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
@@ -179,6 +187,12 @@ def _ctx(
         "fit": fit_estado,
         "fit_avisos": (fit_preview or {}).get("avisos_fit") or [],
         "fit_error": (fit_preview or {}).get("error"),
+        "objetivo": obtener_objetivo(int(user["id"])),
+        "racha": calcular_racha_objetivo(int(user["id"])),
+        "progreso7": serie_progreso(7, int(user["id"])),
+        "progreso30": serie_progreso(30, int(user["id"])),
+        "tipos_objetivo": TIPOS_OBJETIVO,
+        "objetivo_labels": OBJETIVO_LABELS,
     }
 
 
@@ -271,6 +285,21 @@ async def guardar(request: Request, user: Annotated[dict, Depends(require_onboar
             **_ctx(request, user, error="No se pudo guardar el registro."),
         )
     return _redirect("hoy", fecha)
+
+
+@router.post("/objetivo")
+async def guardar_objetivo_salud(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    form = await request.form()
+    tipo = str(form.get("tipo") or "ejercicio")
+    raw = form.get("valor")
+    valor = None
+    if raw not in (None, ""):
+        try:
+            valor = float(str(raw).replace(",", "."))
+        except Exception:
+            valor = None
+    guardar_objetivo(tipo, valor, user_id=int(user["id"]))
+    return _redirect("hoy", _fecha(request))
 
 
 @router.post("/fit/importar")

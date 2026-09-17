@@ -1,0 +1,143 @@
+"""Planificador semanal — Calendar + bloques locales."""
+from __future__ import annotations
+
+import tempfile
+from datetime import timedelta
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture()
+def web_client(monkeypatch):
+    td = Path(tempfile.mkdtemp())
+    db_path = td / "planificador_test.db"
+
+    monkeypatch.setenv("MISSION_ALLOW_SQLITE", "1")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-please-change")
+    monkeypatch.setenv("TURSO_URL", "")
+    monkeypatch.setenv("TURSO_TOKEN", "")
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.delenv("FLY_APP_NAME", raising=False)
+    monkeypatch.delenv("MISSION_WEB", raising=False)
+
+    import app.db.core as core
+
+    monkeypatch.setattr(core, "DB_PATH", db_path)
+    if hasattr(core.usar_turso, "cache_clear"):
+        core.usar_turso.cache_clear()
+    if hasattr(core._get_turso_config, "cache_clear"):
+        core._get_turso_config.cache_clear()
+    monkeypatch.setattr(core, "usar_turso", lambda: False)
+    monkeypatch.setattr("app.ai_client.api_key_configurada", lambda: False)
+
+    from web.app import create_app
+
+    application = create_app()
+    with TestClient(application) as client:
+        yield client
+    from app.tenant import clear_current_user
+
+    clear_current_user()
+
+
+def _onboard(client: TestClient, username: str = "plan_user") -> None:
+    r = client.post(
+        "/setup",
+        data={"username": username, "password": "password1", "password2": "password1"},
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 307)
+    client.post(
+        "/app/coach/activar",
+        data={"modulos": ["agenda", "salud"]},
+        follow_redirects=False,
+    )
+
+
+def test_planificador_pagina(web_client):
+    _onboard(web_client)
+    r = web_client.get("/app/planificador")
+    assert r.status_code == 200
+    assert b"Planificador" in r.content
+    assert b"week-start" in r.content
+    assert b"chip-google" in r.content
+    assert b"chip-local" in r.content
+    assert b'for="plan-title"' in r.content
+    assert b"Bloque solo en el dashboard" in r.content
+
+
+def test_planificador_bloque_local_no_sync_google(web_client, monkeypatch):
+    _onboard(web_client)
+    created = []
+    monkeypatch.setattr("app.google_calendar.calendar_disponible", lambda: True)
+    monkeypatch.setattr(
+        "app.google_calendar.crear_evento_google",
+        lambda datos: created.append(datos) or "gid-should-not-run",
+    )
+    from app.timezone_config import hoy as _hoy
+
+    r = web_client.post(
+        "/app/planificador/bloque",
+        data={
+            "fecha": str(_hoy()),
+            "titulo": "BloqueLocalTest",
+            "tipo": "Personal",
+            "hora_inicio": "09:00",
+            "hora_fin": "10:00",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"BloqueLocalTest" in r.content
+    assert b"chip-local" in r.content
+    assert created == []
+
+
+def test_planificador_mezcla_google(web_client, monkeypatch):
+    _onboard(web_client)
+    from app.db.agenda import inicio_semana
+    from app.timezone_config import hoy as _hoy
+
+    lunes = inicio_semana(_hoy(), "lun")
+
+    def fake_events(inicio, fin):
+        return [
+            {
+                "google_id": "gcal-1",
+                "fecha": lunes.isoformat(),
+                "hora_inicio": "15:00",
+                "hora_fin": "16:00",
+                "titulo": "ReunionGoogleTest",
+                "descripcion": "",
+                "tipo": "Personal",
+                "color": "#5484ed",
+                "fuente": "google_calendar",
+            }
+        ]
+
+    monkeypatch.setattr("app.google_calendar.calendar_disponible", lambda: True)
+    monkeypatch.setattr("app.google_calendar.obtener_eventos_google", fake_events)
+
+    r = web_client.get("/app/planificador")
+    assert r.status_code == 200
+    assert b"ReunionGoogleTest" in r.content
+    assert b"chip-google" in r.content
+
+
+def test_planificador_semana_domingo(web_client):
+    _onboard(web_client)
+    r = web_client.post(
+        "/app/planificador/inicio",
+        data={"week_start": "dom"},
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    # El primer encabezado de d\u00eda debe ser domingo
+    assert b"<strong>Dom</strong>" in r.content
+    idx_dom = r.content.find(b"<strong>Dom</strong>")
+    idx_lun = r.content.find(b"<strong>Lun</strong>")
+    assert idx_dom != -1 and idx_lun != -1
+    assert idx_dom < idx_lun

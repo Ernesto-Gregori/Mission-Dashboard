@@ -229,3 +229,157 @@ def construir_contexto_salud(registros: list, stats: dict) -> str:
     inicio_sem = hoy_local - timedelta(days=hoy_local.weekday())
     _ = inicio_sem  # reservado para expansiones
     return "\n".join(lineas)
+
+
+TIPOS_OBJETIVO = ("ejercicio", "pasos", "sueno")
+OBJETIVO_LABELS = {
+    "ejercicio": "Hacer ejercicio",
+    "pasos": "Pasos mínimos",
+    "sueno": "Horas de sueño",
+}
+
+
+def ensure_salud_objetivo_schema() -> None:
+    from app.db.core import ejecutar
+
+    try:
+        ejecutar(
+            """
+            CREATE TABLE IF NOT EXISTS salud_objetivo (
+                user_id INTEGER PRIMARY KEY,
+                tipo TEXT NOT NULL DEFAULT 'ejercicio',
+                valor REAL NOT NULL DEFAULT 1,
+                actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    except Exception:
+        pass
+
+
+def obtener_objetivo(user_id: int | None = None) -> dict:
+    ensure_salud_objetivo_schema()
+    uid_i = int(user_id) if user_id is not None else uid()
+    rows = (
+        ejecutar(
+            "SELECT tipo, valor FROM salud_objetivo WHERE user_id = ?",
+            [uid_i],
+            fetchall=True,
+        )
+        or []
+    )
+    if not rows:
+        return {"tipo": "ejercicio", "valor": 1.0, "label": OBJETIVO_LABELS["ejercicio"]}
+    tipo = str(rows[0].get("tipo") or "ejercicio")
+    if tipo not in TIPOS_OBJETIVO:
+        tipo = "ejercicio"
+    try:
+        valor = float(rows[0].get("valor") or 1)
+    except Exception:
+        valor = 1.0
+    if tipo == "ejercicio":
+        valor = 1.0
+    return {"tipo": tipo, "valor": valor, "label": OBJETIVO_LABELS.get(tipo, tipo)}
+
+
+def guardar_objetivo(tipo: str, valor: float | int | None = None, user_id: int | None = None) -> dict:
+    ensure_salud_objetivo_schema()
+    uid_i = int(user_id) if user_id is not None else uid()
+    t = tipo if tipo in TIPOS_OBJETIVO else "ejercicio"
+    if t == "ejercicio":
+        v = 1.0
+    elif t == "pasos":
+        v = max(1000.0, float(valor or 8000))
+    else:
+        v = min(12.0, max(4.0, float(valor or 7)))
+    ejecutar(
+        """
+        INSERT INTO salud_objetivo (user_id, tipo, valor)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            tipo = excluded.tipo,
+            valor = excluded.valor,
+            actualizado_en = CURRENT_TIMESTAMP
+        """,
+        [uid_i, t, v],
+    )
+    return obtener_objetivo(uid_i)
+
+
+def registro_cumple_objetivo(reg: dict | None, objetivo: dict | None = None) -> bool:
+    if not reg:
+        return False
+    obj = objetivo or obtener_objetivo()
+    tipo = obj.get("tipo") or "ejercicio"
+    valor = float(obj.get("valor") or 1)
+    if tipo == "pasos":
+        try:
+            return int(reg.get("pasos_fit") or 0) >= valor
+        except Exception:
+            return False
+    if tipo == "sueno":
+        h = reg.get("horas_sueno")
+        try:
+            return h is not None and h != "" and float(h) >= valor
+        except Exception:
+            return False
+    return bool(reg.get("hizo_ejercicio"))
+
+
+def calcular_racha_objetivo(user_id: int | None = None) -> int:
+    """Días consecutivos cumpliendo el objetivo. Si hoy no hay registro, arranca ayer."""
+    obj = obtener_objetivo(user_id)
+    regs = {str(r["fecha"]): r for r in obtener_registros_rango(60)}
+    hoy = _hoy()
+    start = hoy
+    if str(hoy) not in regs:
+        start = hoy - timedelta(days=1)
+    racha = 0
+    d = start
+    for _ in range(60):
+        iso = d.isoformat()
+        if registro_cumple_objetivo(regs.get(iso), obj):
+            racha += 1
+            d = d - timedelta(days=1)
+        else:
+            break
+    return racha
+
+
+def serie_progreso(dias: int = 7, user_id: int | None = None) -> list[dict]:
+    obj = obtener_objetivo(user_id)
+    n = max(1, min(int(dias), 60))
+    regs = {str(r["fecha"]): r for r in obtener_registros_rango(n)}
+    hoy = _hoy()
+    out = []
+    meta = float(obj.get("valor") or 1) or 1.0
+    for i in range(n - 1, -1, -1):
+        d = hoy - timedelta(days=i)
+        iso = d.isoformat()
+        r = regs.get(iso)
+        cumple = registro_cumple_objetivo(r, obj)
+        valor = None
+        if r:
+            if obj["tipo"] == "pasos":
+                valor = r.get("pasos_fit")
+            elif obj["tipo"] == "sueno":
+                valor = r.get("horas_sueno")
+            else:
+                valor = 1 if r.get("hizo_ejercicio") else 0
+        try:
+            num = float(valor) if valor is not None else 0.0
+        except Exception:
+            num = 0.0
+        pct = 100.0 if cumple and obj["tipo"] == "ejercicio" else min(100.0, (num / meta) * 100.0)
+        if not cumple and obj["tipo"] == "ejercicio":
+            pct = 12.0 if r else 8.0
+        out.append(
+            {
+                "fecha": iso,
+                "label": d.strftime("%d/%m"),
+                "cumple": cumple,
+                "valor": valor,
+                "pct": round(pct, 1),
+            }
+        )
+    return out

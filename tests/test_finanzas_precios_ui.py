@@ -61,6 +61,7 @@ def web_client(monkeypatch):
     monkeypatch.setattr("app.ai_client.api_key_configurada", lambda: True)
 
     from web.app import create_app
+    monkeypatch.setattr("web.routers.finanzas.api_key_configurada", lambda: True)
 
     application = create_app()
     with TestClient(application) as client:

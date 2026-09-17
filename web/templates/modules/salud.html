@@ -4,7 +4,7 @@
   <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
   <div>
     <h1>{{ meta.nombre }}</h1>
-    <p class="muted">Sueño · energía · ejercicio · Google Fit</p>
+    <p class="muted">Sueño · energía · ejercicio · Google Fit · rachas</p>
   </div>
 </header>
 
@@ -18,6 +18,54 @@
   <div><dt>Energía promedio</dt><dd>⚡ {{ '%.1f'|format(stats7.avg_energia_manana) }}/10</dd></div>
 </dl>
 {% endif %}
+
+<section class="card health-streak" aria-labelledby="streak-title">
+  <div class="streak-head">
+    <div>
+      <h2 id="streak-title">Racha</h2>
+      <p class="muted">Días seguidos cumpliendo: {{ objetivo.label }}{% if objetivo.tipo == 'pasos' %} ({{ objetivo.valor|int }}){% elif objetivo.tipo == 'sueno' %} ({{ '%.1f'|format(objetivo.valor) }} h){% endif %}</p>
+    </div>
+    <p class="streak-count" aria-label="{{ racha }} días de racha">🔥 {{ racha }}</p>
+  </div>
+  <form method="post" action="/app/m/salud/objetivo" class="streak-goal-form">
+    <div>
+      <label for="goal-type">Objetivo diario</label>
+      <select id="goal-type" name="tipo">
+        {% for t in tipos_objetivo %}
+        <option value="{{ t }}" {% if objetivo.tipo == t %}selected{% endif %}>{{ objetivo_labels[t] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="goal-value">Meta (pasos u horas)</label>
+      <input id="goal-value" name="valor" type="number" min="1" step="0.5" value="{{ objetivo.valor }}" />
+    </div>
+    <div class="form-actions">
+      <button class="btn secondary" type="submit">Guardar objetivo</button>
+    </div>
+  </form>
+  <div class="progress-block">
+    <h3>Semana</h3>
+    <div class="progress-chart" role="img" aria-label="Progreso de los últimos 7 días">
+      {% for p in progreso7 %}
+      <div class="progress-col">
+        <div class="progress-bar {% if p.cumple %}is-met{% endif %}" style="height: {{ p.pct }}%" title="{{ p.fecha }}{% if p.cumple %} · cumplido{% endif %}"></div>
+        <span>{{ p.label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="progress-block">
+    <h3>Mes</h3>
+    <div class="progress-chart is-month" role="img" aria-label="Progreso de los últimos 30 días">
+      {% for p in progreso30 %}
+      <div class="progress-col">
+        <div class="progress-bar {% if p.cumple %}is-met{% endif %}" style="height: {{ p.pct }}%" title="{{ p.fecha }}"></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
 
 <nav class="agenda-tabs health-tabs" aria-label="Secciones de Salud">
   <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/salud?tab=hoy&fecha={{ fecha }}"{% if tab == 'hoy' %} aria-current="page"{% endif %}>📅 Hoy</a>

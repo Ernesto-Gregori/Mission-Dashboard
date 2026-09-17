@@ -34,6 +34,20 @@ def obtener_lunes_semana(fecha=None):
     return f - timedelta(days=f.weekday())
 
 
+def inicio_semana(fecha=None, week_start: str = "lun"):
+    """Primer día de la semana visible (lunes o domingo)."""
+    f = fecha or _hoy()
+    if str(week_start).lower().startswith("dom"):
+        return f - timedelta(days=(f.weekday() + 1) % 7)
+    return obtener_lunes_semana(f)
+
+
+def etiquetas_semana(week_start: str = "lun") -> list[str]:
+    if str(week_start).lower().startswith("dom"):
+        return ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
+    return list(DIAS_SEMANA)
+
+
 def guardar_bitacora(datos: dict) -> bool:
     try:
         ejecutar(
@@ -131,10 +145,10 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
     citas = (
         ejecutar(
             """
-            SELECT fecha, hora AS hora_inicio, titulo,
+            SELECT id, fecha, hora AS hora_inicio, NULL AS hora_fin, titulo,
                    tipo_cita AS tipo, estado_planificacion,
                    COALESCE(ambito,'Matrimonio') AS ambito,
-                   '#a371f7' AS color, NULL AS google_id
+                   '#a371f7' AS color, NULL AS google_id, 'matrimonio' AS fuente
             FROM matrimonio_citas
             WHERE fecha >= ? AND fecha <= ? AND user_id = ?
             ORDER BY fecha, hora
@@ -148,9 +162,9 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
     locales = (
         ejecutar(
             """
-            SELECT fecha, hora_inicio, titulo, tipo,
+            SELECT id, fecha, hora_inicio, hora_fin, titulo, tipo,
                    '' AS estado_planificacion, tipo AS ambito,
-                   color, google_id
+                   color, google_id, COALESCE(fuente, 'local') AS fuente
             FROM eventos_calendario
             WHERE fecha >= ? AND fecha <= ? AND user_id = ?
             ORDER BY fecha, hora_inicio
@@ -386,15 +400,19 @@ def obtener_eventos_personalizados(fecha: str | None = None) -> list:
     )
 
 
-def guardar_evento(datos: dict) -> int:
+def guardar_evento(datos: dict, *, sync_google: bool = True) -> int:
     google_id = None
-    try:
-        from app.google_calendar import calendar_disponible, crear_evento_google
+    if sync_google:
+        try:
+            from app.google_calendar import calendar_disponible, crear_evento_google
 
-        if calendar_disponible():
-            google_id = crear_evento_google(datos)
-    except Exception:
-        google_id = None
+            if calendar_disponible():
+                google_id = crear_evento_google(datos)
+        except Exception:
+            google_id = None
+    fuente = str(datos.get("fuente") or "local")
+    if fuente not in ("local", "google_calendar"):
+        fuente = "local"
     return ejecutar(
         """
         INSERT INTO eventos_calendario
@@ -412,7 +430,7 @@ def guardar_evento(datos: dict) -> int:
             datos.get("tipo", "Personal"),
             datos.get("color", COLORES_TIPO.get(datos.get("tipo", "Personal"), "#58a6ff")),
             google_id,
-            "local",
+            fuente,
         ],
     )
 

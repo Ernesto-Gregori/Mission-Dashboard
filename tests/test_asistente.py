@@ -37,6 +37,9 @@ def web_client(monkeypatch):
     application = create_app()
     with TestClient(application) as client:
         yield client
+    from app.tenant import clear_current_user
+
+    clear_current_user()
 
 
 def _onboard(client: TestClient, username: str = "alma_user") -> None:
@@ -109,11 +112,9 @@ def test_asistente_contexto_opt_in(web_client, monkeypatch):
     _onboard(web_client)
     from app.db.core import ejecutar
     from app.database import autenticar_usuario
-    from app.tenant import set_current_user
     from app.timezone_config import hoy as _hoy
 
     user = autenticar_usuario("alma_user", "password1")
-    set_current_user(user)
     uid = int(user["id"])
     ejecutar(
         """

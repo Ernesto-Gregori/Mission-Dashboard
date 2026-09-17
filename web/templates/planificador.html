@@ -1,0 +1,125 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Planificador semanal</h1>
+    <p class="muted">Google Calendar mezclado con bloques que viven solo en el dashboard.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<div class="planner-toolbar">
+  <form method="post" action="/app/planificador/inicio" class="planner-start">
+    <label for="week-start">La semana empieza</label>
+    <select id="week-start" name="week_start" onchange="this.form.submit()">
+      <option value="lun" {% if week_start == 'lun' %}selected{% endif %}>Lunes</option>
+      <option value="dom" {% if week_start == 'dom' %}selected{% endif %}>Domingo</option>
+    </select>
+    <noscript><button class="btn secondary" type="submit">Aplicar</button></noscript>
+  </form>
+  <p class="planner-legend" aria-label="Leyenda">
+    <span class="chip chip-google">📅 Google Calendar</span>
+    <span class="chip chip-local">📌 Bloque del dashboard</span>
+  </p>
+</div>
+
+{% if not puede_google %}
+<div class="flash-warn">Ver eventos de Google Calendar requiere plan Premium o Familia. Los bloques locales sí se pueden cargar.
+  <a href="/app/billing">Ver planes</a>
+</div>
+{% elif not google_ok %}
+<p class="muted">Sin Google Calendar vinculado. Conectalo desde <a href="/app/m/salud">Salud</a>. Los bloques del dashboard se muestran igual.</p>
+{% else %}
+<p class="muted">📅 Calendar vinculado. Los eventos de Google no se editan acá; los bloques 📌 no se suben a Calendar.</p>
+{% endif %}
+{% if google_error %}<p class="muted">{{ google_error }}</p>{% endif %}
+
+<div class="agenda-week-nav">
+  <form method="post" action="/app/planificador/semana"><button class="btn secondary" name="action" value="prev" type="submit">◀ Anterior</button></form>
+  <h2>{{ inicio.strftime('%d/%m') }} — {{ fin.strftime('%d/%m/%Y') }}</h2>
+  <form class="button-group" method="post" action="/app/planificador/semana">
+    <button class="btn secondary" name="action" value="hoy" type="submit">Hoy</button>
+    <button class="btn secondary" name="action" value="next" type="submit">Siguiente ▶</button>
+  </form>
+</div>
+
+<div class="agenda-grid planner-grid">
+  {% for d in dias %}
+  <div class="agenda-day {% if d.es_hoy %}hoy{% endif %}">
+    <div class="agenda-day-h">
+      <strong>{{ d.label }}</strong>
+      <span>{{ d.fecha.strftime('%d/%m') }}</span>
+    </div>
+    {% if not d.eventos %}
+    <p class="muted planner-empty">Sin eventos</p>
+    {% endif %}
+    {% for e in d.eventos %}
+    <div class="chip {% if e.origen == 'google' %}chip-google{% elif e.origen == 'matrimonio' %}chip-mat{% else %}chip-local{% endif %}" {% if e.color %}style="--event-color:{{ e.color }}"{% endif %}>
+      {% if e.origen == 'google' %}📅{% elif e.origen == 'matrimonio' %}💑{% else %}📌{% endif %}
+      {{ (e.titulo or '')[:22] }}{% if e.hora_inicio %} {{ e.hora_inicio[:5] }}{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="agenda-summary-grid">
+  <div class="card">
+    <h3>Bloques del dashboard</h3>
+    {% if not locales %}
+    <p class="muted">Todavía no hay bloques propios en esta semana.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for ep in locales %}
+      <li>
+        <span>📌 {{ ep.fecha }} — {{ (ep.titulo or '')[:28] }}</span>
+        <form class="inline-form" method="post" action="/app/planificador/bloque/{{ ep.id }}/eliminar">
+          <button class="btn secondary icon-button" type="submit" aria-label="Eliminar {{ ep.titulo }}">🗑️</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="card agenda-event-card">
+    <h3>➕ Bloque solo en el dashboard</h3>
+    <p class="muted">No se crea en Google Calendar.</p>
+    <form method="post" action="/app/planificador/bloque" class="agenda-form-grid">
+      <div>
+        <label for="plan-date">Fecha</label>
+        <input id="plan-date" name="fecha" type="date" value="{{ hoy }}" required />
+      </div>
+      <div>
+        <label for="plan-title">Título</label>
+        <input id="plan-title" name="titulo" required placeholder="Ej: Deep work, trámites" />
+      </div>
+      <div>
+        <label for="plan-type">Tipo</label>
+        <select id="plan-type" name="tipo">
+          {% for t in tipos_evento %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="plan-start">Inicio</label>
+        <input id="plan-start" name="hora_inicio" type="time" value="09:00" />
+      </div>
+      <div>
+        <label for="plan-end">Fin</label>
+        <input id="plan-end" name="hora_fin" type="time" value="10:00" />
+      </div>
+      <div class="field-wide">
+        <label for="plan-desc">Notas</label>
+        <input id="plan-desc" name="descripcion" placeholder="Opcional" />
+      </div>
+      <div class="form-actions field-wide">
+        <button class="btn" type="submit">Agregar bloque</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

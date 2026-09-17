@@ -85,6 +85,12 @@ def init_app_state() -> None:
         ensure_asistente_schema()
     except Exception as e:
         print(f"[web.startup] asistente: {e}")
+    try:
+        from app.db.salud import ensure_salud_objetivo_schema
+
+        ensure_salud_objetivo_schema()
+    except Exception as e:
+        print(f"[web.startup] salud_objetivo: {e}")
 
 
 def get_session_user(request: Request) -> dict | None:
