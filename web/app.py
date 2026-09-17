@@ -112,6 +112,7 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     def health():
+        from app.ai_client import MODELO, _modelo, api_key_configurada
         from app.db.core import usar_turso
 
         return {
@@ -119,6 +120,8 @@ def create_app() -> FastAPI:
             "app": "mission-dashboard-web",
             "turso": usar_turso(),
             "framework": "fastapi+htmx",
+            "groq_key": api_key_configurada(),
+            "groq_model": _modelo() or MODELO,
         }
 
     @app.get("/")

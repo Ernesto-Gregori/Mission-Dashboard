@@ -532,10 +532,10 @@ def _llamar_llm_briefing(signals: dict[str, Any]) -> list[dict[str, Any]] | None
         f"DATOS:\n{json.dumps(compact, ensure_ascii=False)}"
     )
     try:
-        from app.ai_client import MODELO
+        from app.ai_client import MODELO, _modelo
 
         response = client.chat.completions.create(
-            model=MODELO,
+            model=_modelo() or MODELO,
             messages=[
                 {"role": "system", "content": SYSTEM_BRIEFING},
                 {"role": "user", "content": prompt},

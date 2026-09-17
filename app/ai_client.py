@@ -29,13 +29,32 @@ def _get_api_key() -> str:
     """
     Orden de prioridad:
       1. st.secrets / env / .streamlit/secrets.toml  ← app.secrets
+    Acepta alias comunes por si en Railway se tipó mal el nombre.
     """
     from app.secrets import get_secret
 
-    return get_secret("GROQ_API_KEY", "")
+    for name in ("GROQ_API_KEY", "GROQ_KEY", "GROQ_APIKEY"):
+        val = (get_secret(name, "") or "").strip()
+        if val:
+            return val
+    return ""
 
 
-MODELO = "llama-3.3-70b-versatile"
+# llama-3.3-70b-versatile fue retirado por Groq el 2026-08-16 (free/dev).
+# Sustituto recomendado: openai/gpt-oss-120b. Override: GROQ_MODEL.
+_MODELO_DEFAULT = "openai/gpt-oss-120b"
+
+
+def _modelo() -> str:
+    from app.secrets import get_secret
+
+    return (get_secret("GROQ_MODEL", "") or os.getenv("GROQ_MODEL") or _MODELO_DEFAULT).strip()
+
+
+# Compat: código legado importa MODELO
+MODELO = _MODELO_DEFAULT
+
+_last_error: str = ""
 
 # ═══════════════════════════════════════════════════════════════
 # ESTADO EN MEMORIA — no depende del filesystem
@@ -103,13 +122,26 @@ def _registrar_error_429(delay: int = 65):
     _estado["conexion_ok"]     = False
     print(f"[AI] Rate limit. Bloqueado {delay}s.")
 
+def _set_last_error(msg: str) -> None:
+    global _last_error
+    _last_error = (msg or "")[:240]
+
+
+def last_ai_error() -> str:
+    return _last_error
+
+
 def _llamar_ai(
     prompt: str,
     system: str = "",
     max_tokens: int = 500,
 ) -> Optional[str]:
     """Llama a Groq. Retorna texto o None si falla."""
+    global MODELO
+    MODELO = _modelo()
+
     if not _hay_cuota():
+        _set_last_error("Cuota diaria global de la app agotada o rate-limit temporal.")
         return None
 
     # Cuota por plan (Free: techo mensual en uso_ia)
@@ -118,12 +150,17 @@ def _llamar_ai(
 
         if not cuota_ia_ok():
             print("[AI] Cuota de plan agotada este mes")
+            _set_last_error("Cuota de IA de tu plan agotada este mes.")
             return None
     except Exception:
         pass
 
     client = _get_client()
     if not client:
+        if not _get_api_key():
+            _set_last_error("Falta GROQ_API_KEY en variables de entorno (Railway).")
+        else:
+            _set_last_error("No se pudo inicializar el cliente Groq (paquete o clave).")
         return None
 
     messages = []
@@ -147,16 +184,29 @@ def _llamar_ai(
         # Marcar conexión como ok al primer éxito
         _estado["conexion_ok"] = True
         _estado["conexion_ts"] = time.time()
+        _set_last_error("")
         return response.choices[0].message.content
 
     except Exception as e:
         err = str(e)
         if "429" in err or "rate_limit" in err.lower():
             _registrar_error_429(65)
-        else:
-            # Otro error de red / auth — no bloquear indefinidamente
+            _set_last_error("Rate limit de Groq (429). Espera un minuto e intenta de nuevo.")
+        elif "does not exist" in err.lower() or "model_" in err.lower() or "404" in err:
             _estado["conexion_ok"] = False
             _estado["conexion_ts"] = time.time()
+            _set_last_error(
+                f"Modelo Groq no disponible ({MODELO}). "
+                "Actualiza la app o define GROQ_MODEL en Railway."
+            )
+        elif "auth" in err.lower() or "invalid" in err.lower() or "401" in err or "403" in err:
+            _estado["conexion_ok"] = False
+            _estado["conexion_ts"] = time.time()
+            _set_last_error("GROQ_API_KEY inválida o sin permiso. Revisa la clave en Railway.")
+        else:
+            _estado["conexion_ok"] = False
+            _estado["conexion_ts"] = time.time()
+            _set_last_error(f"Error Groq: {err[:160]}")
         print(f"[AI] Error: {err[:120]}")
         return None
 
@@ -198,7 +248,7 @@ def estado_gemini() -> Dict:
 
     bloqueado = time.time() < _estado["bloqueado_hasta"]
     sin_cuota = _estado["llamadas_hoy"] >= _MAX_LLAMADAS_DIA
-    key_ok    = api_key_configurada()
+    key_ok = api_key_configurada()
 
     # conexion_ok None significa "no verificado" — asumimos True si hay key
     conexion_real = _estado["conexion_ok"]
@@ -219,11 +269,13 @@ def estado_gemini() -> Dict:
 
     return {
         "api_key_configurada": key_ok,
-        "conectado":           conectado,
-        "llamadas_hoy":        _estado["llamadas_hoy"],
-        "max_llamadas":        _MAX_LLAMADAS_DIA,
-        "restantes":           max(0, _MAX_LLAMADAS_DIA - _estado["llamadas_hoy"]),
-        "modo":                modo,
+        "conectado": conectado,
+        "llamadas_hoy": _estado["llamadas_hoy"],
+        "max_llamadas": _MAX_LLAMADAS_DIA,
+        "restantes": max(0, _MAX_LLAMADAS_DIA - _estado["llamadas_hoy"]),
+        "modo": modo,
+        "modelo": _modelo(),
+        "ultimo_error": _last_error,
     }
 
 # ═══════════════════════════════════════════════════════════════
@@ -234,12 +286,15 @@ FALLBACKS = {
     "resumen_semanal":        "🌟 Modo offline activo. Revisa tus hábitos manualmente hoy.",
     "alerta_matrimonio":      "⏰ Son las 20:30. Guarda las pantallas — tiempo sagrado en 30 min. 💑",
     "analisis_salud":         "📊 Sigue registrando para ver patrones. Prioriza 7+ horas de sueño.",
-    "chat_bienvenida":        "🤖 Sin respuesta de la IA. Verifica la API key en Secrets.",
+    "chat_bienvenida":        "🤖 Sin respuesta de la IA. Revisa GROQ_API_KEY / GROQ_MODEL en Railway.",
     "sugerencia_devocional":  "📖 Salmo 119:9-16 — ¿Cómo guardas tus caminos hoy?",
 }
 
 def _fallback(tipo: str) -> str:
-    return FALLBACKS.get(tipo, "🤖 Modo offline activo.")
+    base = FALLBACKS.get(tipo, "🤖 Modo offline activo.")
+    if tipo == "chat_bienvenida" and _last_error:
+        return f"{base} ({_last_error})"
+    return base
 
 # ═══════════════════════════════════════════════════════════════
 # FUNCIONES DE NEGOCIO
@@ -264,14 +319,16 @@ def chat_simple(mensaje: str, contexto: str = "") -> str:
 
 def probar_groq() -> dict:
     """Diagnóstico rápido de GROQ_API_KEY + una llamada mínima."""
+    modelo = _modelo()
     info = {
         "api_key_configurada": api_key_configurada(),
-        "modelo": MODELO,
+        "modelo": modelo,
         "ok": False,
         "mensaje": "",
+        "detalle": "",
     }
     if not info["api_key_configurada"]:
-        info["mensaje"] = "Falta GROQ_API_KEY en secrets o .env"
+        info["mensaje"] = "Falta GROQ_API_KEY en Railway / .env"
         return info
     resp = _llamar_ai(
         "Responde solo: OK",
@@ -280,12 +337,13 @@ def probar_groq() -> dict:
     )
     if resp and "OK" in resp.upper():
         info["ok"] = True
-        info["mensaje"] = f"Groq responde ({MODELO})"
+        info["mensaje"] = f"Groq responde ({modelo})"
     elif resp:
         info["ok"] = True
         info["mensaje"] = f"Groq respondió: {resp[:80]}"
     else:
-        info["mensaje"] = "No hubo respuesta (cuota, red o clave inválida)"
+        info["mensaje"] = "No hubo respuesta (modelo, cuota, red o clave)"
+        info["detalle"] = last_ai_error()
     return info
 
 def generar_resumen_semanal(*args, **kwargs) -> str:
