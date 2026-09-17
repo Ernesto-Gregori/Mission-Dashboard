@@ -22,22 +22,22 @@ Vistas derivadas de una sola carga. FastAPI + HTMX (`web/`). Streamlit no se toc
 - [x] Tests (página, ingreso compartido con Finanzas, ratios)
 
 ### Checkpoint 2.1
-- [ ] `pytest -q tests/`
+- [x] `pytest -q tests/`
 
 ### 2.2 Calendario de vencimientos
 - [x] CRUD recurrentes coloreados por tipo
 - [x] Tests (suscripción / factura / ingreso en el mes)
 
 ### Checkpoint 2.2
-- [ ] `pytest -q tests/`
+- [x] `pytest -q tests/`
 
 ### 2.3 Vista familiar
 - [x] Comparativa admin + filtro por miembro
 - [x] Tests (comparativa, 403 no-admin)
 
 ### Checkpoint Fase 2
-- [ ] Suite completa verde
-- [ ] `/health`, login y `/stripe/webhook` intactos
+- [x] Suite completa verde
+- [x] `/health`, login y `/stripe/webhook` intactos
 - [ ] No pasar a Fase 3 sin confirmación
 
 ## Risks

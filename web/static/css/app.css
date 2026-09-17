@@ -1658,6 +1658,7 @@ textarea {
   margin: 0.75rem 0;
 }
 .spend-seg { height: 100%; min-width: 2px; }
+.spend-empty { background: var(--border); min-width: 0; }
 .spend-legend {
   display: flex;
   flex-wrap: wrap;

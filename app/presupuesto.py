@@ -356,7 +356,7 @@ def calendario_vencimientos(
             "dia": d,
             "fecha": fecha,
             "es_hoy": fecha == hoy,
-            "items": por_dia[d],
+            "vencimientos": por_dia[d],
         })
     while len(celdas) % 7:
         celdas.append(None)
@@ -365,7 +365,7 @@ def calendario_vencimientos(
         "mes": mes,
         "anio": anio,
         "semanas": semanas,
-        "items": items,
+        "recurrentes": items,
         "tipos": [
             {"key": k, **TIPO_META[k]} for k in TIPOS_RECURRENTES
         ],

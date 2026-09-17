@@ -77,10 +77,10 @@
 
 <section class="card" aria-labelledby="spend-title">
   <h2 id="spend-title">A dónde va el dinero</h2>
-  {% if resumen.total_gastado <= 0 %}
-  <p class="muted">Sin gastos este mes. Cargá uno en Finanzas o abajo; el gráfico se arma solo.</p>
-  {% else %}
   <div class="spend-chart" role="img" aria-label="Distribución del gasto por categoría 50/30/20">
+    {% if resumen.total_gastado <= 0 %}
+    <div class="spend-seg spend-empty" style="width: 100%"></div>
+    {% else %}
     {% for s in resumen.stacked %}
     {% if s.pct > 0 %}
     <div class="spend-seg spend-{{ s.key }}" style="width: {{ s.pct }}%; background: {{ s.color }}" title="{{ s.label }} {{ '%.0f'|format(s.pct) }}%">
@@ -88,7 +88,11 @@
     </div>
     {% endif %}
     {% endfor %}
+    {% endif %}
   </div>
+  {% if resumen.total_gastado <= 0 %}
+  <p class="muted">Sin gastos este mes. Cargá uno en Finanzas o abajo; el gráfico se arma solo.</p>
+  {% else %}
   <ul class="spend-legend">
     {% for s in resumen.stacked %}
     <li><span class="swatch" style="background:{{ s.color }}"></span> {{ s.label }} ${{ '%.0f'|format(s.monto) }} ({{ '%.0f'|format(s.pct) }}%)</li>
@@ -152,7 +156,7 @@
       {% if celda %}
       <div class="due-day{% if celda.es_hoy %} is-today{% endif %}" role="gridcell">
         <strong>{{ celda.dia }}</strong>
-        {% for it in celda.items %}
+        {% for it in celda.vencimientos %}
         <div class="chip chip-{{ it.tipo }} due-{{ it.tipo }}" style="--event-color:{{ it.meta.color }}">
           {{ it.meta.emoji }} {{ it.titulo[:16] }}
         </div>
@@ -193,9 +197,9 @@
     </div>
   </form>
 
-  {% if cal.items %}
+  {% if cal.recurrentes %}
   <ul class="agenda-ev-list due-list">
-    {% for it in cal.items %}
+    {% for it in cal.recurrentes %}
     <li>
       <span>Día {{ it.dia }} · {{ it.meta.emoji }} {{ it.titulo }} · ${{ '%.2f'|format(it.monto) }}</span>
       <form class="inline-form" method="post" action="/app/presupuesto/recurrente/{{ it.id }}/eliminar">
