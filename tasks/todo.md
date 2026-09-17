@@ -16,7 +16,7 @@
 ## Fase 3
 - [x] Inspección Selectos (HTML vs API) + robots (CF bloquea www)
 - [x] Scraper Selectos + scrape_runs + script cron
-- [ ] Replicar Walmart / Despensa
+- [x] Walmart SV + Despensa (VTEX API)
 
 ## Fase 4
 - [ ] Normalización + fuzzy + tests con nombres reales

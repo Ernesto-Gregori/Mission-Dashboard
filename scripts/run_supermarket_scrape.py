@@ -5,9 +5,13 @@ Cron / CLI: scrapea supermercados y hace upsert en supermarket_products.
 Uso:
   MISSION_ALLOW_SQLITE=1 python3 scripts/run_supermarket_scrape.py
   python3 scripts/run_supermarket_scrape.py --only super_selectos
-  SELECTOS_CATEGORIES=012,03 python3 scripts/run_supermarket_scrape.py
+  python3 scripts/run_supermarket_scrape.py --only walmart_sv
+  python3 scripts/run_supermarket_scrape.py --only despensa_don_juan
+  SELECTOS_CATEGORIES=012,03 python3 scripts/run_supermarket_scrape.py --only super_selectos
+  VTEX_MAX_PAGES=2 python3 scripts/run_supermarket_scrape.py --only walmart_sv --dry-run
 
-Frecuencia recomendada: 1 vez al día (cron), delays 1–3s entre requests.
+Frecuencia recomendada: 1 vez al día por tienda (cron), delays 2–4 s en VTEX
+y 1–3 s en Selectos. robots.txt VTEX: no scrapear /account /login /checkout.
 """
 from __future__ import annotations
 

@@ -19,13 +19,13 @@ para servidor casero / uso personal. **No merge a main** hasta validar.
 - [x] Fase 2a: extracción visión (prompt + parse) — pendiente OK humano antes de UI
 - [x] Fase 2b: upload + confirmación HTMX + persistencia
 - [x] Fase 3a: scraper Súper Selectos (HTML categorías + fallback Bitworks)
-- [ ] Fase 3b: Walmart SV / Despensa (mismo patrón)
+- [x] Fase 3b: Walmart SV + Despensa (API VTEX catalog_system)
 - [ ] Fase 4: matching fuzzy + UI comparación
 
-## Checkpoint Fase 3a
-- [x] Inspección: API ecom-products sin precio; HTML storefront con `strong.precio`
-- [x] www CF 403 desde cloud → fallback `selectospp.bitworks.com.sv`
-- [x] `pytest -q tests/test_scraper_super_selectos.py`
-- [x] dry-run real categoría 012
-- Frecuencia recomendada: **1 corrida/día** (`scripts/run_supermarket_scrape.py`), delays 1.2–2.8s
+## Checkpoint Fase 3b
+- [x] robots.txt VTEX: Disallow account/login/checkout (catálogo OK)
+- [x] API `/api/catalog_system/pub/products/search` con Price
+- [x] Scrapers `walmart_sv` (~23k) y `despensa_don_juan` (~13k)
+- [x] Delays 2–4s + backoff por 429
+- [x] Tests mock + dry-run 1 página
 

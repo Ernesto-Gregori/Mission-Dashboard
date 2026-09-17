@@ -5,14 +5,22 @@ import logging
 from typing import Callable
 
 from app.db import finanzas_receipts as fr
-from app.db.schema import SUPERMERCADO_SELECTOS
+from app.db.schema import (
+    SUPERMERCADO_DESPENSA,
+    SUPERMERCADO_SELECTOS,
+    SUPERMERCADO_WALMART,
+)
 from app.scrapers.base import ScrapeResult, SupermarketScraper, persist_products
+from app.scrapers.despensa_don_juan import DespensaDonJuanScraper
 from app.scrapers.super_selectos import SuperSelectosScraper
+from app.scrapers.walmart_sv import WalmartSvScraper
 
 log = logging.getLogger("scrapers.runner")
 
 SCRAPERS: dict[str, Callable[[], SupermarketScraper]] = {
     SUPERMERCADO_SELECTOS: SuperSelectosScraper,
+    SUPERMERCADO_WALMART: WalmartSvScraper,
+    SUPERMERCADO_DESPENSA: DespensaDonJuanScraper,
 }
 
 
