@@ -377,24 +377,27 @@ def _write_jpg(dest: Path) -> Path:
 
 def test_extract_keyframes_samples_short_clip(tmp_path):
     clip = tmp_path / "clip.mp4"
-    proc = __import__("subprocess").run(
-        [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "color=c=black:s=160x120:d=4",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-t",
-            "4",
-            str(clip),
-        ],
-        capture_output=True,
-    )
+    try:
+        proc = __import__("subprocess").run(
+            [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=160x120:d=4",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-t",
+                "4",
+                str(clip),
+            ],
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        pytest.skip("ffmpeg no está instalado en este entorno")
     if proc.returncode != 0 or not clip.is_file():
         pytest.skip("ffmpeg/libx264 no disponible para generar el clip de prueba")
     from app.exercise_analysis import extract_keyframes
