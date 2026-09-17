@@ -6,6 +6,27 @@
 {% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
 
+{% if price_matches %}
+<div class="card">
+  <h2>🏷 Comparación de precios</h2>
+  <p class="muted" style="font-size:0.9rem">
+    Cruces automáticos con el catálogo scrapeado (umbral de confianza).
+    Si el match es dudoso, aparece como sin coincidencia clara.
+  </p>
+  <ul style="margin:0.5rem 0 0;padding-left:1.1rem">
+    {% for m in price_matches %}
+    <li style="margin-bottom:0.45rem">
+      <strong>{{ m.nombre }}</strong><br />
+      <span class="{% if m.sin_coincidencia_clara %}flash-warn{% else %}muted{% endif %}"
+            style="display:inline-block;margin-top:0.2rem;padding:0.25rem 0.45rem;border-radius:6px;font-size:0.9rem">
+        {{ m.resumen }}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <div class="card">
   <h2>📅 Período e ingreso</h2>
   <form method="post" action="/app/m/finanzas/periodo" style="display:grid;gap:0.5rem;grid-template-columns:1fr 1fr 1fr;align-items:end">

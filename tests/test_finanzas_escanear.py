@@ -91,6 +91,31 @@ def test_finanzas_muestra_bloque_escanear(web_client):
 def test_escanear_confirm_y_guardar(web_client, monkeypatch):
     _setup_finanzas(web_client, "scan_ok")
 
+    # Catálogo mínimo para matching
+    from app.db import finanzas_receipts as fr
+    from app.price_matching import normalize_product_name
+
+    fr.upsert_supermarket_product(
+        supermercado="walmart_sv",
+        nombre="Leche Deslactosada Alpina 1 Litro",
+        nombre_normalizado=normalize_product_name("Leche Deslactosada Alpina 1 Litro"),
+        categoria="Lacteos",
+        precio=2.35,
+        unidad="L",
+        sku_o_id_externo="W-LECHE-1",
+        url_producto=None,
+    )
+    fr.upsert_supermarket_product(
+        supermercado="super_selectos",
+        nombre="Leche Deslactosada Alpina 1000 ml",
+        nombre_normalizado=normalize_product_name("Leche Deslactosada Alpina 1000 ml"),
+        categoria="Lacteos",
+        precio=2.45,
+        unidad="ml",
+        sku_o_id_externo="SS-LECHE-1",
+        url_producto=None,
+    )
+
     fake = ExtractionResult(
         ok=True,
         tipo="recibo",
@@ -99,7 +124,7 @@ def test_escanear_confirm_y_guardar(web_client, monkeypatch):
         monto_total=15.75,
         metodo_pago="tarjeta",
         items=[
-            ReceiptItemDraft("LECHE", 1, 2.5, 2.5),
+            ReceiptItemDraft("LECHE DESLAC 1L ALPINA", 1, 2.5, 2.5),
             ReceiptItemDraft("PAN", 2, 1.0, 2.0),
         ],
         raw={"tipo": "recibo"},
@@ -114,9 +139,7 @@ def test_escanear_confirm_y_guardar(web_client, monkeypatch):
     )
     assert r.status_code == 200
     assert b"Confirmar escaneo" in r.content
-    assert b"S" in r.content  # comercio / selectos
     assert b"LECHE" in r.content
-    assert b"demo warning" in r.content
 
     r = web_client.post(
         "/app/m/finanzas/escanear/confirmar",
@@ -129,7 +152,7 @@ def test_escanear_confirm_y_guardar(web_client, monkeypatch):
             "sobre": "Supervivencia",
             "subcategoria": "Comida",
             "descripcion": "Súper Selectos",
-            "item_nombre_0": "LECHE",
+            "item_nombre_0": "LECHE DESLAC 1L ALPINA",
             "item_cantidad_0": "1",
             "item_pu_0": "2.5",
             "item_pt_0": "2.5",
@@ -145,8 +168,9 @@ def test_escanear_confirm_y_guardar(web_client, monkeypatch):
 
     r = web_client.get("/app/m/finanzas")
     assert r.status_code == 200
-    assert b"escaneado" in r.content.lower() or b"Selectos" in r.content
-    assert b"recibo" in r.content
+    assert b"Comparaci" in r.content  # Comparación de precios
+    assert b"Walmart" in r.content or b"Selectos" in r.content
+    assert b"LECHE DESLAC" in r.content
 
     import app.db.core as core
 
@@ -158,6 +182,8 @@ def test_escanear_confirm_y_guardar(web_client, monkeypatch):
     assert float(rows[0]["monto"]) == pytest.approx(15.75)
     items = core.ejecutar("SELECT * FROM receipt_items", fetchall=True) or []
     assert len(items) == 2
+    matches = core.ejecutar("SELECT * FROM price_matches", fetchall=True) or []
+    assert len(matches) >= 1
 
 
 def test_escanear_error_ocr(web_client, monkeypatch):

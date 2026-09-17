@@ -20,12 +20,10 @@ para servidor casero / uso personal. **No merge a main** hasta validar.
 - [x] Fase 2b: upload + confirmación HTMX + persistencia
 - [x] Fase 3a: scraper Súper Selectos (HTML categorías + fallback Bitworks)
 - [x] Fase 3b: Walmart SV + Despensa (API VTEX catalog_system)
-- [ ] Fase 4: matching fuzzy + UI comparación
+- [x] Fase 4: matching fuzzy + UI comparación al guardar escaneo
 
-## Checkpoint Fase 3b
-- [x] robots.txt VTEX: Disallow account/login/checkout (catálogo OK)
-- [x] API `/api/catalog_system/pub/products/search` con Price
-- [x] Scrapers `walmart_sv` (~23k) y `despensa_don_juan` (~13k)
-- [x] Delays 2–4s + backoff por 429
-- [x] Tests mock + dry-run 1 página
+## Checkpoint Fase 4
+- [x] Normalización SV + fuzzy (difflib/tokens), umbral 0.78
+- [x] Tests con nombres típicos de recibo
+- [x] Al confirmar escaneo → `price_matches` + tarjeta “Comparación de precios”
 

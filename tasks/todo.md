@@ -19,5 +19,5 @@
 - [x] Walmart SV + Despensa (VTEX API)
 
 ## Fase 4
-- [ ] Normalización + fuzzy + tests con nombres reales
-- [ ] Integrar al flujo de guardado
+- [x] Normalización + fuzzy + tests con nombres reales
+- [x] Integrar al flujo de guardado + UI comparación

@@ -61,6 +61,7 @@ SYSTEM_FINANZAS = (
 )
 
 SESSION_DRAFT_KEY = "finanzas_scan_draft"
+SESSION_MATCHES_KEY = "finanzas_last_matches"
 MAX_SCAN_BYTES = 8 * 1024 * 1024
 
 
@@ -129,6 +130,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "ia_ok": api_key_configurada(),
         "consejo": None,
         "vision_ok": api_key_configurada(),
+        "price_matches": request.session.pop(SESSION_MATCHES_KEY, None),
     }
 
 
@@ -476,16 +478,45 @@ async def escanear_confirmar(
             raw_ocr_data=draft.get("raw_ocr_data"),
             ocr_estado=OCR_ESTADO_CONFIRMADO,
         )
+        from app.price_matching import (
+            load_catalog,
+            match_item_against_catalog,
+            normalize_product_name,
+            persist_matches_for_receipt_item,
+        )
+
+        catalog = load_catalog() if items else []
+        match_summaries: list[dict] = []
         for idx, it in enumerate(items):
-            fr.agregar_receipt_item(
+            rid = fr.agregar_receipt_item(
                 gasto_id=gid,
                 nombre_original=it["nombre"],
-                nombre_normalizado=it["nombre"].lower(),
+                nombre_normalizado=normalize_product_name(it["nombre"]),
                 cantidad=float(it["cantidad"] or 1),
                 precio_unitario=it.get("precio_unitario"),
                 precio_total=it.get("precio_total"),
                 orden=idx,
             )
+            match = match_item_against_catalog(it["nombre"], catalog)
+            persist_matches_for_receipt_item(rid, match)
+            match_summaries.append(
+                {
+                    "nombre": it["nombre"],
+                    "resumen": match.resumen_precios(),
+                    "sin_coincidencia_clara": match.sin_coincidencia_clara,
+                    "hits": [
+                        {
+                            "supermercado": h.supermercado,
+                            "nombre": h.nombre,
+                            "precio": h.precio,
+                            "score": round(h.score, 3),
+                        }
+                        for h in match.hits
+                    ],
+                }
+            )
+        if match_summaries:
+            request.session[SESSION_MATCHES_KEY] = match_summaries
     except Exception:
         return render(
             request,
