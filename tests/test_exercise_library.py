@@ -376,11 +376,17 @@ def _write_jpg(dest: Path) -> Path:
 
 
 def test_extract_keyframes_samples_short_clip(tmp_path):
+    from app.ffmpeg_bin import resolve_ffmpeg
+
     clip = tmp_path / "clip.mp4"
+    try:
+        ffmpeg = resolve_ffmpeg()
+    except FileNotFoundError:
+        pytest.skip("ffmpeg no está instalado en este entorno")
     try:
         proc = __import__("subprocess").run(
             [
-                "ffmpeg",
+                ffmpeg,
                 "-y",
                 "-f",
                 "lavfi",

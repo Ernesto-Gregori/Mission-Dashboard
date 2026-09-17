@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import uuid
 from pathlib import Path
 
 from app.db.core import DB_PATH
+from app.ffmpeg_bin import parse_ffmpeg_duration, resolve_ffmpeg, resolve_ffprobe
 from app.logging_config import get_logger
 
 log = get_logger("exercise_uploads")
@@ -90,21 +92,45 @@ def validate_filename_and_mime(filename: str | None, content_type: str | None) -
 
 
 def probe_video_duration(path: Path) -> float | None:
-    """Duración en segundos vía ffprobe. None si no se puede leer."""
-    import subprocess
+    """Duración en segundos vía ffprobe o ffmpeg -i. None si no se puede leer."""
+    ffprobe = resolve_ffprobe()
+    if ffprobe:
+        try:
+            proc = subprocess.run(
+                [
+                    ffprobe,
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as e:
+            log.warning({"event": "exercise_ffprobe_failed", "error": type(e).__name__})
+        else:
+            raw = (proc.stdout or "").strip()
+            try:
+                dur = float(raw)
+            except ValueError:
+                dur = None
+            if dur is not None and dur > 0 and dur == dur:
+                return dur
 
     try:
+        ffmpeg = resolve_ffmpeg()
+    except FileNotFoundError as e:
+        log.warning({"event": "exercise_ffprobe_failed", "error": type(e).__name__})
+        return None
+    try:
         proc = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                str(path),
-            ],
+            [ffmpeg, "-hide_banner", "-i", str(path)],
             capture_output=True,
             text=True,
             timeout=20,
@@ -113,14 +139,7 @@ def probe_video_duration(path: Path) -> float | None:
     except (OSError, subprocess.TimeoutExpired) as e:
         log.warning({"event": "exercise_ffprobe_failed", "error": type(e).__name__})
         return None
-    raw = (proc.stdout or "").strip()
-    try:
-        dur = float(raw)
-    except ValueError:
-        return None
-    if dur <= 0 or dur != dur:  # NaN
-        return None
-    return dur
+    return parse_ffmpeg_duration((proc.stderr or "") + "\n" + (proc.stdout or ""))
 
 
 def save_exercise_video(
