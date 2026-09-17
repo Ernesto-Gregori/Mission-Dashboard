@@ -396,3 +396,10 @@ def ensure_remote_schema():
         """)
     except Exception:
         pass
+
+    try:
+        from app.db.exercises import ensure_exercise_tables
+
+        ensure_exercise_tables()
+    except Exception as e:
+        print(f"ensure_remote_schema exercises: {e}")

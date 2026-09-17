@@ -1,0 +1,116 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="module-header" data-module="salud">
+  <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
+  <div>
+    <h1>{{ ex.nombre_ejercicio or "Ejercicio" }}</h1>
+    <p class="muted"><a href="/app/m/salud?tab=ejercicios">← Mis ejercicios</a></p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+{% if ex.status == "processing" %}
+<div class="card" aria-busy="true">
+  <h2>Analizando video</h2>
+  <p class="muted">El coach IA está identificando el movimiento. Vuelve a Mis ejercicios en unos segundos.</p>
+</div>
+{% elif ex.status == "failed" %}
+<div class="card">
+  <h2>Análisis fallido</h2>
+  <p class="muted" role="alert">{{ ex.error_message or "No se pudo completar el análisis." }}</p>
+  <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/reintentar">
+    <button class="btn" type="submit">Reintentar análisis</button>
+  </form>
+</div>
+{% endif %}
+
+<section class="card">
+  <h2>Video de origen</h2>
+  <p class="muted">Archivo privado de tu cuenta. No se publica ni se descarga de redes sociales.</p>
+  <video class="ex-player" controls preload="metadata" src="/app/m/salud/ejercicios/{{ ex.id }}/video">
+    Tu navegador no reproduce este video.
+  </video>
+</section>
+
+<section class="card">
+  <h2>Ficha del ejercicio</h2>
+  <p class="muted">Puedes corregir cualquier campo si la IA se equivocó. Esta ficha queda lista para el armador de rutinas.</p>
+  <form class="ex-edit-form" method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/editar">
+    <div>
+      <label for="ex-name">Nombre del ejercicio</label>
+      <input id="ex-name" name="nombre_ejercicio" value="{{ ex.nombre_ejercicio or '' }}" required maxlength="160" />
+    </div>
+    <div class="health-form-grid cols-3">
+      <div>
+        <label for="ex-level">Nivel</label>
+        <select id="ex-level" name="nivel_dificultad">
+          {% for n in niveles %}
+          <option value="{{ n }}" {% if ex.nivel_dificultad == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="ex-tipo">Tipo de movimiento</label>
+        <select id="ex-tipo" name="tipo_movimiento">
+          {% for t in tipos_movimiento %}
+          <option value="{{ t }}" {% if ex.tipo_movimiento == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="ex-conf">Confianza del análisis</label>
+        <select id="ex-conf" name="confianza_analisis">
+          {% for c in confianzas %}
+          <option value="{{ c }}" {% if ex.confianza_analisis == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div>
+      <label for="ex-prim">Grupos musculares primarios</label>
+      <textarea id="ex-prim" name="grupos_musculares_primarios" rows="2">{{ (ex.grupos_musculares_primarios or []) | join(", ") }}</textarea>
+    </div>
+    <div>
+      <label for="ex-sec">Grupos musculares secundarios</label>
+      <textarea id="ex-sec" name="grupos_musculares_secundarios" rows="2">{{ (ex.grupos_musculares_secundarios or []) | join(", ") }}</textarea>
+    </div>
+    <div>
+      <label for="ex-eq">Equipamiento detectado</label>
+      <textarea id="ex-eq" name="equipamiento_detectado" rows="2">{{ (ex.equipamiento_detectado or []) | join(", ") }}</textarea>
+    </div>
+    <div>
+      <label for="ex-cues">Cues de forma</label>
+      <textarea id="ex-cues" name="cues_de_forma" rows="4">{{ (ex.cues_de_forma or []) | join("\n") }}</textarea>
+    </div>
+    <div class="health-form-grid">
+      <div>
+        <label for="ex-menc">Series/reps mencionadas (audio)</label>
+        <input id="ex-menc" name="series_reps_mencionadas" value="{{ ex.series_reps_mencionadas or '' }}" />
+      </div>
+      <div>
+        <label for="ex-sug">Series/reps sugeridas</label>
+        <input id="ex-sug" name="series_reps_sugeridas" value="{{ ex.series_reps_sugeridas or '' }}" />
+      </div>
+      <div>
+        <label for="ex-dur">Duración estimada (segundos)</label>
+        <input id="ex-dur" name="duracion_estimada_segundos" type="number" min="0" step="1" value="{{ ex.duracion_estimada_segundos or '' }}" />
+      </div>
+      <div>
+        <label for="ex-plat">Plataforma de origen (atribución)</label>
+        <select id="ex-plat" name="source_platform">
+          <option value="">—</option>
+          {% for p in platforms %}
+          <option value="{{ p }}" {% if ex.source_platform == p %}selected{% endif %}>{{ platform_labels.get(p, p) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">Guardar cambios</button>
+      <a class="btn secondary" href="/app/m/salud?tab=ejercicios">Volver a la biblioteca</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,88 @@
+{# Lista de ejercicios — fragmento recargable por HTMX mientras hay análisis en curso. #}
+<div id="ejercicios-lista"
+     class="ex-library"
+     {% if hay_processing %}
+     hx-get="/app/m/salud/ejercicios/fragmento"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML"
+     {% endif %}>
+  {% set processing = ejercicios | selectattr('status', 'equalto', 'processing') | list %}
+  {% set failed = ejercicios | selectattr('status', 'equalto', 'failed') | list %}
+  {% set ready = ejercicios | selectattr('status', 'equalto', 'ready') | list %}
+
+  {% if processing %}
+  <section class="ex-section" aria-labelledby="ex-processing-title">
+    <h3 id="ex-processing-title">Analizando</h3>
+    <ul class="ex-card-list">
+      {% for ex in processing %}
+      <li>
+        <article class="ex-card is-processing" aria-busy="true">
+          <div class="ex-card-body">
+            <h4>Coach IA analizando…</h4>
+            <p class="muted">Suele tardar 10–30 segundos. Esta lista se actualiza sola.</p>
+          </div>
+        </article>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if failed %}
+  <section class="ex-section" aria-labelledby="ex-failed-title">
+    <h3 id="ex-failed-title">No se pudo analizar</h3>
+    <ul class="ex-card-list">
+      {% for ex in failed %}
+      <li>
+        <article class="ex-card is-failed">
+          <div class="ex-card-body">
+            <h4>{{ ex.nombre_ejercicio or "Ejercicio sin identificar" }}</h4>
+            <p class="muted" role="alert">{{ ex.error_message or "El análisis falló." }}</p>
+            <div class="ex-card-actions">
+              <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/reintentar">
+                <button class="btn" type="submit">Reintentar análisis</button>
+              </form>
+              <a class="btn secondary" href="/app/m/salud/ejercicios/{{ ex.id }}">Ver detalle</a>
+            </div>
+          </div>
+        </article>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="ex-section" aria-labelledby="ex-ready-title">
+    <h3 id="ex-ready-title">Mis ejercicios</h3>
+    {% if not ready %}
+    <div class="empty-state ex-empty" role="status">
+      <p>Aún no hay ejercicios listos en tu biblioteca.</p>
+      <p class="muted">Sube un clip corto de un solo movimiento (no una rutina completa) para que el coach lo identifique y lo deje reutilizable.</p>
+    </div>
+    {% else %}
+    <ul class="ex-card-list">
+      {% for ex in ready %}
+      <li>
+        <a class="ex-card" href="/app/m/salud/ejercicios/{{ ex.id }}">
+          <div class="ex-card-body">
+            <h4>{{ ex.nombre_ejercicio }}</h4>
+            <p class="ex-card-meta">
+              {{ (ex.grupos_musculares_primarios or ["—"]) | join(" · ") }}
+            </p>
+            <p class="ex-card-equip">
+              {{ (ex.equipamiento_detectado or ["no detectado"]) | join(" · ") }}
+            </p>
+            {% if ex.nivel_dificultad or ex.tipo_movimiento %}
+            <p class="ex-card-tags">
+              {% if ex.nivel_dificultad %}<span>{{ ex.nivel_dificultad }}</span>{% endif %}
+              {% if ex.tipo_movimiento %}<span>{{ ex.tipo_movimiento }}</span>{% endif %}
+            </p>
+            {% endif %}
+          </div>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+</div>

@@ -31,10 +31,11 @@ from app.onboarding import listar_modulos_usuario, modulo_activo
 from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
+from web.routers.ejercicios import ejercicios_page_extras
 
 router = APIRouter(prefix="/app/m/salud", tags=["salud"])
 
-TABS = ("hoy", "historial", "coach")
+TABS = ("hoy", "ejercicios", "historial", "coach")
 
 
 def _nav(user_id: int) -> list[dict]:
@@ -92,6 +93,7 @@ def _ctx(
     error: str | None = None,
     consejo: str | None = None,
     fit_preview: dict | None = None,
+    warn: str | None = None,
 ):
     tab = _tab(request)
     fecha = _fecha(request)
@@ -193,6 +195,8 @@ def _ctx(
         "progreso30": serie_progreso(30, int(user["id"])),
         "tipos_objetivo": TIPOS_OBJETIVO,
         "objetivo_labels": OBJETIVO_LABELS,
+        "warn": warn,
+        **ejercicios_page_extras(int(user["id"])),
     }
 
 
@@ -225,6 +229,7 @@ def salud_page(request: Request, user: Annotated[dict, Depends(require_onboarded
 
     flash = None
     error = None
+    warn = None
     g = request.query_params.get("google")
     if g == "ok":
         flash = "Google Fit/Calendar vinculados."
@@ -232,8 +237,11 @@ def salud_page(request: Request, user: Annotated[dict, Depends(require_onboarded
         error = request.query_params.get("msg") or "No se pudo vincular Google."
     elif g == "denied":
         error = "Google denegó el acceso."
+    flash = request.query_params.get("flash") or flash
+    error = request.query_params.get("error") or error
+    warn = request.query_params.get("warn") or warn
 
-    return render(request, "modules/salud.html", **_ctx(request, user, flash=flash, error=error))
+    return render(request, "modules/salud.html", **_ctx(request, user, flash=flash, error=error, warn=warn))
 
 
 @router.post("/guardar")
