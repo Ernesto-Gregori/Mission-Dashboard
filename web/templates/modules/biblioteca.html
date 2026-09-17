@@ -1,22 +1,27 @@
 {% extends "layout_app.html" %}
 {% block content %}
-<h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
-<p class="muted">Catálogo · progreso · resaltados</p>
+<header class="module-header" data-module="biblioteca">
+  <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
+  <div>
+    <h1>{{ meta.nombre }}</h1>
+    <p class="muted">Catálogo · progreso · resaltados</p>
+  </div>
+</header>
 
-{% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
-{% if error %}<div class="flash-error">{{ error }}</div>{% endif %}
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
-<div class="agenda-rachas">
-  <span>📚 {{ stats.total }} libros</span>
-  <span>🔥 {{ stats.leyendo }} leyendo</span>
-  <span>✅ {{ stats.completados }} completados</span>
-</div>
+<dl class="library-metrics">
+  <div><dt>Catálogo</dt><dd>📚 {{ stats.total }}</dd></div>
+  <div><dt>En lectura</dt><dd>🔥 {{ stats.leyendo }}</dd></div>
+  <div><dt>Completados</dt><dd>✅ {{ stats.completados }}</dd></div>
+</dl>
 
-<nav class="agenda-tabs">
-  <a class="{% if tab == 'catalogo' %}active{% endif %}" href="/app/m/biblioteca?tab=catalogo">📚 Catálogo</a>
-  <a class="{% if tab == 'nuevo' %}active{% endif %}" href="/app/m/biblioteca?tab=nuevo">➕ Nuevo</a>
-  <a class="{% if tab == 'leyendo' %}active{% endif %}" href="/app/m/biblioteca?tab=leyendo">🔥 En lectura</a>
-  <a class="{% if tab == 'resaltados' %}active{% endif %}" href="/app/m/biblioteca?tab=resaltados">🎨 Resaltados</a>
+<nav class="agenda-tabs library-tabs" aria-label="Secciones de Biblioteca">
+  <a class="{% if tab == 'catalogo' %}active{% endif %}" href="/app/m/biblioteca?tab=catalogo"{% if tab == 'catalogo' %} aria-current="page"{% endif %}>📚 Catálogo</a>
+  <a class="{% if tab == 'nuevo' %}active{% endif %}" href="/app/m/biblioteca?tab=nuevo"{% if tab == 'nuevo' %} aria-current="page"{% endif %}>➕ Nuevo</a>
+  <a class="{% if tab == 'leyendo' %}active{% endif %}" href="/app/m/biblioteca?tab=leyendo"{% if tab == 'leyendo' %} aria-current="page"{% endif %}>🔥 En lectura</a>
+  <a class="{% if tab == 'resaltados' %}active{% endif %}" href="/app/m/biblioteca?tab=resaltados"{% if tab == 'resaltados' %} aria-current="page"{% endif %}>🎨 Resaltados</a>
 </nav>
 
 {% if tab == 'nuevo' %}
@@ -24,32 +29,32 @@
   <div class="card">
     <h2>➕ Agregar libro (manual)</h2>
     <p class="muted">La carga PDF / ISBN con IA sigue en Streamlit por ahora.</p>
-    <form method="post" action="/app/m/biblioteca/nuevo">
-      <div class="grid" style="grid-template-columns:2fr 1fr">
-        <div><label>Título *</label><input name="titulo" required /></div>
-        <div><label>Autor</label><input name="autor" /></div>
+    <form class="library-book-form" method="post" action="/app/m/biblioteca/nuevo">
+      <div class="library-form-grid title-grid">
+        <div><label for="book-title">Título *</label><input id="book-title" name="titulo" required /></div>
+        <div><label for="book-author">Autor</label><input id="book-author" name="autor" /></div>
       </div>
-      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+      <div class="library-form-grid">
         <div>
-          <label>Categoría</label>
-          <select name="categoria">{% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+          <label for="book-category">Categoría</label>
+          <select id="book-category" name="categoria">{% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
         </div>
         <div>
-          <label>Estado</label>
-          <select name="estado">
+          <label for="book-status">Estado</label>
+          <select id="book-status" name="estado">
             <option value="catalogado">catalogado</option>
             <option value="leyendo">leyendo</option>
             <option value="pausado">pausado</option>
             <option value="completado">completado</option>
           </select>
         </div>
-        <div><label>Páginas</label><input name="total_paginas" type="number" min="0" value="0" /></div>
-        <div><label>Año</label><input name="anio" type="number" min="0" value="0" /></div>
-        <div><label>ISBN</label><input name="isbn" /></div>
-        <div><label>Editorial</label><input name="editorial" /></div>
+        <div><label for="book-pages">Páginas</label><input id="book-pages" name="total_paginas" type="number" min="0" value="0" /></div>
+        <div><label for="book-year">Año</label><input id="book-year" name="anio" type="number" min="0" value="0" /></div>
+        <div><label for="book-isbn">ISBN</label><input id="book-isbn" name="isbn" /></div>
+        <div><label for="book-publisher">Editorial</label><input id="book-publisher" name="editorial" /></div>
       </div>
-      <div><label>Descripción</label><textarea name="descripcion" rows="3"></textarea></div>
-      <button class="btn" type="submit" style="margin-top:0.75rem">Guardar libro</button>
+      <div><label for="book-description">Descripción</label><textarea id="book-description" name="descripcion" rows="3"></textarea></div>
+      <div class="form-actions"><button class="btn" type="submit">Guardar libro</button></div>
     </form>
   </div>
 </section>
@@ -58,67 +63,72 @@
 {% if tab == 'catalogo' %}
 <section>
   <div class="card">
-    <form method="get" action="/app/m/biblioteca" style="display:grid;gap:0.5rem;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));align-items:end">
+    <form class="library-filter-form" method="get" action="/app/m/biblioteca">
       <input type="hidden" name="tab" value="catalogo" />
       <div>
-        <label>Estado</label>
-        <select name="estado">
+        <label for="library-status-filter">Estado</label>
+        <select id="library-status-filter" name="estado">
           <option value="">Todos</option>
           {% for e in estados %}<option value="{{ e }}" {% if filtro_estado == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
         </select>
       </div>
       <div>
-        <label>Categoría</label>
-        <select name="categoria">
+        <label for="library-category-filter">Categoría</label>
+        <select id="library-category-filter" name="categoria">
           <option value="">Todas</option>
           {% for c in categorias %}<option value="{{ c }}" {% if filtro_categoria == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
       </div>
-      <div style="grid-column:span 2"><label>Buscar</label><input name="q" value="{{ busqueda }}" placeholder="título, autor…" /></div>
+      <div class="library-search-field"><label for="library-query">Buscar</label><input id="library-query" name="q" value="{{ busqueda }}" placeholder="Título, autor…" /></div>
       <button class="btn secondary" type="submit">Filtrar</button>
     </form>
   </div>
 
   {% if not libros %}
-  <div class="card"><p class="muted">Sin libros. Agrega uno en Nuevo.</p></div>
+  <div class="card empty-state"><p class="muted">Sin libros. Agrega uno en Nuevo.</p></div>
   {% endif %}
   {% for L in libros %}
-  <div class="card" style="border-left:4px solid {% if L.estado == 'leyendo' %}#e3b341{% elif L.estado == 'completado' %}#3fb950{% else %}#58a6ff{% endif %}">
-    <strong>{{ L.titulo }}</strong>
-    <span class="muted"> · {{ L.autor or '—' }} · {{ L.categoria_principal or '—' }} · {{ L.estado }}</span>
-    <p class="muted" style="font-size:0.85rem">
-      pág. {{ L.pagina_actual or 0 }}/{{ L.total_paginas or '—' }}
-      ({{ '%.0f'|format(L.pct) }}%)
-    </p>
-    <details>
-      <summary class="muted">Editar / progreso</summary>
-      <form method="post" action="/app/m/biblioteca/libro/{{ L.id }}/editar" style="margin-top:0.5rem">
-        <div class="grid" style="grid-template-columns:2fr 1fr">
-          <div><label>Título</label><input name="titulo" value="{{ L.titulo }}" required /></div>
-          <div><label>Autor</label><input name="autor" value="{{ L.autor or '' }}" /></div>
+  <article class="book-card status-{{ L.estado }}">
+    <header class="book-card-header">
+      <div>
+        <strong>{{ L.titulo }}</strong>
+        <span class="book-meta">{{ L.autor or 'Autor desconocido' }} · {{ L.categoria_principal or 'Sin categoría' }}</span>
+      </div>
+      <span class="badge">{{ L.estado }}</span>
+    </header>
+    <div class="book-progress">
+      <progress max="100" value="{{ L.pct }}" aria-label="Progreso de {{ L.titulo }}: {{ '%.0f'|format(L.pct) }}%"></progress>
+      <span>pág. {{ L.pagina_actual or 0 }}/{{ L.total_paginas or '—' }} · {{ '%.0f'|format(L.pct) }}%</span>
+    </div>
+    <details class="book-editor">
+      <summary>Editar / progreso</summary>
+      <form class="library-book-form" method="post" action="/app/m/biblioteca/libro/{{ L.id }}/editar">
+        <div class="library-form-grid title-grid">
+          <div><label for="title-{{ L.id }}">Título</label><input id="title-{{ L.id }}" name="titulo" value="{{ L.titulo }}" required /></div>
+          <div><label for="author-{{ L.id }}">Autor</label><input id="author-{{ L.id }}" name="autor" value="{{ L.autor or '' }}" /></div>
         </div>
-        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">
+        <div class="library-form-grid">
           <div>
-            <label>Categoría</label>
-            <select name="categoria">{% for c in categorias %}<option value="{{ c }}" {% if L.categoria_principal == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+            <label for="category-{{ L.id }}">Categoría</label>
+            <select id="category-{{ L.id }}" name="categoria">{% for c in categorias %}<option value="{{ c }}" {% if L.categoria_principal == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
           </div>
           <div>
-            <label>Estado</label>
-            <select name="estado">{% for e in estados %}<option value="{{ e }}" {% if L.estado == e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
+            <label for="status-{{ L.id }}">Estado</label>
+            <select id="status-{{ L.id }}" name="estado">{% for e in estados %}<option value="{{ e }}" {% if L.estado == e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
           </div>
-          <div><label>Página actual</label><input name="pagina_actual" type="number" min="0" value="{{ L.pagina_actual or 0 }}" /></div>
-          <div><label>Total páginas</label><input name="total_paginas" type="number" min="0" value="{{ L.total_paginas or 0 }}" /></div>
-          <div><label>ISBN</label><input name="isbn" value="{{ L.isbn or '' }}" /></div>
-          <div><label>Editorial</label><input name="editorial" value="{{ L.editorial or '' }}" /></div>
+          <div><label for="current-page-{{ L.id }}">Página actual</label><input id="current-page-{{ L.id }}" name="pagina_actual" type="number" min="0" value="{{ L.pagina_actual or 0 }}" /></div>
+          <div><label for="total-pages-{{ L.id }}">Total páginas</label><input id="total-pages-{{ L.id }}" name="total_paginas" type="number" min="0" value="{{ L.total_paginas or 0 }}" /></div>
+          <div><label for="isbn-{{ L.id }}">ISBN</label><input id="isbn-{{ L.id }}" name="isbn" value="{{ L.isbn or '' }}" /></div>
+          <div><label for="publisher-{{ L.id }}">Editorial</label><input id="publisher-{{ L.id }}" name="editorial" value="{{ L.editorial or '' }}" /></div>
         </div>
-        <div><label>Descripción</label><textarea name="descripcion" rows="2">{{ L.descripcion or '' }}</textarea></div>
-        <button class="btn" type="submit" style="margin-top:0.4rem">Guardar</button>
+        <div><label for="description-{{ L.id }}">Descripción</label><textarea id="description-{{ L.id }}" name="descripcion" rows="2">{{ L.descripcion or '' }}</textarea></div>
+        <div class="form-actions"><button class="btn" type="submit">Guardar</button></div>
       </form>
-      <form method="post" action="/app/m/biblioteca/libro/{{ L.id }}/eliminar" style="margin-top:0.4rem" onsubmit="return confirm('¿Eliminar libro y resaltados?')">
+      <form class="secondary-action" method="post" action="/app/m/biblioteca/libro/{{ L.id }}/eliminar" onsubmit="return confirm('¿Eliminar libro y resaltados?')">
         <button class="btn secondary" type="submit">🗑️ Eliminar</button>
       </form>
     </details>
-  </div>
+  </article>
   {% endfor %}
 
   {% if pages > 1 %}
@@ -134,19 +144,24 @@
 {% if tab == 'leyendo' %}
 <section>
   {% if not leyendo %}
-  <div class="card"><p class="muted">No hay libros en lectura. Cambia el estado a <code>leyendo</code> en el catálogo.</p></div>
+  <div class="card empty-state"><p class="muted">No hay libros en lectura. Cambia el estado a <code>leyendo</code> en el catálogo.</p></div>
   {% endif %}
   {% for L in leyendo %}
-  <div class="card" style="border-left:4px solid #e3b341">
-    <strong>{{ L.titulo }}</strong>
-    <span class="muted"> · {{ L.autor or '—' }}</span>
-    <p>{{ L.pagina_actual or 0 }} / {{ L.total_paginas or '—' }} ({{ '%.0f'|format(L.pct) }}%)</p>
-    <form method="post" action="/app/m/biblioteca/libro/{{ L.id }}/progreso" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end">
+  <article class="reading-card">
+    <header class="book-card-header">
+      <div><strong>{{ L.titulo }}</strong><span class="book-meta">{{ L.autor or 'Autor desconocido' }}</span></div>
+      <span class="badge">leyendo</span>
+    </header>
+    <div class="book-progress">
+      <progress max="100" value="{{ L.pct }}" aria-label="Progreso de {{ L.titulo }}: {{ '%.0f'|format(L.pct) }}%"></progress>
+      <span>{{ L.pagina_actual or 0 }} / {{ L.total_paginas or '—' }} · {{ '%.0f'|format(L.pct) }}%</span>
+    </div>
+    <form class="reading-progress-form" method="post" action="/app/m/biblioteca/libro/{{ L.id }}/progreso">
       <input type="hidden" name="next_tab" value="leyendo" />
-      <div><label>Página</label><input name="pagina_actual" type="number" min="0" value="{{ L.pagina_actual or 0 }}" /></div>
+      <div><label for="reading-page-{{ L.id }}">Página</label><input id="reading-page-{{ L.id }}" name="pagina_actual" type="number" min="0" value="{{ L.pagina_actual or 0 }}" /></div>
       <div>
-        <label>Estado</label>
-        <select name="estado">
+        <label for="reading-status-{{ L.id }}">Estado</label>
+        <select id="reading-status-{{ L.id }}" name="estado">
           {% for e in ['leyendo','pausado','completado','abandonado'] %}
           <option value="{{ e }}" {% if L.estado == e %}selected{% endif %}>{{ e }}</option>
           {% endfor %}
@@ -154,7 +169,7 @@
       </div>
       <button class="btn" type="submit">Actualizar</button>
     </form>
-  </div>
+  </article>
   {% endfor %}
 </section>
 {% endif %}
@@ -163,10 +178,10 @@
 <section>
   <div class="card">
     <h2>🎨 Resaltados</h2>
-    <form method="get" action="/app/m/biblioteca" style="margin-bottom:1rem">
+    <form class="highlight-book-picker" method="get" action="/app/m/biblioteca">
       <input type="hidden" name="tab" value="resaltados" />
-      <label>Libro</label>
-      <select name="libro" onchange="this.form.submit()">
+      <label for="highlight-book">Libro</label>
+      <select id="highlight-book" name="libro" onchange="this.form.submit()">
         <option value="">— elegir —</option>
         {% for L in todos %}
         <option value="{{ L.id }}" {% if libro_sel == (L.id|string) %}selected{% endif %}>{{ L.titulo }}</option>
@@ -175,24 +190,24 @@
     </form>
 
     {% if libro_res %}
-    <form method="post" action="/app/m/biblioteca/resaltado">
+    <form class="highlight-form" method="post" action="/app/m/biblioteca/resaltado">
       <input type="hidden" name="libro_id" value="{{ libro_res.id }}" />
-      <div class="grid" style="grid-template-columns:1fr 1fr 2fr">
-        <div><label>Página</label><input name="pagina" type="number" min="1" value="1" /></div>
+      <div class="highlight-form-grid">
+        <div><label for="highlight-page">Página</label><input id="highlight-page" name="pagina" type="number" min="1" value="1" /></div>
         <div>
-          <label>Color</label>
-          <select name="color_etiqueta">{% for c in colores %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+          <label for="highlight-color">Color</label>
+          <select id="highlight-color" name="color_etiqueta">{% for c in colores %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
         </div>
-        <div><label>Texto *</label><input name="texto_resaltado" required /></div>
+        <div><label for="highlight-text">Texto *</label><input id="highlight-text" name="texto_resaltado" required /></div>
       </div>
-      <div><label>Nota</label><input name="nota_personal" /></div>
-      <button class="btn" type="submit" style="margin-top:0.5rem">Agregar resaltado</button>
+      <div><label for="highlight-note">Nota</label><input id="highlight-note" name="nota_personal" /></div>
+      <div class="form-actions"><button class="btn" type="submit">Agregar resaltado</button></div>
     </form>
 
     {% if not resaltados %}
-    <p class="muted" style="margin-top:1rem">Sin resaltados aún.</p>
+    <p class="muted empty-inline">Sin resaltados aún.</p>
     {% else %}
-    <ul class="agenda-ev-list" style="margin-top:1rem">
+    <ul class="agenda-ev-list highlight-list">
       {% for r in resaltados %}
       <li>
         <span>
