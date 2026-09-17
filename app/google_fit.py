@@ -746,6 +746,12 @@ def _tz_local():
     return TZ_LOCAL
 
 
+def _tz_offset_label() -> str:
+    from app.timezone_config import TZ_OFFSET
+
+    return f"UTC{int(TZ_OFFSET):+d}"
+
+
 def _rango_dia_ms(fecha: date) -> tuple[int, int]:
     """Inicio/fin del día en epoch ms, usando la zona de la app."""
     tz = _tz_local()
@@ -786,48 +792,220 @@ def _rfc3339_rango(fecha: date, dias_antes: int = 0) -> tuple[str, str]:
     return inicio.isoformat(), fin.isoformat()
 
 
-def _sum_aggregate_int(service, data_type: str, start_ms: int, end_ms: int) -> int:
-    response = service.users().dataset().aggregate(
-        userId="me",
-        body={
-            "aggregateBy": [{"dataTypeName": data_type}],
-            "bucketByTime": {"durationMillis": 86400000},
-            "startTimeMillis": str(start_ms),
-            "endTimeMillis": str(end_ms),
-        },
-    ).execute()
+# Fuentes típicas que Google Fit usa para pasos (la app Fit a veces muestra
+# estimated_steps aunque aggregate sin dataSourceId venga vacío).
+_STEP_SOURCES = (
+    None,  # merge por tipo
+    "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps",
+    "derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas",
+    "derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas_from_phones",
+)
+
+_CAL_SOURCES = (
+    None,
+    "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
+    "derived:com.google.calories.expended:com.google.android.gms:from_activities",
+)
+
+_HR_BPM_SOURCES = (
+    None,
+    "derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm",
+)
+
+_HR_SUMMARY_SOURCES = (
+    None,
+    "derived:com.google.heart_rate.summary:com.google.android.gms:merge_heart_rate_summary",
+)
+
+
+def _aggregate_body(
+    data_type: str,
+    start_ms: int,
+    end_ms: int,
+    *,
+    data_source_id: str | None = None,
+    bucket_ms: int = 86400000,
+) -> dict:
+    agg: dict = {"dataTypeName": data_type}
+    if data_source_id:
+        agg["dataSourceId"] = data_source_id
+    # Fitness API espera longs JSON (int), no strings — strings a veces dan bucket vacío.
+    return {
+        "aggregateBy": [agg],
+        "bucketByTime": {"durationMillis": int(bucket_ms)},
+        "startTimeMillis": int(start_ms),
+        "endTimeMillis": int(end_ms),
+    }
+
+
+def _iter_aggregate_values(response: dict):
+    for bucket in response.get("bucket", []) or []:
+        for dataset in bucket.get("dataset", []) or []:
+            for point in dataset.get("point", []) or []:
+                for val in point.get("value", []) or []:
+                    yield val
+
+
+def _sum_aggregate_int(
+    service,
+    data_type: str,
+    start_ms: int,
+    end_ms: int,
+    *,
+    data_source_id: str | None = None,
+) -> int:
+    response = (
+        service.users()
+        .dataset()
+        .aggregate(
+            userId="me",
+            body=_aggregate_body(
+                data_type, start_ms, end_ms, data_source_id=data_source_id
+            ),
+        )
+        .execute()
+    )
     total = 0
-    for bucket in response.get("bucket", []):
-        for dataset in bucket.get("dataset", []):
-            for point in dataset.get("point", []):
-                for val in point.get("value", []):
+    for val in _iter_aggregate_values(response):
+        if "intVal" in val:
+            total += int(val.get("intVal") or 0)
+        elif "fpVal" in val:
+            total += int(val.get("fpVal") or 0)
+    return total
+
+
+def _sum_aggregate_float(
+    service,
+    data_type: str,
+    start_ms: int,
+    end_ms: int,
+    *,
+    data_source_id: str | None = None,
+) -> float:
+    response = (
+        service.users()
+        .dataset()
+        .aggregate(
+            userId="me",
+            body=_aggregate_body(
+                data_type, start_ms, end_ms, data_source_id=data_source_id
+            ),
+        )
+        .execute()
+    )
+    total = 0.0
+    for val in _iter_aggregate_values(response):
+        if "fpVal" in val:
+            total += float(val.get("fpVal") or 0)
+        elif "intVal" in val:
+            total += float(val.get("intVal") or 0)
+    return total
+
+
+def _sum_best_int(service, data_type: str, start_ms: int, end_ms: int, sources) -> int:
+    """Prueba varias dataSourceId y se queda con el mayor total (>0)."""
+    best = 0
+    for src in sources:
+        try:
+            n = _sum_aggregate_int(
+                service, data_type, start_ms, end_ms, data_source_id=src
+            )
+            if n > best:
+                best = n
+        except Exception as e:
+            print(f"[GoogleFit] aggregate {data_type} src={src}: {e}")
+    return best
+
+
+def _sum_best_float(service, data_type: str, start_ms: int, end_ms: int, sources) -> float:
+    best = 0.0
+    for src in sources:
+        try:
+            n = _sum_aggregate_float(
+                service, data_type, start_ms, end_ms, data_source_id=src
+            )
+            if n > best:
+                best = n
+        except Exception as e:
+            print(f"[GoogleFit] aggregate {data_type} src={src}: {e}")
+    return best
+
+
+def _scopes_faltantes(creds) -> list[str]:
+    """Scopes de Fit que el token no tiene (pide re-vincular)."""
+    granted = {str(s).strip() for s in (getattr(creds, "scopes", None) or []) if s}
+    if not granted:
+        return []
+    need = [
+        "https://www.googleapis.com/auth/fitness.activity.read",
+        "https://www.googleapis.com/auth/fitness.sleep.read",
+        "https://www.googleapis.com/auth/fitness.heart_rate.read",
+    ]
+    return [s for s in need if s not in granted]
+
+
+def _listar_tipos_disponibles(service) -> list[str]:
+    """Tipos de dato que Google expone al usuario (diagnóstico)."""
+    tipos: list[str] = []
+    try:
+        resp = service.users().dataSources().list(userId="me").execute()
+        for ds in resp.get("dataSource", []) or []:
+            name = (ds.get("dataType") or {}).get("name") or ""
+            if name and name not in tipos:
+                tipos.append(name)
+    except Exception as e:
+        print(f"[GoogleFit] list dataSources: {e}")
+    return tipos
+
+
+def _sum_steps_dataset(service, start_ms: int, end_ms: int) -> int:
+    """Fallback: lee puntos crudos de estimated_steps / merge cuando aggregate=0."""
+    start_ns = int(start_ms) * 1_000_000
+    end_ns = int(end_ms) * 1_000_000
+    source_ids = [
+        "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps",
+        "derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas",
+    ]
+    try:
+        sources = (
+            service.users()
+            .dataSources()
+            .list(userId="me", dataTypeName="com.google.step_count.delta")
+            .execute()
+        )
+        for ds in sources.get("dataSource", []) or []:
+            dsid = ds.get("dataStreamId")
+            if dsid and dsid not in source_ids:
+                source_ids.append(dsid)
+    except Exception as e:
+        print(f"[GoogleFit] list step sources: {e}")
+
+    best = 0
+    for dsid in source_ids:
+        try:
+            response = (
+                service.users()
+                .dataSources()
+                .datasets()
+                .get(
+                    userId="me",
+                    dataSourceId=dsid,
+                    datasetId=f"{start_ns}-{end_ns}",
+                )
+                .execute()
+            )
+            total = 0
+            for punto in response.get("point", []) or []:
+                for val in punto.get("value", []) or []:
                     if "intVal" in val:
                         total += int(val.get("intVal") or 0)
                     elif "fpVal" in val:
                         total += int(val.get("fpVal") or 0)
-    return total
-
-
-def _sum_aggregate_float(service, data_type: str, start_ms: int, end_ms: int) -> float:
-    response = service.users().dataset().aggregate(
-        userId="me",
-        body={
-            "aggregateBy": [{"dataTypeName": data_type}],
-            "bucketByTime": {"durationMillis": 86400000},
-            "startTimeMillis": str(start_ms),
-            "endTimeMillis": str(end_ms),
-        },
-    ).execute()
-    total = 0.0
-    for bucket in response.get("bucket", []):
-        for dataset in bucket.get("dataset", []):
-            for point in dataset.get("point", []):
-                for val in point.get("value", []):
-                    if "fpVal" in val:
-                        total += float(val.get("fpVal") or 0)
-                    elif "intVal" in val:
-                        total += float(val.get("intVal") or 0)
-    return total
+            if total > best:
+                best = total
+        except Exception as e:
+            print(f"[GoogleFit] step dataset {str(dsid)[-40:]}: {e}")
+    return best
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -853,16 +1031,33 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
         if service is None:
             return resultado
 
-        # 1) Sesiones de sueño (activityType 72) — lo más fiable en Wear/Fitbit/Pixel
+        # 1) Sesiones de sueño — primero filtro 72; si vacío, listar y filtrar en cliente
         try:
             start_rfc, end_rfc = _rfc3339_rango(fecha, dias_antes=1)
-            sessions_response = service.users().sessions().list(
-                userId="me",
-                startTime=start_rfc,
-                endTime=end_rfc,
-                activityType=72,
-            ).execute()
-            for sesion in sessions_response.get("session", []) or []:
+            sesiones = []
+            try:
+                sessions_response = service.users().sessions().list(
+                    userId="me",
+                    startTime=start_rfc,
+                    endTime=end_rfc,
+                    activityType=72,
+                ).execute()
+                sesiones = list(sessions_response.get("session", []) or [])
+            except Exception as e:
+                print(f"[GoogleFit] Sueño sessions activityType=72: {e}")
+            if not sesiones:
+                sessions_response = service.users().sessions().list(
+                    userId="me",
+                    startTime=start_rfc,
+                    endTime=end_rfc,
+                ).execute()
+                for s in sessions_response.get("session", []) or []:
+                    # 72 = sleep; algunos wearables marcan "Sleeping" en name
+                    at = int(s.get("activityType") or 0)
+                    name = (s.get("name") or s.get("description") or "").lower()
+                    if at == 72 or "sleep" in name or "sueño" in name or "sueno" in name:
+                        sesiones.append(s)
+            for sesion in sesiones:
                 if "startTimeMillis" not in sesion or "endTimeMillis" not in sesion:
                     continue
                 inicio = _ms_a_datetime(sesion["startTimeMillis"])
@@ -1028,18 +1223,28 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
         except Exception as e:
             print(f"[GoogleFit] sessions ejercicio: {e}")
 
-        # Pasos / calorías (aggregate) — independientes de sesiones
+        # Pasos / calorías — probar estimated_steps y merges (Fit UI ≠ API cruda)
         pasos_total = 0
         calorias_total = 0.0
         try:
-            pasos_total = _sum_aggregate_int(
-                service, "com.google.step_count.delta", start_ms, end_ms
+            pasos_total = _sum_best_int(
+                service,
+                "com.google.step_count.delta",
+                start_ms,
+                end_ms,
+                _STEP_SOURCES,
             )
+            if pasos_total <= 0:
+                pasos_total = _sum_steps_dataset(service, start_ms, end_ms)
         except Exception as e:
             print(f"[GoogleFit] pasos: {e}")
         try:
-            calorias_total = _sum_aggregate_float(
-                service, "com.google.calories.expended", start_ms, end_ms
+            calorias_total = _sum_best_float(
+                service,
+                "com.google.calories.expended",
+                start_ms,
+                end_ms,
+                _CAL_SOURCES,
             )
         except Exception as e:
             print(f"[GoogleFit] calorias: {e}")
@@ -1074,6 +1279,30 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
 # OBTENER FRECUENCIA CARDÍACA
 # ═══════════════════════════════════════════════════════════════
 
+def _parse_hr_summary_point(point: dict, resultado: dict) -> bool:
+    """Rellena fc_promedio/fc_maxima desde un point de heart_rate.summary. True si hubo datos."""
+    vals = point.get("value", []) or []
+    fps = [float(v["fpVal"]) for v in vals if "fpVal" in v]
+    if len(fps) >= 2:
+        resultado["fc_promedio"] = round(fps[0]) or None
+        resultado["fc_maxima"] = round(fps[1]) or None
+        return True
+    found = False
+    for v in vals:
+        for m in v.get("mapVal", []) or []:
+            key = (m.get("key") or "").lower()
+            fp = (m.get("value") or {}).get("fpVal")
+            if fp is None:
+                continue
+            if "average" in key or "mean" in key or key == "average":
+                resultado["fc_promedio"] = round(fp) or None
+                found = True
+            if "max" in key:
+                resultado["fc_maxima"] = round(fp) or None
+                found = True
+    return found
+
+
 def obtener_frecuencia_cardiaca(fecha: date, service=None) -> Dict:
     """Obtiene frecuencia cardíaca promedio y máxima del día."""
     resultado = {"fc_promedio": None, "fc_maxima": None}
@@ -1087,70 +1316,71 @@ def obtener_frecuencia_cardiaca(fecha: date, service=None) -> Dict:
         start_ms, end_ms = _rango_dia_ms(fecha)
         samples: list[float] = []
 
-        # 1) Resumen agregado
-        try:
-            response = service.users().dataset().aggregate(
-                userId="me",
-                body={
-                    "aggregateBy": [{"dataTypeName": "com.google.heart_rate.summary"}],
-                    "bucketByTime": {"durationMillis": 86400000},
-                    "startTimeMillis": str(start_ms),
-                    "endTimeMillis": str(end_ms),
-                },
-            ).execute()
-            for bucket in response.get("bucket", []):
-                for dataset in bucket.get("dataset", []):
-                    for point in dataset.get("point", []):
-                        vals = point.get("value", []) or []
-                        # summary suele ser [avg, max, min] como fpVal
-                        fps = [float(v["fpVal"]) for v in vals if "fpVal" in v]
-                        if len(fps) >= 2:
-                            resultado["fc_promedio"] = round(fps[0]) or None
-                            resultado["fc_maxima"] = round(fps[1]) or None
-                            return resultado
-                        for v in vals:
-                            # mapVal style
-                            for m in v.get("mapVal", []) or []:
-                                key = (m.get("key") or "").lower()
-                                fp = m.get("value", {}).get("fpVal")
-                                if fp is None:
-                                    continue
-                                if "average" in key or "mean" in key or key == "average":
-                                    resultado["fc_promedio"] = round(fp) or None
-                                if "max" in key:
-                                    resultado["fc_maxima"] = round(fp) or None
-        except Exception as e:
-            print(f"[GoogleFit] HR summary: {e}")
+        # 1) Resumen agregado — millis como int (strings a veces dan bucket vacío)
+        for src in _HR_SUMMARY_SOURCES:
+            try:
+                response = (
+                    service.users()
+                    .dataset()
+                    .aggregate(
+                        userId="me",
+                        body=_aggregate_body(
+                            "com.google.heart_rate.summary",
+                            start_ms,
+                            end_ms,
+                            data_source_id=src,
+                        ),
+                    )
+                    .execute()
+                )
+                for bucket in response.get("bucket", []) or []:
+                    for dataset in bucket.get("dataset", []) or []:
+                        for point in dataset.get("point", []) or []:
+                            if _parse_hr_summary_point(point, resultado):
+                                if resultado["fc_promedio"] or resultado["fc_maxima"]:
+                                    return resultado
+            except Exception as e:
+                print(f"[GoogleFit] HR summary src={src}: {e}")
 
         if resultado["fc_promedio"] or resultado["fc_maxima"]:
             return resultado
 
-        # 2) Muestras bpm crudas → media / max
-        try:
-            response = service.users().dataset().aggregate(
-                userId="me",
-                body={
-                    "aggregateBy": [{"dataTypeName": "com.google.heart_rate.bpm"}],
-                    "bucketByTime": {"durationMillis": 3600000},
-                    "startTimeMillis": str(start_ms),
-                    "endTimeMillis": str(end_ms),
-                },
-            ).execute()
-            for bucket in response.get("bucket", []):
-                for dataset in bucket.get("dataset", []):
-                    for point in dataset.get("point", []):
-                        for val in point.get("value", []) or []:
-                            if "fpVal" in val:
-                                samples.append(float(val["fpVal"]))
-                            elif "intVal" in val:
-                                samples.append(float(val["intVal"]))
-                            # legacy key/mean style
-                            if val.get("key") in ("mean", "average") and val.get("fpVal"):
-                                samples.append(float(val["fpVal"]))
-                            if val.get("key") == "max" and val.get("fpVal"):
-                                resultado["fc_maxima"] = round(float(val["fpVal"])) or None
-        except Exception as e:
-            print(f"[GoogleFit] HR bpm: {e}")
+        # 2) Muestras bpm crudas → media / max (varias fuentes merge)
+        for src in _HR_BPM_SOURCES:
+            try:
+                response = (
+                    service.users()
+                    .dataset()
+                    .aggregate(
+                        userId="me",
+                        body=_aggregate_body(
+                            "com.google.heart_rate.bpm",
+                            start_ms,
+                            end_ms,
+                            data_source_id=src,
+                            bucket_ms=3600000,
+                        ),
+                    )
+                    .execute()
+                )
+                for bucket in response.get("bucket", []) or []:
+                    for dataset in bucket.get("dataset", []) or []:
+                        for point in dataset.get("point", []) or []:
+                            for val in point.get("value", []) or []:
+                                if "fpVal" in val:
+                                    samples.append(float(val["fpVal"]))
+                                elif "intVal" in val:
+                                    samples.append(float(val["intVal"]))
+                                if val.get("key") in ("mean", "average") and val.get("fpVal"):
+                                    samples.append(float(val["fpVal"]))
+                                if val.get("key") == "max" and val.get("fpVal"):
+                                    resultado["fc_maxima"] = (
+                                        round(float(val["fpVal"])) or None
+                                    )
+                if samples:
+                    break
+            except Exception as e:
+                print(f"[GoogleFit] HR bpm src={src}: {e}")
 
         if samples:
             resultado["fc_promedio"] = round(sum(samples) / len(samples)) or None
@@ -1177,21 +1407,78 @@ def obtener_datos_dia(fecha: date) -> Dict:
         if service is None:
             return {"error": "Google Fit no configurado"}
 
+        # Scopes del token (si faltan, la API responde vacío aunque la app Fit muestre datos)
+        faltan_scopes: list[str] = []
+        try:
+            creds = _get_credentials()
+            faltan_scopes = _scopes_faltantes(creds) if creds else []
+        except Exception:
+            faltan_scopes = []
+
         sueno = obtener_sueno(fecha, service)
         ejercicio = obtener_ejercicio(fecha, service)
         fc = obtener_frecuencia_cardiaca(fecha, service)
 
+        vacio = (
+            sueno.get("horas_sueno") is None
+            and not ejercicio.get("hizo_ejercicio")
+            and not (ejercicio.get("pasos") or 0)
+            and fc.get("fc_promedio") is None
+        )
+
+        tipos_api: list[str] = []
+        if vacio:
+            tipos_api = _listar_tipos_disponibles(service)
+
         avisos = []
+        if faltan_scopes:
+            cortos = [s.rsplit(".", 1)[-1] for s in faltan_scopes]
+            avisos.append(
+                "Faltan permisos OAuth ("
+                + ", ".join(cortos)
+                + "). Desconecta y vuelve a Conectar con Google (consentimiento completo)."
+            )
+
         if sueno.get("horas_sueno") is None:
             avisos.append(
-                "Sin sueño en Fit para esta fecha (¿el dispositivo guarda sueño en Google Fit?)."
+                "Sin sueño vía API Fit para esta fecha "
+                "(¿el wearable escribe sueño en Google Fit, no solo en Health Connect?)."
             )
         if not ejercicio.get("hizo_ejercicio") and not (ejercicio.get("pasos") or 0):
-            avisos.append("Sin actividad/pasos detectados.")
+            avisos.append("Sin actividad/pasos detectados vía API Fit.")
         if fc.get("fc_promedio") is None:
             avisos.append(
-                "Sin frecuencia cardíaca (hace falta reloj/banda que escriba FC en Fit)."
+                "Sin frecuencia cardíaca vía API "
+                "(hace falta reloj/banda que escriba FC en Google Fit)."
             )
+
+        # La app Fit a menudo muestra Health Connect; la REST API Fitness no lo lee.
+        if vacio and not faltan_scopes:
+            tiene_fit_nativo = any(
+                t
+                for t in tipos_api
+                if t
+                in (
+                    "com.google.step_count.delta",
+                    "com.google.sleep.segment",
+                    "com.google.heart_rate.bpm",
+                    "com.google.heart_rate.summary",
+                    "com.google.activity.segment",
+                )
+            )
+            if not tipos_api or not tiene_fit_nativo:
+                avisos.append(
+                    "La app Fit puede mostrar datos de Health Connect que esta API no ve. "
+                    "En el teléfono: Health Connect → Datos de apps → Google Fit → "
+                    "permitir lectura/escritura, o sincroniza el wearable con la app Fit "
+                    "(no solo Samsung Health / Garmin / etc.). Luego re-importa."
+                )
+            else:
+                avisos.append(
+                    f"La cuenta tiene fuentes Fit ({', '.join(tipos_api[:6])}"
+                    f"{'…' if len(tipos_api) > 6 else ''}) pero no hay puntos para "
+                    f"{fecha.isoformat()} ({_tz_offset_label()}). Prueba otra fecha o espera sync."
+                )
 
         return {
             # Sueño
@@ -1217,6 +1504,8 @@ def obtener_datos_dia(fecha: date) -> Dict:
             "notas_ejercicio": None,
             "avisos_fit": avisos,
             "fuente_sueno": sueno.get("_fuente"),
+            "tipos_fit_api": tipos_api,
+            "scopes_faltantes": faltan_scopes,
         }
     except Exception as e:
         print(f"[GoogleFit] Error obtener_datos_dia: {e}")
