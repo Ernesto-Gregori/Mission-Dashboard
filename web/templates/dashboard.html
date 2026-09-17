@@ -1,17 +1,22 @@
 {% extends "layout_app.html" %}
 {% block content %}
-<h1>Control de mando</h1>
-<p class="muted">{{ plan_resumen }}</p>
+<header class="page-header">
+  <div>
+    <h1>Control de mando</h1>
+    <p class="muted">{{ plan_resumen }}</p>
+  </div>
+  <a class="btn secondary" href="/app/coach">Configurar sistema</a>
+</header>
 
 {% if onboarded_flash %}
-<div class="flash-ok">¡Listo! Tu sistema quedó configurado con el Coach.</div>
+<div class="flash-ok" role="status">Tu sistema quedó configurado con el Coach.</div>
 {% endif %}
 
 {% if checkout_flash %}
   {% if checkout_flash.kind == 'ok' %}
-  <div class="flash-ok">{{ checkout_flash.message }}</div>
+  <div class="flash-ok" role="status">{{ checkout_flash.message }}</div>
   {% else %}
-  <div class="flash-warn">{{ checkout_flash.message }}</div>
+  <div class="flash-warn" role="status">{{ checkout_flash.message }}</div>
   {% endif %}
 {% endif %}
 
@@ -19,12 +24,12 @@
 <section class="briefing-block">
   <h2>Del Coach</h2>
   <p><strong>{{ insight_destacado.titulo }}</strong> — {{ insight_destacado.cuerpo }}</p>
-  <p class="muted"><a href="/app/coach">Ver briefing completo</a></p>
+  <a href="/app/coach">Ver briefing completo →</a>
 </section>
 {% endif %}
 
 {% if just_finished and just_finished.resto %}
-<div class="card">
+<section class="card card-compact">
   <h2>También te pueden servir (Premium)</h2>
   <ul class="muted">
     {% for k in just_finished.resto %}
@@ -32,30 +37,39 @@
     {% endfor %}
   </ul>
   <a class="btn secondary" href="/app/billing">Ver upgrade</a>
-</div>
+</section>
 {% endif %}
 
-<div class="card">
-  <h2>Módulos</h2>
-  <p class="muted">{{ activos_count }} activos · <a href="/app/coach">reconfigurar con Coach</a></p>
-  <div class="grid">
+<section class="dashboard-section" aria-labelledby="modules-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="modules-title">Módulos</h2>
+      <p class="muted">{{ activos_count }} activos</p>
+    </div>
+    <a href="/app/coach">Reconfigurar</a>
+  </div>
+  <div class="module-grid">
     {% for m in modulos %}
-    <a class="card" href="{{ m.href }}" style="margin:0;color:inherit;text-decoration:none;opacity:{% if m.activo %}1{% else %}0.55{% endif %}">
-      <div style="font-size:1.4rem">{{ m.emoji }}</div>
-      <strong>{{ m.nombre }}</strong>
-      <div class="muted" style="font-size:0.85rem;margin-top:0.35rem">{{ m.descripcion }}</div>
-      <div style="margin-top:0.5rem">
-        {% if m.activo %}<span class="badge ok">activo</span>
-        {% else %}<span class="badge">inactivo</span>{% endif %}
-      </div>
+    <a class="module-card{% if not m.activo %} is-inactive{% endif %}" data-module="{{ m.clave }}" href="{{ m.href }}">
+      <span class="module-icon" aria-hidden="true">{{ m.emoji }}</span>
+      <span class="module-copy">
+        <strong>{{ m.nombre }}</strong>
+        <span class="muted">{{ m.descripcion }}</span>
+      </span>
+      <span class="badge{% if m.activo %} ok{% endif %}">
+        {% if m.activo %}activo{% else %}inactivo{% endif %}
+      </span>
+      <span class="sr-only">Abrir {{ m.nombre }}</span>
     </a>
     {% endfor %}
   </div>
-</div>
+</section>
 
-<div class="card">
-  <h2>Plan {{ plan_label }}</h2>
-  <p class="muted">Upgrade y Stripe viven en la misma app FastAPI.</p>
-  <a class="btn" href="/app/billing">Ver planes / pagar</a>
-</div>
+<section class="account-card" aria-labelledby="plan-title">
+  <div>
+    <h2 id="plan-title">Plan {{ plan_label }}</h2>
+    <p class="muted">Administra tu suscripción y métodos de pago.</p>
+  </div>
+  <a class="btn" href="/app/billing">Ver plan</a>
+</section>
 {% endblock %}
