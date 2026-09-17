@@ -140,6 +140,10 @@ def test_escanear_confirm_y_guardar(web_client, monkeypatch):
     assert r.status_code == 200
     assert b"Confirmar escaneo" in r.content
     assert b"LECHE" in r.content
+    assert b'class="scan-review-header"' in r.content
+    assert b'class="scan-confirm-form"' in r.content
+    assert b'class="data-table receipt-items-table"' in r.content
+    assert b'for="scan-date"' in r.content
 
     r = web_client.post(
         "/app/m/finanzas/escanear/confirmar",
