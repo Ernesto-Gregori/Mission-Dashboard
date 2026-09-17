@@ -647,6 +647,9 @@ def test_biblioteca_catalogo_y_progreso(web_client):
     r = web_client.get("/app/m/biblioteca")
     assert r.status_code == 200, r.text[:500]
     assert b"Biblioteca" in r.content
+    assert b'class="module-header"' in r.content
+    assert b'class="library-metrics"' in r.content
+    assert b'class="library-filter-form"' in r.content
 
     r = web_client.post(
         "/app/m/biblioteca/nuevo",
@@ -669,6 +672,7 @@ def test_biblioteca_catalogo_y_progreso(web_client):
     r = web_client.get("/app/m/biblioteca?tab=leyendo")
     assert r.status_code == 200
     assert b"Proverbios" in r.content
+    assert b'class="reading-card"' in r.content
 
     import re
 
@@ -682,6 +686,10 @@ def test_biblioteca_catalogo_y_progreso(web_client):
     )
     assert r.status_code == 200
     assert b"40" in r.content
+
+    r = web_client.get(f"/app/m/biblioteca?tab=resaltados&libro={lid}")
+    assert r.status_code == 200
+    assert b'class="highlight-form"' in r.content
 
 
 def test_tenant_uid_in_threadpool_via_finanzas(web_client):
