@@ -1,8 +1,8 @@
 """
-ai_client.py - Integración con Groq — compatible Streamlit Cloud
+ai_client.py - Integración con Groq (FastAPI)
 Fixes:
-  1. Lee GROQ_API_KEY desde st.secrets (producción) con fallback a .env (local)
-  2. Estado en memoria (no filesystem) — Streamlit Cloud es efímero
+  1. Lee GROQ_API_KEY desde env / secrets.toml (app.secrets)
+  2. Estado en memoria (no filesystem) — discos de cloud son efímeros
   3. verificar_conexion() sin llamada real a la API
   4. client inicializado lazy para no fallar en import
 """
@@ -22,13 +22,13 @@ except ImportError:
     pass
 
 # ═══════════════════════════════════════════════════════════════
-# LEER API KEY — st.secrets (Cloud) con fallback a .env (local)
+# LEER API KEY — env / .streamlit/secrets.toml (migración)
 # ═══════════════════════════════════════════════════════════════
 
 def _get_api_key() -> str:
     """
     Orden de prioridad:
-      1. st.secrets / env / .streamlit/secrets.toml  ← app.secrets
+      1. env / .streamlit/secrets.toml  ← app.secrets
     Acepta alias comunes por si en Railway se tipó mal el nombre.
     """
     from app.secrets import get_secret
@@ -58,7 +58,7 @@ _last_error: str = ""
 
 # ═══════════════════════════════════════════════════════════════
 # ESTADO EN MEMORIA — no depende del filesystem
-# (Streamlit Cloud resetea el disco en cada redeployment)
+# (discos de cloud se resetean en cada redeploy)
 # ═══════════════════════════════════════════════════════════════
 
 _estado = {

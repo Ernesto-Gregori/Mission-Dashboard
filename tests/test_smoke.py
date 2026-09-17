@@ -165,15 +165,16 @@ def test_billing_planes_y_cuota(isolated_db, monkeypatch):
         "SELECT id FROM usuarios WHERE username='free_user'", fetchall=True
     )[0]["id"])
 
-    # Mock tenant + session plan
-    monkeypatch.setattr("app.tenant.uid", lambda: uid)
-    class _SS(dict):
-        pass
-    import streamlit as st
-    st.session_state.user = {
-        "id": uid, "username": "free_user", "rol": "usuario",
-        "plan": "free", "coach_ia_usado": 0,
+    # Mock tenant (ContextVar) — ya no hay Streamlit session_state
+    user = {
+        "id": uid,
+        "username": "free_user",
+        "rol": "usuario",
+        "plan": "free",
+        "coach_ia_usado": 0,
     }
+    monkeypatch.setattr("app.tenant.uid", lambda: uid)
+    monkeypatch.setattr("app.tenant.current_user", lambda: user)
 
     assert bil.plan_vigente() == "free"
     assert bil.modulos_max("free") == 3
@@ -290,7 +291,7 @@ def test_crear_checkout_fallback_payment_link(monkeypatch):
         "STRIPE_SECRET_KEY": "sk_test_x",
         "STRIPE_PRICE_PREMIUM": "",
         "STRIPE_LINK_PREMIUM": "https://buy.stripe.com/test_premium",
-        "APP_URL": "https://example.streamlit.app",
+        "APP_URL": "https://mission.example.com",
     }.get(name, default))
 
     url, err = bil.crear_checkout_session("premium", 42, username="x")
@@ -318,7 +319,6 @@ def test_checkout_return_urls_web(monkeypatch):
 
 def test_aplicar_modulos_respeta_cupo_free(isolated_db, monkeypatch):
     from app.onboarding import aplicar_modulos, listar_modulos_usuario
-    import streamlit as st
 
     db = isolated_db
     ok, _ = db.crear_usuario("cupo_user", "password1", rol="usuario", plan="free")
@@ -326,11 +326,14 @@ def test_aplicar_modulos_respeta_cupo_free(isolated_db, monkeypatch):
     uid = int(db.ejecutar(
         "SELECT id FROM usuarios WHERE username='cupo_user'", fetchall=True
     )[0]["id"])
-    monkeypatch.setattr("app.tenant.uid", lambda: uid)
-    st.session_state.user = {
-        "id": uid, "username": "cupo_user", "rol": "usuario", "plan": "free",
+    user = {
+        "id": uid,
+        "username": "cupo_user",
+        "rol": "usuario",
+        "plan": "free",
     }
-    st.session_state.pop("_modulos_activos", None)
+    monkeypatch.setattr("app.tenant.uid", lambda: uid)
+    monkeypatch.setattr("app.tenant.current_user", lambda: user)
 
     aplicar_modulos(
         ["agenda", "finanzas", "salud", "teologia", "sandbox"],

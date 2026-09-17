@@ -404,7 +404,7 @@ async def consejo_ia(request: Request, user: Annotated[dict, Depends(require_onb
     if not api_key_configurada():
         ctx["error"] = (
             "IA offline: configura GROQ_API_KEY en el entorno "
-            "o en `.streamlit/secrets.toml`."
+            "o en `.env` / variables de Railway."
         )
         return render(request, "modules/agenda.html", **ctx)
 
