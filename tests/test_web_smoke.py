@@ -115,6 +115,10 @@ def test_coach_flow_activa_modulos(web_client):
     assert b"Control de mando" in r.content
     assert b"activo" in r.content
     assert b"badge stub" not in r.content and b">stub<" not in r.content
+    assert b'class="skip-link"' in r.content
+    assert b'id="main-content"' in r.content
+    assert b'class="module-card' in r.content
+    assert b'aria-current="page"' in r.content
 
     r = web_client.get("/app/m/finanzas")
     assert r.status_code == 200
