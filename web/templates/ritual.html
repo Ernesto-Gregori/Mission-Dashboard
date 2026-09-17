@@ -1,0 +1,52 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Ritual de mañana</h1>
+    <p class="muted">Gratitud, intención y hábitos de hoy. Marcar un hábito acá es la misma carga que en Agenda.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+{% if ritual.completado %}
+<div class="flash-ok" role="status">Ritual de hoy registrado ({{ ritual.fecha }}).</div>
+{% endif %}
+
+<form class="ritual-form" method="post" action="/app/ritual">
+  <section class="card">
+    <h2>Hoy · {{ hoy }}</h2>
+    <div>
+      <label for="ritual-gratitud">Tres cosas por las que estoy agradecido</label>
+      <textarea id="ritual-gratitud" name="gratitud" rows="4" maxlength="800" placeholder="Ej: el desayuno con mi esposa, un versículo que me sostuvo, el trabajo de hoy">{{ ritual.gratitud }}</textarea>
+    </div>
+    <div>
+      <label for="ritual-intencion">Intención del día</label>
+      <textarea id="ritual-intencion" name="intencion" rows="3" maxlength="800" placeholder="¿Qué es lo único que, si lo hago, el día ya valió?">{{ ritual.intencion }}</textarea>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="ritual-habitos-title">
+    <h2 id="ritual-habitos-title">Hábitos de la mañana</h2>
+    {% if not habitos %}
+    <p class="muted">Todavía no hay hábitos activos. El Coach puede sembrarlos al activar tu sistema.</p>
+    {% else %}
+    <ul class="ritual-habits">
+      {% for h in habitos %}
+      <li>
+        <label class="check-row" for="hab-{{ h.clave }}">
+          <input id="hab-{{ h.clave }}" type="checkbox" name="habito" value="{{ h.clave }}" {% if h.hecho %}checked{% endif %} />
+          <span>{{ h.emoji }} {{ h.label }}{% if h.hora and h.hora != '—' %} <span class="muted">{{ h.hora }}</span>{% endif %}</span>
+        </label>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar ritual</button>
+  </div>
+</form>
+{% endblock %}

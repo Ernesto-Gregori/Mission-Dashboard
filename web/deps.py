@@ -97,6 +97,16 @@ def init_app_state() -> None:
         ensure_presupuesto_schema()
     except Exception as e:
         print(f"[web.startup] presupuesto: {e}")
+    try:
+        from app.ritual import ensure_ritual_schema
+        from app.rueda import ensure_rueda_schema
+        from app.tema import ensure_tema_schema
+
+        ensure_ritual_schema()
+        ensure_rueda_schema()
+        ensure_tema_schema()
+    except Exception as e:
+        print(f"[web.startup] fase3: {e}")
 
 
 def get_session_user(request: Request) -> dict | None:
@@ -153,6 +163,12 @@ def login_user(request: Request, user: dict) -> None:
     request.session.clear()
     request.session["user_id"] = int(user["id"])
     request.session["username"] = user.get("username")
+    try:
+        from app.tema import obtener_tema
+
+        request.session["theme"] = obtener_tema(int(user["id"]))
+    except Exception:
+        request.session["theme"] = "dark"
     set_current_user(user)
 
 
@@ -162,7 +178,9 @@ def logout_user(request: Request) -> None:
 
 
 def render(request: Request, name: str, status_code: int = 200, **ctx):
-    # Starlette ≥0.37: TemplateResponse(request, name, context)
+    from app.tema import tema_para_request
+
+    ctx.setdefault("theme", tema_para_request(request))
     return TEMPLATES.TemplateResponse(
         request,
         name,

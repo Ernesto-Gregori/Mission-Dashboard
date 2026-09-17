@@ -47,6 +47,8 @@ TABLAS_BACKUP = [
     "salud_objetivo",
     "presupuesto_config",
     "presupuesto_recurrentes",
+    "ritual_diario",
+    "rueda_vida",
     "audit_log",
 ]
 

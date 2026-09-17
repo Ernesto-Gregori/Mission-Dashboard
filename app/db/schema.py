@@ -271,6 +271,39 @@ def init_fase2_tables(cursor):
     )
 
 
+def init_fase3_tables(cursor):
+    """Ritual, rueda de la vida y columna de tema (Fase 3)."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ritual_diario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            fecha DATE NOT NULL,
+            gratitud TEXT,
+            intencion TEXT,
+            completado INTEGER NOT NULL DEFAULT 0,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, fecha)
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ritual_user_fecha "
+        "ON ritual_diario(user_id, fecha DESC)"
+    )
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS rueda_vida (
+            user_id INTEGER PRIMARY KEY,
+            scores_json TEXT NOT NULL DEFAULT '{}',
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    try:
+        cursor.execute(
+            "ALTER TABLE user_prefs ADD COLUMN theme TEXT DEFAULT 'dark'"
+        )
+    except Exception:
+        pass
+
+
 def init_fase1_tables(cursor):
     """Alma, planificador prefs y objetivo de salud (Fase 1)."""
     cursor.execute("""
@@ -911,6 +944,7 @@ def init_database():
 
     init_fase1_tables(cursor)
     init_fase2_tables(cursor)
+    init_fase3_tables(cursor)
     init_sobres(cursor)
     from app.db.exercises import init_exercise_library
     init_exercise_library(cursor)

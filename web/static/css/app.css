@@ -28,11 +28,40 @@
   --font: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
 }
 
+[data-theme="light"] {
+  --bg: #f6f8fa;
+  --bg-elev: #ffffff;
+  --bg-hover: #eef2f6;
+  --border: #d0d7de;
+  --border-strong: #afb8c1;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+  --accent-hover: #0550ae;
+  --focus: #218bff;
+  --ok: #1a7f37;
+  --ok-text: #116329;
+  --warn: #9a6700;
+  --warn-text: #7d4e00;
+  --danger: #cf222e;
+  --danger-text: #a40e26;
+  --on-accent: #ffffff;
+  --module-agenda: #0969da;
+  --module-finanzas: #1a7f37;
+  --module-salud: #bc4c00;
+  --module-deep-work: #8250df;
+  --module-biblioteca: #9a6700;
+  --module-matrimonio: #cf222e;
+  --module-teologia: #0550ae;
+  --module-sandbox: #8250df;
+}
+
 * { box-sizing: border-box; }
 html {
   color-scheme: dark;
   scroll-behavior: smooth;
 }
+html[data-theme="light"] { color-scheme: light; }
 html, body {
   margin: 0;
   padding: 0;
@@ -1819,4 +1848,63 @@ a.ex-card:hover {
 @media (max-width: 700px) {
   .due-day { min-height: 3.5rem; }
   .familia-filter { flex-direction: column; align-items: stretch; }
+}
+
+.sidebar-footer {
+  display: grid;
+  gap: 0.5rem;
+}
+.ritual-form { display: grid; gap: 1rem; }
+.ritual-habits {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ritual-habits li { border-bottom: 1px solid var(--border); }
+.rueda-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: 1rem;
+  align-items: start;
+}
+.rueda-svg {
+  width: 100%;
+  max-width: 22rem;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+.rueda-ring {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.rueda-axis {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.rueda-fill {
+  fill: color-mix(in srgb, var(--accent) 35%, transparent);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.rueda-label { font-size: 14px; }
+.rueda-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+}
+.rueda-form { display: grid; gap: 0.65rem; }
+.rueda-field {
+  display: grid;
+  grid-template-columns: 1fr 4.5rem;
+  gap: 0.5rem;
+  align-items: center;
+}
+@media (max-width: 800px) {
+  .rueda-layout { grid-template-columns: 1fr; }
 }

@@ -360,6 +360,25 @@ def ensure_remote_schema():
             creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS ritual_diario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            fecha DATE NOT NULL,
+            gratitud TEXT,
+            intencion TEXT,
+            completado INTEGER NOT NULL DEFAULT 0,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, fecha)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS rueda_vida (
+            user_id INTEGER PRIMARY KEY,
+            scores_json TEXT NOT NULL DEFAULT '{}',
+            actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
     ]
     for sql in statements:
         try:
@@ -379,6 +398,7 @@ def ensure_remote_schema():
         "ALTER TABLE gastos_sobres ADD COLUMN imagen_url TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN raw_ocr_data TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN ocr_estado TEXT DEFAULT 'ninguno'",
+        "ALTER TABLE user_prefs ADD COLUMN theme TEXT DEFAULT 'dark'",
     ):
         try:
             ejecutar(sql)

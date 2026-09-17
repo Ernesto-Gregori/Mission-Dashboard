@@ -10,6 +10,8 @@
     <a href="/app/planificador" class="{% if '/planificador' in request.url.path %}active{% endif %}"{% if '/planificador' in request.url.path %} aria-current="page"{% endif %}>🗓️ Semana</a>
     <a href="/app/presupuesto" class="{% if '/presupuesto' in request.url.path %}active{% endif %}"{% if '/presupuesto' in request.url.path %} aria-current="page"{% endif %}>📊 Presupuesto</a>
     <a href="/app/familia" class="{% if '/familia' in request.url.path %}active{% endif %}"{% if '/familia' in request.url.path %} aria-current="page"{% endif %}>👨‍👩‍👧‍👦 Familia</a>
+    <a href="/app/ritual" class="{% if '/ritual' in request.url.path %}active{% endif %}"{% if '/ritual' in request.url.path %} aria-current="page"{% endif %}>🌅 Ritual</a>
+    <a href="/app/rueda" class="{% if '/rueda' in request.url.path %}active{% endif %}"{% if '/rueda' in request.url.path %} aria-current="page"{% endif %}>🎡 Rueda</a>
     <a href="/app/billing" class="{% if '/billing' in request.url.path %}active{% endif %}"{% if '/billing' in request.url.path %} aria-current="page"{% endif %}>💳 Plan</a>
     <a href="/app/usuarios" class="{% if '/usuarios' in request.url.path %}active{% endif %}"{% if '/usuarios' in request.url.path %} aria-current="page"{% endif %}>🔐 Usuarios</a>
     {% if modulos_nav is defined %}
@@ -20,7 +22,16 @@
       {% endfor %}
     {% endif %}
   </nav>
-  <form class="sidebar-footer" method="post" action="/logout">
-    <button class="btn secondary block" type="submit">Cerrar sesión</button>
-  </form>
+  <div class="sidebar-footer">
+    <form method="post" action="/app/tema">
+      <input type="hidden" name="theme" value="{% if theme == 'light' %}dark{% else %}light{% endif %}" />
+      <input type="hidden" name="next" value="{{ request.url.path }}" />
+      <button class="btn secondary block" type="submit">
+        {% if theme == 'light' %}🌙 Tema oscuro{% else %}☀️ Tema claro{% endif %}
+      </button>
+    </form>
+    <form method="post" action="/logout">
+      <button class="btn secondary block" type="submit">Cerrar sesión</button>
+    </form>
+  </div>
 </aside>

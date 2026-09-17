@@ -56,6 +56,7 @@ def migrar_local_a_turso():
         'eventos_calendario',
         'asistente_mensajes', 'asistente_prefs', 'user_prefs', 'salud_objetivo',
         'presupuesto_config', 'presupuesto_recurrentes',
+        'ritual_diario', 'rueda_vida',
         'exercises', 'user_equipment',
         'usuarios', 'oauth_tokens',
     ]

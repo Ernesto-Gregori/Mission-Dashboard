@@ -1,0 +1,49 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Rueda de la vida</h1>
+    <p class="muted">Ocho áreas, del 0 al 10. El dibujo se arma con lo que guardás — no hay una segunda fuente de verdad.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="rueda-layout">
+  <div class="card rueda-visual" aria-labelledby="rueda-svg-title">
+    <h2 id="rueda-svg-title">Promedio {{ geo.promedio }} / 10</h2>
+    <svg class="rueda-svg" viewBox="0 0 {{ geo.size }} {{ geo.size }}" role="img" aria-label="Rueda de la vida con ocho áreas">
+      <title>Rueda de la vida</title>
+      {% for anillo in geo.anillos %}
+      <polygon class="rueda-ring" points="{{ anillo }}"></polygon>
+      {% endfor %}
+      {% for e in geo.ejes %}
+      <line class="rueda-axis" x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}"></line>
+      {% endfor %}
+      <polygon class="rueda-fill" points="{{ geo.poligono }}"></polygon>
+      {% for lb in geo.labels %}
+      <text class="rueda-label" x="{{ lb.x }}" y="{{ lb.y }}" text-anchor="middle" dominant-baseline="middle">{{ lb.emoji }}</text>
+      {% endfor %}
+    </svg>
+    <ul class="rueda-legend" aria-label="Puntuaciones">
+      {% for a in geo.areas %}
+      <li>{{ a.emoji }} {{ a.nombre }} · {{ a.valor }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <form class="card rueda-form" method="post" action="/app/rueda">
+    <h2>Puntuación</h2>
+    {% for key, nombre, emoji in areas %}
+    <div class="rueda-field">
+      <label for="rueda-{{ key }}">{{ emoji }} {{ nombre }}</label>
+      <input id="rueda-{{ key }}" name="{{ key }}" type="number" min="0" max="10" step="1" value="{{ scores[key] }}" required />
+    </div>
+    {% endfor %}
+    <div class="form-actions">
+      <button class="btn" type="submit">Guardar rueda</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
