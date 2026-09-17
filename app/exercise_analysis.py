@@ -19,6 +19,7 @@ from app.db.exercises import (
 )
 from app.exercise_ai import complete_multimodal, transcribe_audio
 from app.exercise_uploads import probe_video_duration, resolve_exercise_video_path
+from app.ffmpeg_bin import resolve_ffmpeg
 from app.logging_config import get_logger
 
 log = get_logger("exercise_analysis")
@@ -181,40 +182,76 @@ def parse_analysis_payload(text: str) -> dict:
     }
 
 
+def _stderr_snip(proc) -> str:
+    raw = getattr(proc, "stderr", b"") or b""
+    if isinstance(raw, bytes):
+        text = raw.decode("utf-8", "replace")
+    else:
+        text = str(raw)
+    return text.strip()[:800]
+
+
 def extract_keyframes(video_path: Path, dest_dir: Path, duration: float | None = None) -> list[Path]:
     dest_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        ffmpeg = resolve_ffmpeg()
+    except FileNotFoundError as e:
+        log.error({"event": "exercise_ffmpeg_missing", "error": str(e)[:160]})
+        raise AnalysisError("No se pudieron extraer fotogramas del video.") from e
+
     dur = duration if duration and duration > 0 else probe_video_duration(video_path) or 2.0
     n = max(1, min(10, int(round(dur / 1.5)) or 1))
     fps = n / max(dur, 0.5)
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        str(video_path),
-        "-vf",
-        f"fps={fps:.4f}",
-        "-frames:v",
-        str(n),
-        "-q:v",
-        "4",
-        str(dest_dir / "frame_%03d.jpg"),
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=60, check=False)
-    except (OSError, subprocess.TimeoutExpired) as e:
-        raise AnalysisError("No se pudieron extraer fotogramas del video.") from e
-    if proc.returncode != 0:
-        raise AnalysisError("No se pudieron extraer fotogramas del video.")
-    frames = sorted(dest_dir.glob("frame_*.jpg"))
-    if not frames:
-        raise AnalysisError("No se obtuvieron fotogramas del video.")
-    return frames[:10]
+    pattern = str(dest_dir / "frame_%03d.jpg")
+    # fps+escala → fps solo → primer fotograma (HEVC/VFR a veces rompe fps=).
+    attempts = (
+        ["-vf", f"fps={fps:.4f},scale=-2:480", "-frames:v", str(n), "-q:v", "4", pattern],
+        ["-vf", f"fps={fps:.4f}", "-frames:v", str(n), "-q:v", "4", pattern],
+        ["-ss", "0", "-frames:v", "1", "-q:v", "4", pattern],
+    )
+    last_err: BaseException | None = None
+    for extra in attempts:
+        for old in dest_dir.glob("frame_*.jpg"):
+            old.unlink(missing_ok=True)
+        cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-an", "-i", str(video_path), *extra]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, timeout=60, check=False)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            last_err = e
+            log.warning(
+                {
+                    "event": "exercise_ffmpeg_extract_failed",
+                    "error": type(e).__name__,
+                    "attempt": extra[0],
+                }
+            )
+            continue
+        frames = sorted(dest_dir.glob("frame_*.jpg"))
+        if proc.returncode == 0 and frames:
+            return frames[:10]
+        log.warning(
+            {
+                "event": "exercise_ffmpeg_extract_failed",
+                "returncode": proc.returncode,
+                "stderr": _stderr_snip(proc),
+            }
+        )
+        last_err = AnalysisError("No se pudieron extraer fotogramas del video.")
+    raise AnalysisError("No se pudieron extraer fotogramas del video.") from last_err
 
 
 def extract_audio_wav(video_path: Path, dest_wav: Path) -> Path | None:
+    try:
+        ffmpeg = resolve_ffmpeg()
+    except FileNotFoundError:
+        log.warning({"event": "exercise_ffmpeg_missing", "stage": "audio"})
+        return None
     cmd = [
-        "ffmpeg",
+        ffmpeg,
         "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
         "-i",
         str(video_path),
         "-vn",
@@ -228,9 +265,17 @@ def extract_audio_wav(video_path: Path, dest_wav: Path) -> Path | None:
     ]
     try:
         proc = subprocess.run(cmd, capture_output=True, timeout=45, check=False)
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log.warning({"event": "exercise_ffmpeg_audio_failed", "error": type(e).__name__})
         return None
     if proc.returncode != 0 or not dest_wav.is_file() or dest_wav.stat().st_size < 64:
+        log.warning(
+            {
+                "event": "exercise_ffmpeg_audio_failed",
+                "returncode": getattr(proc, "returncode", None),
+                "stderr": _stderr_snip(proc),
+            }
+        )
         return None
     return dest_wav
 
