@@ -20,8 +20,11 @@ MAX_VISION_IMAGES = 3
 _RETIRED_OR_TEXT_ONLY = {
     "meta-llama/llama-4-scout-17b-16e-instruct": VISION_MODEL_DEFAULT,
     "meta-llama/llama-4-maverick-17b-128e-instruct": VISION_MODEL_DEFAULT,
+    "llama-3.2-11b-vision-preview": VISION_MODEL_DEFAULT,
+    "llama-3.2-90b-vision-preview": VISION_MODEL_DEFAULT,
     "openai/gpt-oss-120b": VISION_MODEL_DEFAULT,
     "llama-3.3-70b-versatile": VISION_MODEL_DEFAULT,
+    "qwen/qwen3-27b": VISION_MODEL_DEFAULT,
 }
 
 
@@ -114,7 +117,7 @@ def create_vision_completion(
         create_kwargs: dict[str, Any] = {
             "model": model,
             "messages": messages,
-            "max_tokens": max_tokens,
+            "max_completion_tokens": max_tokens,
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
             "reasoning_effort": "none",
@@ -124,6 +127,27 @@ def create_vision_completion(
                 response = client.chat.completions.create(**create_kwargs)
             except TypeError:
                 create_kwargs.pop("reasoning_effort", None)
+                if "max_completion_tokens" in create_kwargs:
+                    create_kwargs["max_tokens"] = create_kwargs.pop(
+                        "max_completion_tokens"
+                    )
+                response = client.chat.completions.create(**create_kwargs)
+            except Exception as e:
+                err0 = str(e).lower()
+                retried = False
+                if "reasoning_effort" in err0:
+                    create_kwargs.pop("reasoning_effort", None)
+                    retried = True
+                if (
+                    "max_completion_tokens" in err0
+                    and "max_completion_tokens" in create_kwargs
+                ):
+                    create_kwargs["max_tokens"] = create_kwargs.pop(
+                        "max_completion_tokens"
+                    )
+                    retried = True
+                if not retried:
+                    raise
                 response = client.chat.completions.create(**create_kwargs)
             ai_client._registrar_llamada()
             try:
