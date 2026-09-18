@@ -4,7 +4,7 @@
   <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
   <div>
     <h1>{{ meta.nombre }}</h1>
-    <p class="muted">Sueño · energía · ejercicio · biblioteca de videos · Google Fit · rachas</p>
+    <p class="muted">Sueño · energía · ejercicio · rutinas · biblioteca de videos · Google Fit · rachas</p>
   </div>
 </header>
 
@@ -71,6 +71,7 @@
 <nav class="agenda-tabs health-tabs" aria-label="Secciones de Salud">
   <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/salud?tab=hoy&fecha={{ fecha }}"{% if tab == 'hoy' %} aria-current="page"{% endif %}>📅 Hoy</a>
   <a class="{% if tab == 'ejercicios' %}active{% endif %}" href="/app/m/salud?tab=ejercicios"{% if tab == 'ejercicios' %} aria-current="page"{% endif %}>Mis ejercicios</a>
+  <a class="{% if tab == 'rutina' %}active{% endif %}" href="/app/m/salud?tab=rutina"{% if tab == 'rutina' %} aria-current="page"{% endif %}>Rutina</a>
   <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/salud?tab=historial"{% if tab == 'historial' %} aria-current="page"{% endif %}>🗂️ Historial</a>
   <a class="{% if tab == 'coach' %}active{% endif %}" href="/app/m/salud?tab=coach"{% if tab == 'coach' %} aria-current="page"{% endif %}>🤖 Coach IA</a>
 </nav>
@@ -306,6 +307,7 @@
   <div class="card">
     <h2>Equipamiento disponible</h2>
     <p class="muted">Para el armador de rutinas: qué tienes a mano (banda elástica, pesa rusa, etc.).</p>
+    <p class="ex-library-cta"><a class="btn secondary" href="/app/m/salud?tab=rutina">Armar rutina con el coach</a></p>
     {% if user_equipment %}
     <ul class="ex-equip-list">
       {% for eq in user_equipment %}
@@ -329,6 +331,10 @@
     </form>
   </div>
 </section>
+{% endif %}
+
+{% if tab == 'rutina' %}
+{% include "modules/_rutina.html" %}
 {% endif %}
 
 {% if tab == 'coach' %}

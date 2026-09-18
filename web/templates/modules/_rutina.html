@@ -1,0 +1,132 @@
+<section class="rt-wrap">
+  <div class="card">
+    <h2>Rutina semanal</h2>
+    <p class="muted">El coach arma tu semana con los días, el tiempo y el equipo que tienes. Prefiere los ejercicios de tu biblioteca.</p>
+    {% if rutina_ready_count == 0 %}
+    <p class="muted">Todavía no hay clips analizados. Puede armar una rutina de peso corporal; cuanto más subas, más personal se vuelve.</p>
+    {% endif %}
+
+    <form class="rt-build-form" method="post" action="/app/m/salud/rutina/generar">
+      <div class="health-form-grid">
+        <div>
+          <label for="rt-days">Días de entrenamiento</label>
+          <input id="rt-days" name="dias_semana" type="number" min="1" max="7" step="1" value="{{ rutina_dias }}" required />
+        </div>
+        <div>
+          <label for="rt-mins">Minutos por sesión</label>
+          <select id="rt-mins" name="minutos_sesion">
+            {% for m in [20, 30, 40, 45, 60, 75, 90] %}
+            <option value="{{ m }}" {% if rutina_minutos == m %}selected{% endif %}>{{ m }} min</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <fieldset class="zone-picker">
+        <legend>Equipo que vas a usar</legend>
+        <div class="zone-grid">
+          {% for eq in rutina_equipo_opciones %}
+          <label>
+            <input type="checkbox" name="equipo" value="{{ eq.name }}" {% if eq.checked %}checked{% endif %} />
+            {{ eq.name }}
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div>
+        <label for="rt-notes">Qué quieres trabajar (opcional)</label>
+        <textarea id="rt-notes" name="notas" rows="2" maxlength="400" placeholder="Ej. más piernas, menos hombro, fuerza en 40 minutos">{{ rutina.notas_usuario if rutina else '' }}</textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>
+          {% if rutina %}Rehacer rutina{% else %}Armar mi rutina{% endif %}
+        </button>
+        {% if not ia_ok %}<span class="muted">Configura GROQ_API_KEY</span>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  {% if rutina and rutina.plan and rutina.plan.dias %}
+  <article class="card rt-plan" aria-labelledby="rt-plan-title">
+    <header class="rt-plan-head">
+      <div>
+        <h2 id="rt-plan-title">{{ rutina.plan.nombre or "Tu rutina" }}</h2>
+        <p class="rt-plan-meta">
+          {{ rutina.dias_semana }} días · {{ rutina.minutos_sesion }} min
+          {% if rutina.plan.objetivo %} · {{ rutina.plan.objetivo }}{% endif %}
+          {% if rutina.equipamiento %} · {{ rutina.equipamiento | join(" · ") }}{% endif %}
+        </p>
+      </div>
+    </header>
+    {% if rutina.notas_coach or rutina.plan.notas_coach %}
+    <p class="rt-coach-notes">{{ rutina.notas_coach or rutina.plan.notas_coach }}</p>
+    {% endif %}
+
+    <div class="rt-days">
+      {% for day in rutina.plan.dias %}
+      <section class="rt-day" aria-labelledby="rt-day-{{ loop.index }}">
+        <header class="rt-day-head">
+          <h3 id="rt-day-{{ loop.index }}">{{ day.nombre }}</h3>
+          <p class="muted">
+            {% if day.enfoque %}{{ day.enfoque }}{% endif %}
+            {% if day.duracion_min %} · {{ day.duracion_min }} min{% endif %}
+          </p>
+        </header>
+        {% if day.calentamiento %}
+        <p class="rt-block-label">Calentamiento</p>
+        <ul class="rt-aux">
+          {% for item in day.calentamiento %}
+          <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <ol class="rt-lifts">
+          {% for lift in day.bloques %}
+          <li>
+            <div class="rt-lift-main">
+              <p class="rt-lift-name">
+                {% if lift.exercise_id %}
+                <a href="/app/m/salud/ejercicios/{{ lift.exercise_id }}">{{ lift.nombre }}</a>
+                {% else %}
+                {{ lift.nombre }}
+                {% endif %}
+              </p>
+              <p class="rt-lift-scheme">
+                <span class="rt-sets">{{ lift.series }}</span>
+                <span class="rt-times" aria-hidden="true">×</span>
+                <span>{{ lift.reps }}</span>
+              </p>
+            </div>
+            <p class="rt-lift-rest">Descanso {{ lift.descanso_seg }} s</p>
+            {% if lift.notas %}<p class="rt-lift-cue">{{ lift.notas }}</p>{% endif %}
+          </li>
+          {% endfor %}
+        </ol>
+        {% if day.cierre %}
+        <p class="rt-block-label">Cierre</p>
+        <ul class="rt-aux">
+          {% for item in day.cierre %}
+          <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </section>
+      {% endfor %}
+    </div>
+  </article>
+
+  <div class="card">
+    <h2>Mejorar con el coach</h2>
+    <p class="muted">Dile qué se sintió pesado, fácil o aburrido. El coach reescribe la semana sin partir de cero.</p>
+    <form method="post" action="/app/m/salud/rutina/mejorar">
+      <label for="rt-improve">Qué quieres cambiar</label>
+      <textarea id="rt-improve" name="notas" rows="3" maxlength="400" required placeholder="Ej. el día 2 me deja el hombro cargado; quiero más core"></textarea>
+      <div class="form-actions">
+        <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>Mejorar rutina</button>
+      </div>
+    </form>
+    <form class="secondary-action" method="post" action="/app/m/salud/rutina/eliminar" onsubmit="return confirm('¿Eliminar esta rutina?')">
+      <button class="btn secondary" type="submit">Eliminar rutina</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
