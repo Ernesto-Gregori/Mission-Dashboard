@@ -15,6 +15,9 @@
 <div class="card" aria-busy="true">
   <h2>Analizando video</h2>
   <p class="muted">El coach IA está identificando el movimiento. Puede tardar hasta un minuto.</p>
+  <form class="secondary-action" method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/eliminar" onsubmit="return confirm('¿Eliminar este ejercicio y su video?')">
+    <button class="btn secondary" type="submit">Eliminar ejercicio</button>
+  </form>
 </div>
 {% elif ex.status == "failed" %}
 <div class="card">
@@ -22,11 +25,17 @@
   <p class="muted" role="alert">{{ ex.error_message or "No se pudo completar el análisis." }}</p>
   {% if "no se encontró el video" in (ex.error_message or "")|lower %}
   <p>El archivo ya no está en el servidor. Vuelve a Mis ejercicios y sube el clip otra vez.</p>
-  {% else %}
-  <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/reintentar">
-    <button class="btn" type="submit">Reintentar análisis</button>
-  </form>
   {% endif %}
+  <div class="ex-card-actions">
+    {% if "no se encontró el video" not in (ex.error_message or "")|lower %}
+    <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/reintentar">
+      <button class="btn" type="submit">Reintentar análisis</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/eliminar" onsubmit="return confirm('¿Eliminar este ejercicio y su video?')">
+      <button class="btn secondary" type="submit">Eliminar ejercicio</button>
+    </form>
+  </div>
 </div>
 {% endif %}
 
@@ -116,5 +125,10 @@
       <a class="btn secondary" href="/app/m/salud?tab=ejercicios">Volver a la biblioteca</a>
     </div>
   </form>
+  {% if ex.status not in ("processing", "failed") %}
+  <form class="secondary-action" method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/eliminar" onsubmit="return confirm('¿Eliminar este ejercicio y su video?')">
+    <button class="btn secondary" type="submit">Eliminar ejercicio</button>
+  </form>
+  {% endif %}
 </section>
 {% endblock %}

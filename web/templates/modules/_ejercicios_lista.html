@@ -20,6 +20,11 @@
           <div class="ex-card-body">
             <h4>Coach IA analizando…</h4>
             <p class="muted">Puede tardar hasta un minuto. Si Groq está saturado, reintentamos solos.</p>
+            <div class="ex-card-actions">
+              <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/eliminar" onsubmit="return confirm('¿Eliminar este ejercicio y su video?')">
+                <button class="btn secondary" type="submit">Eliminar</button>
+              </form>
+            </div>
           </div>
         </article>
       </li>
@@ -47,6 +52,9 @@
               </form>
               {% endif %}
               <a class="btn secondary" href="/app/m/salud/ejercicios/{{ ex.id }}">Ver detalle</a>
+              <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/eliminar" onsubmit="return confirm('¿Eliminar este ejercicio y su video?')">
+                <button class="btn secondary" type="submit">Eliminar</button>
+              </form>
             </div>
           </div>
         </article>
@@ -67,9 +75,9 @@
     <ul class="ex-card-list">
       {% for ex in ready %}
       <li>
-        <a class="ex-card" href="/app/m/salud/ejercicios/{{ ex.id }}">
+        <article class="ex-card">
           <div class="ex-card-body">
-            <h4>{{ ex.nombre_ejercicio }}</h4>
+            <h4><a href="/app/m/salud/ejercicios/{{ ex.id }}">{{ ex.nombre_ejercicio }}</a></h4>
             <p class="ex-card-meta">
               {{ (ex.grupos_musculares_primarios or ["—"]) | join(" · ") }}
             </p>
@@ -82,8 +90,14 @@
               {% if ex.tipo_movimiento %}<span>{{ ex.tipo_movimiento }}</span>{% endif %}
             </p>
             {% endif %}
+            <div class="ex-card-actions">
+              <a class="btn secondary" href="/app/m/salud/ejercicios/{{ ex.id }}">Ver detalle</a>
+              <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/eliminar" onsubmit="return confirm('¿Eliminar este ejercicio y su video?')">
+                <button class="btn secondary" type="submit">Eliminar</button>
+              </form>
+            </div>
           </div>
-        </a>
+        </article>
       </li>
       {% endfor %}
     </ul>

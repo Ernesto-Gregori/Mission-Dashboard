@@ -303,6 +303,31 @@ def _parse_exercise_ts(val):
         return None
 
 
+def borrar_exercise(exercise_id: int, user_id: int) -> bool:
+    """Borra el ejercicio del usuario y, si existe, su video. False si no es dueño."""
+    row = obtener_exercise(exercise_id, user_id)
+    if not row:
+        return False
+    rel = row.get("source_video_url") or ""
+    ejecutar(
+        "DELETE FROM exercises WHERE id = ? AND user_id = ?",
+        [int(exercise_id), int(user_id)],
+    )
+    try:
+        invalidate_data_caches()
+    except Exception:
+        pass
+    try:
+        from app.exercise_uploads import resolve_exercise_video_path
+
+        path = resolve_exercise_video_path(rel, int(user_id))
+        if path is not None:
+            path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    return True
+
+
 def actualizar_exercise(exercise_id: int, user_id: int, campos: dict) -> bool:
     if not obtener_exercise(exercise_id, user_id):
         return False
