@@ -8,4 +8,4 @@
 - [x] Tarea por texto → dashboard + Calendar
 - [x] Audio Groq Whisper → tarea
 - [x] Recordatorios 30 min antes
-- [ ] `pytest -q tests/`
+- [x] `pytest -q tests/`
