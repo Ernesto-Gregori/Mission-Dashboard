@@ -7,8 +7,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.logging_config import get_logger
-from app.secrets import get_secret
-from app.telegram import extract_inbound, handle_inbound, verify_webhook_secret
+from app.telegram import extract_inbound, handle_inbound, verify_webhook_secret, webhook_secret
 
 router = APIRouter(tags=["telegram"])
 log = get_logger("telegram_webhook")
@@ -21,10 +20,10 @@ async def telegram_inbound(
         default=None, alias="X-Telegram-Bot-Api-Secret-Token"
     ),
 ):
-    secret = (get_secret("TELEGRAM_WEBHOOK_SECRET") or "").strip()
+    secret = webhook_secret()
     if not secret:
-        log.error("webhook telegram: falta TELEGRAM_WEBHOOK_SECRET")
-        raise HTTPException(500, "Falta TELEGRAM_WEBHOOK_SECRET")
+        log.error("webhook telegram: falta TELEGRAM_WEBHOOK_SECRET o SESSION_SECRET")
+        raise HTTPException(500, "Falta secreto de Telegram")
     if not verify_webhook_secret(x_telegram_bot_api_secret_token, secret):
         log.warning("webhook telegram: secret_token inválido")
         raise HTTPException(403, "Secret token inválido")

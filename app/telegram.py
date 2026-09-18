@@ -83,8 +83,34 @@ def _secret(name: str, default: str = "") -> str:
     return (get_secret(name, default) or "").strip()
 
 
+def webhook_secret() -> str:
+    """Secret_token de Telegram. Si no hay TELEGRAM_WEBHOOK_SECRET, se deriva de SESSION_SECRET."""
+    explicit = _secret("TELEGRAM_WEBHOOK_SECRET")
+    if explicit:
+        cleaned = "".join(ch for ch in explicit if ch.isalnum() or ch in "_-")
+        return cleaned[:256]
+    session = _secret("SESSION_SECRET")
+    if not session:
+        return ""
+    return hashlib.sha256(f"tg-webhook:{session}".encode("utf-8")).hexdigest()
+
+
+def public_base_url() -> str:
+    """https público: APP_URL o RAILWAY_PUBLIC_DOMAIN."""
+    import os
+
+    app = _secret("APP_URL").rstrip("/")
+    if app.startswith("https://"):
+        return app
+    domain = (os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL") or "").strip()
+    domain = domain.replace("https://", "").replace("http://", "").strip("/")
+    if domain:
+        return f"https://{domain}"
+    return app
+
+
 def verify_webhook_secret(header: str | None, expected: str | None = None) -> bool:
-    secret = (expected if expected is not None else _secret("TELEGRAM_WEBHOOK_SECRET")).strip()
+    secret = (expected if expected is not None else webhook_secret()).strip()
     got = (header or "").strip()
     if not secret or not got:
         return False
@@ -349,8 +375,8 @@ def _download_voice(file_id: str) -> bytes:
 def register_webhook(app_url: str = "") -> bool:
     """setWebhook con secret_token. No falla el arranque si Telegram no responde."""
     token = _secret("TELEGRAM_BOT_TOKEN")
-    secret = _secret("TELEGRAM_WEBHOOK_SECRET")
-    base = (app_url or _secret("APP_URL")).rstrip("/")
+    secret = webhook_secret()
+    base = (app_url or public_base_url()).rstrip("/")
     if not token or not secret or not base.startswith("https://"):
         return False
     url = f"{base}/telegram/webhook"

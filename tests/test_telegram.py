@@ -74,14 +74,35 @@ def _onboard(client: TestClient, username: str = "tg_admin") -> None:
     )
 
 
-def test_webhook_rejects_missing_secret(web_client, monkeypatch):
+def test_webhook_rejects_missing_header(web_client, monkeypatch):
     monkeypatch.delenv("TELEGRAM_WEBHOOK_SECRET", raising=False)
-    from app.secrets import get_secret as _gs
-
-    monkeypatch.setattr(
-        "web.routers.telegram.get_secret",
-        lambda k, default="": "" if k == "TELEGRAM_WEBHOOK_SECRET" else _gs(k, default),
+    r = web_client.post(
+        "/telegram/webhook",
+        content=b"{}",
+        headers={"Content-Type": "application/json"},
     )
+    # SESSION_SECRET alcanza para derivar el secret; sin header → 403
+    assert r.status_code == 403
+
+
+def test_public_base_url_prefers_https_app_url(monkeypatch):
+    from app.telegram import public_base_url
+
+    monkeypatch.setenv("APP_URL", "https://mission.example")
+    monkeypatch.delenv("RAILWAY_PUBLIC_DOMAIN", raising=False)
+    assert public_base_url() == "https://mission.example"
+
+
+def test_public_base_url_uses_railway_domain(monkeypatch):
+    from app.telegram import public_base_url
+
+    monkeypatch.setenv("APP_URL", "http://127.0.0.1:8000")
+    monkeypatch.setenv("RAILWAY_PUBLIC_DOMAIN", "foo.up.railway.app")
+    assert public_base_url() == "https://foo.up.railway.app"
+
+
+def test_webhook_fail_closed_without_any_secret(web_client, monkeypatch):
+    monkeypatch.setattr("web.routers.telegram.webhook_secret", lambda: "")
     r = web_client.post(
         "/telegram/webhook",
         content=b"{}",
