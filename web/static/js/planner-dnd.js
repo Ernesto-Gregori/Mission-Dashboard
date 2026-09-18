@@ -50,6 +50,10 @@
       const start0 = parseHm(block.getAttribute("data-start"));
       const end0 = parseHm(block.getAttribute("data-end"));
       const dur = start0 != null && end0 != null && end0 > start0 ? end0 - start0 : 60;
+      const originX = ev.clientX;
+      const originY = ev.clientY;
+      const fecha0 = block.getAttribute("data-fecha") || "";
+      const startHm0 = block.getAttribute("data-start") || "";
       block.classList.add("is-dragging");
       try {
         block.setPointerCapture(ev.pointerId);
@@ -89,10 +93,12 @@
         block.removeEventListener("pointermove", onMove);
         block.removeEventListener("pointerup", onUp);
         block.removeEventListener("pointercancel", onUp);
+        const moved = Math.hypot(e.clientX - originX, e.clientY - originY) > 8;
+        if (!moved) return;
         const col = colFromPoint(e.clientX, e.clientY) || block.closest(".tl-col");
         const fecha = col ? col.getAttribute("data-fecha") : block.getAttribute("data-fecha");
         if (allday) {
-          submitMove(id, fecha, "", "");
+          if (fecha && fecha !== fecha0) submitMove(id, fecha, "", "");
           return;
         }
         const mins = minutesFromY(col, e.clientY);
@@ -121,8 +127,9 @@
       const fecha = cell && cell.getAttribute("data-fecha");
       const start = dragging.getAttribute("data-start") || "";
       const end = dragging.getAttribute("data-end") || "";
+      const prevFecha = dragging.getAttribute("data-fecha") || "";
       dragging = null;
-      if (id && fecha) submitMove(id, fecha, start, end);
+      if (id && fecha && fecha !== prevFecha) submitMove(id, fecha, start, end);
     });
   }
 })();
