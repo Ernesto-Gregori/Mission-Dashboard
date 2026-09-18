@@ -182,22 +182,24 @@ def test_extract_falla_si_api_none(monkeypatch):
     assert "GROQ_API_KEY" in (result.error or "")
 
 
-def test_vision_model_default_es_llama4_scout():
+def test_vision_model_default_es_qwen():
     from app.receipt_ocr import VISION_MODEL_DEFAULT, vision_model
 
-    assert "llama-4-scout" in VISION_MODEL_DEFAULT
+    assert VISION_MODEL_DEFAULT == "qwen/qwen3.6-27b"
     assert vision_model() == VISION_MODEL_DEFAULT
 
 
-def test_vision_model_alias_qwen_legacy(monkeypatch):
+def test_vision_model_alias_scout_retirado(monkeypatch):
     from app import receipt_ocr
 
-    monkeypatch.setenv("GROQ_VISION_MODEL", "qwen/qwen3.6-27b")
+    monkeypatch.setenv(
+        "GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
+    )
     monkeypatch.setattr(
         "app.secrets.get_secret",
         lambda name, default="": "",
     )
-    assert receipt_ocr.vision_model() == receipt_ocr.VISION_MODEL_DEFAULT
+    assert receipt_ocr.vision_model() == "qwen/qwen3.6-27b"
 
 
 def test_humanize_model_not_found():
@@ -205,10 +207,11 @@ def test_humanize_model_not_found():
 
     msg = _humanize_vision_error(
         "Error code: 404 - model_not_found",
-        model="qwen/qwen3.6-27b",
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
     )
     assert "no está disponible" in msg
-    assert "llama-4-scout" in msg
+    assert "qwen/qwen3.6-27b" in msg
+    assert "GROQ_MODEL" in msg
 
 
 def test_llamar_vision_prueba_fallback_si_modelo_falla(monkeypatch):
@@ -229,7 +232,7 @@ def test_llamar_vision_prueba_fallback_si_modelo_falla(monkeypatch):
         def create(self, **kwargs):
             model = kwargs["model"]
             calls.append(model)
-            if "scout" not in model:
+            if "qwen3.6" not in model:
                 raise RuntimeError("model_not_found: does not exist")
             return _Resp()
 
@@ -258,4 +261,4 @@ def test_llamar_vision_prueba_fallback_si_modelo_falla(monkeypatch):
     assert err is None
     assert text and "recibo" in text
     assert calls[0] == "modelo-inexistente-xyz"
-    assert any("scout" in c for c in calls)
+    assert any("qwen3.6" in c for c in calls)

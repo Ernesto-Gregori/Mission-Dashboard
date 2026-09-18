@@ -16,6 +16,7 @@ from app.db.exercises import (
     agregar_equipment,
     actualizar_exercise,
     borrar_equipment,
+    fail_stale_processing,
     listar_equipment,
     listar_exercises,
     mark_processing,
@@ -147,6 +148,7 @@ def ejercicios_fragmento(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     uid = int(user["id"])
+    fail_stale_processing(uid)
     ejercicios = listar_exercises(uid)
     return render(
         request,
@@ -296,6 +298,7 @@ def re_split_lines(raw: str) -> list[str]:
 
 def ejercicios_page_extras(user_id: int) -> dict:
     """Contexto extra para el tab Mis ejercicios (usado por salud._ctx)."""
+    fail_stale_processing(user_id)
     ejercicios = listar_exercises(user_id)
     return {
         "ejercicios": ejercicios,

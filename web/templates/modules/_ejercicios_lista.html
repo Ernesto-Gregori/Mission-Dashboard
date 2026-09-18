@@ -19,7 +19,7 @@
         <article class="ex-card is-processing" aria-busy="true">
           <div class="ex-card-body">
             <h4>Coach IA analizando…</h4>
-            <p class="muted">Suele tardar 10–30 segundos. Esta lista se actualiza sola.</p>
+            <p class="muted">Puede tardar hasta un minuto. Si Groq está saturado, reintentamos solos.</p>
           </div>
         </article>
       </li>
@@ -39,9 +39,13 @@
             <h4>{{ ex.nombre_ejercicio or "Ejercicio sin identificar" }}</h4>
             <p class="muted" role="alert">{{ ex.error_message or "El análisis falló." }}</p>
             <div class="ex-card-actions">
+              {% if "no se encontró el video" in (ex.error_message or "")|lower %}
+              <p class="muted">El archivo ya no está en el servidor. Sube el clip otra vez.</p>
+              {% else %}
               <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/reintentar">
                 <button class="btn" type="submit">Reintentar análisis</button>
               </form>
+              {% endif %}
               <a class="btn secondary" href="/app/m/salud/ejercicios/{{ ex.id }}">Ver detalle</a>
             </div>
           </div>

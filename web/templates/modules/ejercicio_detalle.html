@@ -14,15 +14,19 @@
 {% if ex.status == "processing" %}
 <div class="card" aria-busy="true">
   <h2>Analizando video</h2>
-  <p class="muted">El coach IA está identificando el movimiento. Vuelve a Mis ejercicios en unos segundos.</p>
+  <p class="muted">El coach IA está identificando el movimiento. Puede tardar hasta un minuto.</p>
 </div>
 {% elif ex.status == "failed" %}
 <div class="card">
   <h2>Análisis fallido</h2>
   <p class="muted" role="alert">{{ ex.error_message or "No se pudo completar el análisis." }}</p>
+  {% if "no se encontró el video" in (ex.error_message or "")|lower %}
+  <p>El archivo ya no está en el servidor. Vuelve a Mis ejercicios y sube el clip otra vez.</p>
+  {% else %}
   <form method="post" action="/app/m/salud/ejercicios/{{ ex.id }}/reintentar">
     <button class="btn" type="submit">Reintentar análisis</button>
   </form>
+  {% endif %}
 </div>
 {% endif %}
 

@@ -7,25 +7,22 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 from typing import Any, Optional
 
-# ── Modelo / límites ──────────────────────────────────────────
-# Groq multimodal (mismo default que exercise_ai). Override: GROQ_VISION_MODEL.
-VISION_MODEL_DEFAULT = "meta-llama/llama-4-scout-17b-16e-instruct"
-VISION_MODEL_FALLBACKS = (
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "meta-llama/llama-4-maverick-17b-128e-instruct",
+from app.groq_vision import (
+    VISION_MODEL_DEFAULT,
+    create_vision_completion,
+    humanize_vision_error as _humanize_vision_error,
+    vision_model,
+    vision_models_to_try,
 )
-# Alias legacy que no son vision en Groq → redirigir
-_VISION_MODEL_ALIASES = {
-    "qwen/qwen3.6-27b": VISION_MODEL_DEFAULT,
-    "qwen/qwen3-27b": VISION_MODEL_DEFAULT,
-}
+
+# ── Modelo / límites ──────────────────────────────────────────
+# Visión Groq: app.groq_vision (Qwen). Chat/WhatsApp: GROQ_MODEL (texto).
 MAX_IMAGE_SIDE = 1600
 JPEG_QUALITY = 75
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8 MB crudo antes de comprimir
@@ -112,47 +109,6 @@ class ExtractionResult:
             "error": self.error,
             "warnings": list(self.warnings),
         }
-
-
-def vision_model() -> str:
-    """Modelo de visión Groq (env / secrets, con alias legacy)."""
-    from app.secrets import get_secret
-
-    raw = (
-        get_secret("GROQ_VISION_MODEL", "")
-        or os.environ.get("GROQ_VISION_MODEL")
-        or VISION_MODEL_DEFAULT
-    ).strip()
-    return _VISION_MODEL_ALIASES.get(raw, raw) or VISION_MODEL_DEFAULT
-
-
-def vision_models_to_try() -> list[str]:
-    """Primary + fallbacks únicos (por si el modelo principal falla)."""
-    primary = vision_model()
-    out: list[str] = []
-    for m in (primary, *VISION_MODEL_FALLBACKS):
-        if m and m not in out:
-            out.append(m)
-    return out
-
-
-def _humanize_vision_error(err: str, *, model: str) -> str:
-    low = (err or "").lower()
-    if "model_not_found" in low or "does not exist" in low or "decommissioned" in low:
-        return (
-            f"El modelo de visión «{model}» no está disponible en Groq. "
-            "Define GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct."
-        )
-    if "429" in err or "rate_limit" in low:
-        return "Groq está limitando peticiones (429). Espera un minuto e intenta de nuevo."
-    if "invalid_api_key" in low or "unauthorized" in low or "401" in err:
-        return "GROQ_API_KEY inválida o revocada. Revisa la clave en el entorno."
-    if "image" in low and ("too large" in low or "max" in low):
-        return "La imagen es demasiado grande para el modelo de visión. Prueba una foto más liviana."
-    short = (err or "error desconocido").strip().replace("\n", " ")
-    if len(short) > 180:
-        short = short[:177] + "…"
-    return f"Error de visión Groq ({model}): {short}"
 
 
 def compress_image_bytes(
@@ -346,27 +302,6 @@ def _llamar_vision_groq(*, image_b64: str, mime: str) -> tuple[Optional[str], Op
     Llama a Groq vision.
     Retorna (texto|None, error_humano|None). Separado para mockear en tests.
     """
-    from app import ai_client
-
-    if not ai_client._get_api_key():
-        return None, "Falta GROQ_API_KEY en el entorno (.env / secrets)."
-    if not ai_client._hay_cuota():
-        return None, "Cuota diaria de IA agotada o bloqueada por rate-limit. Reintenta más tarde."
-    try:
-        from app.billing import cuota_ia_ok
-
-        if not cuota_ia_ok():
-            return None, (
-                "Alcanzaste el límite mensual de IA del plan. "
-                "Mejora el plan o espera al próximo mes."
-            )
-    except Exception:
-        pass
-
-    client = ai_client._get_client()
-    if not client:
-        return None, "No se pudo inicializar el cliente Groq. Revisa GROQ_API_KEY."
-
     data_url = f"data:{mime};base64,{image_b64}"
     messages = [
         {"role": "system", "content": EXTRACTION_SYSTEM},
@@ -378,51 +313,7 @@ def _llamar_vision_groq(*, image_b64: str, mime: str) -> tuple[Optional[str], Op
             ],
         },
     ]
-
-    last_err = ""
-    for model in vision_models_to_try():
-        create_kwargs: dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "max_tokens": 2048,
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"},
-        }
-        try:
-            response = client.chat.completions.create(**create_kwargs)
-            ai_client._registrar_llamada()
-            try:
-                from app.billing import registrar_llamada_ia
-
-                registrar_llamada_ia()
-            except Exception:
-                pass
-            ai_client._estado["conexion_ok"] = True
-            content = response.choices[0].message.content
-            if content:
-                return content, None
-            last_err = f"Respuesta vacía del modelo {model}."
-        except Exception as e:
-            err = str(e)
-            last_err = err
-            if "429" in err or "rate_limit" in err.lower():
-                ai_client._registrar_error_429(65)
-                return None, _humanize_vision_error(err, model=model)
-            low = err.lower()
-            if (
-                "model_not_found" in low
-                or "does not exist" in low
-                or "decommissioned" in low
-            ):
-                print(f"[receipt_ocr] modelo no disponible: {model} — {err[:120]}")
-                continue
-            ai_client._estado["conexion_ok"] = False
-            print(f"[receipt_ocr] vision error ({model}): {err[:160]}")
-            return None, _humanize_vision_error(err, model=model)
-
-    return None, _humanize_vision_error(
-        last_err or "sin respuesta", model=vision_model()
-    )
+    return create_vision_completion(messages, max_tokens=2048)
 
 
 def extract_from_image(image_bytes: bytes) -> ExtractionResult:
