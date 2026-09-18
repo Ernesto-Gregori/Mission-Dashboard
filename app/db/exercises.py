@@ -75,10 +75,26 @@ EXERCISE_INDEXES = (
     "ON user_equipment(user_id)",
 )
 
+ROUTINES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS exercise_routines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    dias_semana INTEGER NOT NULL,
+    minutos_sesion INTEGER NOT NULL,
+    equipamiento TEXT NOT NULL DEFAULT '[]',
+    notas_usuario TEXT,
+    plan_json TEXT NOT NULL,
+    notas_coach TEXT,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
 
 def init_exercise_library(cursor) -> None:
     cursor.execute(EXERCISES_TABLE_SQL)
     cursor.execute(USER_EQUIPMENT_TABLE_SQL)
+    cursor.execute(ROUTINES_TABLE_SQL)
     for sql in EXERCISE_INDEXES:
         cursor.execute(sql)
 
@@ -86,6 +102,7 @@ def init_exercise_library(cursor) -> None:
 def ensure_exercise_tables() -> None:
     ejecutar(EXERCISES_TABLE_SQL)
     ejecutar(USER_EQUIPMENT_TABLE_SQL)
+    ejecutar(ROUTINES_TABLE_SQL)
     for sql in EXERCISE_INDEXES:
         try:
             ejecutar(sql)
@@ -432,6 +449,91 @@ def borrar_equipment(equipment_id: int, user_id: int) -> bool:
     ejecutar(
         "DELETE FROM user_equipment WHERE id = ? AND user_id = ?",
         [int(equipment_id), int(user_id)],
+    )
+    try:
+        invalidate_data_caches()
+    except Exception:
+        pass
+    return True
+
+
+def decode_routine(row: dict) -> dict:
+    out = dict(row)
+    out["equipamiento"] = _as_list(out.get("equipamiento"))
+    try:
+        plan = json.loads(out.get("plan_json") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        plan = {}
+    if not isinstance(plan, dict):
+        plan = {}
+    out["plan"] = plan
+    return out
+
+
+def obtener_routine(user_id: int) -> dict | None:
+    rows = (
+        ejecutar(
+            "SELECT * FROM exercise_routines WHERE user_id = ?",
+            [int(user_id)],
+            fetchall=True,
+        )
+        or []
+    )
+    return decode_routine(rows[0]) if rows else None
+
+
+def guardar_routine(
+    user_id: int,
+    dias_semana: int,
+    minutos_sesion: int,
+    equipamiento: list[str],
+    plan: dict,
+    notas_usuario: str | None = None,
+    notas_coach: str | None = None,
+) -> int:
+    payload = json.dumps(plan, ensure_ascii=False)
+    equipo = json.dumps(_as_list(equipamiento), ensure_ascii=False)
+    notas_u = (notas_usuario or "").strip()[:500] or None
+    notas_c = (notas_coach or plan.get("notas_coach") or "").strip()[:800] or None
+    ejecutar(
+        """
+        INSERT INTO exercise_routines (
+            user_id, dias_semana, minutos_sesion, equipamiento,
+            notas_usuario, plan_json, notas_coach, actualizado_en
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET
+            dias_semana = excluded.dias_semana,
+            minutos_sesion = excluded.minutos_sesion,
+            equipamiento = excluded.equipamiento,
+            notas_usuario = excluded.notas_usuario,
+            plan_json = excluded.plan_json,
+            notas_coach = excluded.notas_coach,
+            actualizado_en = CURRENT_TIMESTAMP
+        """,
+        [
+            int(user_id),
+            int(dias_semana),
+            int(minutos_sesion),
+            equipo,
+            notas_u,
+            payload,
+            notas_c,
+        ],
+    )
+    try:
+        invalidate_data_caches()
+    except Exception:
+        pass
+    row = obtener_routine(user_id)
+    return int(row["id"]) if row else 0
+
+
+def borrar_routine(user_id: int) -> bool:
+    if not obtener_routine(user_id):
+        return False
+    ejecutar(
+        "DELETE FROM exercise_routines WHERE user_id = ?",
+        [int(user_id)],
     )
     try:
         invalidate_data_caches()

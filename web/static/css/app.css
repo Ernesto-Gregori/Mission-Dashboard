@@ -1030,6 +1030,89 @@ a.ex-card:hover {
   .ex-equip-row .btn { margin-bottom: 0; }
 }
 
+.rt-wrap { display: grid; gap: 1rem; }
+.rt-build-form { max-width: 36rem; }
+.rt-plan-head { margin-bottom: 0.5rem; }
+.rt-plan-head h2 { margin: 0 0 0.25rem; }
+.rt-plan-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.rt-coach-notes {
+  margin: 0.75rem 0 1.1rem;
+  padding: 0.75rem 0.9rem;
+  border-left: 3px solid var(--module-salud);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.rt-days {
+  display: grid;
+  gap: 0.85rem;
+}
+.rt-day {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.rt-day-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.rt-day-head p { margin: 0.2rem 0 0; }
+.rt-block-label {
+  margin: 0.75rem 0 0.3rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.rt-aux {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+.rt-lifts {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+}
+.rt-lifts li {
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--border);
+}
+.rt-lifts li:first-child { border-top: 0; padding-top: 0.35rem; }
+.rt-lift-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.rt-lift-name {
+  margin: 0;
+  font-weight: 600;
+}
+.rt-lift-name a { color: inherit; }
+.rt-lift-scheme {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text);
+}
+.rt-sets { font-size: 1.15rem; font-weight: 700; }
+.rt-times { color: var(--muted); padding: 0 0.15rem; }
+.rt-lift-rest,
+.rt-lift-cue {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+@media (max-width: 600px) {
+  .rt-lift-main { flex-direction: column; gap: 0.2rem; }
+}
+
 /* Deep Work */
 .deep-work-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-deep-work); }
 .deep-work-date-form {
