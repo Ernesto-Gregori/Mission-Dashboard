@@ -12,7 +12,8 @@ log = get_logger("exercise_ai")
 
 DEFAULT_PROVIDERS = {
     "groq": {
-        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        # Vision actual en Groq (Scout decommissioned 2026-07-17)
+        "model": "qwen/qwen3.6-27b",
         "stt_model": "whisper-large-v3",
     },
     "openai": {

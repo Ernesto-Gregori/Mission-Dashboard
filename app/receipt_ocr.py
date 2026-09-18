@@ -15,15 +15,20 @@ from io import BytesIO
 from typing import Any, Optional
 
 # ── Modelo / límites ──────────────────────────────────────────
-# Groq multimodal (mismo default que exercise_ai). Override: GROQ_VISION_MODEL.
-VISION_MODEL_DEFAULT = "meta-llama/llama-4-scout-17b-16e-instruct"
+# Groq vision actual (docs console.groq.com/docs/vision, sep 2026).
+# Llama 4 Scout fue decommissioned 2026-07-17 en free/dev.
+# Override: GROQ_VISION_MODEL
+VISION_MODEL_DEFAULT = "qwen/qwen3.6-27b"
 VISION_MODEL_FALLBACKS = (
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "qwen/qwen3.6-27b",
+    "qwen/qwen3.8-27b",
 )
-# Alias legacy que no son vision en Groq → redirigir
+# Modelos retirados / mal configurados → redirigir al default actual
 _VISION_MODEL_ALIASES = {
-    "qwen/qwen3.6-27b": VISION_MODEL_DEFAULT,
+    "meta-llama/llama-4-scout-17b-16e-instruct": VISION_MODEL_DEFAULT,
+    "meta-llama/llama-4-maverick-17b-128e-instruct": VISION_MODEL_DEFAULT,
+    "llama-3.2-11b-vision-preview": VISION_MODEL_DEFAULT,
+    "llama-3.2-90b-vision-preview": VISION_MODEL_DEFAULT,
     "qwen/qwen3-27b": VISION_MODEL_DEFAULT,
 }
 MAX_IMAGE_SIDE = 1600
@@ -141,7 +146,8 @@ def _humanize_vision_error(err: str, *, model: str) -> str:
     if "model_not_found" in low or "does not exist" in low or "decommissioned" in low:
         return (
             f"El modelo de visión «{model}» no está disponible en Groq. "
-            "Define GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct."
+            f"Prueba GROQ_VISION_MODEL={VISION_MODEL_DEFAULT} "
+            "(o qwen/qwen3.8-27b)."
         )
     if "429" in err or "rate_limit" in low:
         return "Groq está limitando peticiones (429). Espera un minuto e intenta de nuevo."
@@ -384,12 +390,43 @@ def _llamar_vision_groq(*, image_b64: str, mime: str) -> tuple[Optional[str], Op
         create_kwargs: dict[str, Any] = {
             "model": model,
             "messages": messages,
-            "max_tokens": 2048,
+            "max_completion_tokens": 2048,
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }
+        # Qwen 3.x: desactivar thinking para JSON limpio (OCR)
+        if model.startswith("qwen/"):
+            create_kwargs["reasoning_effort"] = "none"
+
         try:
-            response = client.chat.completions.create(**create_kwargs)
+            try:
+                response = client.chat.completions.create(**create_kwargs)
+            except TypeError:
+                create_kwargs.pop("reasoning_effort", None)
+                if "max_completion_tokens" in create_kwargs:
+                    create_kwargs["max_tokens"] = create_kwargs.pop(
+                        "max_completion_tokens"
+                    )
+                response = client.chat.completions.create(**create_kwargs)
+            except Exception as e:
+                # Algunos SDKs/tiendas rechazan reasoning_effort o max_completion_tokens
+                err0 = str(e).lower()
+                retried = False
+                if "reasoning_effort" in err0 and "reasoning_effort" in create_kwargs:
+                    create_kwargs.pop("reasoning_effort", None)
+                    retried = True
+                if (
+                    "max_completion_tokens" in err0
+                    and "max_completion_tokens" in create_kwargs
+                ):
+                    create_kwargs["max_tokens"] = create_kwargs.pop(
+                        "max_completion_tokens"
+                    )
+                    retried = True
+                if not retried:
+                    raise
+                response = client.chat.completions.create(**create_kwargs)
+
             ai_client._registrar_llamada()
             try:
                 from app.billing import registrar_llamada_ia
