@@ -36,6 +36,13 @@ En la app: **Salud** → Conectar con Google.
 - Webhooks: `POST /lemon/webhook` o `POST /stripe/webhook`
 - Retorno: `/app/billing?checkout=success|cancel`
 
+## WhatsApp (Premium / Familia)
+- Meta Cloud API (no Twilio). Callback: `GET`/`POST /whatsapp/webhook`
+- Vincular número en `/app/usuarios?tab=whatsapp` (código de 6 dígitos)
+- Intenciones: briefing, gasto, tarea (sync Calendar), nota de voz
+- Recordatorios: `python scripts/run_whatsapp_reminders.py`
+- Variables: `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`
+
 ## Seguridad
 - Login usuario + contraseña (PBKDF2)
 - Rate-limit de login

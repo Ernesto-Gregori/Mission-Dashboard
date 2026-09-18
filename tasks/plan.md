@@ -15,7 +15,7 @@ No es un chat libre: cuatro intenciones + vínculo de número con verificación.
 - Recordatorios: fila `whatsapp_reminders` + `scripts/run_whatsapp_reminders.py` (cron), 30 min antes.
 
 ## Task List
-- [ ] Schema + webhook GET/POST firmado + vínculo
-- [ ] Briefing / gasto / tarea / audio
-- [ ] Recordatorios cron
+- [x] Schema + webhook GET/POST firmado + vínculo
+- [x] Briefing / gasto / tarea / audio
+- [x] Recordatorios cron
 - [ ] pytest
