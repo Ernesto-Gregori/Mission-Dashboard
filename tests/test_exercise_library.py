@@ -452,3 +452,31 @@ def test_duration_over_hard_max_rejected(tmp_path, monkeypatch):
     monkeypatch.setattr("app.exercise_uploads.probe_video_duration", lambda p: 140.0)
     with pytest.raises(VideoUploadError, match="140"):
         save_exercise_video(1, _ftyp_bytes(), "long.mp4", "video/mp4")
+
+
+def test_fail_stale_processing_reclaims_hung_jobs(web_client):
+    from app.db.core import ejecutar
+    from app.db.exercises import fail_stale_processing
+
+    _setup_salud(web_client, "ex_stale")
+    eid = crear_exercise(1, "data/uploads/exercises/1/gone.mp4", None)
+    ejecutar(
+        "UPDATE exercises SET actualizado_en = datetime('now', '-10 minutes') WHERE id = ?",
+        [eid],
+    )
+    n = fail_stale_processing(1, older_than_s=120)
+    assert n == 1
+    row = obtener_exercise(eid, 1)
+    assert row["status"] == "failed"
+    assert "interrumpió" in (row.get("error_message") or "")
+
+
+def test_missing_video_hides_retry_button(web_client):
+    _setup_salud(web_client, "ex_miss")
+    eid = crear_exercise(1, "data/uploads/exercises/1/gone.mp4", None)
+    mark_failed(eid, 1, "No se encontró el video subido.")
+    r = web_client.get("/app/m/salud?tab=ejercicios")
+    assert r.status_code == 200
+    assert "Sube el clip otra vez".encode() in r.content
+    # El botón de reintentar no debe aparecer para este error
+    assert r.content.count("Reintentar análisis".encode()) == 0
