@@ -30,6 +30,56 @@ AMOUNT_RE = re.compile(
 )
 API_BASE = "https://api.telegram.org"
 
+BTN_BRIEFING = "📋 Briefing"
+BTN_AYUDA = "❓ Ayuda"
+REPLY_KEYBOARD = {
+    "keyboard": [[{"text": BTN_BRIEFING}, {"text": BTN_AYUDA}]],
+    "resize_keyboard": True,
+    "is_persistent": True,
+}
+BOT_COMMANDS = [
+    {"command": "start", "description": "Vincular o ver el menú"},
+    {"command": "briefing", "description": "Foco del día: agenda, hábitos y gastos"},
+    {"command": "hoy", "description": "Lo mismo que /briefing"},
+    {"command": "gasto", "description": "Anotar un gasto. Ej: /gasto 35 super"},
+    {"command": "tarea", "description": "Crear una tarea. Ej: /tarea mañana 5pm banco"},
+    {"command": "ayuda", "description": "Cómo usar el bot"},
+]
+
+
+def help_text(*, linked: bool = True) -> str:
+    body = (
+        "Comandos:\n"
+        "• /briefing — foco del día (agenda, hábitos, gastos)\n"
+        "• /hoy — lo mismo que /briefing\n"
+        "• /gasto 35 super — anotar un gasto\n"
+        "• /tarea mañana 5pm banco — crear una tarea (va a Calendar si está vinculado)\n"
+        "• /ayuda — este mensaje\n\n"
+        "También sirve texto suelto («35 en super») o una nota de voz.\n"
+        "Desvincular: en la app → Usuarios → Telegram (no por el chat)."
+    )
+    if linked:
+        return body
+    return (
+        "Este chat no está vinculado a Mission Dashboard.\n"
+        "Entrá a la app → Usuarios → Telegram, generá un código y pulsá Start "
+        "(o mandá el código de 6 dígitos).\n\n"
+        + body
+    )
+
+
+def _command_parts(text: str) -> tuple[str, str]:
+    raw = (text or "").strip()
+    if raw in (BTN_BRIEFING, "Briefing"):
+        return "/briefing", ""
+    if raw in (BTN_AYUDA, "Ayuda"):
+        return "/ayuda", ""
+    if not raw.startswith("/"):
+        return "", raw
+    first, _, rest = raw.partition(" ")
+    cmd = first.split("@", 1)[0].lower()
+    return cmd, rest.strip()
+
 
 def ensure_telegram_schema() -> None:
     from app.db.core import ejecutar
@@ -272,7 +322,10 @@ def _complete_link(row: dict, chat_id: str, username: str = "") -> tuple[bool, s
     from app.audit import registrar
 
     registrar("telegram_link_ok", "telegram_links", row["user_id"], None)
-    return True, "Listo, Telegram vinculado. Mandá «briefing», un gasto («35 en super») o una tarea."
+    return True, (
+        "Listo, Telegram vinculado.\n"
+        + help_text(linked=True)
+    )
 
 
 def _extract_code(text: str) -> str:
@@ -337,7 +390,13 @@ def _api(method: str, payload: dict | None = None, *, timeout: int = 20) -> dict
         return json.loads(resp.read().decode("utf-8") or "{}")
 
 
-def send_text(chat_id: str, body: str, send_fn: Callable | None = None) -> bool:
+def send_text(
+    chat_id: str,
+    body: str,
+    send_fn: Callable | None = None,
+    *,
+    reply_markup: dict | None = None,
+) -> bool:
     text = (body or "").strip()[:3500]
     if not text:
         return False
@@ -348,7 +407,10 @@ def send_text(chat_id: str, body: str, send_fn: Callable | None = None) -> bool:
         log.info("telegram send skipped (no token): %s", text[:80])
         return False
     try:
-        _api("sendMessage", {"chat_id": chat_id, "text": text, "disable_web_page_preview": True})
+        payload: dict = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        _api("sendMessage", payload)
         return True
     except Exception as e:
         log.warning("telegram send failed: %s", e)
@@ -372,6 +434,20 @@ def _download_voice(file_id: str) -> bytes:
         return b""
 
 
+def register_bot_commands() -> bool:
+    """Publica el menú / del bot (setMyCommands). No exige HTTPS."""
+    if not _secret("TELEGRAM_BOT_TOKEN"):
+        return False
+    try:
+        data = _api("setMyCommands", {"commands": BOT_COMMANDS})
+        ok = bool(data.get("ok"))
+        log.info("telegram setMyCommands → %s", data.get("description") or ok)
+        return ok
+    except Exception as e:
+        log.warning("telegram setMyCommands: %s", e)
+        return False
+
+
 def register_webhook(app_url: str = "") -> bool:
     """setWebhook con secret_token. No falla el arranque si Telegram no responde."""
     token = _secret("TELEGRAM_BOT_TOKEN")
@@ -391,6 +467,7 @@ def register_webhook(app_url: str = "") -> bool:
         )
         ok = bool(data.get("ok"))
         log.info("telegram setWebhook %s → %s", url, data.get("description") or ok)
+        register_bot_commands()
         return ok
     except Exception as e:
         log.warning("telegram setWebhook: %s", e)
@@ -422,8 +499,13 @@ def handle_inbound(
     if update_id and not _mark_seen(update_id, chat_id):
         return ""
 
-    def reply(body: str) -> str:
-        send_text(chat_id, body, send_fn=send_fn)
+    def reply(body: str, *, keyboard: bool = False) -> str:
+        send_text(
+            chat_id,
+            body,
+            send_fn=send_fn,
+            reply_markup=REPLY_KEYBOARD if keyboard else None,
+        )
         return body
 
     link = find_link_by_chat(chat_id)
@@ -432,11 +514,14 @@ def handle_inbound(
         pending = _find_pending_by_code(code) if code else None
         if pending:
             ok, msg = _complete_link(pending, chat_id, username)
-            return reply(msg if ok else msg)
+            return reply(msg, keyboard=ok)
+        cmd, _rest = _command_parts(text)
+        if cmd in ("/start", "/ayuda", "/help") or not (text or "").strip():
+            return reply(help_text(linked=False), keyboard=False)
         return reply(
             "Este Telegram no está vinculado a Mission Dashboard. "
             "Entrá a la app → Usuarios → Telegram, generá un código y pulsá Start en el bot "
-            "(o mandá el código de 6 dígitos)."
+            "(o mandá el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot."
         )
 
     user = _user_by_id(int(link["user_id"]))
@@ -454,15 +539,25 @@ def handle_inbound(
         if voice_id and not body:
             body = _transcribe_inbound(voice_id, transcribe_fn, download_fn)
             if not body:
-                return reply("No pude transcribir el audio. Probá en texto.")
+                return reply("No pude transcribir el audio. Probá en texto o /ayuda.")
+        cmd, rest = _command_parts(body)
+        if cmd in ("/ayuda", "/help"):
+            return reply(help_text(linked=True), keyboard=True)
+        if cmd == "/start":
+            return reply("Ya estás vinculado.\n" + help_text(linked=True), keyboard=True)
+        if cmd in ("/briefing", "/hoy", "/agenda"):
+            return reply(build_briefing(int(user["id"])))
+        if cmd == "/gasto":
+            if not rest:
+                return reply("Usá un monto. Ejemplo: /gasto 35 super  (o «35 en supermercado»).")
+            return reply(_apply_gasto(parse_fn(rest) if parse_fn else parse_intent(rest), rest))
+        if cmd == "/tarea":
+            if not rest:
+                return reply("Usá un título y hora. Ejemplo: /tarea mañana 5pm llamar al banco.")
+            parsed = parse_fn(rest) if parse_fn else parse_intent(rest)
+            return reply(_apply_tarea(parsed, rest, chat_id, int(user["id"])))
         if not body:
-            return reply("No entendí el mensaje. Probá «briefing», «35 en super» o «mañana 5pm llamar al banco».")
-        if body.startswith("/"):
-            cmd = body.split()[0].lower()
-            if cmd in ("/briefing", "/hoy", "/agenda"):
-                return reply(build_briefing(int(user["id"])))
-            if cmd == "/start":
-                return reply("Ya estás vinculado. Mandá «briefing», un gasto o una tarea.")
+            return reply("No entendí el mensaje. /ayuda muestra los comandos.")
         return reply(_dispatch(user, body, chat_id, parse_fn=parse_fn))
     except Exception as e:
         log.exception("telegram handle: %s", e)

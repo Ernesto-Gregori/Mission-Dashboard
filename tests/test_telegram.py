@@ -132,7 +132,10 @@ def test_whatsapp_routes_gone(web_client):
 def test_unlinked_never_creates_gasto(web_client, monkeypatch):
     _onboard(web_client)
     sent = []
-    monkeypatch.setattr("app.telegram.send_text", lambda chat_id, body, send_fn=None: sent.append(body) or True)
+    monkeypatch.setattr(
+        "app.telegram.send_text",
+        lambda chat_id, body, send_fn=None, **kw: sent.append(body) or True,
+    )
     raw = json.dumps(_payload(111, "35 en supermercado", update_id=7)).encode()
     r = web_client.post(
         "/telegram/webhook",
@@ -263,3 +266,79 @@ def test_usuarios_telegram_tab(web_client):
     assert r.status_code == 200
     assert b"t.me/mission_test_bot" in r.content
     assert b"tg-code" in r.content
+    assert b"/briefing" in r.content
+    assert b"/ayuda" in r.content
+
+
+def _link_admin(chat_id: str = "42"):
+    from app.database import autenticar_usuario
+    from app.telegram import handle_inbound, start_link
+
+    user = autenticar_usuario("tg_admin", "password1")
+    ok, _, code = start_link(int(user["id"]))
+    assert ok and code
+    handle_inbound(chat_id, text=f"/start {code}", update_id="link-cmd", send_fn=lambda c, b: None)
+    return int(user["id"])
+
+
+def test_ayuda_and_menu_commands(web_client):
+    from app.telegram import BOT_COMMANDS, handle_inbound
+
+    _onboard(web_client)
+    _link_admin()
+    sent = []
+    out = handle_inbound("42", text="/ayuda", update_id="help1", send_fn=lambda c, b: sent.append(b))
+    assert "gasto" in out.lower()
+    assert "/briefing" in out
+    assert "/tarea" in out
+    names = {c["command"] for c in BOT_COMMANDS}
+    assert names >= {"start", "briefing", "hoy", "gasto", "tarea", "ayuda"}
+
+
+def test_gasto_command_without_args_does_not_create(web_client):
+    from app.telegram import handle_inbound
+
+    _onboard(web_client)
+    _link_admin("77")
+    sent = []
+    out = handle_inbound("77", text="/gasto", update_id="g0", send_fn=lambda c, b: sent.append(b))
+    assert "ejemplo" in out.lower() or "/gasto" in out
+    from app.db.core import ejecutar
+
+    rows = ejecutar("SELECT id FROM gastos_sobres", fetchall=True) or []
+    assert rows == []
+
+
+def test_keyboard_briefing_button(web_client, monkeypatch):
+    from app.telegram import handle_inbound
+
+    _onboard(web_client)
+    _link_admin("55")
+    monkeypatch.setattr("app.telegram.parse_intent", lambda t: {"intent": "unknown"})
+    out = handle_inbound("55", text="📋 Briefing", update_id="kb1", send_fn=lambda c, b: None)
+    assert "Foco" in out
+
+
+def test_unlinked_ayuda_never_creates_gasto(web_client):
+    _onboard(web_client)
+    from app.telegram import handle_inbound
+
+    sent = []
+    out = handle_inbound("999", text="/ayuda", update_id="uhelp", send_fn=lambda c, b: sent.append(b))
+    from app.db.core import ejecutar
+
+    rows = ejecutar("SELECT id FROM gastos_sobres", fetchall=True) or []
+    assert rows == []
+    assert "vincul" in out.lower()
+
+
+def test_register_bot_commands_calls_api(monkeypatch):
+    from app import telegram as tg
+
+    calls = []
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:test")
+    monkeypatch.setattr(tg, "_api", lambda method, payload=None, **kw: calls.append((method, payload)) or {"ok": True})
+    assert tg.register_bot_commands() is True
+    assert calls and calls[0][0] == "setMyCommands"
+    cmds = {c["command"] for c in calls[0][1]["commands"]}
+    assert "ayuda" in cmds and "briefing" in cmds
