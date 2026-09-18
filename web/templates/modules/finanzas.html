@@ -8,12 +8,6 @@
   </div>
 </header>
 
-<nav class="agenda-tabs" aria-label="Secciones de Finanzas">
-  <a class="{% if finanzas_section == 'sobres' %}active{% endif %}" href="/app/m/finanzas?mes={{ mes }}&anio={{ anio }}">📒 Sobres y gastos</a>
-  <a class="{% if finanzas_section == 'precios' %}active{% endif %}" href="/app/m/finanzas/precios?mes={{ mes }}&anio={{ anio }}">🛒 Precios supermercados</a>
-</nav>
-
-
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 

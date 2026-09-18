@@ -3,6 +3,13 @@
 <div class="shell">
   {% include "_sidebar.html" %}
   <main class="main" id="main-content" tabindex="-1">
+    {% if hub_tabs %}
+    <nav class="agenda-tabs hub-tabs" aria-label="En esta sección">
+      {% for t in hub_tabs %}
+      <a href="{{ t.href }}" class="{% if t.active %}active{% endif %}"{% if t.active %} aria-current="page"{% endif %}>{{ t.label }}</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>

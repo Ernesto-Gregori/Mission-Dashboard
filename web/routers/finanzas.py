@@ -233,6 +233,11 @@ def finanzas_page(request: Request, user: Annotated[dict, Depends(require_onboar
             lim_free=limites(PLAN_FREE),
             modulos_nav=_nav(int(user["id"])),
         )
+    tab = (request.query_params.get("tab") or "").lower()
+    if tab == "presupuesto":
+        from web.routers.presupuesto import _ctx as presupuesto_ctx
+
+        return render(request, "presupuesto.html", **presupuesto_ctx(request, user))
     return render(request, "modules/finanzas.html", **_ctx(request, user))
 
 

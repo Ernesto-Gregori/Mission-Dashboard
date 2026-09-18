@@ -64,4 +64,7 @@ async def guardar(request: Request, user: Annotated[dict, Depends(require_onboar
         claves_habito=claves,
         user_id=int(user["id"]),
     )
-    return RedirectResponse("/app/ritual", status_code=303)
+    dest = str(form.get("next") or "/app/ritual").strip() or "/app/ritual"
+    if not dest.startswith("/app"):
+        dest = "/app/ritual"
+    return RedirectResponse(dest, status_code=303)

@@ -3,24 +3,20 @@
     <a class="brand" href="/app">Mission Dashboard</a>
     <div class="meta">{{ user.username }} · {{ user.rol }}</div>
   </header>
-  <nav aria-label="Navegación principal">
-    <a href="/app" class="{% if request.url.path.rstrip('/') == '/app' %}active{% endif %}"{% if request.url.path.rstrip('/') == '/app' %} aria-current="page"{% endif %}>🏠 Control de mando</a>
-    <a href="/app/coach" class="{% if '/coach' in request.url.path %}active{% endif %}"{% if '/coach' in request.url.path %} aria-current="page"{% endif %}>🤖 Coach</a>
-    <a href="/app/asistente" class="{% if '/asistente' in request.url.path %}active{% endif %}"{% if '/asistente' in request.url.path %} aria-current="page"{% endif %}>💬 Alma</a>
-    <a href="/app/foco" class="{% if '/foco' in request.url.path %}active{% endif %}"{% if '/foco' in request.url.path %} aria-current="page"{% endif %}>🎯 Foco</a>
-    <a href="/app/planificador" class="{% if '/planificador' in request.url.path %}active{% endif %}"{% if '/planificador' in request.url.path %} aria-current="page"{% endif %}>🗓️ Planificador</a>
-    <a href="/app/presupuesto" class="{% if '/presupuesto' in request.url.path %}active{% endif %}"{% if '/presupuesto' in request.url.path %} aria-current="page"{% endif %}>📊 Presupuesto</a>
-    <a href="/app/familia" class="{% if '/familia' in request.url.path %}active{% endif %}"{% if '/familia' in request.url.path %} aria-current="page"{% endif %}>👨‍👩‍👧‍👦 Familia</a>
-    <a href="/app/ritual" class="{% if '/ritual' in request.url.path %}active{% endif %}"{% if '/ritual' in request.url.path %} aria-current="page"{% endif %}>🌅 Ritual</a>
-    <a href="/app/rueda" class="{% if '/rueda' in request.url.path %}active{% endif %}"{% if '/rueda' in request.url.path %} aria-current="page"{% endif %}>🎡 Rueda</a>
-    <a href="/app/billing" class="{% if '/billing' in request.url.path %}active{% endif %}"{% if '/billing' in request.url.path %} aria-current="page"{% endif %}>💳 Plan</a>
-    <a href="/app/usuarios" class="{% if '/usuarios' in request.url.path %}active{% endif %}"{% if '/usuarios' in request.url.path %} aria-current="page"{% endif %}>🔐 Usuarios</a>
-    {% if modulos_nav is defined %}
-      {% for m in modulos_nav %}
-        <a href="{{ m.href }}" class="{% if not m.activo %}dim{% endif %}{% if request.url.path == m.href %} active{% endif %}"{% if request.url.path == m.href %} aria-current="page"{% endif %}>
-          {{ m.emoji }} {{ m.nombre }}
-        </a>
+  <nav aria-label="Navegación principal" class="app-nav">
+    {% if nav_groups is defined and nav_groups %}
+      {% for group in nav_groups %}
+      <div class="nav-group">
+        <p class="nav-group-label">{{ group.label }}</p>
+        {% for item in group.links %}
+        <a href="{{ item.href }}" data-hub="{{ item.id }}" class="{% if item.active %}active{% endif %}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>
+        {% endfor %}
+      </div>
       {% endfor %}
+    {% else %}
+    <a href="/app" class="{% if request.url.path.rstrip('/') == '/app' %}active{% endif %}"{% if request.url.path.rstrip('/') == '/app' %} aria-current="page"{% endif %}>Hoy</a>
+    <a href="/app/asistente">Guía</a>
+    <a href="/app/usuarios">Cuenta</a>
     {% endif %}
   </nav>
   <div class="sidebar-footer">
@@ -28,7 +24,7 @@
       <input type="hidden" name="theme" value="{% if theme == 'light' %}dark{% else %}light{% endif %}" />
       <input type="hidden" name="next" value="{{ request.url.path }}" />
       <button class="btn secondary block" type="submit">
-        {% if theme == 'light' %}🌙 Tema oscuro{% else %}☀️ Tema claro{% endif %}
+        {% if theme == 'light' %}Tema oscuro{% else %}Tema claro{% endif %}
       </button>
     </form>
     <form method="post" action="/logout">

@@ -149,6 +149,60 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .sidebar nav a.dim { color: var(--muted); }
 .sidebar-footer { margin-top: 1.5rem; }
 
+.app-nav { display: grid; gap: 1.15rem; }
+.nav-group { display: grid; gap: 0.15rem; }
+.nav-group-label {
+  margin: 0 0 0.15rem;
+  padding: 0 0.65rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.hub-tabs { margin-top: 0; }
+
+.hoy-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+.hoy-panel {
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+}
+.hoy-foco-list { margin: 0; padding: 0; list-style: none; }
+.ritual-compact { display: grid; gap: 0.75rem; }
+.rueda-hoy { margin-bottom: 1.5rem; }
+.rueda-hoy-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+.hub-grid { align-items: stretch; }
+.hub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+.hub-card-main {
+  color: inherit;
+  text-decoration: none;
+}
+.hub-card-main:hover { text-decoration: none; color: var(--text); }
+.hub-children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.88rem;
+}
+.hub-children a { color: var(--accent); }
+
 .main {
   width: 100%;
   min-width: 0;
@@ -373,6 +427,14 @@ h3 { font-size: 1rem; line-height: 1.35; }
 }
 .module-card.is-inactive .module-icon { filter: saturate(0.35); }
 
+.module-card.hub-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  min-height: 0;
+}
+
 .account-card {
   margin-top: 2rem;
   padding: 1rem 1.15rem;
@@ -399,12 +461,21 @@ h3 { font-size: 1rem; line-height: 1.35; }
   .sidebar .meta { margin-bottom: 0.6rem; }
   .sidebar nav {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.75rem;
     padding-bottom: 0.25rem;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
     scrollbar-color: var(--border-strong) transparent;
   }
+  .app-nav { display: flex; }
+  .nav-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .nav-group-label { display: none; }
+  .hoy-grid { grid-template-columns: 1fr; }
   .sidebar nav a {
     flex: 0 0 auto;
     margin: 0;
