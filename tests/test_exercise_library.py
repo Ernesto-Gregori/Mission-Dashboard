@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app.db.exercises import (
     agregar_equipment,
     apply_analysis,
+    borrar_exercise,
     crear_exercise,
     listar_equipment,
     listar_exercises,
@@ -480,3 +481,92 @@ def test_missing_video_hides_retry_button(web_client):
     assert "Sube el clip otra vez".encode() in r.content
     # El botón de reintentar no debe aparecer para este error
     assert r.content.count("Reintentar análisis".encode()) == 0
+    assert f"/app/m/salud/ejercicios/{eid}/eliminar".encode() in r.content
+    assert "Eliminar".encode() in r.content
+
+
+def test_delete_own_exercise_removes_row_and_file(web_client, monkeypatch):
+    _setup_salud(web_client, "ex_del")
+    monkeypatch.setattr("app.exercise_uploads.probe_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(
+        "web.routers.ejercicios.run_exercise_analysis",
+        lambda eid, uid: apply_analysis(eid, uid, SAMPLE_ANALYSIS),
+    )
+    web_client.post(
+        "/app/m/salud/ejercicios/subir",
+        files={"video": ("swing.mp4", BytesIO(_ftyp_bytes()), "video/mp4")},
+        follow_redirects=True,
+    )
+    row = listar_exercises(1)[0]
+    eid = row["id"]
+    from app.exercise_uploads import resolve_exercise_video_path
+
+    path = resolve_exercise_video_path(row["source_video_url"], 1)
+    assert path is not None and path.is_file()
+
+    r = web_client.get("/app/m/salud?tab=ejercicios")
+    assert r.status_code == 200
+    assert "Eliminar".encode() in r.content
+    assert f"/app/m/salud/ejercicios/{eid}/eliminar".encode() in r.content
+    assert b"confirm(" in r.content
+
+    r = web_client.get(f"/app/m/salud/ejercicios/{eid}")
+    assert r.status_code == 200
+    assert "Eliminar".encode() in r.content
+    assert f"/app/m/salud/ejercicios/{eid}/eliminar".encode() in r.content
+
+    r = web_client.post(
+        f"/app/m/salud/ejercicios/{eid}/eliminar",
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 307)
+    loc = r.headers.get("location", "")
+    assert "tab=ejercicios" in loc
+    assert "error=" not in loc
+    assert "Ejercicio+eliminado" in loc or "flash=" in loc
+
+    r = web_client.get("/app/m/salud?tab=ejercicios")
+    assert r.status_code == 200
+    assert "Swing con pesa rusa".encode() not in r.content
+    assert obtener_exercise(eid, 1) is None
+    assert not path.is_file()
+    assert listar_exercises(1) == []
+
+
+def test_delete_exercise_isolated_from_other_user(web_client):
+    _setup_salud(web_client, "ex_del_iso")
+    from app.database import crear_usuario
+
+    crear_usuario("otro_del", "password1", rol="usuario")
+    with as_user({"id": 2, "username": "otro_del"}):
+        eid = crear_exercise(2, "data/uploads/exercises/2/secret.mp4", None)
+
+    r = web_client.post(
+        f"/app/m/salud/ejercicios/{eid}/eliminar",
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 307)
+    loc = r.headers.get("location", "")
+    assert "error=" in loc
+    assert obtener_exercise(eid, 2) is not None
+    assert borrar_exercise(eid, 1) is False
+    assert obtener_exercise(eid, 2) is not None
+    assert borrar_exercise(eid, 2) is True
+    assert obtener_exercise(eid, 2) is None
+
+
+def test_delete_missing_video_still_removes_row(web_client):
+    _setup_salud(web_client, "ex_del_gone")
+    eid = crear_exercise(1, "data/uploads/exercises/1/gone.mp4", None)
+    assert borrar_exercise(eid, 1) is True
+    assert obtener_exercise(eid, 1) is None
+
+
+def test_processing_list_includes_delete(web_client):
+    _setup_salud(web_client, "ex_del_proc")
+    eid = crear_exercise(1, "data/uploads/exercises/1/pending.mp4", None)
+    r = web_client.get("/app/m/salud?tab=ejercicios")
+    assert r.status_code == 200
+    assert "Coach IA analizando".encode() in r.content
+    assert f"/app/m/salud/ejercicios/{eid}/eliminar".encode() in r.content
+    assert "Eliminar".encode() in r.content

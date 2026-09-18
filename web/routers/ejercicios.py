@@ -16,6 +16,7 @@ from app.db.exercises import (
     agregar_equipment,
     actualizar_exercise,
     borrar_equipment,
+    borrar_exercise,
     fail_stale_processing,
     listar_equipment,
     listar_exercises,
@@ -188,6 +189,17 @@ def ejercicio_detalle(
         "modules/ejercicio_detalle.html",
         **_detail_ctx(request, user, ex, flash=flash, error=error),
     )
+
+
+@router.post("/ejercicios/{exercise_id}/eliminar")
+async def eliminar_ejercicio(
+    exercise_id: int,
+    user: Annotated[dict, Depends(require_onboarded)],
+):
+    uid = int(user["id"])
+    if not borrar_exercise(exercise_id, uid):
+        return _redirect_ejercicios(error="No encontramos ese ejercicio.")
+    return _redirect_ejercicios(flash="Ejercicio eliminado.")
 
 
 @router.post("/ejercicios/{exercise_id}/editar")
