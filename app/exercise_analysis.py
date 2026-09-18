@@ -17,9 +17,10 @@ from app.db.exercises import (
     mark_failed,
     obtener_exercise,
 )
-from app.exercise_ai import complete_multimodal, transcribe_audio
+from app.exercise_ai import ExerciseAIError, complete_multimodal, transcribe_audio
 from app.exercise_uploads import probe_video_duration, resolve_exercise_video_path
 from app.ffmpeg_bin import resolve_ffmpeg
+from app.groq_vision import MAX_VISION_IMAGES
 from app.logging_config import get_logger
 
 log = get_logger("exercise_analysis")
@@ -200,7 +201,7 @@ def extract_keyframes(video_path: Path, dest_dir: Path, duration: float | None =
         raise AnalysisError("No se pudieron extraer fotogramas del video.") from e
 
     dur = duration if duration and duration > 0 else probe_video_duration(video_path) or 2.0
-    n = max(1, min(10, int(round(dur / 1.5)) or 1))
+    n = max(1, min(MAX_VISION_IMAGES, int(round(dur / 1.5)) or 1))
     fps = n / max(dur, 0.5)
     pattern = str(dest_dir / "frame_%03d.jpg")
     # fps+escala → fps solo → primer fotograma (HEVC/VFR a veces rompe fps=).
@@ -228,7 +229,7 @@ def extract_keyframes(video_path: Path, dest_dir: Path, duration: float | None =
             continue
         frames = sorted(dest_dir.glob("frame_*.jpg"))
         if proc.returncode == 0 and frames:
-            return frames[:10]
+            return frames[:MAX_VISION_IMAGES]
         log.warning(
             {
                 "event": "exercise_ffmpeg_extract_failed",
@@ -306,6 +307,15 @@ def run_exercise_analysis(exercise_id: int, user_id: int) -> None:
 
     tmp = tempfile.TemporaryDirectory(prefix="ex_frames_")
     try:
+        from app.exercise_ai import ai_model
+
+        log.info(
+            {
+                "event": "exercise_analysis_start",
+                "exercise_id": exercise_id,
+                "model": ai_model(),
+            }
+        )
         frame_dir = Path(tmp.name) / "frames"
         audio_path = Path(tmp.name) / "audio.wav"
         frames = extract_keyframes(video, frame_dir)
@@ -326,7 +336,7 @@ def run_exercise_analysis(exercise_id: int, user_id: int) -> None:
                 "ms": int((time.monotonic() - started) * 1000),
             }
         )
-    except AnalysisError as e:
+    except (AnalysisError, ExerciseAIError) as e:
         log.warning(
             {
                 "event": "exercise_analysis_failed",

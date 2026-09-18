@@ -12,8 +12,8 @@ log = get_logger("exercise_ai")
 
 DEFAULT_PROVIDERS = {
     "groq": {
-        # Vision actual en Groq (Scout decommissioned 2026-07-17)
-        "model": "qwen/qwen3.6-27b",
+        # Visión: mismo GROQ_VISION_MODEL que finanzas (Qwen). No usar GROQ_MODEL (chat).
+        "model": "",
         "stt_model": "whisper-large-v3",
     },
     "openai": {
@@ -45,6 +45,12 @@ def stt_provider() -> str:
 
 def ai_model() -> str:
     override = (os.getenv("EXERCISE_AI_MODEL") or "").strip()
+    if ai_provider() == "groq":
+        from app.groq_vision import resolve_vision_model, vision_model
+
+        if override:
+            return resolve_vision_model(override)
+        return vision_model()
     if override:
         return override
     return DEFAULT_PROVIDERS[ai_provider()]["model"]
@@ -59,7 +65,9 @@ def stt_model() -> str:
 
 def _api_key_for(provider: str) -> str:
     if provider == "groq":
-        return get_secret("GROQ_API_KEY", "")
+        from app.ai_client import _get_api_key
+
+        return _get_api_key()
     if provider == "openai":
         return get_secret("OPENAI_API_KEY", "")
     if provider == "anthropic":
@@ -90,14 +98,15 @@ def complete_multimodal(
             f"Falta la API key del proveedor '{provider}'. "
             "Configura EXERCISE_AI_PROVIDER y la clave correspondiente."
         )
-    frames = frame_paths[:10]
+    frames = list(frame_paths)
     if provider == "anthropic":
-        text = _complete_anthropic(system, user_text, frames)
+        text = _complete_anthropic(system, user_text, frames[:10])
+        _meter_ia(user_id)
     elif provider == "openai":
-        text = _complete_openai(system, user_text, frames)
+        text = _complete_openai(system, user_text, frames[:10])
+        _meter_ia(user_id)
     else:
         text = _complete_groq(system, user_text, frames)
-    _meter_ia(user_id)
     return text
 
 
@@ -121,28 +130,36 @@ def transcribe_audio(audio_path: Path) -> str:
 
 
 def _complete_groq(system: str, user_text: str, frames: list[Path]) -> str:
-    from groq import Groq
+    from app.groq_vision import MAX_VISION_IMAGES, create_vision_completion
+    from app.receipt_ocr import compress_image_bytes
 
     content: list[dict] = [{"type": "text", "text": user_text}]
-    for path in frames:
-        b64 = _b64_jpeg(path)
+    for path in frames[:MAX_VISION_IMAGES]:
+        try:
+            compressed, mime = compress_image_bytes(
+                path.read_bytes(), max_side=768, quality=70
+            )
+        except Exception as e:
+            raise ExerciseAIError(f"No se pudo preparar el fotograma: {e}") from e
+        b64 = base64.b64encode(compressed).decode("ascii")
         content.append(
             {
                 "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                "image_url": {"url": f"data:{mime};base64,{b64}"},
             }
         )
-    client = Groq(api_key=_api_key_for("groq"))
-    resp = client.chat.completions.create(
-        model=ai_model(),
-        messages=[
+    if len(content) < 2:
+        raise ExerciseAIError("No hay fotogramas para enviar al modelo de visión.")
+    text, err = create_vision_completion(
+        [
             {"role": "system", "content": system},
             {"role": "user", "content": content},
         ],
         max_tokens=1200,
-        temperature=0.2,
     )
-    return (resp.choices[0].message.content or "").strip()
+    if not text:
+        raise ExerciseAIError(err or "Groq no devolvió un análisis del video.")
+    return text.strip()
 
 
 def _complete_openai(system: str, user_text: str, frames: list[Path]) -> str:

@@ -182,7 +182,7 @@ def test_extract_falla_si_api_none(monkeypatch):
     assert "GROQ_API_KEY" in (result.error or "")
 
 
-def test_vision_model_default_es_qwen36():
+def test_vision_model_default_es_qwen():
     from app.receipt_ocr import VISION_MODEL_DEFAULT, vision_model
 
     assert VISION_MODEL_DEFAULT == "qwen/qwen3.6-27b"
@@ -211,6 +211,7 @@ def test_humanize_model_not_found():
     )
     assert "no está disponible" in msg
     assert "qwen/qwen3.6-27b" in msg
+    assert "GROQ_MODEL" in msg
 
 
 def test_llamar_vision_prueba_fallback_si_modelo_falla(monkeypatch):
