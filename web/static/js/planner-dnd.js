@@ -53,7 +53,6 @@
       const originX = ev.clientX;
       const originY = ev.clientY;
       const fecha0 = block.getAttribute("data-fecha") || "";
-      const startHm0 = block.getAttribute("data-start") || "";
       block.classList.add("is-dragging");
       try {
         block.setPointerCapture(ev.pointerId);
