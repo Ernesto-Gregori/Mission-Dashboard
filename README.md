@@ -40,6 +40,7 @@ En la app: **Salud** → Conectar con Google.
 - Bot API oficial (BotFather). Callback: `POST /telegram/webhook`
 - Vincular en `/app/usuarios?tab=telegram` (código + `t.me/bot?start=…`)
 - Intenciones: briefing, gasto, tarea (sync Calendar), nota de voz
+- Comandos: `/briefing` `/gasto` `/tarea` `/ayuda` (menú `/` + botones)
 - Recordatorios: `python scripts/run_telegram_reminders.py`
 - Variables: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME` (opcional)
 
