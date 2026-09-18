@@ -35,7 +35,7 @@ from web.routers.ejercicios import ejercicios_page_extras
 
 router = APIRouter(prefix="/app/m/salud", tags=["salud"])
 
-TABS = ("hoy", "ejercicios", "historial", "coach")
+TABS = ("hoy", "ejercicios", "rutina", "historial", "coach")
 
 
 def _nav(user_id: int) -> list[dict]:

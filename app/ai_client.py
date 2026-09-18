@@ -315,14 +315,14 @@ SYSTEM_MISION = (
     "Responde en español, de forma breve y práctica."
 )
 
-def chat_simple(mensaje: str, contexto: str = "") -> str:
+def chat_simple(mensaje: str, contexto: str = "", max_tokens: int = 500) -> str:
     """
     Chat con Groq.
     `contexto` = system prompt del módulo (Finanzas, Salud, Agenda, etc.).
     Si viene vacío, usa SYSTEM_MISION.
     """
     system = (contexto or "").strip() or SYSTEM_MISION
-    resultado = _llamar_ai(mensaje, system=system)
+    resultado = _llamar_ai(mensaje, system=system, max_tokens=max_tokens)
     return resultado or _fallback("chat_bienvenida")
 
 
