@@ -368,6 +368,39 @@ def test_pipeline_marks_failed_on_bad_ai(web_client, monkeypatch, tmp_path):
     assert row["status"] == "failed"
 
 
+def test_pipeline_surface_groq_vision_error(web_client, monkeypatch, tmp_path):
+    _setup_salud(web_client, "ex_groq")
+    from app.exercise_ai import ExerciseAIError
+    from app.exercise_analysis import run_exercise_analysis
+
+    monkeypatch.setattr("app.exercise_uploads.probe_video_duration", lambda p: 5.0)
+    monkeypatch.setattr(
+        "app.exercise_analysis.extract_keyframes",
+        lambda video, dest, duration=None: [_write_jpg(dest)],
+    )
+    monkeypatch.setattr("app.exercise_analysis.extract_audio_wav", lambda v, d: None)
+    monkeypatch.setattr("app.exercise_analysis.transcribe_audio", lambda p: "")
+
+    def _boom(*a, **k):
+        raise ExerciseAIError(
+            "El modelo de visión «scout» no está disponible en Groq. "
+            "Usa GROQ_VISION_MODEL=qwen/qwen3.6-27b."
+        )
+
+    monkeypatch.setattr("app.exercise_analysis.complete_multimodal", _boom)
+    from app.exercise_uploads import user_dir
+
+    dest = user_dir(1) / "clip.mp4"
+    dest.write_bytes(_ftyp_bytes())
+    rel = f"data/uploads/exercises/1/{dest.name}"
+    eid = crear_exercise(1, rel, None)
+    run_exercise_analysis(eid, 1)
+    row = obtener_exercise(eid, 1)
+    assert row["status"] == "failed"
+    assert "visión" in (row.get("error_message") or "")
+    assert "qwen" in (row.get("error_message") or "")
+
+
 def _write_jpg(dest: Path) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
     p = dest / "frame_001.jpg"
