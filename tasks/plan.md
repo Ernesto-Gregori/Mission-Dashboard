@@ -17,4 +17,4 @@ No es un chat libre: cuatro intenciones + vínculo de cuenta con código /start.
 - [x] Schema + webhook POST firmado + vínculo
 - [x] Briefing / gasto / tarea / audio
 - [x] Recordatorios cron
-- [ ] pytest
+- [x] pytest
