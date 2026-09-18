@@ -368,6 +368,34 @@ def ensure_remote_schema():
             actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS whatsapp_links (
+            user_id INTEGER PRIMARY KEY,
+            phone TEXT NOT NULL,
+            verified INTEGER NOT NULL DEFAULT 0,
+            verify_hash TEXT,
+            verify_expires TEXT,
+            linked_at TEXT
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS whatsapp_seen (
+            wamid TEXT PRIMARY KEY,
+            phone TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS whatsapp_reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            evento_id INTEGER,
+            phone TEXT NOT NULL,
+            titulo TEXT,
+            fire_at TEXT NOT NULL,
+            sent_at TEXT
+        )
+        """,
     ]
     for sql in statements:
         try:

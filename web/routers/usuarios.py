@@ -13,6 +13,7 @@ from app.billing import (
     PLANES_VALIDOS,
     limites,
     plan_vigente,
+    puede_whatsapp,
     resumen_plan_ui,
     payments_configured,
     set_plan,
@@ -22,11 +23,12 @@ from app.multiuser import provision_user_defaults
 from app.onboarding import listar_modulos_usuario
 from app.stability import invalidate_data_caches
 from app.templates import MODULE_TEMPLATES
-from web.deps import require_onboarded, render
+from app.whatsapp import confirm_link, link_status, start_link, unlink
+from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/usuarios", tags=["usuarios"])
 
-TABS = ("plan", "gestion", "backup", "auditoria")
+TABS = ("plan", "whatsapp", "gestion", "backup", "auditoria")
 
 
 def _nav(user_id: int) -> list[dict]:
@@ -47,7 +49,7 @@ def _tab(request: Request, user: dict) -> str:
     t = (request.query_params.get("tab") or request.session.get("usr_tab") or "plan").lower()
     if t not in TABS:
         t = "plan"
-    if user.get("rol") != "admin" and t != "plan":
+    if user.get("rol") != "admin" and t not in ("plan", "whatsapp"):
         t = "plan"
     request.session["usr_tab"] = t
     return t
@@ -88,6 +90,9 @@ def _ctx(
         "usuarios": usuarios,
         "planes_validos": list(PLANES_VALIDOS),
         "auditoria": auditoria,
+        "wa_link": link_status(int(user["id"])),
+        "puede_whatsapp": puede_whatsapp(plan),
+        "wa_code": request.session.get("wa_code"),
     }
 
 
@@ -224,3 +229,47 @@ async def backup(request: Request, user: Annotated[dict, Depends(require_onboard
             backup_path=str(path),
         ),
     )
+
+
+@router.post("/whatsapp/vincular")
+async def wa_vincular(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    request.session["usr_tab"] = "whatsapp"
+    form = await request.form()
+    ok, msg, code = start_link(int(user["id"]), str(form.get("phone") or ""))
+    if not ok:
+        return render(
+            request,
+            "usuarios.html",
+            status_code=400,
+            **_ctx(request, user, error=msg),
+        )
+    request.session["wa_code"] = code
+    return render(
+        request,
+        "usuarios.html",
+        **_ctx(request, user, flash=f"{msg} Código: {code}"),
+    )
+
+
+@router.post("/whatsapp/confirmar")
+async def wa_confirmar(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    request.session["usr_tab"] = "whatsapp"
+    form = await request.form()
+    ok, msg = confirm_link(int(user["id"]), str(form.get("code") or ""))
+    if ok:
+        request.session.pop("wa_code", None)
+        return render(request, "usuarios.html", **_ctx(request, user, flash=msg))
+    return render(
+        request,
+        "usuarios.html",
+        status_code=400,
+        **_ctx(request, user, error=msg),
+    )
+
+
+@router.post("/whatsapp/desvincular")
+def wa_desvincular(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    request.session["usr_tab"] = "whatsapp"
+    unlink(int(user["id"]))
+    request.session.pop("wa_code", None)
+    return render(request, "usuarios.html", **_ctx(request, user, flash="Número desvinculado."))

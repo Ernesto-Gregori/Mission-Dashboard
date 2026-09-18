@@ -329,6 +329,52 @@ def init_fase4_tables(cursor):
             pass
 
 
+def init_fase5_tables(cursor):
+    """WhatsApp: vínculo teléfono↔usuario, inbox idempotente y recordatorios."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS whatsapp_links (
+            user_id INTEGER PRIMARY KEY,
+            phone TEXT NOT NULL,
+            verified INTEGER NOT NULL DEFAULT 0,
+            verify_hash TEXT,
+            verify_expires TEXT,
+            linked_at TEXT
+        )
+    """)
+    try:
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_whatsapp_phone "
+            "ON whatsapp_links(phone)"
+        )
+    except Exception:
+        pass
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS whatsapp_seen (
+            wamid TEXT PRIMARY KEY,
+            phone TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS whatsapp_reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            evento_id INTEGER,
+            phone TEXT NOT NULL,
+            titulo TEXT,
+            fire_at TEXT NOT NULL,
+            sent_at TEXT
+        )
+    """)
+    try:
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wa_remind_fire "
+            "ON whatsapp_reminders(sent_at, fire_at)"
+        )
+    except Exception:
+        pass
+
+
 def init_fase1_tables(cursor):
     """Alma, planificador prefs y objetivo de salud (Fase 1)."""
     cursor.execute("""
@@ -971,6 +1017,7 @@ def init_database():
     init_fase2_tables(cursor)
     init_fase3_tables(cursor)
     init_fase4_tables(cursor)
+    init_fase5_tables(cursor)
     init_sobres(cursor)
     from app.db.exercises import init_exercise_library
     init_exercise_library(cursor)

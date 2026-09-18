@@ -57,6 +57,7 @@ def migrar_local_a_turso():
         'asistente_mensajes', 'asistente_prefs', 'user_prefs', 'salud_objetivo',
         'presupuesto_config', 'presupuesto_recurrentes',
         'ritual_diario', 'rueda_vida', 'calendar_sync_state',
+        'whatsapp_links', 'whatsapp_reminders',
         'exercises', 'user_equipment',
         'usuarios', 'oauth_tokens',
     ]

@@ -30,6 +30,8 @@ USER_TABLES = [
     "pedidos_oracion",
     "eventos_calendario",
     "calendar_sync_state",
+    "whatsapp_links",
+    "whatsapp_reminders",
     "exercises",
     "user_equipment",
 ]

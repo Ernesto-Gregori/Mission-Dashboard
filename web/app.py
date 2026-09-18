@@ -59,6 +59,7 @@ from web.routers import oauth_google as oauth_router
 from web.routers import modules as modules_router
 from web.routers import stripe_hook as stripe_router
 from web.routers import lemon_hook as lemon_router
+from web.routers import whatsapp as whatsapp_router
 
 SESSION_SECRET = os.getenv("SESSION_SECRET") or os.getenv("APP_PASSWORD") or "dev-change-me"
 
@@ -119,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(usuarios_router.router)
     app.include_router(stripe_router.router)
     app.include_router(lemon_router.router)
+    app.include_router(whatsapp_router.router)
 
     @app.exception_handler(NotAuthenticated)
     async def _not_auth(request: Request, exc: NotAuthenticated):

@@ -28,6 +28,7 @@ PLAN_LIMITES: dict[str, dict[str, Any]] = {
         "briefings_semana": 1,    # análisis cruzado Coach (no chat por módulo)
         "coach_reconfig": False,  # solo 1 setup inicial
         "google": False,
+        "whatsapp": False,
         "historial_dias": 90,     # UI: no borrar datos, solo acotar vistas
         "export": False,
         "usuarios_cuenta": 1,
@@ -40,6 +41,7 @@ PLAN_LIMITES: dict[str, dict[str, Any]] = {
         "briefings_semana": 7,    # diario / bajo demanda
         "coach_reconfig": True,
         "google": True,
+        "whatsapp": True,
         "historial_dias": None,
         "export": True,
         "usuarios_cuenta": 1,
@@ -52,6 +54,7 @@ PLAN_LIMITES: dict[str, dict[str, Any]] = {
         "briefings_semana": 7,
         "coach_reconfig": True,
         "google": True,
+        "whatsapp": True,
         "historial_dias": None,
         "export": True,
         "usuarios_cuenta": 2,
@@ -204,6 +207,10 @@ def modulos_max(plan: str | None = None) -> int | None:
 
 def puede_google(plan: str | None = None) -> bool:
     return bool(limites(plan or plan_vigente()).get("google"))
+
+
+def puede_whatsapp(plan: str | None = None) -> bool:
+    return bool(limites(plan or plan_vigente()).get("whatsapp"))
 
 
 def puede_exportar(plan: str | None = None) -> bool:

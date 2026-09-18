@@ -10,6 +10,7 @@
 
 <nav class="agenda-tabs users-tabs" aria-label="Secciones de Usuarios">
   <a class="{% if tab == 'plan' %}active{% endif %}" href="/app/usuarios?tab=plan"{% if tab == 'plan' %} aria-current="page"{% endif %}>💳 Tu plan</a>
+  <a class="{% if tab == 'whatsapp' %}active{% endif %}" href="/app/usuarios?tab=whatsapp"{% if tab == 'whatsapp' %} aria-current="page"{% endif %}>📱 WhatsApp</a>
   {% if is_admin %}
   <a class="{% if tab == 'gestion' %}active{% endif %}" href="/app/usuarios?tab=gestion"{% if tab == 'gestion' %} aria-current="page"{% endif %}>👥 Gestión</a>
   <a class="{% if tab == 'backup' %}active{% endif %}" href="/app/usuarios?tab=backup"{% if tab == 'backup' %} aria-current="page"{% endif %}>💾 Backup</a>
@@ -42,6 +43,48 @@
     Tu cuenta no es administrador. Pide a un admin que cree usuarios o asigne planes.
   </div>
   {% endif %}
+</section>
+{% endif %}
+
+{% if tab == 'whatsapp' %}
+<section>
+  <div class="card">
+    <h2>WhatsApp</h2>
+    <p class="muted">Vinculá tu número. Los mensajes de un número no vinculado solo reciben instrucciones; nunca crean gastos ni tareas.</p>
+    {% if not puede_whatsapp %}
+    <div class="flash-warn">WhatsApp requiere plan Premium o Familia. <a href="/app/billing">Ver planes</a></div>
+    {% endif %}
+    {% if wa_link and wa_link.verified %}
+    <p>Número vinculado: <strong>…{{ (wa_link.phone or '')[-4:] }}</strong>
+       {% if wa_link.linked_at %}<span class="muted">desde {{ wa_link.linked_at }}</span>{% endif %}
+    </p>
+    <form method="post" action="/app/usuarios/whatsapp/desvincular" onsubmit="return confirm('¿Desvincular este número?')">
+      <button class="btn secondary" type="submit">Desvincular</button>
+    </form>
+    {% else %}
+    <form method="post" action="/app/usuarios/whatsapp/vincular" class="users-form-grid">
+      <div>
+        <label for="wa-phone">Número (con lada, 10 dígitos MX o E.164)</label>
+        <input id="wa-phone" name="phone" type="tel" required placeholder="5512345678" autocomplete="tel" />
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit">Generar código</button>
+      </div>
+    </form>
+    {% if wa_code %}
+    <p class="flash-ok" role="status">Mandá este código por WhatsApp al bot, o confirmalo acá: <strong>{{ wa_code }}</strong></p>
+    {% endif %}
+    <form method="post" action="/app/usuarios/whatsapp/confirmar" class="users-form-grid">
+      <div>
+        <label for="wa-code">Código de 6 dígitos</label>
+        <input id="wa-code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required />
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary" type="submit">Confirmar</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
 </section>
 {% endif %}
 

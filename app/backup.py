@@ -50,6 +50,8 @@ TABLAS_BACKUP = [
     "ritual_diario",
     "rueda_vida",
     "calendar_sync_state",
+    "whatsapp_links",
+    "whatsapp_reminders",
     "audit_log",
 ]
 

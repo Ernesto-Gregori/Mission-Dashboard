@@ -13,6 +13,11 @@ MAX_FAILS = 5
 LOCK_SECONDS = 60          # primer bloqueo
 LOCK_SECONDS_MAX = 15 * 60  # tope
 
+# WhatsApp: no es un bypass del login; techo propio por teléfono.
+_WA_HITS: dict[str, list[float]] = {}
+WA_MAX = 20
+WA_WINDOW = 600
+
 
 def _key(username: str) -> str:
     return (username or "").strip().lower() or "_"
@@ -50,3 +55,17 @@ def registrar_exito(username: str) -> None:
 def limpiar_todo() -> None:
     """Solo para tests."""
     _FAILS.clear()
+    _WA_HITS.clear()
+
+
+def whatsapp_permitido(phone: str) -> bool:
+    """True si el número aún está bajo el techo de mensajes."""
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit()) or "_"
+    now = time.time()
+    hits = [t for t in _WA_HITS.get(digits, []) if now - t < WA_WINDOW]
+    if len(hits) >= WA_MAX:
+        _WA_HITS[digits] = hits
+        return False
+    hits.append(now)
+    _WA_HITS[digits] = hits
+    return True
