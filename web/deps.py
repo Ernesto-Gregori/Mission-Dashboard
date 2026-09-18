@@ -187,8 +187,10 @@ def logout_user(request: Request) -> None:
 
 def render(request: Request, name: str, status_code: int = 200, **ctx):
     from app.tema import tema_para_request
+    from web.nav import attach_nav
 
     ctx.setdefault("theme", tema_para_request(request))
+    attach_nav(request, ctx)
     return TEMPLATES.TemplateResponse(
         request,
         name,

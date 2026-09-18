@@ -40,27 +40,101 @@
 </section>
 {% endif %}
 
+<div class="hoy-grid">
+  <section class="hoy-panel" aria-labelledby="foco-hoy-title">
+    <div class="section-heading">
+      <h2 id="foco-hoy-title">Foco de hoy</h2>
+      <a href="/app/foco">Abrir día</a>
+    </div>
+    {% if not foco_items %}
+    <p class="muted empty-state">Nada cargado para hoy. El planificador y los hábitos aparecen acá.</p>
+    {% else %}
+    <ol class="foco-list hoy-foco-list">
+      {% for e in foco_items %}
+      <li class="foco-item origen-{{ e.origen }}">
+        <time>{{ (e.hora_inicio or '—')[:5] }}</time>
+        <span>{{ e.titulo }}{% if e.completado %} ✓{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+  </section>
+
+  <section class="hoy-panel" aria-labelledby="ritual-hoy-title">
+    <div class="section-heading">
+      <h2 id="ritual-hoy-title">Ritual de mañana</h2>
+      <a href="/app/ritual">Ampliar</a>
+    </div>
+    {% if ritual.completado %}
+    <p class="muted">Registrado hoy.</p>
+    {% endif %}
+    <form class="ritual-form ritual-compact" method="post" action="/app/ritual">
+      <input type="hidden" name="next" value="/app" />
+      <div>
+        <label for="ritual-gratitud">Gratitud</label>
+        <textarea id="ritual-gratitud" name="gratitud" rows="2" maxlength="800" placeholder="Tres cosas por las que estoy agradecido">{{ ritual.gratitud }}</textarea>
+      </div>
+      <div>
+        <label for="ritual-intencion">Intención</label>
+        <textarea id="ritual-intencion" name="intencion" rows="2" maxlength="800" placeholder="Lo único que, si lo hago, el día ya valió">{{ ritual.intencion }}</textarea>
+      </div>
+      {% if habitos %}
+      <ul class="ritual-habits">
+        {% for h in habitos %}
+        <li>
+          <label class="check-row" for="hab-{{ h.clave }}">
+            <input id="hab-{{ h.clave }}" type="checkbox" name="habito" value="{{ h.clave }}" {% if h.hecho %}checked{% endif %} />
+            <span>{{ h.emoji }} {{ h.label }}</span>
+          </label>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <div class="form-actions">
+        <button class="btn" type="submit">Guardar ritual</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<section class="hoy-panel rueda-hoy" aria-labelledby="rueda-hoy-title">
+  <div class="section-heading">
+    <h2 id="rueda-hoy-title">Rueda de la vida</h2>
+    <a href="/app/rueda">Ajustar</a>
+  </div>
+  <p class="muted">Promedio {{ geo.promedio }} / 10</p>
+  <ul class="rueda-legend rueda-hoy-legend" aria-label="Puntuaciones">
+    {% for a in geo.areas %}
+    <li>{{ a.emoji }} {{ a.nombre }} · {{ a.valor }}</li>
+    {% endfor %}
+  </ul>
+</section>
+
 <section class="dashboard-section" aria-labelledby="modules-title">
   <div class="section-heading">
     <div>
-      <h2 id="modules-title">Módulos</h2>
-      <p class="muted">{{ activos_count }} activos</p>
+      <h2 id="modules-title">Tus áreas</h2>
+      <p class="muted">{{ activos_count }} módulos activos · cada tarjeta junta páginas que hacían lo mismo</p>
     </div>
     <a href="/app/coach">Reconfigurar</a>
   </div>
-  <div class="module-grid">
-    {% for m in modulos %}
-    <a class="module-card{% if not m.activo %} is-inactive{% endif %}" data-module="{{ m.clave }}" href="{{ m.href }}">
-      <span class="module-icon" aria-hidden="true">{{ m.emoji }}</span>
-      <span class="module-copy">
-        <strong>{{ m.nombre }}</strong>
-        <span class="muted">{{ m.descripcion }}</span>
-      </span>
-      <span class="badge{% if m.activo %} ok{% endif %}">
-        {% if m.activo %}activo{% else %}inactivo{% endif %}
-      </span>
-      <span class="sr-only">Abrir {{ m.nombre }}</span>
-    </a>
+  <div class="module-grid hub-grid">
+    {% for h in life_hubs %}
+    <article class="module-card hub-card" data-hub="{{ h.id }}">
+      <a class="hub-card-main" href="{{ h.href }}">
+        <span class="module-copy">
+          <strong>{{ h.label }}</strong>
+          <span class="muted">{{ h.descripcion }}</span>
+        </span>
+      </a>
+      {% if h.children %}
+      <ul class="hub-children">
+        {% for c in h.children %}
+        <li><a href="{{ c.href }}">{{ c.label }}</a></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </article>
     {% endfor %}
   </div>
 </section>
