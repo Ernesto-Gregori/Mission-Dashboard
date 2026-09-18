@@ -7,6 +7,7 @@ Llama 4 Scout/Maverick ya no están en el plan free/dev de Groq.
 from __future__ import annotations
 
 import os
+import time
 from typing import Any, Optional
 
 VISION_MODEL_DEFAULT = "qwen/qwen3.6-27b"
@@ -16,6 +17,8 @@ VISION_MODEL_FALLBACKS = (
 )
 # qwen3.8 admite 3; qwen3.6 admite 5. Usamos 3 para ambos.
 MAX_VISION_IMAGES = 3
+VISION_TIMEOUT_S = 90.0
+_429_SLEEPS = (4.0, 12.0, 25.0)
 
 _RETIRED_OR_TEXT_ONLY = {
     "meta-llama/llama-4-scout-17b-16e-instruct": VISION_MODEL_DEFAULT,
@@ -66,6 +69,8 @@ def humanize_vision_error(err: str, *, model: str) -> str:
         )
     if "429" in err or "rate_limit" in low:
         return "Groq está limitando peticiones (429). Espera un minuto e intenta de nuevo."
+    if "timeout" in low or "timed out" in low:
+        return "Groq tardó demasiado en responder. Reintenta en un minuto."
     if "invalid_api_key" in low or "unauthorized" in low or "401" in err:
         return "GROQ_API_KEY inválida o revocada. Revisa la clave en el entorno."
     if "image" in low and ("too large" in low or "max" in low or "too many" in low):
@@ -81,6 +86,43 @@ def humanize_vision_error(err: str, *, model: str) -> str:
     return f"Error de visión Groq ({model}): {short}"
 
 
+def _wait_rate_limit_lock(max_wait: float = 70.0) -> None:
+    from app import ai_client
+
+    until = float(ai_client._estado.get("bloqueado_hasta") or 0)
+    wait = until - time.time()
+    if 0 < wait <= max_wait:
+        time.sleep(wait)
+
+
+def _post_vision(client, create_kwargs: dict[str, Any]):
+    kwargs = dict(create_kwargs)
+    kwargs.setdefault("timeout", VISION_TIMEOUT_S)
+    try:
+        return client.chat.completions.create(**kwargs)
+    except TypeError:
+        kwargs.pop("timeout", None)
+        kwargs.pop("reasoning_effort", None)
+        if "max_completion_tokens" in kwargs:
+            kwargs["max_tokens"] = kwargs.pop("max_completion_tokens")
+        return client.chat.completions.create(**kwargs)
+    except Exception as e:
+        err0 = str(e).lower()
+        retried = False
+        if "timeout" in err0:
+            kwargs.pop("timeout", None)
+            retried = True
+        if "reasoning_effort" in err0:
+            kwargs.pop("reasoning_effort", None)
+            retried = True
+        if "max_completion_tokens" in err0 and "max_completion_tokens" in kwargs:
+            kwargs["max_tokens"] = kwargs.pop("max_completion_tokens")
+            retried = True
+        if not retried:
+            raise
+        return client.chat.completions.create(**kwargs)
+
+
 def create_vision_completion(
     messages: list[dict[str, Any]],
     *,
@@ -93,6 +135,8 @@ def create_vision_completion(
 
     if not ai_client._get_api_key():
         return None, "Falta GROQ_API_KEY en el entorno (.env / secrets)."
+    if not ai_client._hay_cuota():
+        _wait_rate_limit_lock()
     if not ai_client._hay_cuota():
         return None, "Cuota diaria de IA agotada o bloqueada por rate-limit. Reintenta más tarde."
     try:
@@ -123,32 +167,26 @@ def create_vision_completion(
             "reasoning_effort": "none",
         }
         try:
-            try:
-                response = client.chat.completions.create(**create_kwargs)
-            except TypeError:
-                create_kwargs.pop("reasoning_effort", None)
-                if "max_completion_tokens" in create_kwargs:
-                    create_kwargs["max_tokens"] = create_kwargs.pop(
-                        "max_completion_tokens"
-                    )
-                response = client.chat.completions.create(**create_kwargs)
-            except Exception as e:
-                err0 = str(e).lower()
-                retried = False
-                if "reasoning_effort" in err0:
-                    create_kwargs.pop("reasoning_effort", None)
-                    retried = True
-                if (
-                    "max_completion_tokens" in err0
-                    and "max_completion_tokens" in create_kwargs
-                ):
-                    create_kwargs["max_tokens"] = create_kwargs.pop(
-                        "max_completion_tokens"
-                    )
-                    retried = True
-                if not retried:
+            response = None
+            last_err = ""
+            for wait_s in (0.0, *_429_SLEEPS):
+                if wait_s:
+                    time.sleep(wait_s)
+                try:
+                    response = _post_vision(client, create_kwargs)
+                    break
+                except Exception as e:
+                    err = str(e)
+                    last_err = err
+                    low = err.lower()
+                    if "429" in err or "rate_limit" in low:
+                        continue
                     raise
-                response = client.chat.completions.create(**create_kwargs)
+            else:
+                ai_client._registrar_error_429(30)
+                return None, humanize_vision_error(
+                    last_err or "429", model=model
+                )
             ai_client._registrar_llamada()
             try:
                 from app.billing import registrar_llamada_ia

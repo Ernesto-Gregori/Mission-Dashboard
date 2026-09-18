@@ -8,6 +8,11 @@ from app.db.core import ejecutar, invalidate_data_caches
 
 PLATFORMS = ("instagram", "tiktok", "youtube", "facebook", "otro")
 STATUSES = ("processing", "ready", "failed")
+STALE_PROCESSING_SECONDS = 150
+STALE_PROCESSING_MSG = (
+    "El análisis se interrumpió (el servidor se reinició o Groq tardó demasiado). "
+    "Reintenta en un minuto."
+)
 NIVELES = ("principiante", "intermedio", "avanzado")
 TIPOS_MOVIMIENTO = ("fuerza", "cardio", "movilidad", "core", "pliométrico")
 CONFIANZAS = ("alta", "media", "baja")
@@ -249,6 +254,53 @@ def mark_processing(exercise_id: int, user_id: int) -> bool:
     except Exception:
         pass
     return True
+
+
+def fail_stale_processing(
+    user_id: int,
+    older_than_s: int = STALE_PROCESSING_SECONDS,
+) -> int:
+    """Marca como failed los análisis 'processing' colgados (deploy / timeout)."""
+    from datetime import datetime, timezone
+
+    rows = (
+        ejecutar(
+            """
+            SELECT id, actualizado_en, creado_en FROM exercises
+            WHERE user_id = ? AND status = 'processing'
+            """,
+            [int(user_id)],
+            fetchall=True,
+        )
+        or []
+    )
+    now = datetime.now(timezone.utc)
+    n = 0
+    for row in rows:
+        raw = row.get("actualizado_en") or row.get("creado_en")
+        ts = _parse_exercise_ts(raw)
+        if ts is None:
+            continue
+        if (now - ts).total_seconds() >= older_than_s:
+            mark_failed(int(row["id"]), user_id, STALE_PROCESSING_MSG)
+            n += 1
+    return n
+
+
+def _parse_exercise_ts(val):
+    from datetime import datetime, timezone
+
+    if val is None or val == "":
+        return None
+    if isinstance(val, datetime):
+        return val if val.tzinfo else val.replace(tzinfo=timezone.utc)
+    s = str(val).strip().replace("T", " ").replace("Z", "")
+    if "." in s:
+        s = s.split(".", 1)[0]
+    try:
+        return datetime.strptime(s[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
 
 def actualizar_exercise(exercise_id: int, user_id: int, campos: dict) -> bool:

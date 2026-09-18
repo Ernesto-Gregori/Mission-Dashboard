@@ -127,3 +127,38 @@ def test_complete_groq_maps_missing_model_error(tmp_path, monkeypatch):
 
     with pytest.raises(ExerciseAIError, match="visión"):
         complete_multimodal("sys", "analiza", [p])
+
+
+def test_vision_retries_after_429(tmp_path, monkeypatch):
+    p = tmp_path / "frame_001.jpg"
+    p.write_bytes(_jpeg_bytes())
+    calls = {"n": 0}
+    sleeps: list[float] = []
+
+    class _Msg:
+        content = '{"nombre_ejercicio":"Sentadilla"}'
+
+    class _Flaky:
+        def create(self, **kwargs):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise RuntimeError("Error code: 429 - rate_limit_exceeded")
+            return SimpleNamespace(choices=[SimpleNamespace(message=_Msg())])
+
+    class _FakeClient:
+        chat = SimpleNamespace(completions=_Flaky())
+
+    monkeypatch.setattr("app.groq_vision.time.sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("app.ai_client._get_api_key", lambda: "gsk_" + "x" * 40)
+    monkeypatch.setattr("app.ai_client._hay_cuota", lambda: True)
+    monkeypatch.setattr("app.ai_client._get_client", lambda: _FakeClient())
+    monkeypatch.setattr("app.ai_client._registrar_llamada", lambda: None)
+    monkeypatch.setattr("app.billing.cuota_ia_ok", lambda *a, **k: True)
+    monkeypatch.setattr("app.billing.registrar_llamada_ia", lambda *a, **k: 1)
+
+    from app.exercise_ai import complete_multimodal
+
+    text = complete_multimodal("sys", "analiza", [p])
+    assert "Sentadilla" in text
+    assert calls["n"] == 3
+    assert sleeps
