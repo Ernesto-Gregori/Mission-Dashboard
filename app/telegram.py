@@ -1,14 +1,9 @@
-"""WhatsApp Cloud API (Meta) — briefing, gastos, tareas y audio.
+"""Telegram Bot API — briefing, gastos, tareas y audio.
 
-Trade-off (Fase 5):
-- Meta Cloud API: webhook HMAC nativo, costo/msg bajo, alta más lenta
-  (Business Manager). Elegido: dashboard privado, mismo patrón que Lemon.
-- Twilio / 360dialog / Gupshup: sandbox en horas, markup por mensaje,
-  otro vendor. Quedan como plan B si el alta de Meta se traba.
-
-Un número no vinculado NUNCA ejecuta acciones: solo instrucciones de vínculo.
-El canal respeta plan Premium/Familia y tiene rate-limit propio por teléfono
-(no bypasea el de login). Groq cuenta en uso_ia del billing.
+Sustituye WhatsApp Cloud API (Meta): BotFather, gratis, opt-in (el bot
+no escribe a extraños). Un chat no vinculado NUNCA ejecuta acciones.
+Plan Premium/Familia. Rate-limit propio por chat_id (no bypasea login).
+Groq cuenta en uso_ia. Recordatorios: telegram_reminders + cron.
 """
 from __future__ import annotations
 
@@ -19,59 +14,67 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Callable
+from urllib import request as urlrequest
 
 from app.logging_config import get_logger
 from app.timezone_config import hoy as _hoy, iso_ahora
 
-log = get_logger("whatsapp")
+log = get_logger("telegram")
 
 BRIEFING_WORDS = ("briefing", "agenda", "resumen", "foco", "hoy qué", "que hay hoy")
 CODE_RE = re.compile(r"^\s*(\d{6})\s*$")
+START_RE = re.compile(r"^/start(?:\s+|_)(\d{6})\s*$", re.I)
 AMOUNT_RE = re.compile(
     r"(?:\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:pesos|mxn|\$)?\s*(?:en|de)?\s*(.+)$",
     re.I,
 )
-GRAPH_BASE = "https://graph.facebook.com/v21.0"
+API_BASE = "https://api.telegram.org"
 
 
-def ensure_whatsapp_schema() -> None:
+def ensure_telegram_schema() -> None:
     from app.db.core import ejecutar
 
     for sql in (
         """
-        CREATE TABLE IF NOT EXISTS whatsapp_links (
+        CREATE TABLE IF NOT EXISTS telegram_links (
             user_id INTEGER PRIMARY KEY,
-            phone TEXT NOT NULL,
+            chat_id TEXT,
+            tg_username TEXT,
             verified INTEGER NOT NULL DEFAULT 0,
             verify_hash TEXT,
             verify_expires TEXT,
             linked_at TEXT
         )
         """,
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_whatsapp_phone ON whatsapp_links(phone)",
         """
-        CREATE TABLE IF NOT EXISTS whatsapp_seen (
-            wamid TEXT PRIMARY KEY,
-            phone TEXT,
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_telegram_chat
+            ON telegram_links(chat_id)
+            WHERE chat_id IS NOT NULL AND chat_id != ''
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS telegram_seen (
+            update_id TEXT PRIMARY KEY,
+            chat_id TEXT,
             creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
         """
-        CREATE TABLE IF NOT EXISTS whatsapp_reminders (
+        CREATE TABLE IF NOT EXISTS telegram_reminders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             evento_id INTEGER,
-            phone TEXT NOT NULL,
+            chat_id TEXT NOT NULL,
             titulo TEXT,
             fire_at TEXT NOT NULL,
             sent_at TEXT
         )
         """,
+        "CREATE INDEX IF NOT EXISTS idx_tg_remind_fire ON telegram_reminders(sent_at, fire_at)",
     ):
         try:
             ejecutar(sql)
         except Exception as e:
-            log.debug("ensure_whatsapp_schema: %s", e)
+            log.debug("ensure_telegram_schema: %s", e)
 
 
 def _secret(name: str, default: str = "") -> str:
@@ -80,52 +83,16 @@ def _secret(name: str, default: str = "") -> str:
     return (get_secret(name, default) or "").strip()
 
 
-def verify_token_ok(token: str | None) -> bool:
-    expected = _secret("WHATSAPP_VERIFY_TOKEN")
-    return bool(expected) and hmac.compare_digest(expected, (token or "").strip())
-
-
-def verify_signature(raw_body: bytes, header: str | None, secret: str | None = None) -> bool:
-    secret = (secret if secret is not None else _secret("WHATSAPP_APP_SECRET")).strip()
-    if not secret or not header:
+def verify_webhook_secret(header: str | None, expected: str | None = None) -> bool:
+    secret = (expected if expected is not None else _secret("TELEGRAM_WEBHOOK_SECRET")).strip()
+    got = (header or "").strip()
+    if not secret or not got:
         return False
-    got = header.split("=", 1)[-1].strip()
-    expect = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(got, expect)
-
-
-def digits_only(raw: str) -> str:
-    return "".join(ch for ch in (raw or "") if ch.isdigit())
-
-
-def normalize_phone(raw: str) -> str:
-    d = digits_only(raw)
-    if d.startswith("00"):
-        d = d[2:]
-    if len(d) == 10:
-        d = "52" + d
-    return d
-
-
-def phone_candidates(raw: str) -> list[str]:
-    d = normalize_phone(raw)
-    out: list[str] = []
-    for c in (d, digits_only(raw)):
-        if c and c not in out:
-            out.append(c)
-    if d.startswith("521") and len(d) >= 12:
-        alt = "52" + d[3:]
-        if alt not in out:
-            out.append(alt)
-    elif d.startswith("52") and not d.startswith("521") and len(d) == 12:
-        alt = "521" + d[2:]
-        if alt not in out:
-            out.append(alt)
-    return out
+    return hmac.compare_digest(secret, got)
 
 
 def _hash_code(code: str) -> str:
-    pepper = _secret("SESSION_SECRET") or _secret("WHATSAPP_APP_SECRET") or "dev"
+    pepper = _secret("SESSION_SECRET") or _secret("TELEGRAM_WEBHOOK_SECRET") or "dev"
     return hashlib.sha256(f"{pepper}:{code}".encode("utf-8")).hexdigest()
 
 
@@ -140,13 +107,36 @@ def _user_by_id(user_id: int) -> dict | None:
     return rows[0] if rows else None
 
 
+def bot_username() -> str:
+    name = _secret("TELEGRAM_BOT_USERNAME").lstrip("@")
+    if name:
+        return name
+    token = _secret("TELEGRAM_BOT_TOKEN")
+    if not token:
+        return ""
+    try:
+        data = _api("getMe")
+        uname = str((data.get("result") or {}).get("username") or "")
+        return uname
+    except Exception as e:
+        log.debug("getMe: %s", e)
+        return ""
+
+
+def deep_link(code: str) -> str:
+    uname = bot_username()
+    if not uname or not code:
+        return ""
+    return f"https://t.me/{uname}?start={code}"
+
+
 def link_status(user_id: int) -> dict | None:
-    ensure_whatsapp_schema()
+    ensure_telegram_schema()
     from app.db.core import ejecutar
 
     rows = (
         ejecutar(
-            "SELECT * FROM whatsapp_links WHERE user_id = ?",
+            "SELECT * FROM telegram_links WHERE user_id = ?",
             [int(user_id)],
             fetchall=True,
         )
@@ -155,18 +145,17 @@ def link_status(user_id: int) -> dict | None:
     return rows[0] if rows else None
 
 
-def find_link_by_phone(phone: str) -> dict | None:
-    ensure_whatsapp_schema()
+def find_link_by_chat(chat_id: str) -> dict | None:
+    ensure_telegram_schema()
     from app.db.core import ejecutar
 
-    cands = phone_candidates(phone)
-    if not cands:
+    cid = str(chat_id or "").strip()
+    if not cid:
         return None
-    placeholders = ",".join("?" * len(cands))
     rows = (
         ejecutar(
-            f"SELECT * FROM whatsapp_links WHERE phone IN ({placeholders})",
-            cands,
+            "SELECT * FROM telegram_links WHERE chat_id = ?",
+            [cid],
             fetchall=True,
         )
         or []
@@ -174,100 +163,110 @@ def find_link_by_phone(phone: str) -> dict | None:
     return rows[0] if rows else None
 
 
-def start_link(user_id: int, phone_raw: str) -> tuple[bool, str, str | None]:
-    """Genera código de 6 dígitos. El código se muestra en la UI (y se puede mandar por WA)."""
-    ensure_whatsapp_schema()
+def start_link(user_id: int) -> tuple[bool, str, str | None]:
+    """Genera código de 6 dígitos. El vínculo se completa desde Telegram (/start)."""
+    ensure_telegram_schema()
     from app.db.core import ejecutar
 
-    phone = normalize_phone(phone_raw)
-    if len(phone) < 10:
-        return False, "Número inválido.", None
-    existing = find_link_by_phone(phone)
-    if existing and int(existing.get("verified") or 0) == 1 and int(existing["user_id"]) != int(user_id):
-        return False, "Ese número ya está vinculado a otra cuenta.", None
     code = f"{secrets.randbelow(1_000_000):06d}"
     expires = (datetime.now(timezone.utc) + timedelta(minutes=10)).replace(tzinfo=None).isoformat(timespec="seconds")
-    ejecutar("DELETE FROM whatsapp_links WHERE user_id = ?", [int(user_id)])
-    if existing and int(existing.get("verified") or 0) == 0:
-        ejecutar(
-            "DELETE FROM whatsapp_links WHERE user_id = ?",
-            [int(existing["user_id"])],
-        )
+    ejecutar("DELETE FROM telegram_links WHERE user_id = ? AND COALESCE(verified, 0) = 0", [int(user_id)])
+    existing = link_status(user_id)
+    if existing and int(existing.get("verified") or 0) == 1:
+        ejecutar("DELETE FROM telegram_links WHERE user_id = ?", [int(user_id)])
     try:
         ejecutar(
             """
-            INSERT INTO whatsapp_links
-                (user_id, phone, verified, verify_hash, verify_expires, linked_at)
-            VALUES (?, ?, 0, ?, ?, NULL)
+            INSERT INTO telegram_links
+                (user_id, chat_id, tg_username, verified, verify_hash, verify_expires, linked_at)
+            VALUES (?, NULL, NULL, 0, ?, ?, NULL)
             """,
-            [int(user_id), phone, _hash_code(code), expires],
+            [int(user_id), _hash_code(code), expires],
         )
     except Exception as e:
         log.warning("start_link insert: %s", e)
         return False, "No se pudo guardar el vínculo.", None
     from app.audit import registrar
 
-    registrar("whatsapp_link_start", "whatsapp_links", user_id, {"phone_suffix": phone[-4:]})
+    registrar("telegram_link_start", "telegram_links", user_id, None)
     return True, "Código generado. Vence en 10 minutos.", code
 
 
-def confirm_link(user_id: int, code: str) -> tuple[bool, str]:
-    row = link_status(user_id)
-    if not row:
-        return False, "No hay un vínculo pendiente."
-    ok, msg = _try_verify_row(row, code)
-    return ok, msg
-
-
 def unlink(user_id: int) -> None:
-    ensure_whatsapp_schema()
+    ensure_telegram_schema()
     from app.db.core import ejecutar
 
-    ejecutar("DELETE FROM whatsapp_links WHERE user_id = ?", [int(user_id)])
+    ejecutar("DELETE FROM telegram_links WHERE user_id = ?", [int(user_id)])
     from app.audit import registrar
 
-    registrar("whatsapp_unlink", "whatsapp_links", user_id, None)
+    registrar("telegram_unlink", "telegram_links", user_id, None)
 
 
-def _try_verify_row(row: dict, code: str) -> tuple[bool, str]:
+def _find_pending_by_code(code: str) -> dict | None:
     from app.db.core import ejecutar
 
-    raw = (code or "").strip()
-    m = CODE_RE.match(raw)
+    m = CODE_RE.match((code or "").strip())
     if not m:
-        return False, "El código debe ser de 6 dígitos."
-    exp = row.get("verify_expires") or ""
-    try:
-        if datetime.fromisoformat(str(exp)) < datetime.now(timezone.utc).replace(tzinfo=None):
-            return False, "El código venció. Generá uno nuevo."
-    except Exception:
-        return False, "El código venció. Generá uno nuevo."
-    if _hash_code(m.group(1)) != str(row.get("verify_hash") or ""):
-        return False, "Código incorrecto."
+        return None
+    digest = _hash_code(m.group(1))
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+    rows = (
+        ejecutar(
+            """
+            SELECT * FROM telegram_links
+             WHERE verified = 0 AND verify_hash = ? AND verify_expires >= ?
+             ORDER BY user_id LIMIT 1
+            """,
+            [digest, now],
+            fetchall=True,
+        )
+        or []
+    )
+    return rows[0] if rows else None
+
+
+def _complete_link(row: dict, chat_id: str, username: str = "") -> tuple[bool, str]:
+    from app.db.core import ejecutar
+
+    cid = str(chat_id or "").strip()
+    if not cid:
+        return False, "Chat inválido."
+    taken = find_link_by_chat(cid)
+    if taken and int(taken["user_id"]) != int(row["user_id"]):
+        return False, "Ese Telegram ya está vinculado a otra cuenta."
     ejecutar(
         """
-        UPDATE whatsapp_links
-           SET verified = 1, verify_hash = NULL, verify_expires = NULL, linked_at = ?
+        UPDATE telegram_links
+           SET verified = 1, chat_id = ?, tg_username = ?,
+               verify_hash = NULL, verify_expires = NULL, linked_at = ?
          WHERE user_id = ?
         """,
-        [iso_ahora(), int(row["user_id"])],
+        [cid, (username or "")[:64], iso_ahora(), int(row["user_id"])],
     )
     from app.audit import registrar
 
-    registrar("whatsapp_link_ok", "whatsapp_links", row["user_id"], None)
-    return True, "Número vinculado."
+    registrar("telegram_link_ok", "telegram_links", row["user_id"], None)
+    return True, "Listo, Telegram vinculado. Mandá «briefing», un gasto («35 en super») o una tarea."
 
 
-def _mark_seen(wamid: str, phone: str) -> bool:
-    """False si ya se vio (duplicado)."""
-    if not wamid:
+def _extract_code(text: str) -> str:
+    raw = (text or "").strip()
+    m = START_RE.match(raw)
+    if m:
+        return m.group(1)
+    m = CODE_RE.match(raw)
+    return m.group(1) if m else ""
+
+
+def _mark_seen(update_id: str, chat_id: str) -> bool:
+    if not update_id:
         return True
     from app.db.core import ejecutar
 
     try:
         ejecutar(
-            "INSERT INTO whatsapp_seen (wamid, phone) VALUES (?, ?)",
-            [wamid, phone],
+            "INSERT INTO telegram_seen (update_id, chat_id) VALUES (?, ?)",
+            [str(update_id), str(chat_id)],
         )
         return True
     except Exception:
@@ -275,188 +274,191 @@ def _mark_seen(wamid: str, phone: str) -> bool:
 
 
 def extract_inbound(payload: dict) -> list[dict]:
-    """Normaliza el JSON de Cloud API a {phone, wamid, text, audio_id}."""
-    out: list[dict] = []
-    for entry in payload.get("entry") or []:
-        for change in entry.get("changes") or []:
-            value = change.get("value") or {}
-            for msg in value.get("messages") or []:
-                phone = digits_only(str(msg.get("from") or ""))
-                item = {
-                    "phone": phone,
-                    "wamid": str(msg.get("id") or ""),
-                    "text": "",
-                    "audio_id": "",
-                }
-                mtype = str(msg.get("type") or "text")
-                if mtype == "text":
-                    item["text"] = str((msg.get("text") or {}).get("body") or "")
-                elif mtype in ("audio", "voice"):
-                    media = msg.get("audio") or msg.get("voice") or {}
-                    item["audio_id"] = str(media.get("id") or "")
-                elif mtype == "button":
-                    item["text"] = str((msg.get("button") or {}).get("text") or "")
-                else:
-                    item["text"] = str(msg.get("type") or "")
-                if phone:
-                    out.append(item)
-    return out
+    """Normaliza un Update de Telegram a {chat_id, username, update_id, text, voice_id}."""
+    msg = payload.get("message") or payload.get("edited_message") or {}
+    if not isinstance(msg, dict) or not msg:
+        return []
+    chat = msg.get("chat") or {}
+    chat_id = str(chat.get("id") or "")
+    if not chat_id:
+        return []
+    from_u = msg.get("from") or {}
+    item = {
+        "chat_id": chat_id,
+        "username": str(from_u.get("username") or ""),
+        "update_id": str(payload.get("update_id") or msg.get("message_id") or ""),
+        "text": str(msg.get("text") or msg.get("caption") or ""),
+        "voice_id": "",
+    }
+    voice = msg.get("voice") or msg.get("audio") or {}
+    if isinstance(voice, dict):
+        item["voice_id"] = str(voice.get("file_id") or "")
+    return [item]
 
 
-def send_text(phone: str, body: str, send_fn: Callable | None = None) -> bool:
+def _api(method: str, payload: dict | None = None, *, timeout: int = 20) -> dict:
+    token = _secret("TELEGRAM_BOT_TOKEN")
+    if not token:
+        return {}
+    url = f"{API_BASE}/bot{token}/{method}"
+    data = None
+    headers = {}
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urlrequest.Request(url, data=data, headers=headers, method="POST" if data else "GET")
+    with urlrequest.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8") or "{}")
+
+
+def send_text(chat_id: str, body: str, send_fn: Callable | None = None) -> bool:
     text = (body or "").strip()[:3500]
     if not text:
         return False
     if send_fn is not None:
-        send_fn(phone, text)
+        send_fn(chat_id, text)
         return True
-    token = _secret("WHATSAPP_TOKEN")
-    phone_id = _secret("WHATSAPP_PHONE_NUMBER_ID")
-    if not token or not phone_id:
-        log.info("whatsapp send skipped (no token): %s", text[:80])
+    if not _secret("TELEGRAM_BOT_TOKEN"):
+        log.info("telegram send skipped (no token): %s", text[:80])
         return False
-    from urllib import request as urlrequest
-
-    payload = json.dumps(
-        {
-            "messaging_product": "whatsapp",
-            "to": digits_only(phone),
-            "type": "text",
-            "text": {"body": text, "preview_url": False},
-        }
-    ).encode("utf-8")
-    req = urlrequest.Request(
-        f"{GRAPH_BASE}/{phone_id}/messages",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     try:
-        with urlrequest.urlopen(req, timeout=20) as resp:
-            resp.read()
+        _api("sendMessage", {"chat_id": chat_id, "text": text, "disable_web_page_preview": True})
         return True
     except Exception as e:
-        log.warning("whatsapp send failed: %s", e)
+        log.warning("telegram send failed: %s", e)
         return False
 
 
-def _download_media(media_id: str) -> bytes:
-    token = _secret("WHATSAPP_TOKEN")
-    if not token or not media_id:
+def _download_voice(file_id: str) -> bytes:
+    if not file_id or not _secret("TELEGRAM_BOT_TOKEN"):
         return b""
-    from urllib import request as urlrequest
-
-    meta_req = urlrequest.Request(
-        f"{GRAPH_BASE}/{media_id}",
-        headers={"Authorization": f"Bearer {token}"},
-    )
     try:
-        with urlrequest.urlopen(meta_req, timeout=20) as resp:
-            meta = json.loads(resp.read().decode("utf-8"))
-        url = meta.get("url") or ""
-        if not url:
+        meta = _api("getFile", {"file_id": file_id})
+        path = str((meta.get("result") or {}).get("file_path") or "")
+        if not path:
             return b""
-        bin_req = urlrequest.Request(url, headers={"Authorization": f"Bearer {token}"})
-        with urlrequest.urlopen(bin_req, timeout=40) as resp:
-            data = resp.read(6_000_000)
-        return data
+        token = _secret("TELEGRAM_BOT_TOKEN")
+        req = urlrequest.Request(f"{API_BASE}/file/bot{token}/{path}")
+        with urlrequest.urlopen(req, timeout=40) as resp:
+            return resp.read(6_000_000)
     except Exception as e:
-        log.warning("whatsapp media: %s", e)
+        log.warning("telegram media: %s", e)
         return b""
+
+
+def register_webhook(app_url: str = "") -> bool:
+    """setWebhook con secret_token. No falla el arranque si Telegram no responde."""
+    token = _secret("TELEGRAM_BOT_TOKEN")
+    secret = _secret("TELEGRAM_WEBHOOK_SECRET")
+    base = (app_url or _secret("APP_URL")).rstrip("/")
+    if not token or not secret or not base.startswith("https://"):
+        return False
+    url = f"{base}/telegram/webhook"
+    try:
+        data = _api(
+            "setWebhook",
+            {
+                "url": url,
+                "secret_token": secret,
+                "allowed_updates": ["message"],
+            },
+        )
+        ok = bool(data.get("ok"))
+        log.info("telegram setWebhook %s → %s", url, data.get("description") or ok)
+        return ok
+    except Exception as e:
+        log.warning("telegram setWebhook: %s", e)
+        return False
 
 
 def handle_inbound(
-    phone: str,
+    chat_id: str,
     *,
     text: str = "",
-    audio_id: str = "",
-    wamid: str = "",
+    voice_id: str = "",
+    update_id: str = "",
+    username: str = "",
     send_fn: Callable | None = None,
     transcribe_fn: Callable | None = None,
     parse_fn: Callable | None = None,
     download_fn: Callable | None = None,
 ) -> str:
-    """Procesa un mensaje. Retorna la respuesta enviada (o '')."""
-    from app.rate_limit import whatsapp_permitido
+    from app.rate_limit import telegram_permitido
     from app.tenant import clear_current_user, set_current_user
 
-    ensure_whatsapp_schema()
-    phone = digits_only(phone)
-    if not phone:
+    ensure_telegram_schema()
+    chat_id = str(chat_id or "").strip()
+    if not chat_id:
         return ""
-    if not whatsapp_permitido(phone):
-        log.info("whatsapp rate-limit phone=...%s", phone[-4:])
+    if not telegram_permitido(chat_id):
+        log.info("telegram rate-limit chat=%s", chat_id[-4:])
         return ""
-    if wamid and not _mark_seen(wamid, phone):
+    if update_id and not _mark_seen(update_id, chat_id):
         return ""
 
     def reply(body: str) -> str:
-        send_text(phone, body, send_fn=send_fn)
+        send_text(chat_id, body, send_fn=send_fn)
         return body
 
-    link = find_link_by_phone(phone)
+    link = find_link_by_chat(chat_id)
     if not link or int(link.get("verified") or 0) != 1:
-        if link and CODE_RE.match((text or "").strip()):
-            ok, msg = _try_verify_row(link, text)
-            if ok:
-                # WhatsApp from may differ (521 vs 52); store the inbound phone.
-                from app.db.core import ejecutar
-
-                ejecutar(
-                    "UPDATE whatsapp_links SET phone = ? WHERE user_id = ?",
-                    [phone, int(link["user_id"])],
-                )
-                return reply("Listo, número vinculado. Mandá «briefing», un gasto («35 en super») o una tarea.")
-            return reply(msg)
+        code = _extract_code(text)
+        pending = _find_pending_by_code(code) if code else None
+        if pending:
+            ok, msg = _complete_link(pending, chat_id, username)
+            return reply(msg if ok else msg)
         return reply(
-            "Este WhatsApp no está vinculado a Mission Dashboard. "
-            "Entrá a la app → Usuarios → WhatsApp, cargá este número y mandá el código de 6 dígitos."
+            "Este Telegram no está vinculado a Mission Dashboard. "
+            "Entrá a la app → Usuarios → Telegram, generá un código y pulsá Start en el bot "
+            "(o mandá el código de 6 dígitos)."
         )
 
     user = _user_by_id(int(link["user_id"]))
     if not user:
         return reply("Tu cuenta está inactiva.")
 
-    from app.billing import plan_vigente, puede_whatsapp
+    from app.billing import plan_vigente, puede_telegram
 
-    if not puede_whatsapp(plan_vigente(user)):
-        return reply("WhatsApp requiere plan Premium o Familia. Activalo en /app/billing — no ejecuté ninguna acción.")
+    if not puede_telegram(plan_vigente(user)):
+        return reply("Telegram requiere plan Premium o Familia. Activalo en /app/billing — no ejecuté ninguna acción.")
 
     token = set_current_user(user)
     try:
         body = (text or "").strip()
-        if audio_id and not body:
-            body = _transcribe_inbound(audio_id, transcribe_fn, download_fn)
+        if voice_id and not body:
+            body = _transcribe_inbound(voice_id, transcribe_fn, download_fn)
             if not body:
                 return reply("No pude transcribir el audio. Probá en texto.")
         if not body:
             return reply("No entendí el mensaje. Probá «briefing», «35 en super» o «mañana 5pm llamar al banco».")
-        return reply(_dispatch(user, body, phone, parse_fn=parse_fn))
+        if body.startswith("/"):
+            cmd = body.split()[0].lower()
+            if cmd in ("/briefing", "/hoy", "/agenda"):
+                return reply(build_briefing(int(user["id"])))
+            if cmd == "/start":
+                return reply("Ya estás vinculado. Mandá «briefing», un gasto o una tarea.")
+        return reply(_dispatch(user, body, chat_id, parse_fn=parse_fn))
     except Exception as e:
-        log.exception("whatsapp handle: %s", e)
+        log.exception("telegram handle: %s", e)
         return reply("Hubo un error procesando el mensaje. No se guardó nada.")
     finally:
         clear_current_user()
 
 
 def _transcribe_inbound(
-    audio_id: str,
+    voice_id: str,
     transcribe_fn: Callable | None,
     download_fn: Callable | None,
 ) -> str:
     import tempfile
     from pathlib import Path
 
-    data = (download_fn or _download_media)(audio_id)
+    data = (download_fn or _download_voice)(voice_id)
     if not data:
         return ""
     if transcribe_fn is not None:
         return (transcribe_fn(data) or "").strip()
-    suffix = ".ogg"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as fh:
+    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as fh:
         fh.write(data)
         path = Path(fh.name)
     try:
@@ -473,28 +475,22 @@ def _transcribe_inbound(
             pass
 
 
-def _dispatch(user: dict, text: str, phone: str, parse_fn: Callable | None = None) -> str:
+def _dispatch(user: dict, text: str, chat_id: str, parse_fn: Callable | None = None) -> str:
     low = text.lower().strip()
     if any(w in low for w in BRIEFING_WORDS) or low in ("hoy", "agenda"):
         return build_briefing(int(user["id"]))
 
-    parsed = None
-    if parse_fn is not None:
-        parsed = parse_fn(text)
-    else:
-        parsed = parse_intent(text)
-
+    parsed = parse_fn(text) if parse_fn is not None else parse_intent(text)
     intent = (parsed or {}).get("intent") or "unknown"
     if intent == "briefing":
         return build_briefing(int(user["id"]))
     if intent == "gasto":
         return _apply_gasto(parsed, text)
     if intent == "tarea":
-        return _apply_tarea(parsed, text, phone, int(user["id"]))
-    # Heurística si Groq no clasificó
+        return _apply_tarea(parsed, text, chat_id, int(user["id"]))
     if AMOUNT_RE.search(text):
         return _apply_gasto(_heuristic_gasto(text), text)
-    return _apply_tarea(_heuristic_tarea(text), text, phone, int(user["id"]))
+    return _apply_tarea(_heuristic_tarea(text), text, chat_id, int(user["id"]))
 
 
 def parse_intent(text: str) -> dict:
@@ -513,9 +509,7 @@ def parse_intent(text: str) -> dict:
         contexto="Sos un parser. Solo JSON válido, sin markdown.",
     ) or ""
     data = _extract_json(raw)
-    if not data:
-        return {"intent": "unknown"}
-    return data
+    return data or {"intent": "unknown"}
 
 
 def _extract_json(raw: str) -> dict:
@@ -590,12 +584,12 @@ def _apply_gasto(parsed: dict, original: str) -> str:
     if cat not in CATEGORIA_A_SOBRE:
         cat = "necesidades"
     sobre, sub = CATEGORIA_A_SOBRE[cat]
-    desc = str(parsed.get("descripcion") or original).strip()[:120] or "Gasto WhatsApp"
-    agregar_gasto_sobre(str(_hoy()), sobre, sub, desc, monto, origen="whatsapp")
+    desc = str(parsed.get("descripcion") or original).strip()[:120] or "Gasto Telegram"
+    agregar_gasto_sobre(str(_hoy()), sobre, sub, desc, monto, origen="telegram")
     return f"Gasté {monto:g} en «{desc}» → {cat}."
 
 
-def _apply_tarea(parsed: dict, original: str, phone: str, user_id: int) -> str:
+def _apply_tarea(parsed: dict, original: str, chat_id: str, user_id: int) -> str:
     from app.database import COLORES_TIPO, guardar_evento
 
     if not parsed or parsed.get("intent") in (None, "unknown"):
@@ -617,14 +611,14 @@ def _apply_tarea(parsed: dict, original: str, phone: str, user_id: int) -> str:
             "hora_inicio": hora,
             "hora_fin": fin,
             "titulo": titulo,
-            "descripcion": "vía WhatsApp",
+            "descripcion": "vía Telegram",
             "tipo": "Personal",
             "color": COLORES_TIPO.get("Personal", "#58a6ff"),
             "fuente": "local",
         },
         sync_google=True,
     )
-    schedule_reminder(user_id, eid, fecha, hora, titulo, phone)
+    schedule_reminder(user_id, eid, fecha, hora, titulo, chat_id)
     return f"Tarea creada: {titulo} el {fecha} a las {hora} (sync Calendar si está vinculado)."
 
 
@@ -645,18 +639,14 @@ def build_briefing(user_id: int) -> str:
         lineas.append("Hábitos: " + "; ".join(bits))
     evs = [i for i in items if i.get("kind") in ("evento", "matrimonio")]
     if evs:
-        bits = []
-        for e in evs[:8]:
-            bits.append(f"{(e.get('hora_inicio') or '—')[:5]} {e.get('titulo')}")
+        bits = [f"{(e.get('hora_inicio') or '—')[:5]} {e.get('titulo')}" for e in evs[:8]]
         lineas.append("Agenda: " + "; ".join(bits))
     else:
         lineas.append("Agenda: sin eventos.")
     ent = next((i for i in items if i.get("kind") == "entrenamiento"), None)
     if ent:
         lineas.append(str(ent.get("titulo")))
-    from datetime import timedelta as _td
-
-    corte = (hoy_fn() - _td(days=7)).isoformat()
+    corte = (hoy_fn() - timedelta(days=7)).isoformat()
     gastos = (
         ejecutar(
             """
@@ -683,9 +673,9 @@ def schedule_reminder(
     fecha: str,
     hora: str,
     titulo: str,
-    phone: str,
+    chat_id: str,
 ) -> None:
-    ensure_whatsapp_schema()
+    ensure_telegram_schema()
     from app.db.core import ejecutar
 
     try:
@@ -694,10 +684,10 @@ def schedule_reminder(
         return
     ejecutar(
         """
-        INSERT INTO whatsapp_reminders (user_id, evento_id, phone, titulo, fire_at, sent_at)
+        INSERT INTO telegram_reminders (user_id, evento_id, chat_id, titulo, fire_at, sent_at)
         VALUES (?, ?, ?, ?, ?, NULL)
         """,
-        [int(user_id), evento_id, digits_only(phone), titulo[:80], fire.isoformat(timespec="seconds")],
+        [int(user_id), evento_id, str(chat_id), titulo[:80], fire.isoformat(timespec="seconds")],
     )
 
 
@@ -706,14 +696,14 @@ def send_due_reminders(
     now: datetime | None = None,
     send_fn: Callable | None = None,
 ) -> int:
-    ensure_whatsapp_schema()
+    ensure_telegram_schema()
     from app.db.core import ejecutar
 
     stamp = (now or datetime.now(timezone.utc).replace(tzinfo=None)).isoformat(timespec="seconds")
     rows = (
         ejecutar(
             """
-            SELECT id, phone, titulo, fire_at FROM whatsapp_reminders
+            SELECT id, chat_id, titulo, fire_at FROM telegram_reminders
             WHERE sent_at IS NULL AND fire_at <= ?
             ORDER BY fire_at LIMIT 50
             """,
@@ -725,13 +715,13 @@ def send_due_reminders(
     n = 0
     for r in rows:
         ok = send_text(
-            r["phone"],
+            r["chat_id"],
             f"Recordatorio: {r.get('titulo') or 'tarea'} (en ~30 min).",
             send_fn=send_fn,
         )
         if ok or send_fn is not None:
             ejecutar(
-                "UPDATE whatsapp_reminders SET sent_at = ? WHERE id = ?",
+                "UPDATE telegram_reminders SET sent_at = ? WHERE id = ?",
                 [iso_ahora(), int(r["id"])],
             )
             n += 1

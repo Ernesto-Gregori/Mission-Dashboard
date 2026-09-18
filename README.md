@@ -36,12 +36,12 @@ En la app: **Salud** → Conectar con Google.
 - Webhooks: `POST /lemon/webhook` o `POST /stripe/webhook`
 - Retorno: `/app/billing?checkout=success|cancel`
 
-## WhatsApp (Premium / Familia)
-- Meta Cloud API (no Twilio). Callback: `GET`/`POST /whatsapp/webhook`
-- Vincular número en `/app/usuarios?tab=whatsapp` (código de 6 dígitos)
+## Telegram (Premium / Familia)
+- Bot API oficial (BotFather). Callback: `POST /telegram/webhook`
+- Vincular en `/app/usuarios?tab=telegram` (código + `t.me/bot?start=…`)
 - Intenciones: briefing, gasto, tarea (sync Calendar), nota de voz
-- Recordatorios: `python scripts/run_whatsapp_reminders.py`
-- Variables: `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`
+- Recordatorios: `python scripts/run_telegram_reminders.py`
+- Variables: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME` (opcional)
 
 ## Seguridad
 - Login usuario + contraseña (PBKDF2)

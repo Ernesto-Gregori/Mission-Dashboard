@@ -102,13 +102,17 @@ def init_app_state() -> None:
         from app.rueda import ensure_rueda_schema
         from app.tema import ensure_tema_schema
         from app.calendar_sync import ensure_calendar_sync_schema
-        from app.whatsapp import ensure_whatsapp_schema
+        from app.telegram import ensure_telegram_schema, register_webhook
 
         ensure_ritual_schema()
         ensure_rueda_schema()
         ensure_tema_schema()
         ensure_calendar_sync_schema()
-        ensure_whatsapp_schema()
+        ensure_telegram_schema()
+        try:
+            register_webhook()
+        except Exception as e:
+            print(f"[web.startup] telegram webhook: {e}")
     except Exception as e:
         print(f"[web.startup] fase3-5: {e}")
 

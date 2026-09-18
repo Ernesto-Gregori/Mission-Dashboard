@@ -10,7 +10,7 @@
 
 <nav class="agenda-tabs users-tabs" aria-label="Secciones de Usuarios">
   <a class="{% if tab == 'plan' %}active{% endif %}" href="/app/usuarios?tab=plan"{% if tab == 'plan' %} aria-current="page"{% endif %}>💳 Tu plan</a>
-  <a class="{% if tab == 'whatsapp' %}active{% endif %}" href="/app/usuarios?tab=whatsapp"{% if tab == 'whatsapp' %} aria-current="page"{% endif %}>📱 WhatsApp</a>
+  <a class="{% if tab == 'telegram' %}active{% endif %}" href="/app/usuarios?tab=telegram"{% if tab == 'telegram' %} aria-current="page"{% endif %}>✈️ Telegram</a>
   {% if is_admin %}
   <a class="{% if tab == 'gestion' %}active{% endif %}" href="/app/usuarios?tab=gestion"{% if tab == 'gestion' %} aria-current="page"{% endif %}>👥 Gestión</a>
   <a class="{% if tab == 'backup' %}active{% endif %}" href="/app/usuarios?tab=backup"{% if tab == 'backup' %} aria-current="page"{% endif %}>💾 Backup</a>
@@ -46,43 +46,36 @@
 </section>
 {% endif %}
 
-{% if tab == 'whatsapp' %}
+{% if tab == 'telegram' %}
 <section>
   <div class="card">
-    <h2>WhatsApp</h2>
-    <p class="muted">Vinculá tu número. Los mensajes de un número no vinculado solo reciben instrucciones; nunca crean gastos ni tareas.</p>
-    {% if not puede_whatsapp %}
-    <div class="flash-warn">WhatsApp requiere plan Premium o Familia. <a href="/app/billing">Ver planes</a></div>
+    <h2>Telegram</h2>
+    <p class="muted">Vinculá tu cuenta con el bot. Un chat no vinculado solo recibe instrucciones; nunca crea gastos ni tareas. El bot no escribe a quien no le habló primero.</p>
+    {% if not puede_telegram %}
+    <div class="flash-warn">Telegram requiere plan Premium o Familia. <a href="/app/billing">Ver planes</a></div>
     {% endif %}
-    {% if wa_link and wa_link.verified %}
-    <p>Número vinculado: <strong>…{{ (wa_link.phone or '')[-4:] }}</strong>
-       {% if wa_link.linked_at %}<span class="muted">desde {{ wa_link.linked_at }}</span>{% endif %}
+    {% if tg_link and tg_link.verified %}
+    <p>Cuenta vinculada{% if tg_link.tg_username %} <strong>@{{ tg_link.tg_username }}</strong>{% endif %}
+       {% if tg_link.linked_at %}<span class="muted">desde {{ tg_link.linked_at }}</span>{% endif %}
     </p>
-    <form method="post" action="/app/usuarios/whatsapp/desvincular" onsubmit="return confirm('¿Desvincular este número?')">
+    <form method="post" action="/app/usuarios/telegram/desvincular" onsubmit="return confirm('¿Desvincular Telegram?')">
       <button class="btn secondary" type="submit">Desvincular</button>
     </form>
     {% else %}
-    <form method="post" action="/app/usuarios/whatsapp/vincular" class="users-form-grid">
-      <div>
-        <label for="wa-phone">Número (con lada, 10 dígitos MX o E.164)</label>
-        <input id="wa-phone" name="phone" type="tel" required placeholder="5512345678" autocomplete="tel" />
-      </div>
+    <form method="post" action="/app/usuarios/telegram/vincular" class="users-form-grid">
       <div class="form-actions">
         <button class="btn" type="submit">Generar código</button>
       </div>
     </form>
-    {% if wa_code %}
-    <p class="flash-ok" role="status">Mandá este código por WhatsApp al bot, o confirmalo acá: <strong>{{ wa_code }}</strong></p>
+    {% if tg_code %}
+    <p class="flash-ok" role="status">Código <strong id="tg-code">{{ tg_code }}</strong>. Vence en 10 minutos.</p>
+    {% if tg_deep_link %}
+    <p><a id="tg-link" class="btn" href="{{ tg_deep_link }}" target="_blank" rel="noopener">Abrir bot en Telegram</a></p>
+    <p class="muted">O mandale al bot <code>/start {{ tg_code }}</code>. Después recargá esta página.</p>
+    {% else %}
+    <p class="muted">Mandale al bot el código o <code>/start {{ tg_code }}</code> y recargá esta página.</p>
     {% endif %}
-    <form method="post" action="/app/usuarios/whatsapp/confirmar" class="users-form-grid">
-      <div>
-        <label for="wa-code">Código de 6 dígitos</label>
-        <input id="wa-code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required />
-      </div>
-      <div class="form-actions">
-        <button class="btn secondary" type="submit">Confirmar</button>
-      </div>
-    </form>
+    {% endif %}
     {% endif %}
   </div>
 </section>

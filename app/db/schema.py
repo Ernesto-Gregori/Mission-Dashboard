@@ -330,11 +330,12 @@ def init_fase4_tables(cursor):
 
 
 def init_fase5_tables(cursor):
-    """WhatsApp: vínculo teléfono↔usuario, inbox idempotente y recordatorios."""
+    """Telegram: vínculo chat↔usuario, inbox idempotente y recordatorios."""
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS whatsapp_links (
+        CREATE TABLE IF NOT EXISTS telegram_links (
             user_id INTEGER PRIMARY KEY,
-            phone TEXT NOT NULL,
+            chat_id TEXT,
+            tg_username TEXT,
             verified INTEGER NOT NULL DEFAULT 0,
             verify_hash TEXT,
             verify_expires TEXT,
@@ -343,24 +344,25 @@ def init_fase5_tables(cursor):
     """)
     try:
         cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_whatsapp_phone "
-            "ON whatsapp_links(phone)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_telegram_chat "
+            "ON telegram_links(chat_id) "
+            "WHERE chat_id IS NOT NULL AND chat_id != ''"
         )
     except Exception:
         pass
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS whatsapp_seen (
-            wamid TEXT PRIMARY KEY,
-            phone TEXT,
+        CREATE TABLE IF NOT EXISTS telegram_seen (
+            update_id TEXT PRIMARY KEY,
+            chat_id TEXT,
             creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS whatsapp_reminders (
+        CREATE TABLE IF NOT EXISTS telegram_reminders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             evento_id INTEGER,
-            phone TEXT NOT NULL,
+            chat_id TEXT NOT NULL,
             titulo TEXT,
             fire_at TEXT NOT NULL,
             sent_at TEXT
@@ -368,8 +370,8 @@ def init_fase5_tables(cursor):
     """)
     try:
         cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wa_remind_fire "
-            "ON whatsapp_reminders(sent_at, fire_at)"
+            "CREATE INDEX IF NOT EXISTS idx_tg_remind_fire "
+            "ON telegram_reminders(sent_at, fire_at)"
         )
     except Exception:
         pass

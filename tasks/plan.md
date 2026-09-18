@@ -1,21 +1,20 @@
-# Implementation Plan: Fase 5 — WhatsApp
+# Implementation Plan: Fase 5 — Telegram
 
 ## Overview
-Canal WhatsApp para briefing, gastos, tareas (con sync Calendar de Fase 4) y notas de voz.
-No es un chat libre: cuatro intenciones + vínculo de número con verificación.
+Canal Telegram para briefing, gastos, tareas (con sync Calendar de Fase 4) y notas de voz.
+No es un chat libre: cuatro intenciones + vínculo de cuenta con código /start.
 
 ## Architecture Decisions
-- **Proveedor: Meta Cloud API** (no Twilio/360dialog).
-  - Alta más lenta (Business Manager), costo por mensaje más bajo, webhook HMAC nativo.
-  - Twilio/Gupshup: sandbox en horas, markup por mensaje, otro vendor.
-  - Volumen privado: el costo de Meta gana; el webhook es el mismo patrón que Lemon/Stripe.
-- Números no vinculados: solo instrucciones de vínculo. Nunca ejecutan acciones.
-- Plan: WhatsApp = Premium/Familia (misma palanca que Google). Groq cuenta en `uso_ia`.
-- Rate-limit propio por teléfono (no bypasea el de login).
-- Recordatorios: fila `whatsapp_reminders` + `scripts/run_whatsapp_reminders.py` (cron), 30 min antes.
+- **Proveedor: Telegram Bot API** (no WhatsApp/Meta, no Twilio).
+  - Alta en minutos (@BotFather), gratis, opt-in (el bot no escribe a extraños).
+  - secret_token en `X-Telegram-Bot-Api-Secret-Token`.
+- Chats no vinculados: solo instrucciones. Nunca ejecutan acciones.
+- Plan: Telegram = Premium/Familia (misma palanca que Google). Groq cuenta en `uso_ia`.
+- Rate-limit propio por chat_id (no bypasea el de login).
+- Recordatorios: fila `telegram_reminders` + `scripts/run_telegram_reminders.py` (cron), 30 min antes.
 
 ## Task List
-- [x] Schema + webhook GET/POST firmado + vínculo
+- [x] Schema + webhook POST firmado + vínculo
 - [x] Briefing / gasto / tarea / audio
 - [x] Recordatorios cron
-- [x] pytest
+- [ ] pytest

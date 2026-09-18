@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Envía recordatorios de WhatsApp 30 min antes de la tarea.
+Envía recordatorios de Telegram 30 min antes de la tarea.
 
 Uso (cron cada 5-10 min / Railway cron):
-  python scripts/run_whatsapp_reminders.py
+  python scripts/run_telegram_reminders.py
 """
 from __future__ import annotations
 
@@ -21,11 +21,11 @@ load_dotenv()
 
 def main() -> int:
     from app.db.core import ensure_database
-    from app.whatsapp import send_due_reminders
+    from app.telegram import send_due_reminders
 
     ensure_database()
     n = send_due_reminders()
-    print(f"whatsapp_reminders: {n} enviados")
+    print(f"telegram_reminders: {n} enviados")
     return 0
 
 

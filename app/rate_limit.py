@@ -13,10 +13,10 @@ MAX_FAILS = 5
 LOCK_SECONDS = 60          # primer bloqueo
 LOCK_SECONDS_MAX = 15 * 60  # tope
 
-# WhatsApp: no es un bypass del login; techo propio por teléfono.
-_WA_HITS: dict[str, list[float]] = {}
-WA_MAX = 20
-WA_WINDOW = 600
+# Telegram: no es un bypass del login; techo propio por chat_id.
+_TG_HITS: dict[str, list[float]] = {}
+TG_MAX = 20
+TG_WINDOW = 600
 
 
 def _key(username: str) -> str:
@@ -55,17 +55,17 @@ def registrar_exito(username: str) -> None:
 def limpiar_todo() -> None:
     """Solo para tests."""
     _FAILS.clear()
-    _WA_HITS.clear()
+    _TG_HITS.clear()
 
 
-def whatsapp_permitido(phone: str) -> bool:
-    """True si el número aún está bajo el techo de mensajes."""
-    digits = "".join(ch for ch in (phone or "") if ch.isdigit()) or "_"
+def telegram_permitido(chat_id: str) -> bool:
+    """True si el chat aún está bajo el techo de mensajes."""
+    key = str(chat_id or "").strip() or "_"
     now = time.time()
-    hits = [t for t in _WA_HITS.get(digits, []) if now - t < WA_WINDOW]
-    if len(hits) >= WA_MAX:
-        _WA_HITS[digits] = hits
+    hits = [t for t in _TG_HITS.get(key, []) if now - t < TG_WINDOW]
+    if len(hits) >= TG_MAX:
+        _TG_HITS[key] = hits
         return False
     hits.append(now)
-    _WA_HITS[digits] = hits
+    _TG_HITS[key] = hits
     return True
