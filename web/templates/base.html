@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#0d1117" />
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   <title>{% block title %}{{ title or "Mission Dashboard" }}{% endblock %} · Mission</title>
-  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="{{ asset('css/app.css') }}" />
   <!-- vendored htmx.org 2.0.4 -->
-  <script src="/static/js/htmx.min.js"></script>
+  <script src="{{ asset('js/htmx.min.js') }}"></script>
 </head>
 <body>
 <a class="skip-link" href="#main-content">Saltar al contenido</a>

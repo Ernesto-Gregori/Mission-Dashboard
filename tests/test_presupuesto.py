@@ -199,3 +199,26 @@ def test_calendario_vencimientos_colorea_por_tipo(web_client):
         data={"titulo": "Mal", "tipo": "otro", "monto": "1", "dia": "1"},
     )
     assert r.status_code == 400
+
+
+def test_ingreso_sugerido_desde_vencimientos(web_client):
+    _onboard(web_client)
+    for titulo, monto in (("Sueldo", "1200"), ("Freelance", "300")):
+        web_client.post(
+            "/app/m/finanzas/vencimientos",
+            data={"titulo": titulo, "tipo": "ingreso", "monto": monto, "dia": "1"},
+        )
+    web_client.post(
+        "/app/m/finanzas/vencimientos",
+        data={"titulo": "Luz", "tipo": "factura", "monto": "40", "dia": "5"},
+    )
+    body = web_client.get("/app/m/finanzas?mes=10&anio=2026").content.decode()
+    assert 'value="1500.00"' in body
+    assert "Sugerido desde tus vencimientos de ingreso (Freelance, Sueldo)" in body
+    # Solo se prellena: el mes sigue sin ingreso hasta que el usuario lo guarda.
+    assert "Sin ingreso este mes" in body
+
+    web_client.post("/app/m/finanzas/periodo", data={"mes": "10", "anio": "2026", "monto": "1400"})
+    body = web_client.get("/app/m/finanzas?mes=10&anio=2026").content.decode()
+    assert 'value="1400.00"' in body
+    assert "Sugerido desde" not in body

@@ -39,6 +39,7 @@ from app.presupuesto import (
     calendario_vencimientos,
     eliminar_recurrente,
     guardar_ratios,
+    ingreso_sugerido,
     resumen_mes,
 )
 from app.receipt_ocr import extract_from_image
@@ -108,6 +109,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "anio": anio,
         "meses": list(enumerate(MESES, start=1)),
         "ingreso": resumen.get("ingreso") or 0,
+        "sugerido": ingreso_sugerido(int(user["id"])) if resumen["sin_ingreso"] else None,
         "resumen": resumen,
         "sobres_ui": sobres_ui,
         "presets": PRESETS,

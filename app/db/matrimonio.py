@@ -207,6 +207,62 @@ def actualizar_cita(
     invalidate_data_caches()
 
 
+def _ensure_gasto_id_column() -> None:
+    try:
+        ejecutar("ALTER TABLE matrimonio_citas ADD COLUMN gasto_id INTEGER")
+    except Exception:
+        pass
+
+
+def gastos_vigentes(gasto_ids: list[int]) -> set[int]:
+    ids = [int(g) for g in gasto_ids if g]
+    if not ids:
+        return set()
+    rows = (
+        ejecutar(
+            f"SELECT id FROM gastos_sobres WHERE user_id = ? AND id IN ({', '.join('?' for _ in ids)})",
+            [uid(), *ids],
+            fetchall=True,
+        )
+        or []
+    )
+    return {int(r["id"]) for r in rows}
+
+
+def registrar_gasto_cita(cita_id: int, monto) -> tuple[bool, str]:
+    """El costo de una cita completada se escribe una sola vez, en Finanzas."""
+    from app.db.finanzas import agregar_gasto_sobre
+
+    _ensure_gasto_id_column()
+    cita = obtener_cita(cita_id)
+    if not cita:
+        return False, "Cita no encontrada."
+    if cita.get("estado_planificacion") != "Completada":
+        return False, "Solo las citas completadas se registran como gasto."
+    if cita.get("gasto_id") and gastos_vigentes([cita["gasto_id"]]):
+        return False, "Esta cita ya tiene su gasto registrado."
+    try:
+        monto_f = float(str(monto or "0").replace(",", ""))
+    except ValueError:
+        monto_f = 0.0
+    if monto_f <= 0:
+        return False, "Indica el costo real de la cita."
+    gid = agregar_gasto_sobre(
+        cita["fecha"],
+        "Ministerio_Extras",
+        "Cita_Esposa",
+        f"Cita: {cita['titulo']}"[:120],
+        monto_f,
+        origen="matrimonio",
+    )
+    ejecutar(
+        "UPDATE matrimonio_citas SET gasto_id = ? WHERE id = ? AND user_id = ?",
+        [gid, int(cita_id), uid()],
+    )
+    invalidate_data_caches()
+    return True, f"Gasto de ${monto_f:.2f} registrado en Ministerio y Extras."
+
+
 def eliminar_cita(cita_id: int) -> None:
     ejecutar(
         "DELETE FROM matrimonio_citas WHERE id=? AND user_id=?",

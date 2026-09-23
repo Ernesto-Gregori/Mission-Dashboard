@@ -2243,3 +2243,5 @@ a.ex-card:hover {
   .habit-row { grid-template-columns: 3.5rem minmax(0, 1fr); }
   .habit-row input[type="time"], .habit-actions { grid-column: 1 / -1; }
 }
+.appointment-expense-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.5rem 0; }
+.appointment-expense-form input { width: 8rem; margin: 0; }

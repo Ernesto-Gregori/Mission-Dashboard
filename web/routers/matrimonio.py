@@ -31,6 +31,7 @@ from app.database import (
     registrar_habito,
     verificar_alerta_20_30,
 )
+from app.db.matrimonio import gastos_vigentes, registrar_gasto_cita
 from app.onboarding import modulo_activo
 from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
@@ -51,8 +52,10 @@ def _tab(request: Request) -> str:
 
 def _enrich_citas(citas: list) -> list:
     out = []
+    vigentes = gastos_vigentes([c.get("gasto_id") for c in citas])
     for c in citas:
         item = dict(c)
+        item["gasto_registrado"] = bool(item.get("gasto_id")) and int(item["gasto_id"]) in vigentes
         tipo = item.get("tipo_cita") or "Otra"
         item["emoji"] = EMOJIS_TIPO.get(tipo, "💑")
         item["color"] = COLORES_ESTADO.get(item.get("estado_planificacion") or "", "#8b949e")
@@ -127,8 +130,9 @@ def _ctx(
         "user": user,
         "meta": MODULE_TEMPLATES["matrimonio"],
         "tab": tab,
-        "flash": flash,
-        "error": error,
+        "flash": flash or request.session.pop("mat_flash", None),
+        "error": error or request.session.pop("mat_error", None),
+        "finanzas_activa": modulo_activo("finanzas", int(user["id"])),
         "hoy": str(hoy),
         "alerta": alerta,
         "proxima": proxima,
@@ -251,6 +255,18 @@ async def delete_cita(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     eliminar_cita(cita_id)
+    return _redirect("citas")
+
+
+@router.post("/cita/{cita_id}/gasto")
+async def cita_a_gasto(
+    cita_id: int,
+    request: Request,
+    user: Annotated[dict, Depends(require_onboarded)],
+):
+    form = await request.form()
+    ok, msg = registrar_gasto_cita(cita_id, form.get("monto"))
+    request.session["mat_flash" if ok else "mat_error"] = msg
     return _redirect("citas")
 
 

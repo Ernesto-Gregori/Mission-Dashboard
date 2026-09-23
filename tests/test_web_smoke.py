@@ -66,8 +66,11 @@ def test_htmx_is_self_hosted(web_client):
     assert r.status_code == 200
     assert b"unpkg.com" not in r.content
     assert b"cdn.jsdelivr" not in r.content
-    assert b'src="/static/js/htmx.min.js"' in r.content
-    js = web_client.get("/static/js/htmx.min.js")
+    import re
+
+    m = re.search(rb'src="(/static/js/htmx\.min\.js\?v=[0-9a-f]+)"', r.content)
+    assert m
+    js = web_client.get(m.group(1).decode())
     assert js.status_code == 200
     assert b"htmx" in js.content.lower()
 

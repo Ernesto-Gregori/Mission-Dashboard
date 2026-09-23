@@ -819,6 +819,7 @@ def init_database():
     migraciones_matrim = [
         "ALTER TABLE matrimonio_citas ADD COLUMN ambito TEXT DEFAULT 'Matrimonio'",
         "ALTER TABLE matrimonio_citas ADD COLUMN actualizado_en TIMESTAMP",
+        "ALTER TABLE matrimonio_citas ADD COLUMN gasto_id INTEGER",
         "ALTER TABLE matrimonio_notas ADD COLUMN actualizado_en TIMESTAMP",
         "ALTER TABLE matrimonio_habitos ADD COLUMN actualizado_en TIMESTAMP",
     ]

@@ -68,6 +68,17 @@
       </header>
       {% if c.lugar %}<p class="muted appointment-detail">{{ c.lugar }}</p>{% endif %}
       {% if c.descripcion %}<p class="muted appointment-detail">{{ c.descripcion[:100] }}{% if c.descripcion|length > 100 %}…{% endif %}</p>{% endif %}
+      {% if finanzas_activa and c.estado_planificacion == 'Completada' %}
+        {% if c.gasto_registrado %}
+        <p class="muted appointment-detail">💰 Costo registrado en Finanzas.</p>
+        {% else %}
+        <form class="appointment-expense-form" method="post" action="/app/m/matrimonio/cita/{{ c.id }}/gasto">
+          <label for="cita-costo-{{ c.id }}">Costo real $</label>
+          <input id="cita-costo-{{ c.id }}" name="monto" type="number" step="0.01" min="0.01" value="{{ '%.2f'|format(c.presupuesto_estimado) if c.presupuesto_estimado else '' }}" required />
+          <button class="btn secondary" type="submit">Registrar como gasto</button>
+        </form>
+        {% endif %}
+      {% endif %}
       <div class="item-actions">
           <a class="btn secondary" href="/app/m/matrimonio?tab=nueva&edit={{ c.id }}">Editar</a>
           <form method="post" action="/app/m/matrimonio/cita/{{ c.id }}/eliminar" onsubmit="return confirm('¿Eliminar cita?')">
