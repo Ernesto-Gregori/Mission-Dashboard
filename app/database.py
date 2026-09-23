@@ -32,10 +32,7 @@ from app.db.finanzas import (  # noqa: F401
     obtener_gastos_sobre,
     actualizar_gasto_sobre,
     eliminar_gasto_sobre,
-    _calcular_sobres_uncached,
     obtener_tipos_bloque,
-    calcular_sobres,
-    _calcular_sobres_cached,
 )
 from app.db.usuarios import (  # noqa: F401
     _hash_password,

@@ -17,7 +17,6 @@ from app.database import (
     calcular_racha_deepwork,
     calcular_racha_devocional,
     calcular_racha_ejercicio,
-    calcular_sobres,
     eliminar_evento,
     guardar_bitacora,
     guardar_evento,
@@ -157,7 +156,9 @@ def _ctx(
     bit = obtener_bitacora(lunes_bit.isoformat()) or {}
     mes_bit, anio_bit = lunes_bit.month, lunes_bit.year
     ingreso_auto = obtener_ingreso(mes_bit, anio_bit) or 0
-    sobres_data = calcular_sobres(mes_bit, anio_bit)
+    from app.presupuesto import resumen_mes
+
+    sobres_data = resumen_mes(mes_bit, anio_bit, user_id=int(user["id"]))
 
     def _semaforo(sobre_key: str) -> str:
         if sobres_data.get("sin_ingreso"):

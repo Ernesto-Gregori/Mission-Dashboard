@@ -139,7 +139,7 @@ def test_finanzas_sobres_sin_catalogo_inline(web_client):
     r = web_client.get("/app/m/finanzas")
     assert r.status_code == 200
     body = r.text
-    assert "Sobres y gastos" in body
+    assert "Reparto del ingreso" in body
     assert "Precios supermercados" in body
     assert 'href="/app/m/finanzas/precios' in body
     # catálogo vive en otra sección, no embebido

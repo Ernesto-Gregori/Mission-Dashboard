@@ -12,7 +12,6 @@ from app.ai_client import api_key_configurada, chat_simple
 from app.database import (
     SOBRES_CONFIG,
     agregar_gasto_sobre,
-    calcular_sobres,
     eliminar_gasto_sobre,
     guardar_ingreso,
     obtener_gastos_sobre,
@@ -31,6 +30,17 @@ from app.db.schema import (
     SUPERMERCADOS,
 )
 from app.onboarding import listar_modulos_usuario, modulo_activo
+from app.presupuesto import (
+    PRESETS,
+    SOBRES,
+    SUBCATEGORIAS_LABELS,
+    TIPOS_RECURRENTES,
+    agregar_recurrente,
+    calendario_vencimientos,
+    eliminar_recurrente,
+    guardar_ratios,
+    resumen_mes,
+)
 from app.receipt_ocr import extract_from_image
 from app.receipt_uploads import resolve_upload_path, save_receipt_image
 from app.templates import MODULE_TEMPLATES
@@ -40,22 +50,6 @@ from web.deps import render, require_onboarded
 router = APIRouter(prefix="/app/m/finanzas", tags=["finanzas"])
 
 MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-
-SUBCATEGORIAS_LABELS = {
-    "Tarjeta_MSI": "💳 Tarjeta MSI",
-    "Deuda_Fija": "📋 Deuda Fija",
-    "Comida": "🍽️ Comida",
-    "Transporte": "🚌 Transporte",
-    "Servicios": "💡 Servicios",
-    "Otro_Supervivencia": "📦 Otro",
-    "Ahorro_Emergencia": "🛡️ Ahorro Emergencia",
-    "Fondo_Renta": "🏠 Fondo Renta",
-    "Otro_Ahorro": "💾 Otro Ahorro",
-    "Libros_Cursos": "📚 Libros / Cursos",
-    "Cita_Esposa": "💑 Cita con Esposa",
-    "Ofrenda_Diezmo": "⛪ Ofrenda / Diezmo",
-    "Personal": "👤 Personal",
-}
 
 SYSTEM_FINANZAS = (
     "Eres un asesor financiero cristiano. Usa el Sistema de 3 Sobres: "
@@ -111,21 +105,21 @@ def _flash(request: Request, flash: str | None = None) -> str | None:
 def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str | None = None):
     mes, anio = _periodo(request)
     flash = _flash(request, flash)
-    resumen = calcular_sobres(mes, anio)
+    resumen = resumen_mes(mes, anio, user_id=int(user["id"]))
     gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=80)
     for g in gastos:
         g["sub_label"] = SUBCATEGORIAS_LABELS.get(g.get("subcategoria"), g.get("subcategoria"))
         g["origen_label"] = g.get("origen") or GASTO_ORIGEN_MANUAL
-    sobres_ui = []
-    for key, data in (resumen.get("sobres") or {}).items():
-        sobres_ui.append({
-            "key": key,
+    sobres_ui = [
+        {
             **data,
             "subs": [
                 {"clave": s, "label": SUBCATEGORIAS_LABELS.get(s, s)}
-                for s in data.get("subcategorias", SOBRES_CONFIG[key]["subcategorias"])
+                for s in data["subcategorias"]
             ],
-        })
+        }
+        for data in resumen["sobres"].values()
+    ]
     return {
         "title": "Finanzas",
         "user": user,
@@ -136,6 +130,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "ingreso": resumen.get("ingreso") or 0,
         "resumen": resumen,
         "sobres_ui": sobres_ui,
+        "presets": PRESETS,
         "gastos": gastos,
         "hoy": str(_hoy()),
         "flash": flash,
@@ -147,6 +142,38 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "price_matches": request.session.pop(SESSION_MATCHES_KEY, None),
         "finanzas_section": "sobres",
     }
+
+
+def _vencimientos_ctx(request: Request, user: dict, *, error: str | None = None):
+    mes, anio = _periodo(request)
+    return {
+        "title": "Vencimientos",
+        "user": user,
+        "meta": MODULE_TEMPLATES["finanzas"],
+        "mes": mes,
+        "anio": anio,
+        "meses": list(enumerate(MESES, start=1)),
+        "error": error,
+        "cal": calendario_vencimientos(mes, anio, user_id=int(user["id"])),
+        "tipos_rec": TIPOS_RECURRENTES,
+    }
+
+
+def _paywall(request: Request, user: dict):
+    from app.billing import PLAN_FREE, limites, plan_vigente
+
+    return render(
+        request,
+        "paywall.html",
+        title="Finanzas",
+        user=user,
+        meta=MODULE_TEMPLATES["finanzas"],
+        clave="finanzas",
+        plan=plan_vigente(user),
+        plan_free=plan_vigente(user) == PLAN_FREE,
+        lim_free=limites(PLAN_FREE),
+        modulos_nav=_nav(int(user["id"])),
+    )
 
 
 def _precios_ctx(request: Request, user: dict, *, flash: str | None = None, error: str | None = None):
@@ -218,47 +245,74 @@ def _confirm_ctx(request: Request, user: dict, draft: dict, *, error: str | None
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def finanzas_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    from app.billing import PLAN_FREE, limites, plan_vigente
-
     if not modulo_activo("finanzas", int(user["id"])):
-        return render(
-            request,
-            "paywall.html",
-            title="Finanzas",
-            user=user,
-            meta=MODULE_TEMPLATES["finanzas"],
-            clave="finanzas",
-            plan=plan_vigente(user),
-            plan_free=plan_vigente(user) == PLAN_FREE,
-            lim_free=limites(PLAN_FREE),
-            modulos_nav=_nav(int(user["id"])),
-        )
-    tab = (request.query_params.get("tab") or "").lower()
-    if tab == "presupuesto":
-        from web.routers.presupuesto import _ctx as presupuesto_ctx
-
-        return render(request, "presupuesto.html", **presupuesto_ctx(request, user))
+        return _paywall(request, user)
     return render(request, "modules/finanzas.html", **_ctx(request, user))
 
 
 @router.get("/precios", response_class=HTMLResponse)
 def finanzas_precios_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    from app.billing import PLAN_FREE, limites, plan_vigente
-
     if not modulo_activo("finanzas", int(user["id"])):
+        return _paywall(request, user)
+    return render(request, "modules/finanzas_precios.html", **_precios_ctx(request, user))
+
+
+@router.get("/vencimientos", response_class=HTMLResponse)
+def finanzas_vencimientos_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    if not modulo_activo("finanzas", int(user["id"])):
+        return _paywall(request, user)
+    return render(request, "modules/finanzas_vencimientos.html", **_vencimientos_ctx(request, user))
+
+
+@router.post("/vencimientos")
+async def add_vencimiento(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    form = await request.form()
+    ok, msg = agregar_recurrente(
+        titulo=str(form.get("titulo") or ""),
+        tipo=str(form.get("tipo") or ""),
+        monto=form.get("monto") or 0,
+        dia=form.get("dia") or 1,
+        notas=str(form.get("notas") or ""),
+        user_id=int(user["id"]),
+    )
+    if not ok:
         return render(
             request,
-            "paywall.html",
-            title="Finanzas",
-            user=user,
-            meta=MODULE_TEMPLATES["finanzas"],
-            clave="finanzas",
-            plan=plan_vigente(user),
-            plan_free=plan_vigente(user) == PLAN_FREE,
-            lim_free=limites(PLAN_FREE),
-            modulos_nav=_nav(int(user["id"])),
+            "modules/finanzas_vencimientos.html",
+            status_code=400,
+            **_vencimientos_ctx(request, user, error=msg),
         )
-    return render(request, "modules/finanzas_precios.html", **_precios_ctx(request, user))
+    return RedirectResponse("/app/m/finanzas/vencimientos", status_code=303)
+
+
+@router.post("/vencimientos/{rec_id}/eliminar")
+def del_vencimiento(
+    rec_id: int,
+    request: Request,
+    user: Annotated[dict, Depends(require_onboarded)],
+):
+    eliminar_recurrente(int(rec_id), user_id=int(user["id"]))
+    return RedirectResponse("/app/m/finanzas/vencimientos", status_code=303)
+
+
+@router.post("/reparto")
+async def set_reparto(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    form = await request.form()
+    preset = str(form.get("preset") or "")
+    if preset in PRESETS:
+        ratios = PRESETS[preset]["ratios"]
+    else:
+        ratios = {s: form.get(f"pct_{s}") for s in SOBRES}
+    ok, msg = guardar_ratios(ratios, user_id=int(user["id"]))
+    if not ok:
+        return render(
+            request,
+            "modules/finanzas.html",
+            status_code=400,
+            **_ctx(request, user, error=msg),
+        )
+    mes, anio = _periodo(request)
+    return RedirectResponse(f"/app/m/finanzas?mes={mes}&anio={anio}", status_code=303)
 
 
 @router.post("/periodo")

@@ -16,10 +16,10 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "prioridad": 1,
     },
     "finanzas": {
-        "nombre": "Finanzas (3 Sobres)",
+        "nombre": "Finanzas",
         "emoji": "💰",
         "page": "pages/02_Finanzas.py",
-        "descripcion": "Ingresos, gastos y sobres Supervivencia / Futuro / Ministerio.",
+        "descripcion": "Ingreso repartido en sobres (3 sobres, 50/30/20 o personalizado), gastos y vencimientos.",
         "para_quien": "Controlar dinero, deudas, ahorro u ofrendas.",
         "prioridad": 2,
     },

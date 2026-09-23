@@ -145,15 +145,14 @@ def test_guia_tabs_connect_alma_and_coach(web_client):
     assert b'href="/app/asistente"' in r.content
 
 
-def test_dinero_tab_shows_presupuesto_inside_finanzas(web_client):
+def test_dinero_tabs_mes_vencimientos_precios(web_client):
     _onboard(web_client)
-    r = web_client.get("/app/m/finanzas?tab=presupuesto")
+    r = web_client.get("/app/m/finanzas")
     assert r.status_code == 200
-    assert b"50/30/20" in r.content or b"50 / 30 / 20" in r.content
-    assert b"Necesidades" in r.content
-    assert b'for="pct-necesidades"' in r.content
-    assert b'href="/app/presupuesto"' in r.content or b"tab=presupuesto" in r.content
-    assert b"Sobres" in r.content or b"sobres" in r.content.lower()
+    assert b'href="/app/m/finanzas/vencimientos' in r.content
+    assert b'href="/app/m/finanzas/precios' in r.content
+    assert b"Reparto del ingreso" in r.content
+    assert b"/app/presupuesto" not in r.content
 
 
 def test_semana_hub_links_planificador_agenda_enfoque(web_client):

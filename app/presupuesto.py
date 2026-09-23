@@ -1,26 +1,61 @@
-"""Presupuesto 50/30/20 derivado de ingresos y gastos de Finanzas."""
+"""Presupuesto: reparto del ingreso en los 3 sobres y vencimientos recurrentes.
+
+Única fuente de porcentajes: `presupuesto_config`. Los "métodos" (3 sobres,
+50/30/20) son presets de esos mismos porcentajes, no sistemas aparte.
+"""
 from __future__ import annotations
 
 from calendar import monthrange
 from datetime import date
 
+from app.db.schema import SOBRES_CONFIG
 from app.logging_config import get_logger
 from app.timezone_config import hoy as _hoy
 
 log = get_logger("presupuesto")
 
-CATEGORIAS = ("necesidades", "deseos", "ahorro")
-RATIOS_DEFAULT = {"necesidades": 50, "deseos": 30, "ahorro": 20}
+SOBRES = tuple(SOBRES_CONFIG)
 
-SOBRE_A_CATEGORIA = {
-    "Supervivencia": "necesidades",
-    "Ministerio_Extras": "deseos",
-    "Futuro_Hogar": "ahorro",
+# Columnas históricas de presupuesto_config (nombres 50/30/20) → sobre.
+_COLUMNA_SOBRE = {
+    "Supervivencia": "pct_necesidades",
+    "Futuro_Hogar": "pct_ahorro",
+    "Ministerio_Extras": "pct_deseos",
 }
+
+PRESETS = {
+    "sobres": {
+        "label": "3 sobres",
+        "ratios": {"Supervivencia": 65, "Futuro_Hogar": 20, "Ministerio_Extras": 15},
+    },
+    "503020": {
+        "label": "50/30/20",
+        "ratios": {"Supervivencia": 50, "Futuro_Hogar": 20, "Ministerio_Extras": 30},
+    },
+}
+RATIOS_DEFAULT = PRESETS["sobres"]["ratios"]
+
+# Alias en lenguaje natural (Telegram / IA) → (sobre, subcategoría por defecto).
 CATEGORIA_A_SOBRE = {
     "necesidades": ("Supervivencia", "Otro_Supervivencia"),
     "deseos": ("Ministerio_Extras", "Personal"),
     "ahorro": ("Futuro_Hogar", "Otro_Ahorro"),
+}
+
+SUBCATEGORIAS_LABELS = {
+    "Tarjeta_MSI": "💳 Tarjeta MSI",
+    "Deuda_Fija": "📋 Deuda Fija",
+    "Comida": "🍽️ Comida",
+    "Transporte": "🚌 Transporte",
+    "Servicios": "💡 Servicios",
+    "Otro_Supervivencia": "📦 Otro",
+    "Ahorro_Emergencia": "🛡️ Ahorro Emergencia",
+    "Fondo_Renta": "🏠 Fondo Renta",
+    "Otro_Ahorro": "💾 Otro Ahorro",
+    "Libros_Cursos": "📚 Libros / Cursos",
+    "Cita_Esposa": "💑 Cita con Esposa",
+    "Ofrenda_Diezmo": "⛪ Ofrenda / Diezmo",
+    "Personal": "👤 Personal",
 }
 
 TIPOS_RECURRENTES = ("ingreso", "suscripcion", "factura", "deuda", "ahorro")
@@ -30,26 +65,6 @@ TIPO_META = {
     "factura": {"label": "Factura", "emoji": "🧾", "color": "#f0883e"},
     "deuda": {"label": "Deuda", "emoji": "📉", "color": "#f85149"},
     "ahorro": {"label": "Ahorro", "emoji": "🏦", "color": "#56d364"},
-}
-CATEGORIA_META = {
-    "necesidades": {
-        "label": "Necesidades",
-        "emoji": "🏠",
-        "color": "#f85149",
-        "descripcion": "Supervivencia — vivienda, comida, deudas fijas",
-    },
-    "deseos": {
-        "label": "Deseos",
-        "emoji": "✨",
-        "descripcion": "Ministerio y extras — ocio, ofrendas, personal",
-        "color": "#58a6ff",
-    },
-    "ahorro": {
-        "label": "Ahorro",
-        "emoji": "🌱",
-        "descripcion": "Futuro y hogar — no tocar",
-        "color": "#3fb950",
-    },
 }
 
 
@@ -100,54 +115,48 @@ def _uid(user_id: int | None = None) -> int:
     return int(uid())
 
 
-def obtener_ratios(user_id: int | None = None) -> dict:
+def obtener_ratios(user_id: int | None = None) -> dict[str, int]:
+    """Porcentaje del ingreso asignado a cada sobre (suman 100)."""
     ensure_presupuesto_schema()
     from app.db.core import ejecutar
 
-    uid_i = _uid(user_id)
     rows = (
         ejecutar(
             """
             SELECT pct_necesidades, pct_deseos, pct_ahorro
             FROM presupuesto_config WHERE user_id = ?
             """,
-            [uid_i],
+            [_uid(user_id)],
             fetchall=True,
         )
         or []
     )
     if not rows:
         return dict(RATIOS_DEFAULT)
-    r = rows[0]
-    return {
-        "necesidades": int(r["pct_necesidades"]),
-        "deseos": int(r["pct_deseos"]),
-        "ahorro": int(r["pct_ahorro"]),
-    }
+    return {s: int(rows[0][_COLUMNA_SOBRE[s]]) for s in SOBRES}
 
 
-def validar_ratios(necesidades: int, deseos: int, ahorro: int) -> tuple[bool, str]:
-    vals = (int(necesidades), int(deseos), int(ahorro))
-    if any(v < 0 or v > 100 for v in vals):
-        return False, "Cada porcentaje debe estar entre 0 y 100."
-    if sum(vals) != 100:
-        return False, "Los tres porcentajes deben sumar 100."
-    return True, ""
+def validar_ratios(ratios: dict) -> tuple[bool, str, dict[str, int]]:
+    clean: dict[str, int] = {}
+    for s in SOBRES:
+        try:
+            clean[s] = int(ratios.get(s))
+        except (TypeError, ValueError):
+            return False, "Cada porcentaje debe ser un número entero.", clean
+        if clean[s] < 0 or clean[s] > 100:
+            return False, "Cada porcentaje debe estar entre 0 y 100.", clean
+    if sum(clean.values()) != 100:
+        return False, "Los tres porcentajes deben sumar 100.", clean
+    return True, "", clean
 
 
-def guardar_ratios(
-    necesidades: int,
-    deseos: int,
-    ahorro: int,
-    user_id: int | None = None,
-) -> tuple[bool, str]:
-    ok, msg = validar_ratios(necesidades, deseos, ahorro)
+def guardar_ratios(ratios: dict, user_id: int | None = None) -> tuple[bool, str]:
+    ok, msg, clean = validar_ratios(ratios)
     if not ok:
         return False, msg
     ensure_presupuesto_schema()
     from app.db.core import ejecutar, invalidate_data_caches
 
-    uid_i = _uid(user_id)
     ejecutar(
         """
         INSERT INTO presupuesto_config
@@ -159,83 +168,97 @@ def guardar_ratios(
             pct_ahorro = excluded.pct_ahorro,
             actualizado_en = CURRENT_TIMESTAMP
         """,
-        [uid_i, int(necesidades), int(deseos), int(ahorro)],
+        [
+            _uid(user_id),
+            clean["Supervivencia"],
+            clean["Ministerio_Extras"],
+            clean["Futuro_Hogar"],
+        ],
     )
     try:
         invalidate_data_caches()
     except Exception:
         pass
-    return True, "Ratios guardados."
+    return True, "Reparto guardado."
 
 
-def categoria_de_sobre(sobre: str) -> str:
-    return SOBRE_A_CATEGORIA.get(str(sobre or ""), "necesidades")
+def preset_de(ratios: dict) -> str | None:
+    for key, p in PRESETS.items():
+        if all(int(ratios.get(s, -1)) == p["ratios"][s] for s in SOBRES):
+            return key
+    return None
 
 
 def resumen_mes(mes: int, anio: int, user_id: int | None = None) -> dict:
-    """50/30/20 vs gasto real. Lee ingreso_mensual + gastos_sobres."""
+    """Ingreso del mes repartido en sobres según los ratios vs gasto real."""
     from app.db.finanzas import obtener_gastos_sobre, obtener_ingreso
 
-    uid_i = _uid(user_id)
-    ratios = obtener_ratios(uid_i)
+    ratios = obtener_ratios(user_id)
     ingreso = float(obtener_ingreso(mes, anio) or 0)
     gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=500)
-    gastado = {k: 0.0 for k in CATEGORIAS}
+    total_gastado = sum(float(g.get("monto") or 0) for g in gastos)
+
+    sobres: dict[str, dict] = {}
+    for key, config in SOBRES_CONFIG.items():
+        propios = [g for g in gastos if g.get("sobre") == key]
+        gastado = sum(float(g.get("monto") or 0) for g in propios)
+        presupuesto = ingreso * ratios[key] / 100.0
+        por_subcat: dict[str, float] = {}
+        for g in propios:
+            sub = str(g.get("subcategoria") or "")
+            por_subcat[sub] = por_subcat.get(sub, 0.0) + float(g.get("monto") or 0)
+        fijos = sum(float(g.get("monto") or 0) for g in propios if g.get("es_fijo"))
+        sobres[key] = {
+            **config,
+            "key": key,
+            "pct": ratios[key],
+            "presupuesto": presupuesto,
+            "gastado": gastado,
+            "disponible": presupuesto - gastado,
+            "pct_usado": (gastado / presupuesto * 100) if presupuesto > 0 else 0,
+            "cantidad_gastos": len(propios),
+            "por_subcat": por_subcat,
+            "fijos": fijos,
+            "variables": gastado - fijos,
+        }
+
     por_destino: dict[str, float] = {}
     for g in gastos:
-        cat = categoria_de_sobre(g.get("sobre"))
-        monto = float(g.get("monto") or 0)
-        gastado[cat] = gastado.get(cat, 0.0) + monto
-        dest = str(g.get("subcategoria") or g.get("descripcion") or cat)
-        por_destino[dest] = por_destino.get(dest, 0.0) + monto
-
-    categorias = []
-    total_gastado = sum(gastado.values())
-    for key in CATEGORIAS:
-        meta = CATEGORIA_META[key]
-        pct = ratios[key]
-        presupuesto = ingreso * pct / 100.0
-        usado = gastado[key]
-        categorias.append({
-            "key": key,
-            **meta,
-            "pct": pct,
-            "presupuesto": presupuesto,
-            "gastado": usado,
-            "disponible": presupuesto - usado,
-            "pct_usado": (usado / presupuesto * 100) if presupuesto > 0 else 0,
-        })
-
-    destinos = sorted(por_destino.items(), key=lambda x: x[1], reverse=True)
-    chart = []
-    for nombre, monto in destinos[:8]:
-        chart.append({
-            "nombre": nombre,
-            "monto": monto,
-            "pct": (monto / total_gastado * 100) if total_gastado > 0 else 0,
-        })
-    stacked = []
-    for key in CATEGORIAS:
-        stacked.append({
-            "key": key,
-            "label": CATEGORIA_META[key]["label"],
-            "color": CATEGORIA_META[key]["color"],
-            "monto": gastado[key],
-            "pct": (gastado[key] / total_gastado * 100) if total_gastado > 0 else 0,
-        })
+        sub = str(g.get("subcategoria") or g.get("descripcion") or "")
+        dest = SUBCATEGORIAS_LABELS.get(sub, sub)
+        por_destino[dest] = por_destino.get(dest, 0.0) + float(g.get("monto") or 0)
+    destinos = sorted(por_destino.items(), key=lambda x: x[1], reverse=True)[:8]
 
     return {
         "ingreso": ingreso,
         "mes": mes,
         "anio": anio,
         "ratios": ratios,
-        "categorias": categorias,
+        "preset": preset_de(ratios),
+        "sobres": sobres,
+        "gastos": gastos,
         "total_gastado": total_gastado,
         "total_disponible": ingreso - total_gastado,
+        "pct_global": (total_gastado / ingreso * 100) if ingreso > 0 else 0,
         "sin_ingreso": ingreso == 0,
-        "gastos": gastos,
-        "chart": chart,
-        "stacked": stacked,
+        "stacked": [
+            {
+                "key": s["key"],
+                "label": s["nombre"].title(),
+                "color": s["color"],
+                "monto": s["gastado"],
+                "pct": (s["gastado"] / total_gastado * 100) if total_gastado > 0 else 0,
+            }
+            for s in sobres.values()
+        ],
+        "chart": [
+            {
+                "nombre": nombre,
+                "monto": monto,
+                "pct": (monto / total_gastado * 100) if total_gastado > 0 else 0,
+            }
+            for nombre, monto in destinos
+        ],
     }
 
 

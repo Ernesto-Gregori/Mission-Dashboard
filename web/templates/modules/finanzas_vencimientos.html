@@ -1,0 +1,84 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="module-header" data-module="finanzas">
+  <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
+  <div>
+    <h1>Vencimientos</h1>
+    <p class="muted">Pagos e ingresos recurrentes · {% for n, label in meses %}{% if n == mes %}{{ label }}{% endif %}{% endfor %} {{ anio }}</p>
+  </div>
+</header>
+
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card due-calendar" aria-labelledby="due-title">
+  <h2 id="due-title">Calendario del mes</h2>
+  <p class="planner-legend" aria-label="Leyenda de tipos">
+    {% for t in cal.tipos %}
+    <span class="chip chip-{{ t.key }}" style="--event-color:{{ t.color }}">{{ t.emoji }} {{ t.label }}</span>
+    {% endfor %}
+  </p>
+  <div class="due-grid" role="grid" aria-label="Calendario de vencimientos">
+    <div class="due-head" role="row">
+      <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+    </div>
+    {% for semana in cal.semanas %}
+    <div class="due-week" role="row">
+      {% for celda in semana %}
+      {% if celda %}
+      <div class="due-day{% if celda.es_hoy %} is-today{% endif %}" role="gridcell">
+        <strong>{{ celda.dia }}</strong>
+        {% for it in celda.vencimientos %}
+        <div class="chip chip-{{ it.tipo }} due-{{ it.tipo }}" style="--event-color:{{ it.meta.color }}">
+          {{ it.meta.emoji }} {{ it.titulo[:16] }}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="due-day is-empty" role="gridcell"></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <h3>Nuevo recurrente</h3>
+  <form class="finance-form-grid" method="post" action="/app/m/finanzas/vencimientos">
+    <div>
+      <label for="rec-titulo">Título</label>
+      <input id="rec-titulo" name="titulo" maxlength="120" required />
+    </div>
+    <div>
+      <label for="rec-tipo">Tipo</label>
+      <select id="rec-tipo" name="tipo">
+        {% for t in cal.tipos %}
+        <option value="{{ t.key }}">{{ t.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="rec-dia">Día del mes</label>
+      <input id="rec-dia" name="dia" type="number" min="1" max="31" value="1" required />
+    </div>
+    <div>
+      <label for="rec-monto">Monto</label>
+      <input id="rec-monto" name="monto" type="number" step="0.01" min="0" value="0" />
+    </div>
+    <div class="form-actions field-wide">
+      <button class="btn" type="submit">Agregar vencimiento</button>
+    </div>
+  </form>
+
+  {% if cal.recurrentes %}
+  <ul class="agenda-ev-list due-list">
+    {% for it in cal.recurrentes %}
+    <li>
+      <span>Día {{ it.dia }} · {{ it.meta.emoji }} {{ it.titulo }} · ${{ '%.2f'|format(it.monto) }}</span>
+      <form class="inline-form" method="post" action="/app/m/finanzas/vencimientos/{{ it.id }}/eliminar">
+        <button class="btn secondary icon-button" type="submit" aria-label="Eliminar {{ it.titulo }}">🗑️</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}

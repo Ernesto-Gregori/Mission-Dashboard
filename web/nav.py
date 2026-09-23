@@ -1,7 +1,6 @@
 """Information architecture — grouped hubs instead of a flat page dump.
 
-Duplicate surfaces (ritual/rueda/foco, presupuesto, coach/alma, familia,
-billing) stay reachable, but the sidebar only lists one entry per job.
+Duplicate surfaces (ritual/rueda/foco, coach/alma, familia, billing) stay reachable, but the sidebar only lists one entry per job.
 """
 from __future__ import annotations
 
@@ -42,7 +41,6 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "id": "dinero",
         "label": "Dinero",
         "group": "Vida",
-        "always": True,
         "prefixes": ("/app/m/finanzas", "/app/presupuesto"),
         "modules": ("finanzas",),
     },
@@ -148,9 +146,7 @@ def _hub_href(hub_id: str, user: dict, activos: set[str]) -> str:
     if hub_id == "semana":
         return "/app/planificador"
     if hub_id == "dinero":
-        if "finanzas" in activos:
-            return "/app/m/finanzas"
-        return "/app/presupuesto"
+        return "/app/m/finanzas"
     if hub_id == "hogar":
         if "matrimonio" in activos:
             return "/app/m/matrimonio"
@@ -280,32 +276,23 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
         mes = request.query_params.get("mes") or request.session.get("fin_mes") or ""
         anio = request.query_params.get("anio") or request.session.get("fin_anio") or ""
         qs = f"?mes={mes}&anio={anio}" if mes and anio else ""
-        fin_active = path.startswith("/app/m/finanzas") and "/precios" not in path and qtab != "presupuesto"
-        pre_active = path.startswith("/app/presupuesto") or qtab == "presupuesto"
-        price_active = "/precios" in path
-        if "finanzas" in activos:
-            tabs.append(
-                {
-                    "href": f"/app/m/finanzas{qs}",
-                    "label": "Sobres y gastos",
-                    "active": fin_active,
-                }
-            )
-        tabs.append(
+        tabs = [
             {
-                "href": "/app/presupuesto",
-                "label": "50/30/20",
-                "active": pre_active,
-            }
-        )
-        if "finanzas" in activos:
-            tabs.append(
-                {
-                    "href": f"/app/m/finanzas/precios{qs}",
-                    "label": "Precios supermercados",
-                    "active": price_active,
-                }
-            )
+                "href": f"/app/m/finanzas{qs}",
+                "label": "Mes",
+                "active": _norm_path(path) == "/app/m/finanzas",
+            },
+            {
+                "href": f"/app/m/finanzas/vencimientos{qs}",
+                "label": "Vencimientos",
+                "active": path.startswith("/app/m/finanzas/vencimientos"),
+            },
+            {
+                "href": f"/app/m/finanzas/precios{qs}",
+                "label": "Precios supermercados",
+                "active": path.startswith("/app/m/finanzas/precios"),
+            },
+        ]
     elif hub == "hogar":
         if "matrimonio" in activos:
             tabs.append(
@@ -376,10 +363,11 @@ def dashboard_hubs(user: dict) -> list[dict]:
     if "deep_work" in activos:
         children["semana"].append({"label": "Enfoque", "href": "/app/m/deep_work", "clave": "deep_work"})
     if "finanzas" in activos:
-        children["dinero"].append({"label": "Sobres", "href": "/app/m/finanzas", "clave": "finanzas"})
-    children["dinero"].append({"label": "50/30/20", "href": "/app/m/finanzas?tab=presupuesto" if "finanzas" in activos else "/app/presupuesto"})
-    if "finanzas" in activos:
-        children["dinero"].append({"label": "Precios", "href": "/app/m/finanzas/precios", "clave": "finanzas"})
+        children["dinero"] = [
+            {"label": "Mes", "href": "/app/m/finanzas", "clave": "finanzas"},
+            {"label": "Vencimientos", "href": "/app/m/finanzas/vencimientos", "clave": "finanzas"},
+            {"label": "Precios", "href": "/app/m/finanzas/precios", "clave": "finanzas"},
+        ]
     if "matrimonio" in activos:
         children["hogar"].append({"label": "Pareja", "href": "/app/m/matrimonio", "clave": "matrimonio"})
     if _is_admin(user):
@@ -414,7 +402,7 @@ def dashboard_hubs(user: dict) -> list[dict]:
 _HUB_BLURB = {
     "guia": "Alma para el día a día; el Coach arma el sistema.",
     "semana": "Calendario, bitácora y bloques de enfoque en un solo lugar.",
-    "dinero": "Sobres, 50/30/20 y precios — la misma plata, dos lecturas.",
+    "dinero": "Ingreso repartido en sobres, vencimientos y precios.",
     "hogar": "Pareja y comparativa familiar.",
     "cuerpo": "Sueño, ejercicio y energía.",
     "fe": "Devocional y oración.",
