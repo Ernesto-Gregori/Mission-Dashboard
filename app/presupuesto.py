@@ -288,6 +288,15 @@ def listar_recurrentes(user_id: int | None = None) -> list:
     return out
 
 
+def ingreso_sugerido(user_id: int | None = None) -> dict:
+    """Suma de los vencimientos tipo ingreso, para prellenar un mes sin ingreso."""
+    fuentes = [r for r in listar_recurrentes(user_id) if r.get("tipo") == "ingreso"]
+    return {
+        "monto": sum(float(r.get("monto") or 0) for r in fuentes),
+        "fuentes": [str(r.get("titulo") or "") for r in fuentes],
+    }
+
+
 def agregar_recurrente(
     titulo: str,
     tipo: str,

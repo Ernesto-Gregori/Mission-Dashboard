@@ -52,7 +52,11 @@
     </div>
     <div>
       <label for="finance-income">Ingreso del mes</label>
-      <input id="finance-income" name="monto" type="number" step="0.01" min="0" value="{{ '%.2f'|format(ingreso) if ingreso else '' }}" placeholder="0.00" />
+      {% set prellenado = ingreso or (sugerido.monto if sugerido and sugerido.monto > 0 else 0) %}
+      <input id="finance-income" name="monto" type="number" step="0.01" min="0" value="{{ '%.2f'|format(prellenado) if prellenado else '' }}" placeholder="0.00"{% if not ingreso and prellenado %} aria-describedby="finance-income-hint"{% endif %} />
+      {% if not ingreso and prellenado %}
+      <p class="muted compact-copy" id="finance-income-hint">Sugerido desde tus vencimientos de ingreso ({{ sugerido.fuentes|join(', ') }}). Guárdalo para usarlo este mes.</p>
+      {% endif %}
     </div>
     <div class="field-wide">
       <label for="finance-notes">Notas</label>
