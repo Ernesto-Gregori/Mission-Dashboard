@@ -10,7 +10,17 @@ from app.timezone_config import hoy as _hoy
 
 log = get_logger("asistente")
 
-CATEGORIAS = ("habitos", "tareas", "salud", "calendario")
+# clave → (etiqueta en permisos, etiqueta corta)
+CATEGORIA_LABELS = {
+    "habitos": ("Hábitos recientes", "Hábitos"),
+    "tareas": ("Pendientes de hoy", "Pendientes"),
+    "salud": ("Resumen de salud", "Salud"),
+    "calendario": ("Calendario de la semana", "Calendario"),
+    "finanzas": ("Finanzas del mes", "Finanzas"),
+    "enfoque": ("Deep Work de la semana", "Enfoque"),
+    "ideas": ("Ideas y proyectos", "Ideas"),
+}
+CATEGORIAS = tuple(CATEGORIA_LABELS)
 MAX_MENSAJE = 2000
 MAX_HISTORIAL_UI = 40
 MAX_HISTORIAL_LLM = 16
@@ -53,6 +63,10 @@ def ensure_asistente_schema() -> None:
             actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        *(
+            f"ALTER TABLE asistente_prefs ADD COLUMN share_{k} INTEGER NOT NULL DEFAULT 0"
+            for k in ("finanzas", "enfoque", "ideas")
+        ),
         """
         CREATE TABLE IF NOT EXISTS user_prefs (
             user_id INTEGER PRIMARY KEY,
@@ -64,7 +78,8 @@ def ensure_asistente_schema() -> None:
         try:
             ejecutar(sql)
         except Exception as e:
-            log.warning("ensure_asistente_schema: %s", e)
+            if "duplicate column" not in str(e).lower():
+                log.warning("ensure_asistente_schema: %s", e)
 
 
 def _uid(user_id: int | None = None) -> int:
@@ -83,59 +98,36 @@ def obtener_prefs(user_id: int | None = None) -> dict[str, bool]:
     ensure_asistente_schema()
     from app.db.core import ejecutar
 
-    uid_i = _uid(user_id)
+    cols = ", ".join(f"share_{k}" for k in CATEGORIAS)
     rows = (
         ejecutar(
-            """
-            SELECT share_habitos, share_tareas, share_salud, share_calendario
-            FROM asistente_prefs WHERE user_id = ?
-            """,
-            [uid_i],
+            f"SELECT {cols} FROM asistente_prefs WHERE user_id = ?",
+            [_uid(user_id)],
             fetchall=True,
         )
         or []
     )
     if not rows:
         return prefs_default()
-    r = rows[0]
-    return {
-        "habitos": bool(int(r.get("share_habitos") or 0)),
-        "tareas": bool(int(r.get("share_tareas") or 0)),
-        "salud": bool(int(r.get("share_salud") or 0)),
-        "calendario": bool(int(r.get("share_calendario") or 0)),
-    }
+    return {k: bool(int(rows[0].get(f"share_{k}") or 0)) for k in CATEGORIAS}
 
 
 def guardar_prefs(flags: dict[str, Any], user_id: int | None = None) -> dict[str, bool]:
     ensure_asistente_schema()
     from app.db.core import ejecutar
 
-    uid_i = _uid(user_id)
-    clean = {
-        "habitos": bool(flags.get("habitos")),
-        "tareas": bool(flags.get("tareas")),
-        "salud": bool(flags.get("salud")),
-        "calendario": bool(flags.get("calendario")),
-    }
+    clean = {k: bool(flags.get(k)) for k in CATEGORIAS}
+    cols = ", ".join(f"share_{k}" for k in CATEGORIAS)
+    updates = ",\n            ".join(f"share_{k} = excluded.share_{k}" for k in CATEGORIAS)
     ejecutar(
-        """
-        INSERT INTO asistente_prefs
-            (user_id, share_habitos, share_tareas, share_salud, share_calendario)
-        VALUES (?, ?, ?, ?, ?)
+        f"""
+        INSERT INTO asistente_prefs (user_id, {cols})
+        VALUES (?, {", ".join("?" for _ in CATEGORIAS)})
         ON CONFLICT(user_id) DO UPDATE SET
-            share_habitos = excluded.share_habitos,
-            share_tareas = excluded.share_tareas,
-            share_salud = excluded.share_salud,
-            share_calendario = excluded.share_calendario,
+            {updates},
             actualizado_en = CURRENT_TIMESTAMP
         """,
-        [
-            uid_i,
-            int(clean["habitos"]),
-            int(clean["tareas"]),
-            int(clean["salud"]),
-            int(clean["calendario"]),
-        ],
+        [_uid(user_id), *(int(clean[k]) for k in CATEGORIAS)],
     )
     return clean
 
@@ -145,12 +137,7 @@ def flags_desde_form(form) -> dict[str, bool]:
         raw = form.get(name) if hasattr(form, "get") else None
         return str(raw or "").lower() in ("1", "on", "true", "yes")
 
-    return {
-        "habitos": _on("share_habitos"),
-        "tareas": _on("share_tareas"),
-        "salud": _on("share_salud"),
-        "calendario": _on("share_calendario"),
-    }
+    return {k: _on(f"share_{k}") for k in CATEGORIAS}
 
 
 def listar_mensajes(user_id: int | None = None, limite: int = MAX_HISTORIAL_UI) -> list[dict]:
@@ -277,6 +264,12 @@ def construir_contexto(flags: dict[str, bool], user_id: int | None = None) -> st
         partes.append(_ctx_salud())
     if "calendario" in activas:
         partes.append(_ctx_calendario(uid_i))
+    if "finanzas" in activas:
+        partes.append(_ctx_finanzas(uid_i))
+    if "enfoque" in activas:
+        partes.append(_ctx_enfoque())
+    if "ideas" in activas:
+        partes.append(_ctx_ideas())
     texto = "\n\n".join(partes)
     return texto[:MAX_CONTEXTO]
 
@@ -358,7 +351,7 @@ def _ctx_tareas(uid_i: int) -> str:
         )
         or []
     )
-    lineas = ["Tareas pendientes:"]
+    lineas = ["Pendientes:"]
     if incompletos:
         lineas.append("Hábitos de hoy sin completar: " + ", ".join(r["label"] for r in incompletos))
     else:
@@ -401,6 +394,59 @@ def _ctx_calendario(uid_i: int) -> str:
     return "\n".join(lineas)
 
 
+def _ctx_finanzas(uid_i: int) -> str:
+    from app.presupuesto import PRESETS, listar_recurrentes, resumen_mes
+
+    hoy = _hoy()
+    r = resumen_mes(hoy.month, hoy.year, user_id=uid_i)
+    if r["sin_ingreso"] and not r["gastos"]:
+        return f"Finanzas {hoy.month:02d}/{hoy.year}: sin ingreso ni gastos cargados."
+    metodo = PRESETS[r["preset"]]["label"] if r["preset"] else "personalizado"
+    lineas = [
+        f"Finanzas {hoy.month:02d}/{hoy.year} (reparto {metodo}): "
+        f"ingreso ${r['ingreso']:.0f}, gastado ${r['total_gastado']:.0f}, "
+        f"disponible ${r['total_disponible']:.0f}."
+    ]
+    for s in r["sobres"].values():
+        lineas.append(
+            f"- {s['nombre'].title()} {s['pct']}%: ${s['gastado']:.0f} de ${s['presupuesto']:.0f}"
+        )
+    if r["chart"]:
+        lineas.append("Mayores destinos: " + ", ".join(f"{d['nombre']} ${d['monto']:.0f}" for d in r["chart"][:5]))
+    proximos = [v for v in listar_recurrentes(uid_i) if int(v.get("dia") or 0) >= hoy.day][:5]
+    if proximos:
+        lineas.append("Vencimientos que faltan: " + ", ".join(f"día {v['dia']} {v['titulo']} ${float(v['monto']):.0f}" for v in proximos))
+    return "\n".join(lineas)
+
+
+def _ctx_enfoque() -> str:
+    from app.db.agenda import obtener_lunes_semana
+    from app.db.deep_work import construir_resumen_semana, obtener_sesiones_semana
+
+    lunes = obtener_lunes_semana()
+    domingo = lunes + timedelta(days=6)
+    sesiones = obtener_sesiones_semana(lunes.isoformat(), domingo.isoformat())
+    return "Deep Work de esta semana:\n" + construir_resumen_semana(sesiones)
+
+
+def _ctx_ideas() -> str:
+    from app.db.sandbox import obtener_ideas
+
+    activas = [
+        i for i in obtener_ideas()
+        if i.get("estado") not in ("Completado", "Abandonado")
+    ][:10]
+    if not activas:
+        return "Ideas y proyectos: ninguno activo."
+    lineas = ["Ideas y proyectos activos:"]
+    for i in activas:
+        lineas.append(
+            f"- {i.get('titulo')} [{i.get('estado')}, prioridad {i.get('prioridad')}]"
+            + (f": {_trunc(str(i.get('descripcion') or ''), 120)}" if i.get("descripcion") else "")
+        )
+    return "\n".join(lineas)
+
+
 def responder(mensaje: str, flags: dict[str, bool], user_id: int | None = None) -> str:
     """Guarda el turno del usuario, llama a Groq y persiste la respuesta."""
     from app.ai_client import chat_con_historial
@@ -421,7 +467,7 @@ def responder(mensaje: str, flags: dict[str, bool], user_id: int | None = None) 
         system = (
             SYSTEM_ALMA
             + "\n\nEl usuario no autorizó categorías de datos. "
-            "No asumas hábitos, tareas, salud ni calendario."
+            "No asumas datos de ninguna sección."
         )
 
     prev = listar_mensajes(uid_i, limite=MAX_HISTORIAL_LLM + 2)

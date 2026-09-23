@@ -620,28 +620,12 @@ def test_sandbox_idea_snippet_sesion(web_client):
     assert b"print" in r.content
     assert b'class="snippet-card"' in r.content
 
-    r = web_client.post(
-        "/app/m/sandbox/sesion",
-        data={
-            "fecha": fecha,
-            "duracion": "45",
-            "satisfaccion": "8",
-            "dominio": "Programacion",
-            "tipo": "Codificando",
-            "proyecto_id": "",
-            "descripcion": "Port sandbox a HTMX",
-            "codigo": "",
-        },
-        follow_redirects=True,
-    )
+    # El tiempo de trabajo se registra en Deep Work; la IA vive en Alma.
+    r = web_client.get("/app/m/sandbox?tab=sesiones")
     assert r.status_code == 200
-    assert b"Port sandbox" in r.content or b"Codificando" in r.content
-    assert b"class=\"session-history\"" in r.content
-
-    r = web_client.get("/app/m/sandbox?tab=mentor")
-    assert r.status_code == 200
-    assert b"Mentor" in r.content
-    assert b'class="mentor-form"' in r.content
+    assert b'class="session-history"' not in r.content
+    assert b'class="mentor-form"' not in r.content
+    assert web_client.post("/app/m/sandbox/sesion", data={}).status_code in (404, 405)
 
 
 def test_usuarios_admin_crear_plan_backup(web_client):

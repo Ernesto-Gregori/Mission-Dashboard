@@ -7,14 +7,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.ai_client import api_key_configurada, chat_simple
+from app.ai_client import api_key_configurada
 from app.billing import PLAN_FREE, PLAN_PREMIUM, limites, plan_vigente, puede_google
 from app.database import (
-    SYSTEM_SALUD,
     TIPOS_EJERCICIO,
     ZONAS_LISTA,
     calcular_promedios,
-    construir_contexto_salud,
     guardar_registro_salud,
     obtener_registro_salud,
     obtener_registros_rango,
@@ -35,7 +33,7 @@ from web.routers.ejercicios import ejercicios_page_extras
 
 router = APIRouter(prefix="/app/m/salud", tags=["salud"])
 
-TABS = ("hoy", "ejercicios", "rutina", "historial", "coach")
+TABS = ("hoy", "ejercicios", "rutina", "historial")
 
 
 def _nav(user_id: int) -> list[dict]:
@@ -412,23 +410,3 @@ async def token_paste(request: Request, user: Annotated[dict, Depends(require_on
     if ok:
         return render(request, "modules/salud.html", **_ctx(request, user, flash=msg))
     return render(request, "modules/salud.html", **_ctx(request, user, error=msg))
-
-
-@router.post("/consejo")
-async def consejo_ia(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    request.session["salud_tab"] = "coach"
-    ctx = _ctx(request, user)
-    if not api_key_configurada():
-        ctx["error"] = "IA offline: configura GROQ_API_KEY."
-        return render(request, "modules/salud.html", **ctx)
-    registros = obtener_registros_rango(14)
-    stats = calcular_promedios(registros)
-    contexto = construir_contexto_salud(registros, stats)
-    prompt = (
-        "Dame un resumen breve de mi salud esta semana y 2 acciones concretas "
-        f"para mejorar energía y consistencia.\n\n{contexto}"
-    )
-    texto = chat_simple(prompt, contexto=SYSTEM_SALUD) or "Sin respuesta de la IA."
-    ctx["consejo"] = texto
-    ctx["tab"] = "coach"
-    return render(request, "modules/salud.html", **ctx)

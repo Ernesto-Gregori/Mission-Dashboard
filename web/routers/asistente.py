@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.ai_client import api_key_configurada
 from app.asistente import (
-    CATEGORIAS,
+    CATEGORIA_LABELS,
     borrar_historial,
     flags_desde_form,
     guardar_prefs,
@@ -52,7 +52,7 @@ def _ctx(
         "flash": flash,
         "error": error,
         "prefs": obtener_prefs(uid),
-        "categorias": CATEGORIAS,
+        "categorias": CATEGORIA_LABELS,
         "mensajes": listar_mensajes(uid),
         "ia_ok": api_key_configurada(),
     }

@@ -157,6 +157,62 @@ def test_asistente_contexto_opt_in(web_client, monkeypatch):
     assert "OracionTestAlma" in captured["sistemas"][-1]
 
 
+def test_asistente_lee_finanzas_enfoque_e_ideas(web_client, monkeypatch):
+    _onboard(web_client)
+    from app.timezone_config import hoy as _hoy
+
+    web_client.post("/app/coach/activar", data={"modulos": ["finanzas", "deep_work", "sandbox"]})
+    hoy = _hoy()
+    web_client.post(
+        "/app/m/finanzas/periodo",
+        data={"mes": str(hoy.month), "anio": str(hoy.year), "monto": "1000"},
+    )
+    web_client.post(
+        "/app/m/finanzas/gasto",
+        data={
+            "fecha": hoy.isoformat(),
+            "sobre": "Supervivencia",
+            "subcategoria": "Comida",
+            "descripcion": "SuperAlma",
+            "monto": "120",
+        },
+    )
+    web_client.post(
+        "/app/m/sandbox/idea",
+        data={"titulo": "IdeaParaAlma", "descripcion": "demo", "dominio": "Personal"},
+    )
+
+    captured: dict = {}
+
+    def fake_chat(mensaje, contexto="", historial=None, max_tokens=700):
+        captured["contexto"] = contexto
+        return "ok"
+
+    monkeypatch.setattr("app.ai_client.chat_con_historial", fake_chat)
+
+    r = web_client.get("/app/asistente")
+    for key in ("finanzas", "enfoque", "ideas"):
+        assert f'name="share_{key}"'.encode() in r.content
+
+    web_client.post(
+        "/app/asistente/mensaje",
+        data={
+            "mensaje": "¿Cómo voy?",
+            "share_finanzas": "1",
+            "share_enfoque": "1",
+            "share_ideas": "1",
+        },
+    )
+    ctx = captured["contexto"]
+    assert "reparto 3 sobres" in ctx
+    assert "Supervivencia 65%: $120 de $650" in ctx
+    assert "Deep Work de esta semana" in ctx
+    assert "IdeaParaAlma" in ctx
+
+    r = web_client.get("/app/asistente")
+    assert b'id="share-finanzas" type="checkbox" name="share_finanzas" value="1" checked' in r.content
+
+
 def test_asistente_mensaje_vacio(web_client):
     _onboard(web_client)
     r = web_client.post("/app/asistente/mensaje", data={"mensaje": "  "})

@@ -15,7 +15,6 @@
   <a class="{% if tab == 'dia' %}active{% endif %}" href="/app/m/deep_work?tab=dia&fecha={{ fecha }}"{% if tab == 'dia' %} aria-current="page"{% endif %}>📋 Mi día</a>
   <a class="{% if tab == 'semana' %}active{% endif %}" href="/app/m/deep_work?tab=semana&fecha={{ fecha }}"{% if tab == 'semana' %} aria-current="page"{% endif %}>📊 Semana</a>
   <a class="{% if tab == 'config' %}active{% endif %}" href="/app/m/deep_work?tab=config"{% if tab == 'config' %} aria-current="page"{% endif %}>⚙️ Config</a>
-  <a class="{% if tab == 'coach' %}active{% endif %}" href="/app/m/deep_work?tab=coach"{% if tab == 'coach' %} aria-current="page"{% endif %}>🤖 Coach</a>
 </nav>
 
 {% if tab == 'dia' %}
@@ -199,22 +198,4 @@
 </section>
 {% endif %}
 
-{% if tab == 'coach' %}
-<section>
-  <div class="card">
-    <h2>🤖 Coach Deep Work</h2>
-    <p class="muted">
-      Semana: {{ stats_semana.completados }}/{{ stats_semana.total }} completados
-      ({{ '%.0f'|format(stats_semana.tasa) }}%)
-    </p>
-    <form method="post" action="/app/m/deep_work/consejo">
-      <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>Analizar semana</button>
-      {% if not ia_ok %}<span class="muted"> Configura GROQ_API_KEY</span>{% endif %}
-    </form>
-    {% if consejo %}
-    <div class="coach-response">{{ consejo }}</div>
-    {% endif %}
-  </div>
-</section>
-{% endif %}
 {% endblock %}

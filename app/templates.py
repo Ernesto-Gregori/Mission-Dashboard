@@ -59,7 +59,7 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Sandbox",
         "emoji": "🧪",
         "page": "pages/07_Sandbox.py",
-        "descripcion": "Ideas, snippets y sesiones de experimentación.",
+        "descripcion": "Ideas, proyectos y snippets.",
         "para_quien": "Proyectos creativos, código o experimentos.",
         "prioridad": 5,
     },

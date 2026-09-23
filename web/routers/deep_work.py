@@ -7,17 +7,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.ai_client import api_key_configurada, chat_simple
 from app.billing import PLAN_FREE, limites, plan_vigente
 from app.database import (
     COLORES_DW,
     DIAS_LABELS_DW,
     DIAS_NOMBRES_DW,
     ESTADOS_SESION,
-    SYSTEM_COACH_DW,
     actualizar_bloque,
     bloques_para_fecha,
-    construir_resumen_semana,
     crear_bloque,
     desactivar_bloque,
     obtener_sesiones_semana,
@@ -34,7 +31,7 @@ from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app/m/deep_work", tags=["deep_work"])
 
-TABS = ("dia", "semana", "config", "coach")
+TABS = ("dia", "semana", "config")
 
 
 def _nav(user_id: int) -> list[dict]:
@@ -77,7 +74,6 @@ def _ctx(
     *,
     flash: str | None = None,
     error: str | None = None,
-    consejo: str | None = None,
 ):
     from datetime import date as _date
 
@@ -118,7 +114,6 @@ def _ctx(
         "tab": tab,
         "flash": flash,
         "error": error,
-        "consejo": consejo,
         "modulos_nav": _nav(int(user["id"])),
         "fecha": fecha,
         "dia_nombre": dia_nombre,
@@ -147,7 +142,6 @@ def _ctx(
         "colores": COLORES_DW,
         "color_labels": color_labels,
         "dias_nombres": list(enumerate(DIAS_NOMBRES_DW, start=1)),
-        "ia_ok": api_key_configurada(),
     }
 
 
@@ -313,23 +307,3 @@ def reactivate_bloque(
 ):
     reactivar_bloque(int(bloque_id))
     return _redirect("config")
-
-
-@router.post("/consejo")
-async def consejo_ia(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    request.session["dw_tab"] = "coach"
-    ctx = _ctx(request, user)
-    if not api_key_configurada():
-        ctx["error"] = "IA offline: configura GROQ_API_KEY."
-        return render(request, "modules/deep_work.html", **ctx)
-    resumen = construir_resumen_semana(
-        obtener_sesiones_semana(ctx["lunes"].isoformat(), ctx["domingo"].isoformat())
-    )
-    prompt = (
-        "Analiza mi semana de Deep Work y dame 2 acciones concretas "
-        f"para mejorar consistencia:\n{resumen}"
-    )
-    texto = chat_simple(prompt, contexto=SYSTEM_COACH_DW) or "Sin respuesta de la IA."
-    ctx["consejo"] = texto
-    ctx["tab"] = "coach"
-    return render(request, "modules/deep_work.html", **ctx)

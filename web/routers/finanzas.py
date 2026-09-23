@@ -8,7 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
-from app.ai_client import api_key_configurada, chat_simple
+from app.ai_client import api_key_configurada
 from app.database import (
     SOBRES_CONFIG,
     agregar_gasto_sobre,
@@ -50,12 +50,6 @@ from web.deps import render, require_onboarded
 router = APIRouter(prefix="/app/m/finanzas", tags=["finanzas"])
 
 MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-
-SYSTEM_FINANZAS = (
-    "Eres un asesor financiero cristiano. Usa el Sistema de 3 Sobres: "
-    "Supervivencia 65%, Futuro/Hogar 20%, Ministerio/Extras 15%. "
-    "Responde en español, práctico, máx 120 palabras."
-)
 
 SESSION_DRAFT_KEY = "finanzas_scan_draft"
 SESSION_MATCHES_KEY = "finanzas_last_matches"
@@ -136,8 +130,6 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "flash": flash,
         "error": error,
         "modulos_nav": _nav(int(user["id"])),
-        "ia_ok": api_key_configurada(),
-        "consejo": None,
         "vision_ok": api_key_configurada(),
         "price_matches": request.session.pop(SESSION_MATCHES_KEY, None),
         "finanzas_section": "sobres",
@@ -383,28 +375,6 @@ def del_gasto(
     mes, anio = _periodo(request)
     eliminar_gasto_sobre(int(gasto_id))
     return RedirectResponse(f"/app/m/finanzas?mes={mes}&anio={anio}", status_code=303)
-
-
-@router.post("/consejo")
-async def consejo_ia(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    ctx = _ctx(request, user)
-    if not api_key_configurada():
-        ctx["error"] = (
-            "Coach/IA offline: configura GROQ_API_KEY en el entorno "
-            "o en `.env` / variables de Railway."
-        )
-        return render(request, "modules/finanzas.html", **ctx)
-    resumen = ctx["resumen"]
-    mes, anio = ctx["mes"], ctx["anio"]
-    prompt = (
-        f"Mes {mes}/{anio}. Ingreso ${resumen.get('ingreso', 0):.0f}. "
-        f"Gastado ${resumen.get('total_gastado', 0):.0f}. "
-        f"Disponible ${resumen.get('total_disponible', 0):.0f}. "
-        "Dame un consejo breve para este mes."
-    )
-    texto = chat_simple(prompt, contexto=SYSTEM_FINANZAS) or "No hubo respuesta de la IA."
-    ctx["consejo"] = texto
-    return render(request, "modules/finanzas.html", **ctx)
 
 
 @router.post("/escanear", response_class=HTMLResponse)

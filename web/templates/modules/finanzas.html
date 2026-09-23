@@ -273,17 +273,4 @@
   {% endif %}
 </div>
 
-<div class="card">
-  <h2>💡 Consejo IA</h2>
-  {% if not ia_ok %}
-  <div class="flash-warn">
-    IA offline. Configura <code>GROQ_API_KEY</code> en Railway o en <code>.env</code>.
-  </div>
-  {% else %}
-  <form method="post" action="/app/m/finanzas/consejo">
-    <button class="btn secondary" type="submit">Pedir consejo del mes</button>
-  </form>
-  {% if consejo %}<p class="coach-response">{{ consejo }}</p>{% endif %}
-  {% endif %}
-</div>
 {% endblock %}
