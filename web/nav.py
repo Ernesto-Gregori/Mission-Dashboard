@@ -20,7 +20,7 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "always": True,
         "prefixes": (),
         "exact": ("/app",),
-        "also": ("/app/foco", "/app/ritual", "/app/rueda"),
+        "also": ("/app/foco", "/app/ritual"),
     },
     {
         "id": "guia",
@@ -34,7 +34,7 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "label": "Semana",
         "group": "Día",
         "always": True,
-        "prefixes": ("/app/planificador", "/app/m/agenda", "/app/m/deep_work"),
+        "prefixes": ("/app/planificador", "/app/m/agenda", "/app/m/deep_work", "/app/revision", "/app/rueda"),
         "modules": ("agenda", "deep_work"),
     },
     {
@@ -228,7 +228,6 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
                 "label": "Ritual",
                 "active": path.startswith("/app/ritual"),
             },
-            {"href": "/app/rueda", "label": "Rueda", "active": path.startswith("/app/rueda")},
         ]
     elif hub == "guia":
         tabs = [
@@ -246,24 +245,11 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
     elif hub == "semana":
         tabs = [
             {
-                "href": "/app/foco",
-                "label": "Foco",
-                "active": False,
-            },
-            {
                 "href": "/app/planificador",
                 "label": "Planificador",
                 "active": path.startswith("/app/planificador"),
             },
         ]
-        if "agenda" in activos:
-            tabs.append(
-                {
-                    "href": "/app/m/agenda?tab=bitacora",
-                    "label": "Bitácora",
-                    "active": path.startswith("/app/m/agenda"),
-                }
-            )
         if "deep_work" in activos:
             tabs.append(
                 {
@@ -272,6 +258,13 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
                     "active": path.startswith("/app/m/deep_work"),
                 }
             )
+        tabs.append(
+            {
+                "href": "/app/revision",
+                "label": "Revisión",
+                "active": path.startswith("/app/revision"),
+            }
+        )
     elif hub == "dinero":
         mes = request.query_params.get("mes") or request.session.get("fin_mes") or ""
         anio = request.query_params.get("anio") or request.session.get("fin_anio") or ""
@@ -338,7 +331,6 @@ def dashboard_hubs(user: dict) -> list[dict]:
         "hoy": [
             {"label": "Foco del día", "href": "/app/foco"},
             {"label": "Ritual", "href": "/app/ritual"},
-            {"label": "Rueda", "href": "/app/rueda"},
         ],
         "guia": [
             {"label": "Alma", "href": "/app/asistente"},
@@ -346,6 +338,7 @@ def dashboard_hubs(user: dict) -> list[dict]:
         ],
         "semana": [
             {"label": "Planificador", "href": "/app/planificador"},
+            {"label": "Revisión", "href": "/app/revision"},
         ],
         "dinero": [],
         "hogar": [],
@@ -358,8 +351,6 @@ def dashboard_hubs(user: dict) -> list[dict]:
             {"label": "Planes", "href": "/app/billing"},
         ],
     }
-    if "agenda" in activos:
-        children["semana"].append({"label": "Bitácora", "href": "/app/m/agenda?tab=bitacora", "clave": "agenda"})
     if "deep_work" in activos:
         children["semana"].append({"label": "Enfoque", "href": "/app/m/deep_work", "clave": "deep_work"})
     if "finanzas" in activos:
@@ -401,7 +392,7 @@ def dashboard_hubs(user: dict) -> list[dict]:
 
 _HUB_BLURB = {
     "guia": "Alma para el día a día; el Coach arma el sistema.",
-    "semana": "Calendario, bitácora y bloques de enfoque en un solo lugar.",
+    "semana": "Planificar la semana, bloques de enfoque y revisión del domingo.",
     "dinero": "Ingreso repartido en sobres, vencimientos y precios.",
     "hogar": "Pareja y comparativa familiar.",
     "cuerpo": "Sueño, ejercicio y energía.",

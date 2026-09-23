@@ -44,6 +44,7 @@ from web.routers import presupuesto as presupuesto_router
 from web.routers import familia as familia_router
 from web.routers import ritual as ritual_router
 from web.routers import rueda as rueda_router
+from web.routers import revision as revision_router
 from web.routers import tema as tema_router
 from web.routers import agenda as agenda_router
 from web.routers import finanzas as finanzas_router
@@ -105,6 +106,7 @@ def create_app() -> FastAPI:
     app.include_router(familia_router.router)
     app.include_router(ritual_router.router)
     app.include_router(rueda_router.router)
+    app.include_router(revision_router.router)
     app.include_router(tema_router.router)
     app.include_router(agenda_router.router)  # antes del catch-all /m/{clave}
     app.include_router(finanzas_router.router)  # antes del catch-all /m/{clave}

@@ -8,10 +8,10 @@ from __future__ import annotations
 # Clave = id estable en user_modulos.modulo
 MODULE_TEMPLATES: dict[str, dict] = {
     "agenda": {
-        "nombre": "Agenda & Bitácora",
-        "emoji": "📅",
+        "nombre": "Revisión semanal",
+        "emoji": "📋",
         "page": "pages/01_Agenda.py",
-        "descripcion": "Calendario semanal, bitácora y rachas.",
+        "descripcion": "Bitácora de la semana (victorias y reflexión) con tus datos ya calculados.",
         "para_quien": "Quien quiere ordenar la semana y revisar avances.",
         "prioridad": 1,
     },

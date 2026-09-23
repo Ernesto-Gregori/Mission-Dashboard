@@ -16,11 +16,7 @@ from app.billing import (
     resumen_plan_ui,
     payments_configured,
 )
-from app.coach_insights import (
-    generar_briefing,
-    resumen_cuota_briefing,
-    ultimo_briefing,
-)
+from app.coach_insights import generar_briefing
 from app.onboarding import (
     aplicar_habitos_sugeridos,
     aplicar_modulos,
@@ -85,7 +81,7 @@ def coach_home(request: Request, user: Annotated[dict, Depends(require_user)]):
     done = usuario_onboarding_completo(uid)
     force = request.query_params.get("reconfig") == "1"
 
-    # Ya onboarded y no pidió reconfig → resumen + briefing cruzado
+    # Ya onboarded y no pidió reconfig → resumen del sistema
     if done and not force and not request.session.get("coach_reconfig"):
         return _render_status(request, user, plan, error=None)
 
@@ -174,8 +170,6 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
     uid = int(user["id"])
     activos = sorted(modulos_activos(uid))
     bloqueados = [k for k in MODULE_TEMPLATES if k not in activos]
-    briefing = ultimo_briefing(uid)
-    flash = request.session.pop("coach_briefing_flash", None)
     return render(
         request,
         "coach/status.html",
@@ -191,9 +185,6 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
         modulos_nav=_nav(uid),
         tope=modulos_max(plan),
         error=error,
-        briefing=briefing,
-        briefing_cuota=resumen_cuota_briefing(uid, plan),
-        briefing_flash=flash,
     )
 
 
@@ -208,7 +199,7 @@ def coach_briefing_generate(request: Request, user: Annotated[dict, Depends(requ
         "ok": ok,
         "message": msg,
     }
-    return RedirectResponse("/app/coach", status_code=303)
+    return RedirectResponse("/app/revision#briefing", status_code=303)
 
 
 def _render_sugerencia(request: Request, user: dict, sug: dict, plan: str):

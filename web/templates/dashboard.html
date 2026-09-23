@@ -24,7 +24,7 @@
 <section class="briefing-block">
   <h2>Del Coach</h2>
   <p><strong>{{ insight_destacado.titulo }}</strong> — {{ insight_destacado.cuerpo }}</p>
-  <a href="/app/coach">Ver briefing completo →</a>
+  <a href="/app/revision#briefing">Ver briefing completo →</a>
 </section>
 {% endif %}
 
@@ -96,19 +96,6 @@
     </form>
   </section>
 </div>
-
-<section class="hoy-panel rueda-hoy" aria-labelledby="rueda-hoy-title">
-  <div class="section-heading">
-    <h2 id="rueda-hoy-title">Rueda de la vida</h2>
-    <a href="/app/rueda">Ajustar</a>
-  </div>
-  <p class="muted">Promedio {{ geo.promedio }} / 10</p>
-  <ul class="rueda-legend rueda-hoy-legend" aria-label="Puntuaciones">
-    {% for a in geo.areas %}
-    <li>{{ a.emoji }} {{ a.nombre }} · {{ a.valor }}</li>
-    {% endfor %}
-  </ul>
-</section>
 
 <section class="dashboard-section" aria-labelledby="modules-title">
   <div class="section-heading">

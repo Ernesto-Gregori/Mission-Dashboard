@@ -123,7 +123,7 @@ def test_dashboard_joins_daily_surfaces(web_client):
     assert b"id=\"ritual-gratitud\"" in body
     assert b"id=\"ritual-intencion\"" in body
     assert b"Foco" in body or b"Hoy" in body
-    assert b"Rueda" in body or b"rueda" in body
+    assert b"rueda-hoy" not in body
     assert b"hub-tabs" in body or b"data-hub=\"hoy\"" in body
     assert b"class=\"module-card" in body
     assert b"Dinero" in body
@@ -141,7 +141,7 @@ def test_guia_tabs_connect_alma_and_coach(web_client):
 
     r = web_client.get("/app/coach")
     assert r.status_code == 200
-    assert b"Briefing cruzado" in r.content
+    assert b"Briefing cruzado" not in r.content
     assert b'href="/app/asistente"' in r.content
 
 
@@ -155,14 +155,14 @@ def test_dinero_tabs_mes_vencimientos_precios(web_client):
     assert b"/app/presupuesto" not in r.content
 
 
-def test_semana_hub_links_planificador_agenda_enfoque(web_client):
+def test_semana_hub_links_planificador_enfoque_revision(web_client):
     _onboard(web_client, "week_user", mods=["agenda", "deep_work"])
     r = web_client.get("/app/planificador")
     assert r.status_code == 200
     assert b'href="/app/planificador"' in r.content
-    assert b'href="/app/m/agenda' in r.content
+    assert b'href="/app/revision"' in r.content
     assert b'href="/app/m/deep_work' in r.content
-    assert b'href="/app/foco"' in r.content
+    assert b'href="/app/m/agenda' not in r.content
 
 
 def test_hogar_tabs_for_admin(web_client):

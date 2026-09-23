@@ -10,7 +10,6 @@ from app.calendar_sync import items_foco
 from app.coach_insights import ultimo_briefing
 from app.onboarding import listar_modulos_usuario
 from app.ritual import habitos_hoy, listar_habitos, obtener_ritual
-from app.rueda import geometria, obtener_scores
 from app.templates import MODULE_TEMPLATES
 from web.checkout_flash import consume_checkout_query, pop_checkout_flash
 from web.deps import require_onboarded, render
@@ -50,8 +49,6 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
     ritual = obtener_ritual(uid)
     hechos = habitos_hoy(uid)
     habitos = [{**h, "hecho": bool(hechos.get(h["clave"]))} for h in listar_habitos(uid)]
-    scores = obtener_scores(uid)
-    geo = geometria(scores)
     try:
         foco_items = items_foco(user_id=uid)[:8]
     except Exception:
@@ -75,7 +72,6 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         insight_destacado=insight_destacado,
         ritual=ritual,
         habitos=habitos,
-        geo=geo,
         foco_items=foco_items,
         life_hubs=dashboard_hubs(user),
     )
