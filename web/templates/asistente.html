@@ -15,22 +15,12 @@
     <h2 id="alma-share-title">Qué puede leer Alma</h2>
     <p class="muted">Por defecto, nada. Cada categoría es un permiso explícito.</p>
     <form method="post" action="/app/asistente/permisos">
-      <label class="check-row" for="share-habitos">
-        <input id="share-habitos" type="checkbox" name="share_habitos" value="1" {% if prefs.habitos %}checked{% endif %} />
-        Hábitos recientes
+      {% for key, labels in categorias.items() %}
+      <label class="check-row" for="share-{{ key }}">
+        <input id="share-{{ key }}" type="checkbox" name="share_{{ key }}" value="1" {% if prefs[key] %}checked{% endif %} />
+        {{ labels[0] }}
       </label>
-      <label class="check-row" for="share-tareas">
-        <input id="share-tareas" type="checkbox" name="share_tareas" value="1" {% if prefs.tareas %}checked{% endif %} />
-        Tareas pendientes
-      </label>
-      <label class="check-row" for="share-salud">
-        <input id="share-salud" type="checkbox" name="share_salud" value="1" {% if prefs.salud %}checked{% endif %} />
-        Resumen de salud
-      </label>
-      <label class="check-row" for="share-calendario">
-        <input id="share-calendario" type="checkbox" name="share_calendario" value="1" {% if prefs.calendario %}checked{% endif %} />
-        Calendario de la semana
-      </label>
+      {% endfor %}
       <div class="form-actions">
         <button class="btn secondary" type="submit">Guardar permisos</button>
       </div>
@@ -52,11 +42,11 @@
 
     <div class="alma-thread" role="log" aria-live="polite">
       {% if not mensajes %}
-      <p class="muted empty-state">Hola, soy Alma. Contame qué necesitás hoy. Si querés que mire hábitos, tareas, salud o el calendario, marcá las casillas de la izquierda.</p>
+      <p class="muted empty-state">Hola, soy Alma. Contame qué necesitás hoy. Si querés que mire tus hábitos, finanzas, salud, calendario o proyectos, marcá las casillas de la izquierda.</p>
       {% else %}
         {% for m in mensajes %}
         <article class="alma-bubble alma-{{ m.rol }}">
-          <p class="alma-meta">{% if m.rol == 'user' %}Vos{% else %}Alma{% endif %}{% if m.categorias %} · {{ m.categorias|join(', ') }}{% endif %}</p>
+          <p class="alma-meta">{% if m.rol == 'user' %}Vos{% else %}Alma{% endif %}{% if m.categorias %} · {% for c in m.categorias %}{{ categorias[c][1] }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</p>
           <p class="alma-body">{{ m.contenido }}</p>
         </article>
         {% endfor %}
@@ -68,22 +58,12 @@
       <textarea id="alma-mensaje" name="mensaje" rows="3" required maxlength="2000" placeholder="Ej: ¿Qué me conviene priorizar esta tarde?"></textarea>
       <fieldset class="alma-compose-share">
         <legend class="sr-only">Permisos de este mensaje</legend>
-        <label class="check-row" for="msg-habitos">
-          <input id="msg-habitos" type="checkbox" name="share_habitos" value="1" {% if prefs.habitos %}checked{% endif %} />
-          Hábitos
+        {% for key, labels in categorias.items() %}
+        <label class="check-row" for="msg-{{ key }}">
+          <input id="msg-{{ key }}" type="checkbox" name="share_{{ key }}" value="1" {% if prefs[key] %}checked{% endif %} />
+          {{ labels[1] }}
         </label>
-        <label class="check-row" for="msg-tareas">
-          <input id="msg-tareas" type="checkbox" name="share_tareas" value="1" {% if prefs.tareas %}checked{% endif %} />
-          Tareas
-        </label>
-        <label class="check-row" for="msg-salud">
-          <input id="msg-salud" type="checkbox" name="share_salud" value="1" {% if prefs.salud %}checked{% endif %} />
-          Salud
-        </label>
-        <label class="check-row" for="msg-calendario">
-          <input id="msg-calendario" type="checkbox" name="share_calendario" value="1" {% if prefs.calendario %}checked{% endif %} />
-          Calendario
-        </label>
+        {% endfor %}
       </fieldset>
       <div class="form-actions">
         <button class="btn" type="submit">Enviar a Alma</button>

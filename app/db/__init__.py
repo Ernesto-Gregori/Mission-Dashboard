@@ -18,9 +18,7 @@ from app.db.finanzas import (
     obtener_gastos_sobre,
     actualizar_gasto_sobre,
     eliminar_gasto_sobre,
-    _calcular_sobres_uncached,
     obtener_tipos_bloque,
-    calcular_sobres,
 )
 from app.db.usuarios import (
     _hash_password,
@@ -51,9 +49,7 @@ __all__ = [
     "obtener_gastos_sobre",
     "actualizar_gasto_sobre",
     "eliminar_gasto_sobre",
-    "_calcular_sobres_uncached",
     "obtener_tipos_bloque",
-    "calcular_sobres",
     "_hash_password",
     "verificar_password",
     "contar_usuarios",

@@ -115,27 +115,6 @@ EMOJIS_LANG = {
     "Otro": "🔧",
 }
 
-TIPOS_SESION = [
-    "Investigando",
-    "Codificando",
-    "Estudiando",
-    "Planificando",
-    "Leyendo",
-    "Reflexionando",
-    "Prototipando",
-    "Documentando",
-]
-
-SYSTEM_MENTOR = """Eres un mentor versátil y sabio para un estudiante cristiano de teología
-que también programa. Puedes orientar en:
-- Programación (Python, web, scripts, IA)
-- Estudio académico (teología, hermenéutica, investigación)
-- Vida personal (hábitos, metas, disciplina)
-- Familia y matrimonio (comunicación, planes, relaciones)
-- Ministerio (predicación, discipulado, servicio)
-- Trabajo y proyectos (planificación, ejecución)
-Eres práctico, alentador y sabio. Máximo 150 palabras por respuesta."""
-
 
 def parsear_lista(valor) -> list:
     if not valor:
@@ -416,53 +395,3 @@ def incrementar_uso(snip_id: int) -> None:
     invalidate_data_caches()
 
 
-def guardar_sesion(
-    fecha,
-    duracion: int,
-    tipo: str,
-    dominio: str,
-    proyecto_id,
-    descripcion: str,
-    codigo: str,
-    satisfaccion: int,
-) -> int:
-    fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
-    rid = ejecutar(
-        """
-        INSERT INTO sandbox_sesiones
-            (user_id, fecha, duracion_minutos, tipo_actividad, dominio,
-             proyecto_id, descripcion, codigo_producido, satisfaccion)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        [
-            uid(),
-            fecha_iso,
-            int(duracion),
-            str(tipo),
-            str(dominio),
-            int(proyecto_id) if proyecto_id not in (None, "", 0, "0") else None,
-            str(descripcion or ""),
-            str(codigo or "") or None,
-            int(satisfaccion),
-        ],
-    )
-    invalidate_data_caches()
-    return rid
-
-
-def obtener_sesiones_recientes(limite: int = 10) -> list:
-    return (
-        ejecutar_cached(
-            """
-            SELECT ss.*, si.titulo as proyecto_titulo
-            FROM sandbox_sesiones ss
-            LEFT JOIN sandbox_ideas si
-              ON ss.proyecto_id = si.id AND si.user_id = ss.user_id
-            WHERE ss.user_id = ?
-            ORDER BY ss.fecha DESC, ss.creado_en DESC
-            LIMIT ?
-            """,
-            (uid(), int(limite)),
-        )
-        or []
-    )

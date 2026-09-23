@@ -18,7 +18,6 @@ SOBRES_CONFIG = {
         'emoji': '🔴',
         'descripcion': 'Gastos fijos + necesidades básicas',
         'color': '#f85149',
-        'pct': 0.65,
         'subcategorias': [
             'Tarjeta_MSI',
             'Deuda_Fija',
@@ -33,7 +32,6 @@ SOBRES_CONFIG = {
         'emoji': '🟢',
         'descripcion': 'Ahorro sagrado — no tocar',
         'color': '#3fb950',
-        'pct': 0.20,
         'subcategorias': [
             'Ahorro_Emergencia',
             'Fondo_Renta',
@@ -45,7 +43,6 @@ SOBRES_CONFIG = {
         'emoji': '🔵',
         'descripcion': 'Libros, citas, ofrendas',
         'color': '#58a6ff',
-        'pct': 0.15,
         'subcategorias': [
             'Libros_Cursos',
             'Cita_Esposa',

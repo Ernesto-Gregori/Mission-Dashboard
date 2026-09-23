@@ -1,0 +1,161 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Revisión semanal</h1>
+    <p class="muted">Semana {{ semana.lunes.strftime('%d/%m') }} — {{ semana.domingo.strftime('%d/%m/%Y') }}</p>
+  </div>
+  <form class="date-picker-row" method="post" action="/app/revision/semana">
+    <label for="revision-week">Semana del</label>
+    <input id="revision-week" name="fecha" type="date" value="{{ semana.lunes.isoformat() }}" />
+    <button class="btn secondary" type="submit">Ir</button>
+  </form>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<section class="card" aria-labelledby="numeros-title">
+  <h2 id="numeros-title">La semana en números</h2>
+  <p class="muted compact-copy">Se calcula de tus registros; se corrige en su sección, no acá.</p>
+  <dl class="finance-metrics">
+    <div><dt>✝️ Devocionales</dt><dd>{{ semana.devocionales }}/7</dd></div>
+    <div><dt>⏱️ Deep Work</dt><dd>{{ semana.dw_completados }}/{{ semana.dw_total }}</dd></div>
+    <div><dt>💪 Días con ejercicio</dt><dd>{{ semana.ejercicios }}</dd></div>
+    <div><dt>⚡ Energía (mañana)</dt><dd>{% if semana.energia is not none %}{{ semana.energia }}/10{% else %}—{% endif %}</dd></div>
+  </dl>
+  <h3>💰 Sobres de {{ semana.mes_label }}</h3>
+  {% if semana.sin_ingreso %}
+  <p class="muted">Sin ingreso cargado para el mes. <a href="/app/m/finanzas">Cargarlo en Finanzas</a></p>
+  {% else %}
+  <ul class="agenda-ev-list">
+    {% for s in semana.sobres %}
+    <li><span aria-label="{{ s.semaforo or 'sin dato' }}">{{ s.icono }}</span> {{ s.nombre|capitalize }} · ${{ '%.0f'|format(s.gastado) }} / ${{ '%.0f'|format(s.presupuesto) }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <h3>📚 Lectura</h3>
+  {% if semana.libro %}
+  <p>{{ semana.libro.titulo }}{% if semana.libro.autor %} — {{ semana.libro.autor }}{% endif %} · pág. {{ semana.libro.pagina_actual or 0 }}{% if semana.libro.total_paginas %}/{{ semana.libro.total_paginas }}{% endif %}</p>
+  {% else %}
+  <p class="muted">Ningún libro en lectura.</p>
+  {% endif %}
+  <h3>💑 Citas</h3>
+  {% if semana.citas %}
+  <ul class="agenda-ev-list">
+    {% for c in semana.citas %}
+    <li>{{ c.fecha }} · {{ c.titulo }}{% if c.estado_planificacion %} <span class="badge">{{ c.estado_planificacion }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Sin citas esta semana.</p>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="bitacora-title">
+  <h2 id="bitacora-title">Bitácora</h2>
+  {% if not bitacora_activa %}
+  <p class="muted">Activa el módulo Revisión semanal desde el <a href="/app/coach">Coach</a> para escribir tu bitácora.</p>
+  {% else %}
+  <form method="post" action="/app/revision/bitacora">
+    <input type="hidden" name="semana_inicio" value="{{ semana.lunes.isoformat() }}" />
+    <section class="journal-section">
+      <h3>🏆 3 victorias</h3>
+      <div class="agenda-form-grid cols-3">
+        <div><label for="journal-victory-1">Victoria 1</label><textarea id="journal-victory-1" name="victoria_1" rows="3">{{ bit.victoria_1 }}</textarea></div>
+        <div><label for="journal-victory-2">Victoria 2</label><textarea id="journal-victory-2" name="victoria_2" rows="3">{{ bit.victoria_2 }}</textarea></div>
+        <div><label for="journal-victory-3">Victoria 3</label><textarea id="journal-victory-3" name="victoria_3" rows="3">{{ bit.victoria_3 }}</textarea></div>
+      </div>
+    </section>
+    <section class="journal-section">
+      <h3>🌙 Vaciado mental</h3>
+      <div class="agenda-form-grid cols-2">
+        <div><label for="journal-release">Pendientes a soltar</label><textarea id="journal-release" name="pendientes_soltar" rows="4">{{ bit.pendientes_soltar }}</textarea></div>
+        <div><label for="journal-reflection">Reflexión</label><textarea id="journal-reflection" name="reflexion_semana" rows="4">{{ bit.reflexion_semana }}</textarea></div>
+        <div class="field-wide"><label for="journal-quote">Frase de la semana</label><textarea id="journal-quote" name="frase_favorita" rows="2">{{ bit.frase_favorita }}</textarea></div>
+      </div>
+    </section>
+    <div class="form-actions">
+      <button class="btn" type="submit">Guardar bitácora</button>
+    </div>
+  </form>
+  {% if historial %}
+  <h3>Semanas anteriores</h3>
+  <ul class="agenda-ev-list">
+    {% for b in historial %}
+    <li><a href="/app/revision?semana={{ b.semana_inicio }}">{{ b.semana_inicio }}</a>{% if b.victoria_1 %} · {{ b.victoria_1[:60] }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% endif %}
+</section>
+
+<section class="rueda-layout" id="rueda" aria-labelledby="rueda-svg-title">
+  <div class="card rueda-visual">
+    <h2 id="rueda-svg-title">Rueda de la vida · {{ geo.promedio }} / 10</h2>
+    <svg class="rueda-svg" viewBox="0 0 {{ geo.size }} {{ geo.size }}" role="img" aria-label="Rueda de la vida con ocho áreas">
+      <title>Rueda de la vida</title>
+      {% for anillo in geo.anillos %}
+      <polygon class="rueda-ring" points="{{ anillo }}"></polygon>
+      {% endfor %}
+      {% for e in geo.ejes %}
+      <line class="rueda-axis" x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}"></line>
+      {% endfor %}
+      <polygon class="rueda-fill" points="{{ geo.poligono }}"></polygon>
+      {% for lb in geo.labels %}
+      <text class="rueda-label" x="{{ lb.x }}" y="{{ lb.y }}" text-anchor="middle" dominant-baseline="middle">{{ lb.emoji }}</text>
+      {% endfor %}
+    </svg>
+  </div>
+  <form class="card rueda-form" method="post" action="/app/rueda">
+    <h2>Puntuación (0–10)</h2>
+    {% for key, nombre, emoji in areas %}
+    <div class="rueda-field">
+      <label for="rueda-{{ key }}">{{ emoji }} {{ nombre }}</label>
+      <input id="rueda-{{ key }}" name="{{ key }}" type="number" min="0" max="10" step="1" value="{{ scores[key] }}" required />
+    </div>
+    {% endfor %}
+    <div class="form-actions">
+      <button class="btn" type="submit">Guardar rueda</button>
+    </div>
+  </form>
+</section>
+
+<section class="briefing-block" id="briefing" aria-labelledby="briefing-title">
+  <h2 id="briefing-title">Briefing cruzado</h2>
+  {% if briefing_flash %}
+  <div class="{% if briefing_flash.ok %}flash-ok{% else %}flash-warn{% endif %}">{{ briefing_flash.message }}</div>
+  {% endif %}
+  <p class="muted">
+    Una lectura de tus módulos juntos.
+    {% if briefing_cuota and briefing_cuota.limite is not none %}
+    Cupo esta semana: {{ briefing_cuota.usados }}/{{ briefing_cuota.limite }}.
+    {% else %}
+    Cupo esta semana: ilimitado.
+    {% endif %}
+  </p>
+  {% if briefing and briefing.insights %}
+  <ul class="insight-list">
+    {% for item in briefing.insights %}
+    <li class="insight-item">
+      <strong>{{ item.titulo }}</strong>
+      <p>{{ item.cuerpo }}</p>
+      {% if item.modulos %}<p class="muted insight-mods">{{ item.modulos | join(" · ") }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted compact-copy">Generado {{ briefing.created_at }} · ventana {{ briefing.period_days }} días</p>
+  {% else %}
+  <p class="muted">Aún no hay briefing. Genera el primero cuando tengas unos días de registros.</p>
+  {% endif %}
+  {% if briefing_cuota and briefing_cuota.ok %}
+  <form method="post" action="/app/coach/briefing">
+    <button class="btn" type="submit">{% if briefing %}Actualizar briefing{% else %}Generar briefing{% endif %}</button>
+  </form>
+  {% else %}
+  <p class="muted">Cupo de briefings agotado esta semana.
+    {% if plan == 'free' %}<a href="/app/billing">Premium permite uno al día</a>.{% endif %}
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

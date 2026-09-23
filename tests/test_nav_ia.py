@@ -79,7 +79,7 @@ def test_sidebar_uses_hubs_not_page_dump(web_client):
     hrefs = _link_hrefs(side)
 
     assert "Hoy" in side
-    assert "Guía" in side
+    assert "Alma" in side
     assert "Semana" in side
     assert "Dinero" in side
     assert "Cuenta" in side
@@ -92,7 +92,8 @@ def test_sidebar_uses_hubs_not_page_dump(web_client):
     assert "/app/presupuesto" not in hrefs
     assert "/app/familia" not in hrefs
     assert "/app/billing" not in hrefs
-    assert "/app/coach" not in hrefs
+    assert "/app/usuarios" not in hrefs
+    assert "/app/coach" in hrefs
     assert "/app/m/agenda" not in hrefs
     assert "/app/m/finanzas" in hrefs or any(h.startswith("/app/m/finanzas") for h in hrefs)
 
@@ -123,14 +124,14 @@ def test_dashboard_joins_daily_surfaces(web_client):
     assert b"id=\"ritual-gratitud\"" in body
     assert b"id=\"ritual-intencion\"" in body
     assert b"Foco" in body or b"Hoy" in body
-    assert b"Rueda" in body or b"rueda" in body
+    assert b"rueda-hoy" not in body
     assert b"hub-tabs" in body or b"data-hub=\"hoy\"" in body
     assert b"class=\"module-card" in body
     assert b"Dinero" in body
     assert b"Semana" in body
 
 
-def test_guia_tabs_connect_alma_and_coach(web_client):
+def test_alma_y_mi_sistema_separados(web_client):
     _onboard(web_client)
     r = web_client.get("/app/asistente")
     assert r.status_code == 200
@@ -141,39 +142,41 @@ def test_guia_tabs_connect_alma_and_coach(web_client):
 
     r = web_client.get("/app/coach")
     assert r.status_code == 200
-    assert b"Briefing cruzado" in r.content
+    assert b"Briefing cruzado" not in r.content
     assert b'href="/app/asistente"' in r.content
 
 
-def test_dinero_tab_shows_presupuesto_inside_finanzas(web_client):
+def test_dinero_tabs_mes_vencimientos_precios(web_client):
     _onboard(web_client)
-    r = web_client.get("/app/m/finanzas?tab=presupuesto")
+    r = web_client.get("/app/m/finanzas")
     assert r.status_code == 200
-    assert b"50/30/20" in r.content or b"50 / 30 / 20" in r.content
-    assert b"Necesidades" in r.content
-    assert b'for="pct-necesidades"' in r.content
-    assert b'href="/app/presupuesto"' in r.content or b"tab=presupuesto" in r.content
-    assert b"Sobres" in r.content or b"sobres" in r.content.lower()
+    assert b'href="/app/m/finanzas/vencimientos' in r.content
+    assert b'href="/app/m/finanzas/precios' in r.content
+    assert b"Reparto del ingreso" in r.content
+    assert b"/app/presupuesto" not in r.content
 
 
-def test_semana_hub_links_planificador_agenda_enfoque(web_client):
+def test_semana_hub_links_planificador_enfoque_revision(web_client):
     _onboard(web_client, "week_user", mods=["agenda", "deep_work"])
     r = web_client.get("/app/planificador")
     assert r.status_code == 200
     assert b'href="/app/planificador"' in r.content
-    assert b'href="/app/m/agenda' in r.content
+    assert b'href="/app/revision"' in r.content
     assert b'href="/app/m/deep_work' in r.content
-    assert b'href="/app/foco"' in r.content
+    assert b'href="/app/m/agenda' not in r.content
 
 
-def test_hogar_tabs_for_admin(web_client):
+def test_familia_vive_en_cuenta_admin(web_client):
     _onboard(web_client)
     r = web_client.get("/app/m/matrimonio")
     assert r.status_code == 200
-    assert b'href="/app/familia"' in r.content
+    assert b'href="/app/familia"' not in r.content
+    assert b'data-hub="pareja"' in r.content
     r = web_client.get("/app/familia")
     assert r.status_code == 200
-    assert b'href="/app/m/matrimonio"' in r.content
+    assert b'href="/app/coach"' in r.content
+    assert b'href="/app/billing"' in r.content
+    assert b'href="/app/familia"' in r.content
 
 
 def test_cuenta_hub_covers_billing(web_client):
@@ -182,6 +185,8 @@ def test_cuenta_hub_covers_billing(web_client):
     assert r.status_code == 200
     side = _sidebar(r.content)
     hrefs = _link_hrefs(side)
-    assert "/app/usuarios" in hrefs
+    assert "/app/coach" in hrefs
     assert "/app/billing" not in hrefs
     assert b'href="/app/billing"' in r.content
+    assert b"Plan y cobros" in r.content
+    assert b"tab=plan" not in r.content

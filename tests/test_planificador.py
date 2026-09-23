@@ -215,3 +215,50 @@ def test_planificador_vista_dia_y_mover(web_client):
     assert r.status_code == 200
     assert b"14:00" in r.content
     assert b"MoverTest" in r.content
+
+
+def test_bloques_deep_work_en_planificador_y_hoy(web_client):
+    _onboard(web_client, "dw_plan_user")
+    web_client.post("/app/coach/activar", data={"modulos": ["agenda", "deep_work"]})
+    r = web_client.post(
+        "/app/m/deep_work/bloque",
+        data={
+            "nombre": "BloqueEnfoqueTest",
+            "hora_inicio": "07:00",
+            "hora_fin": "08:30",
+            "dias": ["1", "2", "3", "4", "5", "6", "7"],
+            "tipo": "Deep Work",
+            "color": "Azul",
+        },
+    )
+    assert r.status_code in (200, 303)
+
+    r = web_client.get("/app/planificador?vista=semana&w=0")
+    assert r.status_code == 200
+    body = r.content.decode()
+    assert body.count("BloqueEnfoqueTest") == 7
+    assert "origen-enfoque" in body
+    # Los bloques se editan en Enfoque: no se arrastran ni borran desde el calendario.
+    assert 'data-event-id="None"' not in body
+
+    r = web_client.get("/app")
+    assert "BloqueEnfoqueTest" in r.content.decode()
+    assert "chip-dw" in r.content.decode()
+
+    from app.database import autenticar_usuario
+    from app.db.deep_work import bloques_en_rango
+    from app.tenant import as_user
+    from app.timezone_config import hoy as _hoy
+
+    user = autenticar_usuario("dw_plan_user", "password1")
+    with as_user(user):
+        bloque_id = bloques_en_rango(_hoy(), _hoy())[0]["id"]
+    web_client.post(
+        "/app/m/deep_work/sesion",
+        data={"fecha": _hoy().isoformat(), "bloque_id": str(bloque_id), "estado": "Completado"},
+    )
+    with as_user(user):
+        semana = bloques_en_rango(_hoy() - timedelta(days=3), _hoy() + timedelta(days=3))
+    assert len(semana) == 7
+    assert [b["estado"] for b in semana if b["fecha"] == _hoy().isoformat()] == ["Completado"]
+    assert "BloqueEnfoqueTest ✓" in web_client.get("/app").content.decode()

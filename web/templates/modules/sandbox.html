@@ -4,7 +4,7 @@
   <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
   <div>
     <h1>{{ meta.nombre }}</h1>
-    <p class="muted">Ideas · snippets · sesiones · mentor IA</p>
+    <p class="muted">Ideas y snippets</p>
   </div>
 </header>
 
@@ -21,8 +21,6 @@
   <a class="{% if tab == 'ideas' %}active{% endif %}" href="/app/m/sandbox?tab=ideas"{% if tab == 'ideas' %} aria-current="page"{% endif %}>💡 Ideas</a>
   <a class="{% if tab == 'nueva' %}active{% endif %}" href="/app/m/sandbox?tab=nueva"{% if tab == 'nueva' %} aria-current="page"{% endif %}>➕ Nueva</a>
   <a class="{% if tab == 'snippets' %}active{% endif %}" href="/app/m/sandbox?tab=snippets"{% if tab == 'snippets' %} aria-current="page"{% endif %}>🧩 Snippets</a>
-  <a class="{% if tab == 'sesiones' %}active{% endif %}" href="/app/m/sandbox?tab=sesiones"{% if tab == 'sesiones' %} aria-current="page"{% endif %}>⏱️ Sesiones</a>
-  <a class="{% if tab == 'mentor' %}active{% endif %}" href="/app/m/sandbox?tab=mentor"{% if tab == 'mentor' %} aria-current="page"{% endif %}>🤖 Mentor</a>
 </nav>
 
 {% if tab == 'ideas' %}
@@ -246,136 +244,4 @@
 </section>
 {% endif %}
 
-{% if tab == 'sesiones' %}
-<section>
-  <div class="card">
-    <h2>Registrar sesión</h2>
-    <form class="sandbox-session-form" method="post" action="/app/m/sandbox/sesion">
-      <div class="sandbox-form-grid cols-3">
-        <div>
-          <label for="session-date">Fecha</label>
-          <input id="session-date" name="fecha" type="date" value="{{ hoy }}" />
-        </div>
-        <div>
-          <label for="session-duration">Duración (min)</label>
-          <input id="session-duration" name="duracion" type="number" min="5" max="480" step="5" value="60" />
-        </div>
-        <div>
-          <label for="session-rating">Satisfacción (1–10)</label>
-          <input id="session-rating" name="satisfaccion" type="number" min="1" max="10" value="7" />
-        </div>
-      </div>
-      <div class="sandbox-form-grid cols-3">
-        <div>
-          <label for="session-domain">Dominio</label>
-          <select id="session-domain" name="dominio">
-            {% for d in dominios %}
-            <option value="{{ d }}">{{ d }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label for="session-type">Tipo</label>
-          <select id="session-type" name="tipo">
-            {% for t in tipos_sesion %}
-            <option value="{{ t }}">{{ t }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label for="session-project">Idea relacionada</label>
-          <select id="session-project" name="proyecto_id">
-            <option value="">Sin proyecto</option>
-            {% for i in ideas_activas %}
-            <option value="{{ i.id }}">{{ i.emoji }} {{ i.titulo }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label for="session-description">¿Qué hiciste? *</label>
-        <textarea id="session-description" name="descripcion" rows="3" required></textarea>
-      </div>
-      <div>
-        <label for="session-code">Código / notas (opcional)</label>
-        <textarea class="code-input" id="session-code" name="codigo" rows="4"></textarea>
-      </div>
-      <div class="form-actions"><button class="btn" type="submit">💾 Guardar sesión</button></div>
-    </form>
-  </div>
-
-  <div class="card">
-    <h2>Recientes</h2>
-    {% if not sesiones %}
-    <p class="muted">Sin sesiones aún.</p>
-    {% else %}
-    <div class="session-history">
-      {% for s in sesiones %}
-      <article class="session-card">
-        <header class="sandbox-item-header">
-          <div><strong>{{ s.emoji }} {{ s.fecha }}</strong><span class="sandbox-item-meta">{{ s.tipo_actividad }} · {{ s.duracion_minutos }}min · ★ {{ s.satisfaccion }}/10</span></div>
-          {% if s.proyecto_titulo %}<span class="badge">{{ s.proyecto_titulo }}</span>{% endif %}
-        </header>
-        {% if s.descripcion %}<p>{{ s.descripcion }}</p>{% endif %}
-        {% if s.codigo_producido %}<pre class="code-block compact-code"><code>{{ s.codigo_producido }}</code></pre>{% endif %}
-      </article>
-      {% endfor %}
-    </div>
-    {% endif %}
-  </div>
-</section>
-{% endif %}
-
-{% if tab == 'mentor' %}
-<section>
-  <div class="card">
-    <h2>Mentor IA multi-dominio</h2>
-    {% if not ia_ok %}
-    <div class="flash-warn">IA offline — configura GROQ_API_KEY.</div>
-    {% endif %}
-    <form class="mentor-form" method="post" action="/app/m/sandbox/mentor">
-      <div class="sandbox-form-grid cols-3">
-        <div>
-          <label for="mentor-domain">Área</label>
-          <select id="mentor-domain" name="dominio">
-            {% for d in dominios %}
-            <option value="{{ d }}">{{ emojis_dominio.get(d, '') }} {{ d }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label for="mentor-help-type">Tipo de ayuda</label>
-          <select id="mentor-help-type" name="tipo_ayuda">
-            <option>Consejo general</option>
-            <option>Plan de acción</option>
-            <option>Recursos útiles</option>
-            <option>Próximo paso</option>
-            <option>Reflexión bíblica</option>
-            <option>Cómo priorizar</option>
-          </select>
-        </div>
-        <div>
-          <label for="mentor-idea">Idea (opcional)</label>
-          <select id="mentor-idea" name="idea_id">
-            <option value="">Ninguna</option>
-            {% for i in ideas %}
-            <option value="{{ i.id }}">{{ i.titulo }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label for="mentor-question">Pregunta *</label>
-        <textarea id="mentor-question" name="pregunta" rows="4" required placeholder="¿Por dónde empiezo con este proyecto?"></textarea>
-      </div>
-      <div class="form-actions">
-        <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>🚀 Consultar mentor</button>
-      </div>
-    </form>
-    {% if mentor_reply %}
-    <div class="coach-response">{{ mentor_reply }}</div>
-    {% endif %}
-  </div>
-</section>
-{% endif %}
 {% endblock %}

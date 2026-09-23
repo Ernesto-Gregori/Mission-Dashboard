@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.ai_client import api_key_configurada
 from app.asistente import (
-    CATEGORIAS,
+    CATEGORIA_LABELS,
     borrar_historial,
     flags_desde_form,
     guardar_prefs,
@@ -16,25 +16,9 @@ from app.asistente import (
     obtener_prefs,
     responder,
 )
-from app.onboarding import listar_modulos_usuario
-from app.templates import MODULE_TEMPLATES
 from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app/asistente", tags=["asistente"])
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _ctx(
@@ -48,11 +32,10 @@ def _ctx(
     return {
         "title": "Alma",
         "user": user,
-        "modulos_nav": _nav(uid),
         "flash": flash,
         "error": error,
         "prefs": obtener_prefs(uid),
-        "categorias": CATEGORIAS,
+        "categorias": CATEGORIA_LABELS,
         "mensajes": listar_mensajes(uid),
         "ia_ok": api_key_configurada(),
     }

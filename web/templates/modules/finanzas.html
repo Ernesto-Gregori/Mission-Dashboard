@@ -4,7 +4,7 @@
   <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
   <div>
     <h1>{{ meta.nombre }}</h1>
-    <p class="muted">Sistema de 3 sobres · {% for n, label in meses %}{% if n == mes %}{{ label }}{% endif %}{% endfor %} {{ anio }}</p>
+    <p class="muted">{% if resumen.preset %}{{ presets[resumen.preset].label }}{% else %}Reparto personalizado{% endif %} · {% for n, label in meses %}{% if n == mes %}{{ label }}{% endif %}{% endfor %} {{ anio }}</p>
   </div>
 </header>
 
@@ -82,7 +82,7 @@
 <section class="envelope-grid" aria-label="Estado de los sobres">
   {% for s in sobres_ui %}
   <article class="envelope-card" style="--envelope-color:{{ s.color }}">
-    <div class="envelope-heading"><span aria-hidden="true">{{ s.emoji }}</span> <strong>{{ s.nombre }}</strong></div>
+    <div class="envelope-heading"><span aria-hidden="true">{{ s.emoji }}</span> <strong>{{ s.nombre }}</strong> · {{ s.pct }}%</div>
     <p class="muted compact-copy">{{ s.descripcion }}</p>
     <p class="envelope-progress">
       ${{ '%.0f'|format(s.gastado) }} / ${{ '%.0f'|format(s.presupuesto) }}
@@ -93,6 +93,32 @@
     </p>
   </article>
   {% endfor %}
+</section>
+
+<section class="card" aria-labelledby="reparto-title">
+  <h2 id="reparto-title">Reparto del ingreso</h2>
+  <p class="muted compact-copy">Cuánto del ingreso va a cada sobre. Elige un método o ajusta los porcentajes; los gastos no cambian.</p>
+  <form class="button-group" method="post" action="/app/m/finanzas/reparto" aria-label="Métodos de reparto">
+    {% for key, p in presets.items() %}
+    <button class="btn{% if resumen.preset != key %} secondary{% endif %}" type="submit" name="preset" value="{{ key }}"{% if resumen.preset == key %} aria-pressed="true"{% endif %}>
+      {{ p.label }} ({{ p.ratios.values()|join('/') }})
+    </button>
+    {% endfor %}
+  </form>
+  <details{% if not resumen.preset %} open{% endif %}>
+    <summary>Personalizado</summary>
+    <form class="ratio-form" method="post" action="/app/m/finanzas/reparto">
+      {% for s in sobres_ui %}
+      <div>
+        <label for="pct-{{ s.key }}">{{ s.emoji }} {{ s.nombre|capitalize }} %</label>
+        <input id="pct-{{ s.key }}" name="pct_{{ s.key }}" type="number" min="0" max="100" value="{{ s.pct }}" required />
+      </div>
+      {% endfor %}
+      <div class="form-actions">
+        <button class="btn secondary" type="submit">Aplicar (deben sumar 100)</button>
+      </div>
+    </form>
+  </details>
 </section>
 
 <div class="card">
@@ -185,6 +211,28 @@
   if (sobreSel) { sobreSel.addEventListener('change', fillSubs); }
 </script>
 
+<section class="card" aria-labelledby="spend-title">
+  <h2 id="spend-title">A dónde va el dinero</h2>
+  {% if resumen.total_gastado <= 0 %}
+  <p class="muted">Sin gastos este mes.</p>
+  {% else %}
+  <div class="spend-chart" role="img" aria-label="Distribución del gasto por sobre">
+    {% for s in resumen.stacked %}
+    {% if s.pct > 0 %}
+    <div class="spend-seg" style="width: {{ s.pct }}%; background: {{ s.color }}" title="{{ s.label }} {{ '%.0f'|format(s.pct) }}%">
+      <span class="sr-only">{{ s.label }} {{ '%.0f'|format(s.pct) }}%</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <ul class="spend-legend">
+    {% for d in resumen.chart %}
+    <li>{{ d.nombre }} ${{ '%.0f'|format(d.monto) }} ({{ '%.0f'|format(d.pct) }}%)</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
 <div class="card">
   <h2>Historial</h2>
   {% if not gastos %}
@@ -225,17 +273,4 @@
   {% endif %}
 </div>
 
-<div class="card">
-  <h2>💡 Consejo IA</h2>
-  {% if not ia_ok %}
-  <div class="flash-warn">
-    IA offline. Configura <code>GROQ_API_KEY</code> en Railway o en <code>.env</code>.
-  </div>
-  {% else %}
-  <form method="post" action="/app/m/finanzas/consejo">
-    <button class="btn secondary" type="submit">Pedir consejo del mes</button>
-  </form>
-  {% if consejo %}<p class="coach-response">{{ consejo }}</p>{% endif %}
-  {% endif %}
-</div>
 {% endblock %}

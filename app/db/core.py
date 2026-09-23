@@ -108,11 +108,6 @@ def invalidate_data_caches() -> None:
         ejecutar_cached.clear()
     except Exception:
         pass
-    try:
-        from app.db import finanzas as _fin
-        _fin._calcular_sobres_cached.clear()
-    except Exception:
-        pass
 
 
 def ensure_database() -> None:

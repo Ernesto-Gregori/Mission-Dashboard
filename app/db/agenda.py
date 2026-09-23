@@ -1,7 +1,6 @@
 """CRUD Agenda: bitácora semanal, eventos de calendario, rachas y lecturas cruzadas."""
 from __future__ import annotations
 
-import json
 from datetime import timedelta
 
 from app.db.core import ejecutar, ejecutar_cached, invalidate_data_caches
@@ -22,11 +21,6 @@ COLORES_TIPO = {
 }
 
 TIPOS_EVENTO = list(COLORES_TIPO.keys())
-
-SYSTEM_AGENDA = """Eres un asistente de planificación semanal cristiano.
-Ayudas a revisar victorias, planificar la semana y reflexionar.
-Eres práctico, motivador y consideras el balance vida-fe-familia.
-Máximo 120 palabras."""
 
 
 def obtener_lunes_semana(fecha=None):
@@ -176,14 +170,27 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
         or []
     )
 
-    bloques_rows = (
-        ejecutar_cached(
-            "SELECT nombre FROM bloques_fijos WHERE activo = 1 AND user_id = ?",
-            (uid(),),
-        )
-        or []
-    )
-    nombres_bloques = {r["nombre"] for r in bloques_rows}
+    from app.db.deep_work import bloques_en_rango
+
+    bloques = [
+        {
+            "id": None,
+            "bloque_id": b["id"],
+            "fecha": b["fecha"],
+            "hora_inicio": b["hora_inicio"],
+            "hora_fin": b["hora_fin"],
+            "titulo": b["nombre"],
+            "tipo": b["tipo"],
+            "estado_planificacion": b["estado"],
+            "ambito": b["tipo"],
+            "color": b["color"],
+            "google_id": None,
+            "fuente": "deep_work",
+        }
+        for b in bloques_en_rango(lunes, domingo)
+    ]
+    # Bloques que antes se subían a Google: no duplicarlos al leer Calendar.
+    nombres_bloques = {b["titulo"] for b in bloques}
 
     google_ids_sincronizados = {e["google_id"] for e in locales if e.get("google_id")}
 
@@ -202,60 +209,28 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
     except Exception:
         google_eventos = []
 
-    todos = list(citas) + list(locales) + list(google_eventos)
+    todos = list(citas) + list(locales) + bloques + list(google_eventos)
     todos.sort(key=lambda e: (e.get("fecha", ""), e.get("hora_inicio") or "23:59"))
     return todos
 
 
 def obtener_deepwork_semana(lunes: date, domingo: date) -> list:
-    resultado = []
-    for i in range(7):
-        dia = lunes + timedelta(days=i)
-        dia_iso = dia.isoformat()
-        dia_numero = dia.weekday() + 1
+    from app.db.deep_work import bloques_en_rango
 
-        bloques = (
-            ejecutar(
-                """
-                SELECT b.id, b.nombre, b.color, b.tipo,
-                       b.hora_inicio, b.hora_fin, b.dias_semana,
-                       s.estado, s.duracion_real, s.notas
-                FROM bloques_fijos b
-                LEFT JOIN sesiones_completadas s
-                    ON s.bloque_fijo_id = b.id AND s.fecha = ? AND s.user_id = ?
-                WHERE b.activo = 1 AND b.user_id = ?
-                """,
-                [dia_iso, uid(), uid()],
-                fetchall=True,
-            )
-            or []
-        )
-
-        for b in bloques:
-            try:
-                dias = json.loads(b["dias_semana"] or "[]")
-            except Exception:
-                dias = []
-            if dia_numero not in dias:
-                continue
-            estado = b["estado"] or "Pendiente"
-            completado = 1 if estado == "Completado" else 0
-            resultado.append(
-                {
-                    "fecha": dia_iso,
-                    "bloque_nombre": b["nombre"],
-                    "color": b["color"],
-                    "tipo": b["tipo"],
-                    "hora_inicio": b["hora_inicio"],
-                    "duracion_real": b["duracion_real"],
-                    "estado": estado,
-                    "completado": completado,
-                    "notas": b["notas"],
-                }
-            )
-
-    resultado.sort(key=lambda x: (x["fecha"], x.get("hora_inicio") or ""))
-    return resultado
+    return [
+        {
+            "fecha": b["fecha"],
+            "bloque_nombre": b["nombre"],
+            "color": b["color"],
+            "tipo": b["tipo"],
+            "hora_inicio": b["hora_inicio"],
+            "duracion_real": b["duracion_real"],
+            "estado": b["estado"],
+            "completado": 1 if b["estado"] == "Completado" else 0,
+            "notas": b["notas"],
+        }
+        for b in bloques_en_rango(lunes, domingo)
+    ]
 
 
 def obtener_devocionales_semana(lunes: date, domingo: date) -> list:
@@ -323,82 +298,6 @@ def calcular_racha_devocional() -> int:
         else:
             break
     return racha
-
-
-def calcular_racha_ejercicio() -> int:
-    fechas_rows = (
-        ejecutar_cached(
-            """
-            SELECT fecha FROM registros_salud
-            WHERE hizo_ejercicio = 1 AND user_id = ?
-            ORDER BY fecha DESC LIMIT 30
-            """,
-            (uid(),),
-        )
-        or []
-    )
-    fechas = [datetime.strptime(r["fecha"], "%Y-%m-%d").date() for r in fechas_rows]
-    if not fechas:
-        return 0
-    hoy_lun = _hoy() - timedelta(days=_hoy().weekday())
-    semanas = {f - timedelta(days=f.weekday()) for f in fechas}
-    racha = 0
-    for i in range(52):
-        if (hoy_lun - timedelta(weeks=i)) in semanas:
-            racha += 1
-        else:
-            break
-    return racha
-
-
-def calcular_racha_deepwork() -> int:
-    fechas_rows = (
-        ejecutar_cached(
-            """
-            SELECT DISTINCT fecha FROM sesiones_completadas
-            WHERE estado = 'Completado' AND user_id = ?
-            ORDER BY fecha DESC LIMIT 30
-            """,
-            (uid(),),
-        )
-        or []
-    )
-    fechas = [datetime.strptime(r["fecha"], "%Y-%m-%d").date() for r in fechas_rows]
-    racha = 0
-    hoy = _hoy()
-    for i, f in enumerate(sorted(fechas, reverse=True)):
-        if f == hoy - timedelta(days=i):
-            racha += 1
-        else:
-            break
-    return racha
-
-
-def obtener_eventos_personalizados(fecha: str | None = None) -> list:
-    if fecha:
-        return (
-            ejecutar(
-                """
-                SELECT * FROM eventos_calendario
-                WHERE fecha = ? AND user_id = ? ORDER BY hora_inicio
-                """,
-                [fecha, uid()],
-                fetchall=True,
-            )
-            or []
-        )
-    return (
-        ejecutar(
-            """
-            SELECT * FROM eventos_calendario
-            WHERE user_id = ?
-            ORDER BY fecha DESC, hora_inicio LIMIT 50
-            """,
-            [uid()],
-            fetchall=True,
-        )
-        or []
-    )
 
 
 def guardar_evento(datos: dict, *, sync_google: bool = True) -> int:

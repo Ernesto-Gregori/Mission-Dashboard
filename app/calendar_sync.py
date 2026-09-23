@@ -440,6 +440,28 @@ def items_foco(fecha: str | None = None, user_id: int | None = None) -> list[dic
             }
         )
 
+    from datetime import date as _date
+
+    from app.db.deep_work import bloques_en_rango
+
+    dia_d = _date.fromisoformat(dia)
+    for b in bloques_en_rango(dia_d, dia_d, uid_i):
+        items.append(
+            {
+                "id": None,
+                "kind": "enfoque",
+                "origen": "enfoque",
+                "titulo": b["nombre"],
+                "hora_inicio": (b.get("hora_inicio") or "")[:5] or None,
+                "hora_fin": (b.get("hora_fin") or "")[:5] or None,
+                "fecha": dia,
+                "google_id": None,
+                "fuente": "deep_work",
+                "completado": b["estado"] == "Completado",
+                "color": b.get("color") or "#58a6ff",
+            }
+        )
+
     def _key(it: dict):
         return (it.get("hora_inicio") or "99:99", it.get("titulo") or "")
 

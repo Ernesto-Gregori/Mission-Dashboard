@@ -58,7 +58,7 @@ def test_foco_requiere_login(web_client):
     assert r.status_code in (303, 307)
 
 
-def test_foco_pagina_mezcla_local(web_client):
+def test_foco_vive_en_hoy_sin_duplicar_habitos(web_client):
     _onboard(web_client)
     from app.database import autenticar_usuario
     from app.db.core import ejecutar
@@ -82,10 +82,18 @@ def test_foco_pagina_mezcla_local(web_client):
         """,
         [int(user["id"])],
     )
-    r = web_client.get("/app/foco")
+    r = web_client.get("/app/foco", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/app"
+
+    r = web_client.get("/app")
     assert r.status_code == 200
-    assert b"Foco del D" in r.content or b"Foco" in r.content
-    assert b"FocoBloqueLocal" in r.content
-    assert b"OracionFocoPagina" in r.content
-    assert b"Solo en el dashboard" in r.content
-    assert b"/app/foco/sync" in r.content
+    body = r.content
+    assert b"Agenda de hoy" in body
+    assert b"FocoBloqueLocal" in body
+    # El hábito aparece una sola vez: en la checklist, no en la agenda.
+    assert body.count(b"OracionFocoPagina") == 1
+    assert b'id="hab-oracion_foco_p"' in body
+
+    r = web_client.get("/app/foco?fecha=2020-01-01", follow_redirects=False)
+    assert r.headers["location"].startswith("/app/planificador?vista=dia&d=-")

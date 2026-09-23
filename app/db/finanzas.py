@@ -1,8 +1,7 @@
-"""CRUD finanzas (sobres) + cálculo de presupuestos."""
+"""CRUD finanzas (ingreso mensual y gastos por sobre)."""
 from __future__ import annotations
 
 from app.db.core import ejecutar, invalidate_data_caches
-from app.db.schema import SOBRES_CONFIG
 
 def guardar_ingreso(mes: int, anio: int, monto: float, notas: str = "") -> bool:
     from app.tenant import uid
@@ -221,74 +220,6 @@ def eliminar_gasto_sobre(gasto_id: int) -> bool:
         print(f"Error eliminando gasto: {e}")
         return False
 
-def _calcular_sobres_uncached(mes: int, anio: int, user_id: int) -> dict:
-    """Implementación interna — user_id obligatorio para cache correcta."""
-    ingreso = obtener_ingreso(mes, anio)
-    gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=500)
-    
-    sobres = {}
-    ingreso_restante = ingreso
-    
-    for key, config in SOBRES_CONFIG.items():
-        gastos_sobre = [g for g in gastos if g['sobre'] == key]
-        gastado = sum(g['monto'] for g in gastos_sobre)
-        
-        # Presupuesto ideal según % del ingreso
-        presupuesto_ideal = ingreso * config['pct']
-        
-        # Lógica de llenado en orden
-        presupuesto_real = min(presupuesto_ideal, max(0, ingreso_restante))
-        ingreso_restante -= presupuesto_ideal
-        
-        disponible = presupuesto_real - gastado
-        pct_usado = (gastado / presupuesto_real * 100) if presupuesto_real > 0 else 0
-        
-        # Desglose por subcategoría
-        por_subcat = {}
-        for g in gastos_sobre:
-            sub = g['subcategoria']
-            if sub not in por_subcat:
-                por_subcat[sub] = 0
-            por_subcat[sub] += g['monto']
-        
-        # Separar fijos y variables (solo Supervivencia)
-        fijos = sum(g['monto'] for g in gastos_sobre if g['es_fijo'])
-        variables = gastado - fijos
-        
-        sobres[key] = {
-            **config,
-            'gastado': gastado,
-            'presupuesto': presupuesto_real,
-            'presupuesto_ideal': presupuesto_ideal,
-            'disponible': disponible,
-            'pct_usado': pct_usado,
-            'gastos': gastos_sobre,
-            'cantidad_gastos': len(gastos_sobre),
-            'sobre_lleno': presupuesto_real >= presupuesto_ideal,
-            'por_subcat': por_subcat,
-            'fijos': fijos,
-            'variables': variables,
-        }
-    
-    # Calcular excedente
-    excedente = ingreso - sum(
-        SOBRES_CONFIG[k]['pct'] for k in SOBRES_CONFIG
-    ) * ingreso
-    
-    return {
-        'ingreso': ingreso,
-        'mes': mes,
-        'anio': anio,
-        'total_gastado': sum(g['monto'] for g in gastos),
-        'total_disponible': ingreso - sum(g['monto'] for g in gastos),
-        'pct_global': (
-            sum(g['monto'] for g in gastos) / ingreso * 100
-        ) if ingreso > 0 else 0,
-        'sobres': sobres,
-        'excedente': excedente,
-        'sin_ingreso': ingreso == 0,
-    }
-
 def obtener_tipos_bloque() -> list:
     """
     Obtiene los tipos únicos ya usados en BD
@@ -307,11 +238,3 @@ def obtener_tipos_bloque() -> list:
     except Exception:
         return defaults
 
-
-# Sin cache Streamlit — cálculo directo
-_calcular_sobres_cached = _calcular_sobres_uncached
-
-
-def calcular_sobres(mes: int, anio: int) -> dict:
-    from app.tenant import uid
-    return _calcular_sobres_cached(mes, anio, uid())

@@ -16,15 +16,10 @@ from app.billing import (
     resumen_plan_ui,
     payments_configured,
 )
-from app.coach_insights import (
-    generar_briefing,
-    resumen_cuota_briefing,
-    ultimo_briefing,
-)
+from app.coach_insights import generar_briefing
 from app.onboarding import (
     aplicar_habitos_sugeridos,
     aplicar_modulos,
-    listar_modulos_usuario,
     marcar_admins_existentes_como_onboarded,
     marcar_onboarding_completo,
     modulos_activos,
@@ -52,20 +47,6 @@ AREA_OPTIONS = [
 ]
 
 
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
-
-
 def _clamp_mods(mods: list[str], plan: str) -> list[str]:
     tope = modulos_max(plan)
     if tope is None or len(mods) <= int(tope):
@@ -85,7 +66,7 @@ def coach_home(request: Request, user: Annotated[dict, Depends(require_user)]):
     done = usuario_onboarding_completo(uid)
     force = request.query_params.get("reconfig") == "1"
 
-    # Ya onboarded y no pidió reconfig → resumen + briefing cruzado
+    # Ya onboarded y no pidió reconfig → resumen del sistema
     if done and not force and not request.session.get("coach_reconfig"):
         return _render_status(request, user, plan, error=None)
 
@@ -121,7 +102,6 @@ def coach_home(request: Request, user: Annotated[dict, Depends(require_user)]):
         areas=AREA_OPTIONS,
         tope=tope,
         error=None,
-        modulos_nav=_nav(uid) if done else [],
         hide_nav=not done,
     )
 
@@ -174,8 +154,6 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
     uid = int(user["id"])
     activos = sorted(modulos_activos(uid))
     bloqueados = [k for k in MODULE_TEMPLATES if k not in activos]
-    briefing = ultimo_briefing(uid)
-    flash = request.session.pop("coach_briefing_flash", None)
     return render(
         request,
         "coach/status.html",
@@ -188,12 +166,8 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
         bloqueados=[{"clave": k, **MODULE_TEMPLATES[k]} for k in bloqueados[:8]],
         puede_reconfig=puede_reconfigurar_coach(plan),
         stripe_ok=payments_configured(),
-        modulos_nav=_nav(uid),
         tope=modulos_max(plan),
         error=error,
-        briefing=briefing,
-        briefing_cuota=resumen_cuota_briefing(uid, plan),
-        briefing_flash=flash,
     )
 
 
@@ -208,7 +182,7 @@ def coach_briefing_generate(request: Request, user: Annotated[dict, Depends(requ
         "ok": ok,
         "message": msg,
     }
-    return RedirectResponse("/app/coach", status_code=303)
+    return RedirectResponse("/app/revision#briefing", status_code=303)
 
 
 def _render_sugerencia(request: Request, user: dict, sug: dict, plan: str):
@@ -236,7 +210,6 @@ def _render_sugerencia(request: Request, user: dict, sug: dict, plan: str):
         mods_ui=mods_ui,
         tope=tope,
         error=None,
-        modulos_nav=_nav(uid) if usuario_onboarding_completo(uid) else [],
         hide_nav=not usuario_onboarding_completo(uid),
         premium=PLAN_PREMIUM,
         free=PLAN_FREE,
@@ -288,7 +261,6 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
             mods_ui=mods_ui,
             tope=modulos_max(plan),
             error="Elige al menos un módulo.",
-            modulos_nav=[],
             hide_nav=True,
             premium=PLAN_PREMIUM,
             free=PLAN_FREE,
@@ -329,7 +301,6 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
                 f"Tu plan permite máximo {tope} módulos. "
                 f"Desmarca {len(seleccion) - int(tope)} o pasa a Premium."
             ),
-            modulos_nav=[],
             hide_nav=True,
             premium=PLAN_PREMIUM,
             free=PLAN_FREE,

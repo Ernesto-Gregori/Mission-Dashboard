@@ -1,4 +1,4 @@
-"""Sandbox HTMX — ideas, snippets, sesiones y mentor IA."""
+"""Sandbox HTMX — ideas y snippets."""
 from __future__ import annotations
 
 from typing import Annotated
@@ -6,7 +6,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.ai_client import api_key_configurada, chat_simple
 from app.billing import PLAN_FREE, limites, plan_vigente
 from app.database import (
     CATEGORIAS_DEFAULT_POR_DOMINIO,
@@ -16,47 +15,29 @@ from app.database import (
     EMOJIS_LANG,
     ESTADOS_IDEA,
     LENGUAJES,
-    SYSTEM_MENTOR,
-    TIPOS_SESION,
     actualizar_idea,
     actualizar_snippet,
     eliminar_idea,
     eliminar_snippet,
     guardar_idea,
-    guardar_sesion,
     guardar_snippet,
     incrementar_uso,
     obtener_categorias_dominio,
     obtener_idea,
     obtener_ideas,
-    obtener_sesiones_recientes,
     obtener_snippet,
     obtener_snippets,
     parsear_lista_sandbox,
     stats_sandbox,
 )
-from app.onboarding import listar_modulos_usuario, modulo_activo
+from app.onboarding import modulo_activo
 from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app/m/sandbox", tags=["sandbox"])
 
-TABS = ("ideas", "nueva", "snippets", "sesiones", "mentor")
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
+TABS = ("ideas", "nueva", "snippets")
 
 
 def _tab(request: Request) -> str:
@@ -102,7 +83,6 @@ def _ctx(
     *,
     flash: str | None = None,
     error: str | None = None,
-    mentor_reply: str | None = None,
     idea_edit: dict | None = None,
     snip_edit: dict | None = None,
 ):
@@ -129,10 +109,6 @@ def _ctx(
             busqueda=f_snip_q,
         )
     )
-    sesiones = obtener_sesiones_recientes(12)
-    for s in sesiones:
-        s["emoji"] = EMOJIS_DOMINIO.get(s.get("dominio") or "Otros", "🌐")
-
     edit_id = request.query_params.get("edit")
     if edit_id and idea_edit is None and tab in ("ideas", "nueva"):
         try:
@@ -167,17 +143,13 @@ def _ctx(
         "tab": tab,
         "flash": flash,
         "error": error,
-        "mentor_reply": mentor_reply or request.session.pop("sb_mentor", None),
-        "modulos_nav": _nav(int(user["id"])),
         "hoy": str(_hoy()),
         "stats": stats_sandbox(),
         "ideas": ideas,
         "snippets": snippets,
-        "sesiones": sesiones,
         "dominios": DOMINIOS_SANDBOX,
         "estados_idea": ESTADOS_IDEA,
         "lenguajes": LENGUAJES,
-        "tipos_sesion": TIPOS_SESION,
         "categorias": categorias,
         "categorias_por_dominio": CATEGORIAS_DEFAULT_POR_DOMINIO,
         "emojis_dominio": EMOJIS_DOMINIO,
@@ -198,7 +170,6 @@ def _ctx(
             if i.get("estado") not in ("Completado", "Abandonado")
         ]
         or todas_ideas,
-        "ia_ok": api_key_configurada(),
     }
 
 
@@ -224,7 +195,6 @@ def sandbox_page(request: Request, user: Annotated[dict, Depends(require_onboard
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,
             lim_free=limites(PLAN_FREE),
-            modulos_nav=_nav(int(user["id"])),
         )
     return render(request, "modules/sandbox.html", **_ctx(request, user))
 
@@ -379,81 +349,3 @@ async def use_snippet(
 ):
     incrementar_uso(snip_id)
     return _redirect("snippets")
-
-
-@router.post("/sesion")
-async def create_sesion(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    form = await request.form()
-    desc = str(form.get("descripcion") or "").strip()
-    if not desc:
-        return render(
-            request,
-            "modules/sandbox.html",
-            status_code=400,
-            **_ctx(request, user, error="Describe qué hiciste en la sesión."),
-        )
-    try:
-        duracion = int(form.get("duracion") or 60)
-        satisfaccion = int(form.get("satisfaccion") or 7)
-    except Exception:
-        duracion, satisfaccion = 60, 7
-    proy = form.get("proyecto_id")
-    guardar_sesion(
-        fecha=str(form.get("fecha") or _hoy()),
-        duracion=max(1, duracion),
-        tipo=str(form.get("tipo") or "Investigando"),
-        dominio=str(form.get("dominio") or "Personal"),
-        proyecto_id=proy,
-        descripcion=desc,
-        codigo=str(form.get("codigo") or ""),
-        satisfaccion=max(1, min(10, satisfaccion)),
-    )
-    return _redirect("sesiones")
-
-
-@router.post("/mentor")
-async def mentor(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    form = await request.form()
-    pregunta = str(form.get("pregunta") or "").strip()
-    if not pregunta:
-        return render(
-            request,
-            "modules/sandbox.html",
-            status_code=400,
-            **_ctx(request, user, error="Escribe una pregunta para el mentor."),
-        )
-    if not api_key_configurada():
-        return render(
-            request,
-            "modules/sandbox.html",
-            **_ctx(
-                request,
-                user,
-                error="IA offline — configura GROQ_API_KEY.",
-            ),
-        )
-    dominio = str(form.get("dominio") or "Personal")
-    tipo_ayuda = str(form.get("tipo_ayuda") or "Consejo general")
-    contexto_extra = f"Dominio: {dominio}\nTipo de ayuda: {tipo_ayuda}"
-    idea_id = form.get("idea_id")
-    if idea_id:
-        try:
-            idea = obtener_idea(int(idea_id))
-            if idea:
-                contexto_extra += (
-                    f"\nIdea: {idea.get('titulo')}\n"
-                    f"Estado: {idea.get('estado')}\n"
-                    f"Descripción: {idea.get('descripcion') or ''}\n"
-                    f"Notas: {idea.get('notas') or ''}"
-                )
-        except Exception:
-            pass
-    mensaje = (
-        f"{contexto_extra}\n\n"
-        f"Pregunta: {pregunta}\n\n"
-        "Da una respuesta práctica y concreta. "
-        "Si aplica, incluye un principio bíblico relevante."
-    )
-    reply = chat_simple(mensaje, contexto=SYSTEM_MENTOR)
-    request.session["sb_mentor"] = reply or "Sin respuesta."
-    return _redirect("mentor")

@@ -1,4 +1,4 @@
-"""Presupuesto 50/30/20 — ratios, gasto real y vencimientos."""
+"""Reparto del ingreso en sobres (presets 3 sobres / 50/30/20 / personalizado) y vencimientos."""
 from __future__ import annotations
 
 import tempfile
@@ -63,44 +63,18 @@ def test_presupuesto_requiere_login(web_client):
     assert "/login" in loc or "/setup" in loc
 
 
-def test_presupuesto_pagina_503020_y_grafico(web_client):
+def test_url_503020_redirige_a_finanzas(web_client):
     _onboard(web_client)
-    r = web_client.get("/app/presupuesto")
-    assert r.status_code == 200
-    body = r.content.decode()
-    assert "50/30/20" in body or "50 / 30 / 20" in body
-    assert "Necesidades" in body
-    assert "Deseos" in body
-    assert "Ahorro" in body
-    assert 'for="pct-necesidades"' in body
-    assert 'for="pct-deseos"' in body
-    assert 'for="pct-ahorro"' in body
-    assert "spend-chart" in body
-    assert "Vencimientos" in body
-    assert b'href="/app/presupuesto"' in r.content
+    r = web_client.get("/app/presupuesto?mes=9&anio=2026", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/app/m/finanzas?mes=9&anio=2026"
 
 
-def test_ingreso_en_presupuesto_aparece_en_finanzas(web_client):
-    _onboard(web_client)
-    r = web_client.post(
-        "/app/presupuesto/periodo",
-        data={"mes": "9", "anio": "2026", "monto": "2000", "notas": "sueldo test"},
-        follow_redirects=True,
-    )
-    assert r.status_code == 200
-    assert b"2000" in r.content
-
-    r = web_client.get("/app/m/finanzas?mes=9&anio=2026")
-    assert r.status_code == 200
-    assert b"2000" in r.content
-
-
-def test_gasto_finanzas_actualiza_503020(web_client):
+def test_reparto_por_defecto_es_3_sobres(web_client):
     _onboard(web_client)
     web_client.post(
-        "/app/presupuesto/periodo",
+        "/app/m/finanzas/periodo",
         data={"mes": "9", "anio": "2026", "monto": "1000"},
-        follow_redirects=True,
     )
     web_client.post(
         "/app/m/finanzas/gasto",
@@ -108,10 +82,27 @@ def test_gasto_finanzas_actualiza_503020(web_client):
             "fecha": "2026-09-10",
             "sobre": "Supervivencia",
             "subcategoria": "Comida",
-            "descripcion": "Super503020",
+            "descripcion": "SuperTest",
             "monto": "200",
         },
-        follow_redirects=True,
+    )
+    r = web_client.get("/app/m/finanzas?mes=9&anio=2026")
+    assert r.status_code == 200
+    body = r.content.decode()
+    assert "3 sobres" in body
+    assert "50/30/20" in body
+    assert "SUPERVIVENCIA</strong> · 65%" in body
+    assert "$200 / $650" in body
+    assert "Disponible: $450" in body
+    assert 'id="pct-Supervivencia"' in body
+    assert "spend-chart" in body
+
+
+def test_preset_503020_reusa_los_mismos_gastos(web_client):
+    _onboard(web_client)
+    web_client.post(
+        "/app/m/finanzas/periodo",
+        data={"mes": "9", "anio": "2026", "monto": "1000"},
     )
     web_client.post(
         "/app/m/finanzas/gasto",
@@ -122,42 +113,63 @@ def test_gasto_finanzas_actualiza_503020(web_client):
             "descripcion": "CafeDeseo",
             "monto": "50",
         },
+    )
+    r = web_client.post(
+        "/app/m/finanzas/reparto",
+        data={"preset": "503020"},
         follow_redirects=True,
     )
-    r = web_client.get("/app/presupuesto?mes=9&anio=2026")
     assert r.status_code == 200
     body = r.content.decode()
-    assert "Super503020" in body or "Comida" in body
-    assert "$200" in body or "200" in body
-    assert "necesidades" in body.lower()
-    # Meta 50% de 1000 = 500; gastado 200 → visible
-    assert "500" in body
+    assert "SUPERVIVENCIA</strong> · 50%" in body
+    assert "MINISTERIO Y EXTRAS</strong> · 30%" in body
+    assert "$50 / $300" in body
+    assert 'aria-pressed="true"' in body
 
 
-def test_ratios_personalizados_y_rechazo_si_no_suman_100(web_client):
+def test_reparto_personalizado_y_rechazo_si_no_suma_100(web_client):
     _onboard(web_client)
     r = web_client.post(
-        "/app/presupuesto/ratios",
-        data={"pct_necesidades": "40", "pct_deseos": "40", "pct_ahorro": "20"},
+        "/app/m/finanzas/reparto",
+        data={
+            "pct_Supervivencia": "40",
+            "pct_Futuro_Hogar": "40",
+            "pct_Ministerio_Extras": "20",
+        },
         follow_redirects=True,
     )
     assert r.status_code == 200
     body = r.content.decode()
+    assert "Reparto personalizado" in body
     assert 'value="40"' in body
-    assert 'id="pct-necesidades"' in body
 
     r = web_client.post(
-        "/app/presupuesto/ratios",
-        data={"pct_necesidades": "50", "pct_deseos": "50", "pct_ahorro": "50"},
+        "/app/m/finanzas/reparto",
+        data={
+            "pct_Supervivencia": "50",
+            "pct_Futuro_Hogar": "50",
+            "pct_Ministerio_Extras": "50",
+        },
     )
     assert r.status_code == 400
     assert b"100" in r.content
 
 
+def test_ratios_unit(monkeypatch):
+    from app.presupuesto import PRESETS, preset_de, validar_ratios
+
+    assert preset_de(PRESETS["sobres"]["ratios"]) == "sobres"
+    assert preset_de({"Supervivencia": 40, "Futuro_Hogar": 40, "Ministerio_Extras": 20}) is None
+    ok, _, _ = validar_ratios({"Supervivencia": 70, "Futuro_Hogar": 20, "Ministerio_Extras": 10})
+    assert ok
+    ok, msg, _ = validar_ratios({"Supervivencia": "x"})
+    assert not ok and msg
+
+
 def test_calendario_vencimientos_colorea_por_tipo(web_client):
     _onboard(web_client)
     r = web_client.post(
-        "/app/presupuesto/recurrente",
+        "/app/m/finanzas/vencimientos",
         data={
             "titulo": "NetflixTest",
             "tipo": "suscripcion",
@@ -168,33 +180,22 @@ def test_calendario_vencimientos_colorea_por_tipo(web_client):
     )
     assert r.status_code == 200
     assert b"NetflixTest" in r.content
-    assert b"chip-suscripcion" in r.content or b"due-suscripcion" in r.content
+    assert b"chip-suscripcion" in r.content
 
-    web_client.post(
-        "/app/presupuesto/recurrente",
-        data={
-            "titulo": "LuzFactura",
-            "tipo": "factura",
-            "monto": "40",
-            "dia": "5",
-        },
-        follow_redirects=True,
-    )
-    web_client.post(
-        "/app/presupuesto/recurrente",
-        data={
-            "titulo": "SueldoIngreso",
-            "tipo": "ingreso",
-            "monto": "1000",
-            "dia": "1",
-        },
-        follow_redirects=True,
-    )
-    r = web_client.get("/app/presupuesto")
-    body = r.content.decode()
+    for titulo, tipo, dia in (("LuzFactura", "factura", "5"), ("SueldoIngreso", "ingreso", "1")):
+        web_client.post(
+            "/app/m/finanzas/vencimientos",
+            data={"titulo": titulo, "tipo": tipo, "monto": "40", "dia": dia},
+        )
+    body = web_client.get("/app/m/finanzas/vencimientos").content.decode()
     assert "LuzFactura" in body
     assert "SueldoIngreso" in body
-    assert "chip-factura" in body or "due-factura" in body
-    assert "chip-ingreso" in body or "due-ingreso" in body
-    assert "chip-deuda" in body or "due-deuda" in body or "Deuda" in body
-    assert "chip-ahorro" in body or "due-ahorro" in body or "Ahorro" in body
+    assert "due-factura" in body
+    assert "due-ingreso" in body
+    assert "Deuda" in body
+
+    r = web_client.post(
+        "/app/m/finanzas/vencimientos",
+        data={"titulo": "Mal", "tipo": "otro", "monto": "1", "dia": "1"},
+    )
+    assert r.status_code == 400

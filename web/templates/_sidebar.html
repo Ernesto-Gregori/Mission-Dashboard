@@ -15,8 +15,7 @@
       {% endfor %}
     {% else %}
     <a href="/app" class="{% if request.url.path.rstrip('/') == '/app' %}active{% endif %}"{% if request.url.path.rstrip('/') == '/app' %} aria-current="page"{% endif %}>Hoy</a>
-    <a href="/app/asistente">Guía</a>
-    <a href="/app/usuarios">Cuenta</a>
+    <a href="/app/coach">Cuenta</a>
     {% endif %}
   </nav>
   <div class="sidebar-footer">

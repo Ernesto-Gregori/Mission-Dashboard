@@ -8,18 +8,18 @@ from __future__ import annotations
 # Clave = id estable en user_modulos.modulo
 MODULE_TEMPLATES: dict[str, dict] = {
     "agenda": {
-        "nombre": "Agenda & Bitácora",
-        "emoji": "📅",
+        "nombre": "Revisión semanal",
+        "emoji": "📋",
         "page": "pages/01_Agenda.py",
-        "descripcion": "Calendario semanal, bitácora y rachas.",
+        "descripcion": "Bitácora de la semana (victorias y reflexión) con tus datos ya calculados.",
         "para_quien": "Quien quiere ordenar la semana y revisar avances.",
         "prioridad": 1,
     },
     "finanzas": {
-        "nombre": "Finanzas (3 Sobres)",
+        "nombre": "Finanzas",
         "emoji": "💰",
         "page": "pages/02_Finanzas.py",
-        "descripcion": "Ingresos, gastos y sobres Supervivencia / Futuro / Ministerio.",
+        "descripcion": "Ingreso repartido en sobres (3 sobres, 50/30/20 o personalizado), gastos y vencimientos.",
         "para_quien": "Controlar dinero, deudas, ahorro u ofrendas.",
         "prioridad": 2,
     },
@@ -59,7 +59,7 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Sandbox",
         "emoji": "🧪",
         "page": "pages/07_Sandbox.py",
-        "descripcion": "Ideas, snippets y sesiones de experimentación.",
+        "descripcion": "Ideas, proyectos y snippets.",
         "para_quien": "Proyectos creativos, código o experimentos.",
         "prioridad": 5,
     },

@@ -1,8 +1,4 @@
-"""Information architecture — grouped hubs instead of a flat page dump.
-
-Duplicate surfaces (ritual/rueda/foco, presupuesto, coach/alma, familia,
-billing) stay reachable, but the sidebar only lists one entry per job.
-"""
+"""Information architecture — one sidebar entry per job, pages as hub tabs."""
 from __future__ import annotations
 
 from typing import Any
@@ -10,49 +6,29 @@ from typing import Any
 from fastapi import Request
 
 from app.onboarding import listar_modulos_usuario, usuario_onboarding_completo
-from app.templates import MODULE_TEMPLATES
 
-# (id, sidebar label, path prefixes, related module keys, always visible)
 _HUB_SPECS: tuple[dict[str, Any], ...] = (
     {
         "id": "hoy",
         "label": "Hoy",
         "group": "Día",
         "always": True,
-        "prefixes": (),
         "exact": ("/app",),
-        "also": ("/app/foco", "/app/ritual", "/app/rueda"),
-    },
-    {
-        "id": "guia",
-        "label": "Guía",
-        "group": "Día",
-        "always": True,
-        "prefixes": ("/app/asistente", "/app/coach"),
+        "also": ("/app/foco", "/app/ritual"),
     },
     {
         "id": "semana",
         "label": "Semana",
         "group": "Día",
         "always": True,
-        "prefixes": ("/app/planificador", "/app/m/agenda", "/app/m/deep_work"),
-        "modules": ("agenda", "deep_work"),
+        "prefixes": ("/app/planificador", "/app/m/agenda", "/app/m/deep_work", "/app/revision", "/app/rueda"),
     },
     {
         "id": "dinero",
         "label": "Dinero",
         "group": "Vida",
-        "always": True,
         "prefixes": ("/app/m/finanzas", "/app/presupuesto"),
         "modules": ("finanzas",),
-    },
-    {
-        "id": "hogar",
-        "label": "Hogar",
-        "group": "Vida",
-        "prefixes": ("/app/m/matrimonio", "/app/familia"),
-        "modules": ("matrimonio",),
-        "admin": True,
     },
     {
         "id": "cuerpo",
@@ -76,6 +52,13 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "modules": ("biblioteca",),
     },
     {
+        "id": "pareja",
+        "label": "Pareja",
+        "group": "Vida",
+        "prefixes": ("/app/m/matrimonio",),
+        "modules": ("matrimonio",),
+    },
+    {
         "id": "ideas",
         "label": "Ideas",
         "group": "Vida",
@@ -83,29 +66,45 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "modules": ("sandbox",),
     },
     {
+        "id": "alma",
+        "label": "Alma",
+        "group": "Sistema",
+        "always": True,
+        "prefixes": ("/app/asistente",),
+    },
+    {
         "id": "cuenta",
         "label": "Cuenta",
-        "group": "Cuenta",
+        "group": "Sistema",
         "always": True,
-        "prefixes": ("/app/usuarios", "/app/billing"),
+        "prefixes": ("/app/coach", "/app/usuarios", "/app/billing", "/app/familia"),
     },
 )
 
-GROUP_ORDER = ("Día", "Vida", "Cuenta")
+_HUB_HREF = {
+    "hoy": "/app",
+    "semana": "/app/planificador",
+    "dinero": "/app/m/finanzas",
+    "cuerpo": "/app/m/salud",
+    "fe": "/app/m/teologia",
+    "lectura": "/app/m/biblioteca",
+    "pareja": "/app/m/matrimonio",
+    "ideas": "/app/m/sandbox",
+    "alma": "/app/asistente",
+    "cuenta": "/app/coach",
+}
 
+_HUB_BLURB = {
+    "semana": "Planificar la semana, bloques de enfoque y revisión del domingo.",
+    "dinero": "Ingreso repartido en sobres, vencimientos y precios.",
+    "cuerpo": "Sueño, ejercicio y energía.",
+    "fe": "Devocional y oración.",
+    "lectura": "Libros, progreso y resaltados.",
+    "pareja": "Citas, notas y conexión.",
+    "ideas": "Proyectos y snippets.",
+}
 
-def modulos_nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
+GROUP_ORDER = ("Día", "Vida", "Sistema")
 
 
 def _activos(user_id: int) -> set[str]:
@@ -120,15 +119,11 @@ def _norm_path(path: str) -> str:
 
 def _matches(path: str, hub: dict[str, Any]) -> bool:
     p = _norm_path(path)
-    for exact in hub.get("exact") or ():
-        if p == _norm_path(exact):
-            return True
-    for also in hub.get("also") or ():
-        if p == _norm_path(also) or p.startswith(_norm_path(also) + "/"):
-            return True
-    for pref in hub.get("prefixes") or ():
-        root = _norm_path(pref)
-        if p == root or p.startswith(root + "/"):
+    if any(p == _norm_path(e) for e in hub.get("exact") or ()):
+        return True
+    for root in (*(hub.get("also") or ()), *(hub.get("prefixes") or ())):
+        r = _norm_path(root)
+        if p == r or p.startswith(r + "/"):
             return True
     return False
 
@@ -137,48 +132,12 @@ def _is_admin(user: dict) -> bool:
     return str(user.get("rol") or "").lower() == "admin"
 
 
-def _hub_href(hub_id: str, user: dict, activos: set[str]) -> str:
-    if hub_id == "hoy":
-        return "/app"
-    if hub_id == "guia":
-        uid = int(user["id"])
-        if usuario_onboarding_completo(uid):
-            return "/app/asistente"
-        return "/app/coach"
-    if hub_id == "semana":
-        return "/app/planificador"
-    if hub_id == "dinero":
-        if "finanzas" in activos:
-            return "/app/m/finanzas"
-        return "/app/presupuesto"
-    if hub_id == "hogar":
-        if "matrimonio" in activos:
-            return "/app/m/matrimonio"
-        return "/app/familia"
-    if hub_id == "cuerpo":
-        return "/app/m/salud"
-    if hub_id == "fe":
-        return "/app/m/teologia"
-    if hub_id == "lectura":
-        return "/app/m/biblioteca"
-    if hub_id == "ideas":
-        return "/app/m/sandbox"
-    if hub_id == "cuenta":
-        return "/app/usuarios"
-    return "/app"
-
-
-def _visible(hub: dict[str, Any], user: dict, activos: set[str], onboarded: bool) -> bool:
+def _visible(hub: dict[str, Any], activos: set[str], onboarded: bool) -> bool:
     if not onboarded:
-        return hub["id"] in {"guia", "cuenta"}
+        return hub["id"] == "cuenta"
     if hub.get("always"):
         return True
-    mods = tuple(hub.get("modules") or ())
-    if mods and any(m in activos for m in mods):
-        return True
-    if hub.get("admin") and _is_admin(user):
-        return True
-    return False
+    return any(m in activos for m in hub.get("modules") or ())
 
 
 def build_sidebar(user: dict, request: Request) -> list[dict]:
@@ -188,240 +147,105 @@ def build_sidebar(user: dict, request: Request) -> list[dict]:
     path = request.url.path
     groups: dict[str, list[dict]] = {g: [] for g in GROUP_ORDER}
     for hub in _HUB_SPECS:
-        if not _visible(hub, user, activos, onboarded):
+        if not _visible(hub, activos, onboarded):
             continue
-        item = {
-            "id": hub["id"],
-            "label": hub["label"],
-            "href": _hub_href(hub["id"], user, activos),
-            "active": _matches(path, hub),
-        }
-        groups[hub["group"]].append(item)
-    out = []
-    for label in GROUP_ORDER:
-        links = groups[label]
-        if links:
-            out.append({"label": label, "links": links})
-    return out
+        groups[hub["group"]].append(
+            {
+                "id": hub["id"],
+                "label": hub["label"],
+                "href": _HUB_HREF[hub["id"]],
+                "active": _matches(path, hub),
+            }
+        )
+    return [{"label": g, "links": groups[g]} for g in GROUP_ORDER if groups[g]]
 
 
 def current_hub_id(path: str) -> str | None:
-    p = _norm_path(path)
     for hub in _HUB_SPECS:
-        if _matches(p, hub):
+        if _matches(path, hub):
             return hub["id"]
     return None
+
+
+def _tab(href: str, label: str, active: bool) -> dict:
+    return {"href": href, "label": label, "active": active}
 
 
 def hub_tabs(user: dict, request: Request) -> list[dict]:
     """Sibling links inside the current hub."""
     uid = int(user["id"])
-    activos = _activos(uid)
     if not usuario_onboarding_completo(uid):
         return []
+    activos = _activos(uid)
     path = request.url.path
     hub = current_hub_id(path)
-    qtab = (request.query_params.get("tab") or "").lower()
     tabs: list[dict] = []
-    if hub == "hoy":
-        tabs = [
-            {"href": "/app", "label": "Inicio", "active": _norm_path(path) == "/app"},
-            {"href": "/app/foco", "label": "Foco", "active": path.startswith("/app/foco")},
-            {
-                "href": "/app/ritual",
-                "label": "Ritual",
-                "active": path.startswith("/app/ritual"),
-            },
-            {"href": "/app/rueda", "label": "Rueda", "active": path.startswith("/app/rueda")},
-        ]
-    elif hub == "guia":
-        tabs = [
-            {
-                "href": "/app/asistente",
-                "label": "Conversar",
-                "active": path.startswith("/app/asistente"),
-            },
-            {
-                "href": "/app/coach",
-                "label": "Sistema",
-                "active": path.startswith("/app/coach"),
-            },
-        ]
-    elif hub == "semana":
-        tabs = [
-            {
-                "href": "/app/foco",
-                "label": "Foco",
-                "active": False,
-            },
-            {
-                "href": "/app/planificador",
-                "label": "Planificador",
-                "active": path.startswith("/app/planificador"),
-            },
-        ]
-        if "agenda" in activos:
-            tabs.append(
-                {
-                    "href": "/app/m/agenda?tab=bitacora",
-                    "label": "Bitácora",
-                    "active": path.startswith("/app/m/agenda"),
-                }
-            )
+    if hub == "semana":
+        tabs.append(_tab("/app/planificador", "Planificador", path.startswith("/app/planificador")))
         if "deep_work" in activos:
-            tabs.append(
-                {
-                    "href": "/app/m/deep_work",
-                    "label": "Enfoque",
-                    "active": path.startswith("/app/m/deep_work"),
-                }
-            )
+            tabs.append(_tab("/app/m/deep_work", "Enfoque", path.startswith("/app/m/deep_work")))
+        tabs.append(_tab("/app/revision", "Revisión", path.startswith("/app/revision")))
     elif hub == "dinero":
         mes = request.query_params.get("mes") or request.session.get("fin_mes") or ""
         anio = request.query_params.get("anio") or request.session.get("fin_anio") or ""
         qs = f"?mes={mes}&anio={anio}" if mes and anio else ""
-        fin_active = path.startswith("/app/m/finanzas") and "/precios" not in path and qtab != "presupuesto"
-        pre_active = path.startswith("/app/presupuesto") or qtab == "presupuesto"
-        price_active = "/precios" in path
-        if "finanzas" in activos:
-            tabs.append(
-                {
-                    "href": f"/app/m/finanzas{qs}",
-                    "label": "Sobres y gastos",
-                    "active": fin_active,
-                }
-            )
-        tabs.append(
-            {
-                "href": "/app/presupuesto",
-                "label": "50/30/20",
-                "active": pre_active,
-            }
-        )
-        if "finanzas" in activos:
-            tabs.append(
-                {
-                    "href": f"/app/m/finanzas/precios{qs}",
-                    "label": "Precios supermercados",
-                    "active": price_active,
-                }
-            )
-    elif hub == "hogar":
-        if "matrimonio" in activos:
-            tabs.append(
-                {
-                    "href": "/app/m/matrimonio",
-                    "label": "Pareja",
-                    "active": path.startswith("/app/m/matrimonio"),
-                }
-            )
-        if _is_admin(user):
-            tabs.append(
-                {
-                    "href": "/app/familia",
-                    "label": "Familia",
-                    "active": path.startswith("/app/familia"),
-                }
-            )
+        tabs = [
+            _tab(f"/app/m/finanzas{qs}", "Mes", _norm_path(path) == "/app/m/finanzas"),
+            _tab(
+                f"/app/m/finanzas/vencimientos{qs}",
+                "Vencimientos",
+                path.startswith("/app/m/finanzas/vencimientos"),
+            ),
+            _tab(
+                f"/app/m/finanzas/precios{qs}",
+                "Precios supermercados",
+                path.startswith("/app/m/finanzas/precios"),
+            ),
+        ]
     elif hub == "cuenta":
         tabs = [
-            {
-                "href": "/app/usuarios",
-                "label": "Cuenta",
-                "active": path.startswith("/app/usuarios"),
-            },
-            {
-                "href": "/app/billing",
-                "label": "Planes",
-                "active": path.startswith("/app/billing"),
-            },
+            _tab("/app/coach", "Mi sistema", path.startswith("/app/coach")),
+            _tab("/app/billing", "Plan y cobros", path.startswith("/app/billing")),
+            _tab("/app/usuarios", "Telegram y usuarios", path.startswith("/app/usuarios")),
         ]
-    # Drop empty / single-tab bars (no siblings to jump to).
-    if len(tabs) < 2:
-        return []
-    return tabs
+        if _is_admin(user):
+            tabs.append(_tab("/app/familia", "Familia", path.startswith("/app/familia")))
+    return tabs if len(tabs) >= 2 else []
 
 
 def dashboard_hubs(user: dict) -> list[dict]:
-    """Cards on Hoy: one per visible life area, with child links."""
+    """Cards on Hoy: Semana plus each active life area, with child links."""
     uid = int(user["id"])
     activos = _activos(uid)
-    onboarded = usuario_onboarding_completo(uid)
-    children = {
-        "hoy": [
-            {"label": "Foco del día", "href": "/app/foco"},
-            {"label": "Ritual", "href": "/app/ritual"},
-            {"label": "Rueda", "href": "/app/rueda"},
-        ],
-        "guia": [
-            {"label": "Alma", "href": "/app/asistente"},
-            {"label": "Coach", "href": "/app/coach"},
-        ],
+    if not usuario_onboarding_completo(uid):
+        return []
+    children: dict[str, list[dict]] = {
         "semana": [
             {"label": "Planificador", "href": "/app/planificador"},
+            *([{"label": "Enfoque", "href": "/app/m/deep_work"}] if "deep_work" in activos else []),
+            {"label": "Revisión", "href": "/app/revision"},
         ],
-        "dinero": [],
-        "hogar": [],
-        "cuerpo": [{"label": "Salud", "href": "/app/m/salud", "clave": "salud"}],
-        "fe": [{"label": "Teología", "href": "/app/m/teologia", "clave": "teologia"}],
-        "lectura": [{"label": "Biblioteca", "href": "/app/m/biblioteca", "clave": "biblioteca"}],
-        "ideas": [{"label": "Sandbox", "href": "/app/m/sandbox", "clave": "sandbox"}],
-        "cuenta": [
-            {"label": "Usuarios", "href": "/app/usuarios"},
-            {"label": "Planes", "href": "/app/billing"},
+        "dinero": [
+            {"label": "Mes", "href": "/app/m/finanzas"},
+            {"label": "Vencimientos", "href": "/app/m/finanzas/vencimientos"},
+            {"label": "Precios", "href": "/app/m/finanzas/precios"},
         ],
     }
-    if "agenda" in activos:
-        children["semana"].append({"label": "Bitácora", "href": "/app/m/agenda?tab=bitacora", "clave": "agenda"})
-    if "deep_work" in activos:
-        children["semana"].append({"label": "Enfoque", "href": "/app/m/deep_work", "clave": "deep_work"})
-    if "finanzas" in activos:
-        children["dinero"].append({"label": "Sobres", "href": "/app/m/finanzas", "clave": "finanzas"})
-    children["dinero"].append({"label": "50/30/20", "href": "/app/m/finanzas?tab=presupuesto" if "finanzas" in activos else "/app/presupuesto"})
-    if "finanzas" in activos:
-        children["dinero"].append({"label": "Precios", "href": "/app/m/finanzas/precios", "clave": "finanzas"})
-    if "matrimonio" in activos:
-        children["hogar"].append({"label": "Pareja", "href": "/app/m/matrimonio", "clave": "matrimonio"})
-    if _is_admin(user):
-        children["hogar"].append({"label": "Familia", "href": "/app/familia"})
-
     out = []
     for hub in _HUB_SPECS:
-        if hub["id"] == "hoy":
-            continue
-        if not _visible(hub, user, activos, onboarded):
-            continue
-        kids = children.get(hub["id"]) or []
-        if hub["id"] in {"cuerpo", "fe", "lectura", "ideas"} and not any(
-            k.get("clave") in activos for k in kids if k.get("clave")
-        ):
-            continue
-        if hub["id"] == "hogar" and not kids:
+        if hub["id"] not in _HUB_BLURB or not _visible(hub, activos, True):
             continue
         out.append(
             {
                 "id": hub["id"],
                 "label": hub["label"],
-                "href": _hub_href(hub["id"], user, activos),
-                "descripcion": _HUB_BLURB.get(hub["id"], ""),
-                "children": kids,
+                "href": _HUB_HREF[hub["id"]],
+                "descripcion": _HUB_BLURB[hub["id"]],
+                "children": children.get(hub["id"], []),
                 "activo": True,
             }
         )
     return out
-
-
-_HUB_BLURB = {
-    "guia": "Alma para el día a día; el Coach arma el sistema.",
-    "semana": "Calendario, bitácora y bloques de enfoque en un solo lugar.",
-    "dinero": "Sobres, 50/30/20 y precios — la misma plata, dos lecturas.",
-    "hogar": "Pareja y comparativa familiar.",
-    "cuerpo": "Sueño, ejercicio y energía.",
-    "fe": "Devocional y oración.",
-    "lectura": "Libros, progreso y resaltados.",
-    "ideas": "Proyectos, snippets y experimentos.",
-    "cuenta": "Plan, Telegram y usuarios.",
-}
 
 
 def attach_nav(request: Request, ctx: dict) -> dict:
@@ -430,5 +254,4 @@ def attach_nav(request: Request, ctx: dict) -> dict:
         return ctx
     ctx.setdefault("nav_groups", build_sidebar(user, request))
     ctx.setdefault("hub_tabs", hub_tabs(user, request))
-    ctx.setdefault("modulos_nav", modulos_nav(int(user["id"])))
     return ctx
