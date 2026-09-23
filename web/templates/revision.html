@@ -30,7 +30,7 @@
   {% else %}
   <ul class="agenda-ev-list">
     {% for s in semana.sobres %}
-    <li>{{ s.icono }} {{ s.emoji }} {{ s.nombre|title }} · ${{ '%.0f'|format(s.gastado) }} / ${{ '%.0f'|format(s.presupuesto) }}</li>
+    <li><span aria-label="{{ s.semaforo or 'sin dato' }}">{{ s.icono }}</span> {{ s.nombre|capitalize }} · ${{ '%.0f'|format(s.gastado) }} / ${{ '%.0f'|format(s.presupuesto) }}</li>
     {% endfor %}
   </ul>
   {% endif %}

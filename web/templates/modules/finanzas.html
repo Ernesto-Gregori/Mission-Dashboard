@@ -110,7 +110,7 @@
     <form class="ratio-form" method="post" action="/app/m/finanzas/reparto">
       {% for s in sobres_ui %}
       <div>
-        <label for="pct-{{ s.key }}">{{ s.emoji }} {{ s.nombre|title }} %</label>
+        <label for="pct-{{ s.key }}">{{ s.emoji }} {{ s.nombre|capitalize }} %</label>
         <input id="pct-{{ s.key }}" name="pct_{{ s.key }}" type="number" min="0" max="100" value="{{ s.pct }}" required />
       </div>
       {% endfor %}

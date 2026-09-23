@@ -409,7 +409,7 @@ def _ctx_finanzas(uid_i: int) -> str:
     ]
     for s in r["sobres"].values():
         lineas.append(
-            f"- {s['nombre'].title()} {s['pct']}%: ${s['gastado']:.0f} de ${s['presupuesto']:.0f}"
+            f"- {s['nombre'].capitalize()} {s['pct']}%: ${s['gastado']:.0f} de ${s['presupuesto']:.0f}"
         )
     if r["chart"]:
         lineas.append("Mayores destinos: " + ", ".join(f"{d['nombre']} ${d['monto']:.0f}" for d in r["chart"][:5]))

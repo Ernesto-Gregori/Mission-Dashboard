@@ -244,7 +244,7 @@ def resumen_mes(mes: int, anio: int, user_id: int | None = None) -> dict:
         "stacked": [
             {
                 "key": s["key"],
-                "label": s["nombre"].title(),
+                "label": s["nombre"].capitalize(),
                 "color": s["color"],
                 "monto": s["gastado"],
                 "pct": (s["gastado"] / total_gastado * 100) if total_gastado > 0 else 0,
