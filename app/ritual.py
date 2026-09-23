@@ -1,12 +1,17 @@
 """Ritual de mañana — gratitud, intención y hábitos del día."""
 from __future__ import annotations
 
+import re
+import unicodedata
+
 from app.logging_config import get_logger
 from app.timezone_config import hora_actual, hoy as _hoy
 
 log = get_logger("ritual")
 
 MAX_TEXTO = 800
+MAX_LABEL = 40
+_HORA_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 def ensure_ritual_schema() -> None:
@@ -61,6 +66,106 @@ def listar_habitos(user_id: int | None = None) -> list[dict]:
         )
         or []
     )
+
+
+def listar_habitos_config(user_id: int | None = None) -> list[dict]:
+    """Todos los hábitos del usuario, activos primero (incluye archivados)."""
+    from app.db.core import ejecutar
+
+    return (
+        ejecutar(
+            """
+            SELECT clave, label, emoji, hora, COALESCE(activo, 1) AS activo, orden
+            FROM habitos_config
+            WHERE user_id = ?
+            ORDER BY COALESCE(activo, 1) DESC, orden, label
+            """,
+            [_uid(user_id)],
+            fetchall=True,
+        )
+        or []
+    )
+
+
+def _clave_desde(label: str) -> str:
+    base = unicodedata.normalize("NFKD", label).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "_", base.lower()).strip("_")[:20] or "habito"
+
+
+def _limpiar(label: str, emoji: str, hora: str) -> tuple[str | None, dict]:
+    label = (label or "").strip()[:MAX_LABEL]
+    if not label:
+        return "El hábito necesita un nombre.", {}
+    hora = (hora or "").strip()[:5]
+    if hora and not _HORA_RE.match(hora):
+        return "La hora debe tener formato HH:MM.", {}
+    return None, {
+        "label": label,
+        "emoji": (emoji or "").strip()[:4] or "⭐",
+        "hora": hora or "—",
+    }
+
+
+def crear_habito(label: str, emoji: str = "", hora: str = "", user_id: int | None = None) -> tuple[bool, str]:
+    from app.db.core import ejecutar, invalidate_data_caches
+
+    error, datos = _limpiar(label, emoji, hora)
+    if error:
+        return False, error
+    uid_i = _uid(user_id)
+    existentes = listar_habitos_config(uid_i)
+    usadas = {h["clave"] for h in existentes}
+    if any(h["label"].lower() == datos["label"].lower() for h in existentes):
+        return False, "Ya tienes un hábito con ese nombre (revisa los archivados)."
+    base = clave = _clave_desde(datos["label"])
+    n = 2
+    while clave in usadas:
+        clave = f"{base[:17]}_{n}"
+        n += 1
+    orden = max((int(h.get("orden") or 0) for h in existentes), default=0) + 1
+    ejecutar(
+        """
+        INSERT INTO habitos_config (user_id, clave, label, emoji, hora, activo, orden)
+        VALUES (?, ?, ?, ?, ?, 1, ?)
+        """,
+        [uid_i, clave, datos["label"], datos["emoji"], datos["hora"], orden],
+    )
+    invalidate_data_caches()
+    return True, f"Hábito «{datos['label']}» agregado."
+
+
+def actualizar_habito(
+    clave: str, label: str, emoji: str = "", hora: str = "", user_id: int | None = None
+) -> tuple[bool, str]:
+    from app.db.core import ejecutar, invalidate_data_caches
+
+    error, datos = _limpiar(label, emoji, hora)
+    if error:
+        return False, error
+    uid_i = _uid(user_id)
+    if not any(h["clave"] == clave for h in listar_habitos_config(uid_i)):
+        return False, "Hábito no encontrado."
+    ejecutar(
+        """
+        UPDATE habitos_config SET label = ?, emoji = ?, hora = ?
+        WHERE user_id = ? AND clave = ?
+        """,
+        [datos["label"], datos["emoji"], datos["hora"], uid_i, clave],
+    )
+    invalidate_data_caches()
+    return True, "Hábito actualizado."
+
+
+def set_habito_activo(clave: str, activo: bool, user_id: int | None = None) -> bool:
+    """Archivar en lugar de borrar: el historial diario usa la clave."""
+    from app.db.core import ejecutar, invalidate_data_caches
+
+    ejecutar(
+        "UPDATE habitos_config SET activo = ? WHERE user_id = ? AND clave = ?",
+        [1 if activo else 0, _uid(user_id), clave],
+    )
+    invalidate_data_caches()
+    return True
 
 
 def habitos_hoy(user_id: int | None = None, fecha: str | None = None) -> dict[str, bool]:

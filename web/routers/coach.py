@@ -26,8 +26,9 @@ from app.onboarding import (
     sugerir_con_ia,
     usuario_onboarding_completo,
 )
+from app.ritual import actualizar_habito, crear_habito, listar_habitos_config, set_habito_activo
 from app.templates import MODULE_TEMPLATES
-from web.deps import require_user, render
+from web.deps import require_onboarded, require_user, render
 
 router = APIRouter(prefix="/app/coach", tags=["coach"])
 
@@ -154,10 +155,11 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
     uid = int(user["id"])
     activos = sorted(modulos_activos(uid))
     bloqueados = [k for k in MODULE_TEMPLATES if k not in activos]
+    habitos = listar_habitos_config(uid)
     return render(
         request,
         "coach/status.html",
-        title="Coach",
+        title="Mi sistema",
         user=user,
         plan=plan,
         plan_label=limites(plan)["nombre"],
@@ -167,8 +169,55 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
         puede_reconfig=puede_reconfigurar_coach(plan),
         stripe_ok=payments_configured(),
         tope=modulos_max(plan),
-        error=error,
+        error=error or request.session.pop("sistema_error", None),
+        flash=request.session.pop("sistema_flash", None),
+        habitos_activos=[h for h in habitos if int(h.get("activo") or 0) == 1],
+        habitos_archivados=[h for h in habitos if int(h.get("activo") or 0) != 1],
     )
+
+
+def _volver_habitos(request: Request, ok: bool, msg: str) -> RedirectResponse:
+    request.session["sistema_flash" if ok else "sistema_error"] = msg
+    return RedirectResponse("/app/coach#habitos", status_code=303)
+
+
+@router.post("/habitos")
+async def habito_crear(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    form = await request.form()
+    ok, msg = crear_habito(
+        str(form.get("label") or ""),
+        str(form.get("emoji") or ""),
+        str(form.get("hora") or ""),
+        user_id=int(user["id"]),
+    )
+    return _volver_habitos(request, ok, msg)
+
+
+@router.post("/habitos/{clave}/editar")
+async def habito_editar(
+    clave: str, request: Request, user: Annotated[dict, Depends(require_onboarded)]
+):
+    form = await request.form()
+    ok, msg = actualizar_habito(
+        clave,
+        str(form.get("label") or ""),
+        str(form.get("emoji") or ""),
+        str(form.get("hora") or ""),
+        user_id=int(user["id"]),
+    )
+    return _volver_habitos(request, ok, msg)
+
+
+@router.post("/habitos/{clave}/archivar")
+def habito_archivar(clave: str, request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    set_habito_activo(clave, False, user_id=int(user["id"]))
+    return _volver_habitos(request, True, "Hábito archivado; su historial se conserva.")
+
+
+@router.post("/habitos/{clave}/reactivar")
+def habito_reactivar(clave: str, request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    set_habito_activo(clave, True, user_id=int(user["id"]))
+    return _volver_habitos(request, True, "Hábito reactivado.")
 
 
 @router.post("/briefing")
