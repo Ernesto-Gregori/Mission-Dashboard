@@ -2,10 +2,8 @@
 {% block content %}
 <header class="page-header">
   <div>
-    <h1>Control de mando</h1>
-    <p class="muted">{{ plan_resumen }}</p>
+    <h1>Hoy</h1>
   </div>
-  <a class="btn secondary" href="/app/coach">Configurar sistema</a>
 </header>
 
 {% if onboarded_flash %}
@@ -111,9 +109,9 @@
   <div class="section-heading">
     <div>
       <h2 id="modules-title">Tus áreas</h2>
-      <p class="muted">{{ activos_count }} módulos activos · cada tarjeta junta páginas que hacían lo mismo</p>
+      <p class="muted">{{ activos_count }} módulos activos</p>
     </div>
-    <a href="/app/coach">Reconfigurar</a>
+    <a href="/app/coach">Mi sistema</a>
   </div>
   <div class="module-grid hub-grid">
     {% for h in life_hubs %}
@@ -136,11 +134,4 @@
   </div>
 </section>
 
-<section class="account-card" aria-labelledby="plan-title">
-  <div>
-    <h2 id="plan-title">Plan {{ plan_label }}</h2>
-    <p class="muted">Administra tu suscripción y métodos de pago.</p>
-  </div>
-  <a class="btn" href="/app/billing">Ver plan</a>
-</section>
 {% endblock %}

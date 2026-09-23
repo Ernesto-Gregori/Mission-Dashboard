@@ -79,7 +79,7 @@ def test_sidebar_uses_hubs_not_page_dump(web_client):
     hrefs = _link_hrefs(side)
 
     assert "Hoy" in side
-    assert "Guía" in side
+    assert "Alma" in side
     assert "Semana" in side
     assert "Dinero" in side
     assert "Cuenta" in side
@@ -92,7 +92,8 @@ def test_sidebar_uses_hubs_not_page_dump(web_client):
     assert "/app/presupuesto" not in hrefs
     assert "/app/familia" not in hrefs
     assert "/app/billing" not in hrefs
-    assert "/app/coach" not in hrefs
+    assert "/app/usuarios" not in hrefs
+    assert "/app/coach" in hrefs
     assert "/app/m/agenda" not in hrefs
     assert "/app/m/finanzas" in hrefs or any(h.startswith("/app/m/finanzas") for h in hrefs)
 
@@ -130,7 +131,7 @@ def test_dashboard_joins_daily_surfaces(web_client):
     assert b"Semana" in body
 
 
-def test_guia_tabs_connect_alma_and_coach(web_client):
+def test_alma_y_mi_sistema_separados(web_client):
     _onboard(web_client)
     r = web_client.get("/app/asistente")
     assert r.status_code == 200
@@ -165,14 +166,17 @@ def test_semana_hub_links_planificador_enfoque_revision(web_client):
     assert b'href="/app/m/agenda' not in r.content
 
 
-def test_hogar_tabs_for_admin(web_client):
+def test_familia_vive_en_cuenta_admin(web_client):
     _onboard(web_client)
     r = web_client.get("/app/m/matrimonio")
     assert r.status_code == 200
-    assert b'href="/app/familia"' in r.content
+    assert b'href="/app/familia"' not in r.content
+    assert b'data-hub="pareja"' in r.content
     r = web_client.get("/app/familia")
     assert r.status_code == 200
-    assert b'href="/app/m/matrimonio"' in r.content
+    assert b'href="/app/coach"' in r.content
+    assert b'href="/app/billing"' in r.content
+    assert b'href="/app/familia"' in r.content
 
 
 def test_cuenta_hub_covers_billing(web_client):
@@ -181,6 +185,8 @@ def test_cuenta_hub_covers_billing(web_client):
     assert r.status_code == 200
     side = _sidebar(r.content)
     hrefs = _link_hrefs(side)
-    assert "/app/usuarios" in hrefs
+    assert "/app/coach" in hrefs
     assert "/app/billing" not in hrefs
     assert b'href="/app/billing"' in r.content
+    assert b"Plan y cobros" in r.content
+    assert b"tab=plan" not in r.content

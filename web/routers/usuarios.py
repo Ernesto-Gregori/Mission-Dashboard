@@ -28,7 +28,7 @@ from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/usuarios", tags=["usuarios"])
 
-TABS = ("plan", "telegram", "gestion", "backup", "auditoria")
+TABS = ("telegram", "gestion", "backup", "auditoria")
 
 
 def _nav(user_id: int) -> list[dict]:
@@ -46,11 +46,11 @@ def _nav(user_id: int) -> list[dict]:
 
 
 def _tab(request: Request, user: dict) -> str:
-    t = (request.query_params.get("tab") or request.session.get("usr_tab") or "plan").lower()
+    t = (request.query_params.get("tab") or request.session.get("usr_tab") or "telegram").lower()
     if t not in TABS:
-        t = "plan"
-    if user.get("rol") != "admin" and t not in ("plan", "telegram"):
-        t = "plan"
+        t = "telegram"
+    if user.get("rol") != "admin" and t != "telegram":
+        t = "telegram"
     request.session["usr_tab"] = t
     return t
 
@@ -97,7 +97,7 @@ def _ctx(
     }
 
 
-def _redirect(tab: str = "plan") -> RedirectResponse:
+def _redirect(tab: str = "telegram") -> RedirectResponse:
     return RedirectResponse(f"/app/usuarios?tab={tab}", status_code=303)
 
 

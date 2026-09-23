@@ -213,7 +213,7 @@ def test_coach_reconfig_uses_app_shell(web_client):
     assert b'for="coach-name"' in r.content
     assert b'class="sidebar-footer"' in r.content
     assert b"Cerrar sesi" in r.content
-    assert b"/app/usuarios" in r.content
+    assert b'data-hub="cuenta"' in r.content
     assert b'class="coach-area-grid"' in r.content
 
 
