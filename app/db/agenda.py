@@ -1,7 +1,6 @@
 """CRUD Agenda: bitácora semanal, eventos de calendario, rachas y lecturas cruzadas."""
 from __future__ import annotations
 
-import json
 from datetime import timedelta
 
 from app.db.core import ejecutar, ejecutar_cached, invalidate_data_caches
@@ -171,14 +170,27 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
         or []
     )
 
-    bloques_rows = (
-        ejecutar_cached(
-            "SELECT nombre FROM bloques_fijos WHERE activo = 1 AND user_id = ?",
-            (uid(),),
-        )
-        or []
-    )
-    nombres_bloques = {r["nombre"] for r in bloques_rows}
+    from app.db.deep_work import bloques_en_rango
+
+    bloques = [
+        {
+            "id": None,
+            "bloque_id": b["id"],
+            "fecha": b["fecha"],
+            "hora_inicio": b["hora_inicio"],
+            "hora_fin": b["hora_fin"],
+            "titulo": b["nombre"],
+            "tipo": b["tipo"],
+            "estado_planificacion": b["estado"],
+            "ambito": b["tipo"],
+            "color": b["color"],
+            "google_id": None,
+            "fuente": "deep_work",
+        }
+        for b in bloques_en_rango(lunes, domingo)
+    ]
+    # Bloques que antes se subían a Google: no duplicarlos al leer Calendar.
+    nombres_bloques = {b["titulo"] for b in bloques}
 
     google_ids_sincronizados = {e["google_id"] for e in locales if e.get("google_id")}
 
@@ -197,60 +209,28 @@ def obtener_eventos_semana(lunes: date, domingo: date) -> list:
     except Exception:
         google_eventos = []
 
-    todos = list(citas) + list(locales) + list(google_eventos)
+    todos = list(citas) + list(locales) + bloques + list(google_eventos)
     todos.sort(key=lambda e: (e.get("fecha", ""), e.get("hora_inicio") or "23:59"))
     return todos
 
 
 def obtener_deepwork_semana(lunes: date, domingo: date) -> list:
-    resultado = []
-    for i in range(7):
-        dia = lunes + timedelta(days=i)
-        dia_iso = dia.isoformat()
-        dia_numero = dia.weekday() + 1
+    from app.db.deep_work import bloques_en_rango
 
-        bloques = (
-            ejecutar(
-                """
-                SELECT b.id, b.nombre, b.color, b.tipo,
-                       b.hora_inicio, b.hora_fin, b.dias_semana,
-                       s.estado, s.duracion_real, s.notas
-                FROM bloques_fijos b
-                LEFT JOIN sesiones_completadas s
-                    ON s.bloque_fijo_id = b.id AND s.fecha = ? AND s.user_id = ?
-                WHERE b.activo = 1 AND b.user_id = ?
-                """,
-                [dia_iso, uid(), uid()],
-                fetchall=True,
-            )
-            or []
-        )
-
-        for b in bloques:
-            try:
-                dias = json.loads(b["dias_semana"] or "[]")
-            except Exception:
-                dias = []
-            if dia_numero not in dias:
-                continue
-            estado = b["estado"] or "Pendiente"
-            completado = 1 if estado == "Completado" else 0
-            resultado.append(
-                {
-                    "fecha": dia_iso,
-                    "bloque_nombre": b["nombre"],
-                    "color": b["color"],
-                    "tipo": b["tipo"],
-                    "hora_inicio": b["hora_inicio"],
-                    "duracion_real": b["duracion_real"],
-                    "estado": estado,
-                    "completado": completado,
-                    "notas": b["notas"],
-                }
-            )
-
-    resultado.sort(key=lambda x: (x["fecha"], x.get("hora_inicio") or ""))
-    return resultado
+    return [
+        {
+            "fecha": b["fecha"],
+            "bloque_nombre": b["nombre"],
+            "color": b["color"],
+            "tipo": b["tipo"],
+            "hora_inicio": b["hora_inicio"],
+            "duracion_real": b["duracion_real"],
+            "estado": b["estado"],
+            "completado": 1 if b["estado"] == "Completado" else 0,
+            "notas": b["notas"],
+        }
+        for b in bloques_en_rango(lunes, domingo)
+    ]
 
 
 def obtener_devocionales_semana(lunes: date, domingo: date) -> list:

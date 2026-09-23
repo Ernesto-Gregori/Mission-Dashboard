@@ -29,6 +29,7 @@ VISTAS = ("dia", "semana", "mes")
 HOUR_START = 6
 HOUR_END = 22
 PX_PER_HOUR = 56
+ICONOS_ORIGEN = {"google": "📅", "matrimonio": "💑", "enfoque": "⏱️", "local": "📌"}
 
 
 def _week_offset(request: Request) -> int:
@@ -75,6 +76,8 @@ def _origen(evento: dict) -> str:
         return "google"
     if fuente == "matrimonio":
         return "matrimonio"
+    if fuente == "deep_work":
+        return "enfoque"
     if evento.get("google_id") and not evento.get("id"):
         return "google"
     return "local"
@@ -252,6 +255,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "hour_end": HOUR_END,
         "px_per_hour": PX_PER_HOUR,
         "weekday_labels": labels,
+        "iconos": ICONOS_ORIGEN,
     }
 
 

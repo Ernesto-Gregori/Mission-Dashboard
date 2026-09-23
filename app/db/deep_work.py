@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date, timedelta
 
 from app.db.core import ejecutar, ejecutar_cached, invalidate_data_caches
 from app.tenant import uid
@@ -192,29 +193,48 @@ def reactivar_bloque(bloque_id: int) -> bool:
         return False
 
 
-def bloques_para_fecha(fecha_iso: str, user_id: int | None = None) -> list:
-    """Bloques activos cuyo dias_semana incluye el weekday de fecha (1=Lun..7=Dom)."""
-    from datetime import date as _date
-
-    dia = _date.fromisoformat(fecha_iso)
-    dia_num = dia.weekday() + 1  # 1=Lunes
+def bloques_en_rango(inicio: date, fin: date, user_id: int | None = None) -> list[dict]:
+    """Ocurrencias de los bloques activos entre dos fechas, con el estado de su sesión."""
+    uid_ = int(user_id if user_id is not None else uid())
+    bloques = obtener_bloques_fijos(uid_)
+    if not bloques:
+        return []
+    sesiones = (
+        ejecutar(
+            """
+            SELECT fecha, bloque_fijo_id, estado, notas, duracion_real
+            FROM sesiones_completadas
+            WHERE user_id = ? AND fecha BETWEEN ? AND ?
+            """,
+            [uid_, inicio.isoformat(), fin.isoformat()],
+            fetchall=True,
+        )
+        or []
+    )
+    por_clave = {(str(s["fecha"]), int(s["bloque_fijo_id"])): s for s in sesiones}
     out = []
-    for b in obtener_bloques_fijos(user_id):
-        try:
-            dias = json.loads(b.get("dias_semana") or "[]")
-        except Exception:
-            dias = []
-        if dia_num in dias:
-            estado, notas = obtener_estado_sesion(fecha_iso, int(b["id"]))
-            item = dict(b)
-            item["estado"] = estado or "Pendiente"
-            item["notas"] = notas or ""
-            try:
-                item["dias_list"] = dias
-            except Exception:
-                item["dias_list"] = []
-            out.append(item)
+    dia = inicio
+    while dia <= fin:
+        for b in bloques:
+            dias = parse_dias_bloque(b)
+            if dia.weekday() + 1 not in dias:
+                continue
+            ses = por_clave.get((dia.isoformat(), int(b["id"]))) or {}
+            out.append({
+                **dict(b),
+                "fecha": dia.isoformat(),
+                "dias_list": dias,
+                "estado": ses.get("estado") or "Pendiente",
+                "notas": ses.get("notas") or "",
+                "duracion_real": ses.get("duracion_real"),
+            })
+        dia += timedelta(days=1)
     return out
+
+
+def bloques_para_fecha(fecha_iso: str, user_id: int | None = None) -> list:
+    dia = date.fromisoformat(fecha_iso)
+    return bloques_en_rango(dia, dia, user_id)
 
 
 def construir_resumen_semana(sesiones: list) -> str:

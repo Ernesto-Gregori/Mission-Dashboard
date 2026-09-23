@@ -27,6 +27,8 @@
   <p class="planner-legend" aria-label="Leyenda">
     <span class="chip chip-google">📅 Google Calendar</span>
     <span class="chip chip-local">📌 Dashboard</span>
+    <span class="chip chip-dw">⏱️ Enfoque</span>
+    <span class="chip chip-mat">💑 Pareja</span>
   </p>
 </div>
 
@@ -66,7 +68,7 @@
     <button type="button" class="tl-block tl-month-block origen-{{ e.origen }}"
             {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="{{ e.hora_inicio or '' }}" data-end="{{ e.hora_fin or '' }}"{% endif %}
             {% if e.color %}style="--event-color:{{ e.color }}"{% endif %}>
-      {% if e.origen == 'google' %}📅{% elif e.origen == 'matrimonio' %}💑{% else %}📌{% endif %}
+      {{ iconos.get(e.origen, '📌') }}
       {{ (e.titulo or '')[:18] }}
     </button>
     {% endfor %}
@@ -98,7 +100,7 @@
         <button type="button" class="tl-block origen-{{ e.origen }}"
                 {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="" data-end="" data-allday="1"{% endif %}
                 {% if e.color %}style="--event-color:{{ e.color }}"{% endif %}>
-          {% if e.origen == 'google' %}📅{% elif e.origen == 'matrimonio' %}💑{% else %}📌{% endif %}
+          {{ iconos.get(e.origen, '📌') }}
           {{ (e.titulo or '')[:22] }}
         </button>
         {% endfor %}
@@ -112,7 +114,7 @@
                 {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="{{ e.hora_inicio }}" data-end="{{ e.hora_fin }}"{% endif %}
                 style="{{ e.style }}{% if e.color %}--event-color:{{ e.color }};{% endif %}">
           <span class="tl-block-time">{{ (e.hora_inicio or '')[:5] }}</span>
-          <span class="tl-block-title">{% if e.origen == 'google' %}📅 {% elif e.origen == 'matrimonio' %}💑 {% else %}📌 {% endif %}{{ e.titulo }}</span>
+          <span class="tl-block-title">{{ iconos.get(e.origen, '📌') }} {{ e.titulo }}</span>
         </button>
         {% endfor %}
       </div>

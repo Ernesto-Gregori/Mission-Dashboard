@@ -57,7 +57,8 @@
         <span>{{ e.titulo }}{% if e.completado %} ✓{% endif %}</span>
         {% if e.origen == 'google' %}<span class="chip chip-google">📅</span>
         {% elif e.kind == 'entrenamiento' %}<span class="chip chip-salud">salud</span>
-        {% elif e.origen == 'matrimonio' %}<span class="chip chip-mat">💑</span>{% endif %}
+        {% elif e.origen == 'matrimonio' %}<span class="chip chip-mat">💑</span>
+        {% elif e.kind == 'enfoque' %}<span class="chip chip-dw">⏱️</span>{% endif %}
       </li>
       {% endfor %}
     </ol>

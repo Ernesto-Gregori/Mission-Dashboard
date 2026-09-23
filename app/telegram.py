@@ -758,7 +758,7 @@ def build_briefing(user_id: int) -> str:
             mark = "✓" if h.get("completado") else "·"
             bits.append(f"{mark} {h.get('titulo')}")
         lineas.append("Hábitos: " + "; ".join(bits))
-    evs = [i for i in items if i.get("kind") in ("evento", "matrimonio")]
+    evs = [i for i in items if i.get("kind") in ("evento", "matrimonio", "enfoque")]
     if evs:
         bits = [f"{(e.get('hora_inicio') or '—')[:5]} {e.get('titulo')}" for e in evs[:8]]
         lineas.append("Agenda: " + "; ".join(bits))
