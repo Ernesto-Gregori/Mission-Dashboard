@@ -25,7 +25,7 @@ from app.db.salud import (
     obtener_objetivo,
     serie_progreso,
 )
-from app.onboarding import listar_modulos_usuario, modulo_activo
+from app.onboarding import modulo_activo
 from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
@@ -34,20 +34,6 @@ from web.routers.ejercicios import ejercicios_page_extras
 router = APIRouter(prefix="/app/m/salud", tags=["salud"])
 
 TABS = ("hoy", "ejercicios", "rutina", "historial")
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _tab(request: Request) -> str:
@@ -170,7 +156,6 @@ def _ctx(
         "flash": flash,
         "error": error,
         "consejo": consejo,
-        "modulos_nav": _nav(int(user["id"])),
         "fecha": fecha,
         "hoy": str(_hoy()),
         "form": form,
@@ -222,7 +207,6 @@ def salud_page(request: Request, user: Annotated[dict, Depends(require_onboarded
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,
             lim_free=limites(PLAN_FREE),
-            modulos_nav=_nav(int(user["id"])),
         )
 
     flash = None

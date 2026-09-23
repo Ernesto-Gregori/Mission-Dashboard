@@ -20,7 +20,6 @@ from app.coach_insights import generar_briefing
 from app.onboarding import (
     aplicar_habitos_sugeridos,
     aplicar_modulos,
-    listar_modulos_usuario,
     marcar_admins_existentes_como_onboarded,
     marcar_onboarding_completo,
     modulos_activos,
@@ -46,20 +45,6 @@ AREA_OPTIONS = [
     "ideas",
     "enfoque",
 ]
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _clamp_mods(mods: list[str], plan: str) -> list[str]:
@@ -117,7 +102,6 @@ def coach_home(request: Request, user: Annotated[dict, Depends(require_user)]):
         areas=AREA_OPTIONS,
         tope=tope,
         error=None,
-        modulos_nav=_nav(uid) if done else [],
         hide_nav=not done,
     )
 
@@ -182,7 +166,6 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
         bloqueados=[{"clave": k, **MODULE_TEMPLATES[k]} for k in bloqueados[:8]],
         puede_reconfig=puede_reconfigurar_coach(plan),
         stripe_ok=payments_configured(),
-        modulos_nav=_nav(uid),
         tope=modulos_max(plan),
         error=error,
     )
@@ -227,7 +210,6 @@ def _render_sugerencia(request: Request, user: dict, sug: dict, plan: str):
         mods_ui=mods_ui,
         tope=tope,
         error=None,
-        modulos_nav=_nav(uid) if usuario_onboarding_completo(uid) else [],
         hide_nav=not usuario_onboarding_completo(uid),
         premium=PLAN_PREMIUM,
         free=PLAN_FREE,
@@ -279,7 +261,6 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
             mods_ui=mods_ui,
             tope=modulos_max(plan),
             error="Elige al menos un módulo.",
-            modulos_nav=[],
             hide_nav=True,
             premium=PLAN_PREMIUM,
             free=PLAN_FREE,
@@ -320,7 +301,6 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
                 f"Tu plan permite máximo {tope} módulos. "
                 f"Desmarca {len(seleccion) - int(tope)} o pasa a Premium."
             ),
-            modulos_nav=[],
             hide_nav=True,
             premium=PLAN_PREMIUM,
             free=PLAN_FREE,

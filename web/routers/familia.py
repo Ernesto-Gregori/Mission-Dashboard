@@ -7,8 +7,6 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from app.familia import listar_comparativa
-from app.onboarding import listar_modulos_usuario
-from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
 from web.deps import render, require_onboarded
 
@@ -19,20 +17,6 @@ MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "
 
 def _is_admin(user: dict) -> bool:
     return str(user.get("rol") or "").lower() == "admin"
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _periodo(request: Request) -> tuple[int, int]:
@@ -61,7 +45,6 @@ def _ctx(
     return {
         "title": "Familia",
         "user": user,
-        "modulos_nav": _nav(int(user["id"])),
         "flash": flash,
         "error": error,
         "mes": mes,

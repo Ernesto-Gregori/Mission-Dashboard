@@ -20,8 +20,6 @@ from app.database import (
     obtener_eventos_semana,
 )
 from app.db.agenda import etiquetas_semana, inicio_semana
-from app.onboarding import listar_modulos_usuario
-from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
 from web.deps import render, require_onboarded
 
@@ -31,20 +29,6 @@ VISTAS = ("dia", "semana", "mes")
 HOUR_START = 6
 HOUR_END = 22
 PX_PER_HOUR = 56
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _week_offset(request: Request) -> int:
@@ -245,7 +229,6 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
     return {
         "title": "Planificador",
         "user": user,
-        "modulos_nav": _nav(uid),
         "flash": flash,
         "error": error,
         "vista": vista,

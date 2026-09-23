@@ -20,29 +20,13 @@ from app.billing import (
 )
 from app.database import crear_usuario, listar_usuarios
 from app.multiuser import provision_user_defaults
-from app.onboarding import listar_modulos_usuario
 from app.stability import invalidate_data_caches
-from app.templates import MODULE_TEMPLATES
 from app.telegram import deep_link, link_status, start_link, unlink
 from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/usuarios", tags=["usuarios"])
 
 TABS = ("telegram", "gestion", "backup", "auditoria")
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _tab(request: Request, user: dict) -> str:
@@ -79,7 +63,6 @@ def _ctx(
         "flash": flash,
         "error": error,
         "backup_path": backup_path,
-        "modulos_nav": _nav(int(user["id"])),
         "is_admin": _is_admin(user),
         "plan": plan,
         "plan_label": limites(plan)["nombre"],

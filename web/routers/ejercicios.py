@@ -36,7 +36,7 @@ from app.exercise_uploads import (
     resolve_exercise_video_path,
     save_exercise_video,
 )
-from app.onboarding import listar_modulos_usuario, modulo_activo
+from app.onboarding import modulo_activo
 from app.templates import MODULE_TEMPLATES
 from web.deps import render, require_onboarded
 
@@ -49,20 +49,6 @@ PLATFORM_LABELS = {
     "facebook": "Facebook",
     "otro": "Otro",
 }
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _redirect_ejercicios(**extra) -> RedirectResponse:
@@ -86,7 +72,6 @@ def _detail_ctx(request: Request, user: dict, ex: dict, **extra) -> dict:
         "title": ex.get("nombre_ejercicio") or "Ejercicio",
         "user": user,
         "meta": MODULE_TEMPLATES["salud"],
-        "modulos_nav": _nav(int(user["id"])),
         "ex": ex,
         "platforms": PLATFORMS,
         "platform_labels": PLATFORM_LABELS,
@@ -189,7 +174,6 @@ def ejercicio_detalle(
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,
             lim_free=limites(PLAN_FREE),
-            modulos_nav=_nav(int(user["id"])),
         )
     ex = obtener_exercise(exercise_id, int(user["id"]))
     if not ex:

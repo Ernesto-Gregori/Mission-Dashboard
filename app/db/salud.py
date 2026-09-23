@@ -8,10 +8,6 @@ from app.db.core import ejecutar, ejecutar_cached, invalidate_data_caches
 from app.tenant import uid
 from app.timezone_config import date, datetime, hoy as _hoy
 
-SYSTEM_SALUD = """Eres un coach de salud cristiano para un estudiante de teología que
-también programa. Su rutina incluye: despertar 05:30, devocional 05:45, código 06:15,
-instituto 08:00-12:30, calistenia los miércoles 16:30. Eres práctico, motivador y
-consideras el cuerpo como templo del Espíritu Santo. Máximo 150 palabras."""
 
 ZONAS_LISTA = [
     "Pecho",

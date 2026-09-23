@@ -20,9 +20,6 @@ COLORES = {
 
 ESTADOS_SESION = ["Pendiente", "Completado", "Parcial", "No_realizado", "Postergado"]
 
-SYSTEM_COACH_DW = """Eres un coach de productividad cristiano para un estudiante de teología
-que también programa. Eres directo, práctico y motivador. Máximo 100 palabras por respuesta."""
-
 
 def obtener_bloques_fijos(user_id: int | None = None) -> list:
     uid_ = int(user_id if user_id is not None else uid())

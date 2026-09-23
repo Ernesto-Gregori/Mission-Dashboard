@@ -76,7 +76,6 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         plan_label=limites(plan)["nombre"],
         plan_resumen=resumen_plan_ui(user),
         modulos=mods,
-        modulos_nav=mods,
         needs_coach=False,
         activos_count=len(activos),
         just_finished=just,

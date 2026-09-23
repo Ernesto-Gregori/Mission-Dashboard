@@ -29,7 +29,7 @@ from app.db.schema import (
     SUPERMERCADO_LABELS,
     SUPERMERCADOS,
 )
-from app.onboarding import listar_modulos_usuario, modulo_activo
+from app.onboarding import modulo_activo
 from app.presupuesto import (
     PRESETS,
     SOBRES,
@@ -55,20 +55,6 @@ SESSION_DRAFT_KEY = "finanzas_scan_draft"
 SESSION_MATCHES_KEY = "finanzas_last_matches"
 SESSION_FLASH_KEY = "finanzas_flash"
 MAX_SCAN_BYTES = 8 * 1024 * 1024
-
-
-def _nav(user_id: int) -> list[dict]:
-    rows = listar_modulos_usuario(user_id)
-    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _periodo(request: Request) -> tuple[int, int]:
@@ -129,7 +115,6 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "hoy": str(_hoy()),
         "flash": flash,
         "error": error,
-        "modulos_nav": _nav(int(user["id"])),
         "vision_ok": api_key_configurada(),
         "price_matches": request.session.pop(SESSION_MATCHES_KEY, None),
         "finanzas_section": "sobres",
@@ -164,7 +149,6 @@ def _paywall(request: Request, user: dict):
         plan=plan_vigente(user),
         plan_free=plan_vigente(user) == PLAN_FREE,
         lim_free=limites(PLAN_FREE),
-        modulos_nav=_nav(int(user["id"])),
     )
 
 
@@ -192,7 +176,6 @@ def _precios_ctx(request: Request, user: dict, *, flash: str | None = None, erro
         "meses": list(enumerate(MESES, start=1)),
         "flash": flash,
         "error": error,
-        "modulos_nav": _nav(int(user["id"])),
         "catalogo_sv": catalogo_sv,
         "productos_sv": productos_sv,
         "q_precios": q_precios,
@@ -221,7 +204,6 @@ def _confirm_ctx(request: Request, user: dict, draft: dict, *, error: str | None
         "title": "Confirmar escaneo",
         "user": user,
         "meta": MODULE_TEMPLATES["finanzas"],
-        "modulos_nav": _nav(int(user["id"])),
         "mes": mes,
         "anio": anio,
         "hoy": str(_hoy()),

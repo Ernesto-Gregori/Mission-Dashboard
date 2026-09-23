@@ -23,11 +23,6 @@ COLORES_TIPO = {
 
 TIPOS_EVENTO = list(COLORES_TIPO.keys())
 
-SYSTEM_AGENDA = """Eres un asistente de planificación semanal cristiano.
-Ayudas a revisar victorias, planificar la semana y reflexionar.
-Eres práctico, motivador y consideras el balance vida-fe-familia.
-Máximo 120 palabras."""
-
 
 def obtener_lunes_semana(fecha=None):
     f = fecha or _hoy()
@@ -323,82 +318,6 @@ def calcular_racha_devocional() -> int:
         else:
             break
     return racha
-
-
-def calcular_racha_ejercicio() -> int:
-    fechas_rows = (
-        ejecutar_cached(
-            """
-            SELECT fecha FROM registros_salud
-            WHERE hizo_ejercicio = 1 AND user_id = ?
-            ORDER BY fecha DESC LIMIT 30
-            """,
-            (uid(),),
-        )
-        or []
-    )
-    fechas = [datetime.strptime(r["fecha"], "%Y-%m-%d").date() for r in fechas_rows]
-    if not fechas:
-        return 0
-    hoy_lun = _hoy() - timedelta(days=_hoy().weekday())
-    semanas = {f - timedelta(days=f.weekday()) for f in fechas}
-    racha = 0
-    for i in range(52):
-        if (hoy_lun - timedelta(weeks=i)) in semanas:
-            racha += 1
-        else:
-            break
-    return racha
-
-
-def calcular_racha_deepwork() -> int:
-    fechas_rows = (
-        ejecutar_cached(
-            """
-            SELECT DISTINCT fecha FROM sesiones_completadas
-            WHERE estado = 'Completado' AND user_id = ?
-            ORDER BY fecha DESC LIMIT 30
-            """,
-            (uid(),),
-        )
-        or []
-    )
-    fechas = [datetime.strptime(r["fecha"], "%Y-%m-%d").date() for r in fechas_rows]
-    racha = 0
-    hoy = _hoy()
-    for i, f in enumerate(sorted(fechas, reverse=True)):
-        if f == hoy - timedelta(days=i):
-            racha += 1
-        else:
-            break
-    return racha
-
-
-def obtener_eventos_personalizados(fecha: str | None = None) -> list:
-    if fecha:
-        return (
-            ejecutar(
-                """
-                SELECT * FROM eventos_calendario
-                WHERE fecha = ? AND user_id = ? ORDER BY hora_inicio
-                """,
-                [fecha, uid()],
-                fetchall=True,
-            )
-            or []
-        )
-    return (
-        ejecutar(
-            """
-            SELECT * FROM eventos_calendario
-            WHERE user_id = ?
-            ORDER BY fecha DESC, hora_inicio LIMIT 50
-            """,
-            [uid()],
-            fetchall=True,
-        )
-        or []
-    )
 
 
 def guardar_evento(datos: dict, *, sync_google: bool = True) -> int:

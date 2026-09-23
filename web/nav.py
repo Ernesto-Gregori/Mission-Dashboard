@@ -6,7 +6,6 @@ from typing import Any
 from fastapi import Request
 
 from app.onboarding import listar_modulos_usuario, usuario_onboarding_completo
-from app.templates import MODULE_TEMPLATES
 
 _HUB_SPECS: tuple[dict[str, Any], ...] = (
     {
@@ -106,19 +105,6 @@ _HUB_BLURB = {
 }
 
 GROUP_ORDER = ("Día", "Vida", "Sistema")
-
-
-def modulos_nav(user_id: int) -> list[dict]:
-    activos = _activos(user_id)
-    return [
-        {
-            **meta,
-            "clave": key,
-            "activo": key in activos,
-            "href": f"/app/m/{key}",
-        }
-        for key, meta in MODULE_TEMPLATES.items()
-    ]
 
 
 def _activos(user_id: int) -> set[str]:
@@ -268,5 +254,4 @@ def attach_nav(request: Request, ctx: dict) -> dict:
         return ctx
     ctx.setdefault("nav_groups", build_sidebar(user, request))
     ctx.setdefault("hub_tabs", hub_tabs(user, request))
-    ctx.setdefault("modulos_nav", modulos_nav(int(user["id"])))
     return ctx
