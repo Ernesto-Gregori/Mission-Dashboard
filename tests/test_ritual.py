@@ -73,13 +73,14 @@ def test_ritual_pagina_y_guarda_habito(web_client):
         """,
         [int(user["id"])],
     )
-    r = web_client.get("/app/ritual")
+    r = web_client.get("/app/ritual", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/app"
+    r = web_client.get("/app")
     assert r.status_code == 200
-    assert b"Ritual de ma" in r.content or b"Ritual" in r.content
     assert b'id="ritual-gratitud"' in r.content
     assert b'id="ritual-intencion"' in r.content
     assert b"OracionRitual" in r.content
-    assert b'href="/app/ritual"' in r.content
 
     r = web_client.post(
         "/app/ritual",
@@ -93,7 +94,7 @@ def test_ritual_pagina_y_guarda_habito(web_client):
     assert r.status_code == 200
     assert b"CafeConEsposa" in r.content
     assert b"TerminarElCapitulo" in r.content
-    assert b"Ritual de hoy registrado" in r.content
+    assert b"Registrado hoy" in r.content
     rows = ejecutar(
         """
         SELECT completado FROM habitos_diarios_v2

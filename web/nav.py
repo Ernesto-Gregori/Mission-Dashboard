@@ -217,19 +217,8 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
         return []
     path = request.url.path
     hub = current_hub_id(path)
-    qtab = (request.query_params.get("tab") or "").lower()
     tabs: list[dict] = []
-    if hub == "hoy":
-        tabs = [
-            {"href": "/app", "label": "Inicio", "active": _norm_path(path) == "/app"},
-            {"href": "/app/foco", "label": "Foco", "active": path.startswith("/app/foco")},
-            {
-                "href": "/app/ritual",
-                "label": "Ritual",
-                "active": path.startswith("/app/ritual"),
-            },
-        ]
-    elif hub == "guia":
+    if hub == "guia":
         tabs = [
             {
                 "href": "/app/asistente",
@@ -328,10 +317,7 @@ def dashboard_hubs(user: dict) -> list[dict]:
     activos = _activos(uid)
     onboarded = usuario_onboarding_completo(uid)
     children = {
-        "hoy": [
-            {"label": "Foco del día", "href": "/app/foco"},
-            {"label": "Ritual", "href": "/app/ritual"},
-        ],
+        "hoy": [],
         "guia": [
             {"label": "Alma", "href": "/app/asistente"},
             {"label": "Coach", "href": "/app/coach"},

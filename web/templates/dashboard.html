@@ -40,30 +40,40 @@
 </section>
 {% endif %}
 
+{% if hoy_flash %}<div class="flash-ok" role="status">{{ hoy_flash }}</div>{% endif %}
+{% if hoy_error %}<div class="flash-error" role="alert">{{ hoy_error }}</div>{% endif %}
+
 <div class="hoy-grid">
   <section class="hoy-panel" aria-labelledby="foco-hoy-title">
     <div class="section-heading">
-      <h2 id="foco-hoy-title">Foco de hoy</h2>
-      <a href="/app/foco">Abrir día</a>
+      <h2 id="foco-hoy-title">Agenda de hoy</h2>
+      <a href="/app/planificador?vista=dia">Línea de tiempo</a>
     </div>
     {% if not foco_items %}
-    <p class="muted empty-state">Nada cargado para hoy. El planificador y los hábitos aparecen acá.</p>
+    <p class="muted empty-state">Nada agendado para hoy.</p>
     {% else %}
     <ol class="foco-list hoy-foco-list">
       {% for e in foco_items %}
-      <li class="foco-item origen-{{ e.origen }}">
-        <time>{{ (e.hora_inicio or '—')[:5] }}</time>
+      <li class="foco-item origen-{{ e.origen }} kind-{{ e.kind }}">
+        <time>{{ (e.hora_inicio or '—')[:5] }}{% if e.hora_fin %}–{{ e.hora_fin[:5] }}{% endif %}</time>
         <span>{{ e.titulo }}{% if e.completado %} ✓{% endif %}</span>
+        {% if e.origen == 'google' %}<span class="chip chip-google">📅</span>
+        {% elif e.kind == 'entrenamiento' %}<span class="chip chip-salud">salud</span>
+        {% elif e.origen == 'matrimonio' %}<span class="chip chip-mat">💑</span>{% endif %}
       </li>
       {% endfor %}
     </ol>
+    {% endif %}
+    {% if puede_google and google_ok %}
+    <form method="post" action="/app/foco/sync" class="inline-form">
+      <button class="btn secondary" type="submit">Sincronizar Calendar</button>
+    </form>
     {% endif %}
   </section>
 
   <section class="hoy-panel" aria-labelledby="ritual-hoy-title">
     <div class="section-heading">
-      <h2 id="ritual-hoy-title">Ritual de mañana</h2>
-      <a href="/app/ritual">Ampliar</a>
+      <h2 id="ritual-hoy-title">Ritual y hábitos</h2>
     </div>
     {% if ritual.completado %}
     <p class="muted">Registrado hoy.</p>

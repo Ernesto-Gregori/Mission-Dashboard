@@ -5,12 +5,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
-from app.billing import limites, plan_vigente, resumen_plan_ui
-from app.calendar_sync import items_foco
+from app.billing import limites, plan_vigente, puede_google, resumen_plan_ui
+from app.calendar_sync import items_foco, pull_range
 from app.coach_insights import ultimo_briefing
 from app.onboarding import listar_modulos_usuario
 from app.ritual import habitos_hoy, listar_habitos, obtener_ritual
 from app.templates import MODULE_TEMPLATES
+from app.timezone_config import hoy as _hoy
 from web.checkout_flash import consume_checkout_query, pop_checkout_flash
 from web.deps import require_onboarded, render
 from web.nav import dashboard_hubs
@@ -49,8 +50,20 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
     ritual = obtener_ritual(uid)
     hechos = habitos_hoy(uid)
     habitos = [{**h, "hecho": bool(hechos.get(h["clave"]))} for h in listar_habitos(uid)]
+    google_ok = False
     try:
-        foco_items = items_foco(user_id=uid)[:8]
+        from app.google_calendar import calendar_disponible
+
+        google_ok = bool(calendar_disponible())
+    except Exception:
+        google_ok = False
+    if google_ok and puede_google(plan):
+        try:
+            pull_range(_hoy(), _hoy(), user_id=uid)
+        except Exception:
+            pass
+    try:
+        foco_items = [i for i in items_foco(user_id=uid) if i.get("kind") != "habito"]
     except Exception:
         foco_items = []
 
@@ -73,5 +86,9 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         ritual=ritual,
         habitos=habitos,
         foco_items=foco_items,
+        google_ok=google_ok,
+        puede_google=puede_google(plan),
+        hoy_flash=request.session.pop("hoy_flash", None),
+        hoy_error=request.session.pop("hoy_error", None),
         life_hubs=dashboard_hubs(user),
     )
