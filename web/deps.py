@@ -1,6 +1,7 @@
 """Dependencias FastAPI: sesión, usuario, BD."""
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -12,6 +13,25 @@ from starlette.types import ASGIApp
 from app.tenant import clear_current_user, reset_current_user, set_current_user
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+STATIC_DIR = Path(__file__).parent / "static"
+_asset_cache: dict[str, tuple[float, str]] = {}
+
+
+def asset(path: str) -> str:
+    """URL estática con hash de contenido: un deploy nuevo invalida la caché del navegador."""
+    rel = path.lstrip("/")
+    try:
+        mtime = (STATIC_DIR / rel).stat().st_mtime
+    except OSError:
+        return f"/static/{rel}"
+    cached = _asset_cache.get(rel)
+    if not cached or cached[0] != mtime:
+        digest = hashlib.sha256((STATIC_DIR / rel).read_bytes()).hexdigest()[:10]
+        cached = _asset_cache[rel] = (mtime, digest)
+    return f"/static/{rel}?v={cached[1]}"
+
+
+TEMPLATES.env.globals["asset"] = asset
 
 
 class NotAuthenticated(Exception):
