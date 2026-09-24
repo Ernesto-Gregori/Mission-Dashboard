@@ -73,6 +73,7 @@ BOT_COMMANDS = [
     {"command": "sueno", "description": "Anotar el sueño. Ej: /sueno 7.5 calidad 4"},
     {"command": "salud", "description": "Resumen de salud de 7 días"},
     {"command": "enfoque", "description": "Bloques de enfoque de hoy"},
+    {"command": "silencio", "description": "Pausar el briefing de la mañana"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
@@ -98,6 +99,7 @@ def help_text(*, linked: bool = True) -> str:
         "• /ejercicio pierna 45 min\n"
         "• /salud — resumen de 7 días\n"
         "• /enfoque — bloques de hoy; botones Completado, Parcial, Postergado\n"
+        "• /silencio [días] — pausa el briefing de la mañana; /silencio 0 lo reanuda\n"
         "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
         "• /cancelar 2 — borrar el evento (pide confirmación)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
@@ -191,10 +193,18 @@ def ensure_telegram_schema() -> None:
         CREATE TABLE IF NOT EXISTS telegram_prefs (
             user_id INTEGER PRIMARY KEY,
             recordatorio_min INTEGER,
-            briefing_extra TEXT
+            briefing_extra TEXT,
+            briefing_activo INTEGER NOT NULL DEFAULT 0,
+            briefing_hora TEXT,
+            silencio_hasta TEXT,
+            ultimo_briefing TEXT
         )
         """,
         "ALTER TABLE telegram_prefs ADD COLUMN briefing_extra TEXT",
+        "ALTER TABLE telegram_prefs ADD COLUMN briefing_activo INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE telegram_prefs ADD COLUMN briefing_hora TEXT",
+        "ALTER TABLE telegram_prefs ADD COLUMN silencio_hasta TEXT",
+        "ALTER TABLE telegram_prefs ADD COLUMN ultimo_briefing TEXT",
         """
         CREATE TABLE IF NOT EXISTS telegram_refs (
             chat_id TEXT NOT NULL,
@@ -1134,5 +1144,44 @@ def send_due_reminders(
                 "UPDATE telegram_reminders SET sent_at = ? WHERE id = ?",
                 [iso_ahora(), int(r["id"])],
             )
+            n += 1
+    return n
+
+
+def send_morning_briefings(*, now: datetime | None = None, send_fn: Callable | None = None) -> int:
+    """Envía el briefing del día a quien lo activó. Una vez por usuario y día. Apagado por defecto."""
+    ensure_telegram_schema()
+    from app.billing import plan_vigente, puede_telegram
+    from app.db.core import ejecutar
+    from app.db.telegram_state import marcar_briefing_enviado, prefs_briefing
+    from app.telegram_actions.briefing import build_briefing
+    from app.timezone_config import ahora
+
+    now = now or ahora()
+    dia = now.date().isoformat()
+    hhmm = now.strftime("%H:%M")
+    links = ejecutar(
+        "SELECT user_id, chat_id FROM telegram_links WHERE verified = 1 AND chat_id IS NOT NULL AND chat_id != ''",
+        fetchall=True,
+    ) or []
+    n = 0
+    for link in links:
+        user = _user_by_id(int(link["user_id"]))
+        if not user or not puede_telegram(plan_vigente(user)):
+            continue
+        prefs = prefs_briefing(int(user["id"]))
+        if not prefs["activo"] or prefs["hora"] > hhmm or prefs["ultimo"] == dia:
+            continue
+        if prefs["silencio_hasta"] and prefs["silencio_hasta"] >= dia:
+            continue
+        from app.tenant import clear_current_user, set_current_user
+
+        set_current_user(user)
+        try:
+            texto = build_briefing(int(user["id"]))
+        finally:
+            clear_current_user()
+        if send_text(str(link["chat_id"]), texto, send_fn=send_fn):
+            marcar_briefing_enviado(int(user["id"]), dia)
             n += 1
     return n

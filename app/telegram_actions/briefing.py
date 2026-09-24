@@ -155,6 +155,39 @@ def _ejecutar(ctx: Contexto, _datos: dict) -> Respuesta:
     return Respuesta(build_briefing(ctx.user_id))
 
 
+def _parse_silencio(args: str) -> dict | None:
+    raw = (args or "").strip()
+    if raw == "":
+        return {"dias": 1}
+    if re.fullmatch(r"\d{1,2}", raw) and int(raw) <= 30:
+        return {"dias": int(raw)}
+    return None
+
+
+def _ejecutar_silencio(ctx: Contexto, datos: dict) -> Respuesta:
+    from datetime import timedelta
+
+    from app.db.telegram_state import poner_silencio
+    from app.timezone_config import hoy
+
+    dias = int(datos["dias"])
+    if dias == 0:
+        poner_silencio(ctx.user_id, "")
+        return Respuesta("Listo: el briefing de la mañana vuelve cuando le toque.")
+    hasta = hoy() + timedelta(days=dias - 1)
+    poner_silencio(ctx.user_id, hasta.isoformat())
+    return Respuesta(f"Silencio hasta el {hasta.isoformat()} inclusive. /silencio 0 lo reanuda.")
+
+
+SILENCIO = Accion(
+    clave="silencio",
+    comandos=("/silencio",),
+    ejecutar=_ejecutar_silencio,
+    uso="Usá /silencio, /silencio 3 o /silencio 0 para reanudar.",
+    parse=_parse_silencio,
+)
+
+
 BRIEFING = Accion(
     clave="briefing",
     comandos=("/briefing", "/hoy"),

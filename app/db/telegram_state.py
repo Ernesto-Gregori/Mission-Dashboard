@@ -6,6 +6,7 @@ una confirmación o un /deshacer nunca cruza de chat ni de usuario.
 from __future__ import annotations
 
 import json
+import re
 from datetime import timedelta
 
 from app.db.core import ejecutar
@@ -185,6 +186,62 @@ def guardar_briefing_extra(user_id: int, claves: list[str]) -> bool:
         [int(user_id), ",".join(limpias)],
     )
     return True
+
+
+def prefs_briefing(user_id: int) -> dict:
+    rows = ejecutar(
+        "SELECT briefing_activo, briefing_hora, briefing_extra, silencio_hasta, ultimo_briefing FROM telegram_prefs WHERE user_id = ?",
+        [int(user_id)],
+        fetchall=True,
+    ) or []
+    row = rows[0] if rows else {}
+    return {
+        "activo": bool(int(row.get("briefing_activo") or 0)),
+        "hora": str(row.get("briefing_hora") or "07:00")[:5],
+        "extra": briefing_extra(user_id),
+        "silencio_hasta": str(row.get("silencio_hasta") or ""),
+        "ultimo": str(row.get("ultimo_briefing") or ""),
+    }
+
+
+def guardar_prefs_briefing(user_id: int, *, activo: bool, hora: str, extra: list[str]) -> bool:
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", hora or ""):
+        return False
+    if any(c not in BRIEFING_EXTRAS for c in extra):
+        return False
+    ejecutar(
+        """
+        INSERT INTO telegram_prefs (user_id, briefing_activo, briefing_hora, briefing_extra)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            briefing_activo = excluded.briefing_activo,
+            briefing_hora = excluded.briefing_hora,
+            briefing_extra = excluded.briefing_extra
+        """,
+        [int(user_id), 1 if activo else 0, hora, ",".join(extra)],
+    )
+    return True
+
+
+def poner_silencio(user_id: int, hasta: str) -> None:
+    """hasta = fecha ISO inclusive, o '' para reanudar."""
+    ejecutar(
+        """
+        INSERT INTO telegram_prefs (user_id, silencio_hasta) VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET silencio_hasta = excluded.silencio_hasta
+        """,
+        [int(user_id), hasta or None],
+    )
+
+
+def marcar_briefing_enviado(user_id: int, dia: str) -> None:
+    ejecutar(
+        """
+        INSERT INTO telegram_prefs (user_id, ultimo_briefing) VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET ultimo_briefing = excluded.ultimo_briefing
+        """,
+        [int(user_id), dia],
+    )
 
 
 def guardar_recordatorio_min(user_id: int, minutos: int) -> bool:
