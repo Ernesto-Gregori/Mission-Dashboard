@@ -70,6 +70,8 @@ BOT_COMMANDS = [
     {"command": "hecho", "description": "Marcar un hábito. Ej: /hecho leer"},
     {"command": "tarea", "description": "Crear una tarea. Ej: /tarea mañana 5pm banco"},
     {"command": "agenda", "description": "Agenda de hoy, mañana o la semana"},
+    {"command": "sueno", "description": "Anotar el sueño. Ej: /sueno 7.5 calidad 4"},
+    {"command": "salud", "description": "Resumen de salud de 7 días"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
@@ -90,6 +92,10 @@ def help_text(*, linked: bool = True) -> str:
         "• /hecho leer — marcar uno (o «ya leí»)\n"
         "• /tarea mañana 5pm banco — crear una tarea (va a Calendar si está vinculado)\n"
         "• /agenda [hoy|mañana|semana] — la agenda, con número\n"
+        "• /sueno 7.5 calidad 4 — sueño de anoche\n"
+        "• /energia 4 — energía (1 a 5); /energia tarde 3\n"
+        "• /ejercicio pierna 45 min\n"
+        "• /salud — resumen de 7 días\n"
         "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
         "• /cancelar 2 — borrar el evento (pide confirmación)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"

@@ -48,7 +48,7 @@ def fake_actions(monkeypatch):
         )
 
     monkeypatch.setattr(
-        acciones, "REGISTRO", acciones.REGISTRO + [make("energia", "salud"), make("leer", "biblioteca")]
+        acciones, "REGISTRO", acciones.REGISTRO + [make("pulso", "salud"), make("leer", "biblioteca")]
     )
     return calls
 
@@ -63,12 +63,12 @@ def test_command_of_inactive_module_writes_nothing(linked, fake_actions):
 
 
 def test_command_of_active_module_runs(linked, fake_actions):
-    assert _say("/energia 4", "m2") == "hecho energia"
-    assert fake_actions == [("energia", {"x": "4", "_texto": "4"})]
+    assert _say("/pulso 4", "m2") == "hecho pulso"
+    assert fake_actions == [("pulso", {"x": "4", "_texto": "4"})]
 
 
 def test_command_without_args_shows_usage(linked, fake_actions):
-    assert _say("/energia", "m3") == "uso de energia"
+    assert _say("/pulso", "m3") == "uso de pulso"
     assert fake_actions == []
 
 
@@ -106,7 +106,7 @@ def test_prompt_lists_only_active_modules_with_weekday(linked, fake_actions, mon
     finally:
         clear_current_user()
     prompt, max_tokens = prompts[0]
-    assert "- energia: campos de energia" in prompt
+    assert "- pulso: campos de pulso" in prompt
     assert "leer" not in prompt
     assert "gasto" in prompt and "tarea" in prompt
     assert "viernes 2026-09-25" in prompt
