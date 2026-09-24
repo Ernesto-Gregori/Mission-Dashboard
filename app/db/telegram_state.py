@@ -157,6 +157,36 @@ def buscar_ref(user_id: int, chat_id: str, tipo: str, n: int) -> int | None:
     return int(rows[0]["entidad_id"]) if rows else None
 
 
+BRIEFING_EXTRAS = ("salud", "teologia", "matrimonio")
+
+
+def briefing_extra(user_id: int) -> set[str]:
+    """Secciones sensibles del briefing. Vacío por defecto: fe, pareja y salud no salen."""
+    rows = ejecutar(
+        "SELECT briefing_extra FROM telegram_prefs WHERE user_id = ?",
+        [int(user_id)],
+        fetchall=True,
+    ) or []
+    if not rows or not rows[0].get("briefing_extra"):
+        return set()
+    pedidas = {p.strip() for p in str(rows[0]["briefing_extra"]).split(",") if p.strip()}
+    return pedidas & set(BRIEFING_EXTRAS)
+
+
+def guardar_briefing_extra(user_id: int, claves: list[str]) -> bool:
+    limpias = [c for c in claves if c in BRIEFING_EXTRAS]
+    if len(limpias) != len(claves):
+        return False
+    ejecutar(
+        """
+        INSERT INTO telegram_prefs (user_id, briefing_extra) VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET briefing_extra = excluded.briefing_extra
+        """,
+        [int(user_id), ",".join(limpias)],
+    )
+    return True
+
+
 def guardar_recordatorio_min(user_id: int, minutos: int) -> bool:
     if int(minutos) not in RECORDATORIO_OPCIONES:
         return False

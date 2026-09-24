@@ -190,9 +190,11 @@ def ensure_telegram_schema() -> None:
         """
         CREATE TABLE IF NOT EXISTS telegram_prefs (
             user_id INTEGER PRIMARY KEY,
-            recordatorio_min INTEGER
+            recordatorio_min INTEGER,
+            briefing_extra TEXT
         )
         """,
+        "ALTER TABLE telegram_prefs ADD COLUMN briefing_extra TEXT",
         """
         CREATE TABLE IF NOT EXISTS telegram_refs (
             chat_id TEXT NOT NULL,
