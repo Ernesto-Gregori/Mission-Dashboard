@@ -27,10 +27,14 @@ class ScanError(Exception):
     """OCR o imagen que no se pudo leer. El llamador no guarda un gasto."""
 
 
-def armar_borrador(user_id: int, raw: bytes, filename: str | None) -> dict:
-    """Guarda la foto y arma el borrador. No escribe el gasto."""
+def armar_borrador(user_id: int, raw: bytes, filename: str | None, *, extract=None) -> dict:
+    """Guarda la foto y arma el borrador. No escribe el gasto.
+
+    ``extract`` permite que la web pase su propio ``extract_from_image``: los tests
+    lo parchean en el router.
+    """
     rel = save_receipt_image(int(user_id), raw, filename)
-    result = extract_from_image(raw)
+    result = (extract or extract_from_image)(raw)
     if not result.ok:
         raise ScanError(result.error or "No se pudo leer el comprobante. Reintenta con otra foto.")
     origen = GASTO_ORIGEN_TRANSFERENCIA if result.tipo == "transferencia" else GASTO_ORIGEN_RECIBO

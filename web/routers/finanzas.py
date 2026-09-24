@@ -37,6 +37,7 @@ from app.presupuesto import (
     ingreso_sugerido,
     resumen_mes,
 )
+from app.receipt_ocr import extract_from_image
 from app.receipt_service import MAX_SCAN_BYTES, ScanError, armar_borrador, guardar_confirmado, lineas_desde_form
 from app.receipt_uploads import resolve_upload_path
 from app.templates import MODULE_TEMPLATES
@@ -395,7 +396,7 @@ async def escanear_recibo(
         )
 
     try:
-        draft = armar_borrador(int(user["id"]), raw, imagen.filename)
+        draft = armar_borrador(int(user["id"]), raw, imagen.filename, extract=extract_from_image)
     except ScanError as e:
         request.session.pop(SESSION_DRAFT_KEY, None)
         return render(
