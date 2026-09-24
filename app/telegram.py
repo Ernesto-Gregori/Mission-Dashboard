@@ -77,6 +77,10 @@ BOT_COMMANDS = [
     {"command": "alma", "description": "Hablar con Alma. Ej: /alma cómo viene mi semana"},
     {"command": "coach", "description": "Briefing del coach, con su cupo semanal"},
     {"command": "semana", "description": "Resumen de la semana"},
+    {"command": "idea", "description": "Anotar una idea. Ej: /idea estante #personal"},
+    {"command": "ideas", "description": "Ideas guardadas"},
+    {"command": "leyendo", "description": "Libros que estás leyendo"},
+    {"command": "leer", "description": "Avanzar un libro. Ej: /leer El Hobbit 40"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
@@ -106,6 +110,10 @@ def help_text(*, linked: bool = True) -> str:
         "• /alma cómo viene mi semana — Alma (no se activa sola)\n"
         "• /coach — briefing del coach, respetando el cupo\n"
         "• /semana — resumen de la semana\n"
+        "• /idea estante #personal — anotar una idea (sin # va a Otros)\n"
+        "• /ideas — ideas guardadas\n"
+        "• /leyendo — lo que estás leyendo\n"
+        "• /leer El Hobbit 40 — página actual\n"
         "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
         "• /cancelar 2 — borrar el evento (pide confirmación)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
@@ -891,6 +899,19 @@ def _route_callback(ctx: Contexto, data: str) -> Respuesta:
         if not acciones.disponible(acciones.por_clave("enfoque"), ctx.user_id):
             return _modulo_apagado(acciones.por_clave("enfoque"))
         return marcar_bloque(int(enfoque.group(1)), enfoque.group(2))
+    libro = re.match(r"^b:(\d{1,3}):(\d{1,5})$", data or "")
+    if libro:
+        from app.audit import registrar
+        from app.telegram_actions.lectura import leer_desde_boton
+
+        if not acciones.disponible(acciones.por_clave("leer"), ctx.user_id):
+            return _modulo_apagado(acciones.por_clave("leer"))
+        resp = leer_desde_boton(ctx, int(libro.group(1)), int(libro.group(2)))
+        if resp.entidad_id is not None:
+            registrar("telegram_leer", "leer", resp.entidad_id, {"chat": ctx.chat_id[-4:]})
+            state.registrar_ultima(ctx.user_id, ctx.chat_id, "leer", resp.entidad_id, resp.resumen)
+            resp.texto += "\n¿Error? /deshacer"
+        return resp
     habito = re.match(r"^k:([a-z0-9_]{1,20})$", data or "")
     if habito:
         from app.audit import registrar
