@@ -21,12 +21,42 @@ from app.timezone_config import hoy as _hoy, iso_ahora
 
 log = get_logger("telegram")
 
-BRIEFING_WORDS = ("briefing", "agenda", "resumen", "foco", "hoy qué", "que hay hoy")
+# Mensaje completo (sin acentos ni signos), no subcadena: «agendar…» no es briefing.
+BRIEFING_PHRASES = frozenset(
+    {
+        "briefing", "briefing de hoy", "agenda", "agenda de hoy", "mi agenda",
+        "resumen", "resumen de hoy", "foco", "foco de hoy", "hoy", "hoy que",
+        "que hay hoy", "que tengo hoy", "mi dia",
+    }
+)
+LINK_TTL_MIN = 10
 CODE_RE = re.compile(r"^\s*(\d{6})\s*$")
 START_RE = re.compile(r"^/start(?:\s+|_)(\d{6})\s*$", re.I)
-AMOUNT_RE = re.compile(
-    r"(?:\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:pesos|mxn|\$)?\s*(?:en|de)?\s*(.+)$",
+_NUM = r"(?P<num>\d{1,7}(?:[.,]\d{1,2})?)(?![\d.,]*\d)"
+_CUR = r"(?:\s*(?:usd|d[oó]lares?|\$))?"
+_GASTO_VERB = r"(?:gast[eé]|pagu[eé]|compr[eé])"
+# Monto al inicio («35 en super», «gasté 8 en café»), al final de una descripción corta
+# («café 8») o con $ en cualquier lugar. Nunca un número suelto en medio de la frase.
+AMOUNT_START_RE = re.compile(
+    rf"^\s*(?:{_GASTO_VERB}\s+)?\$?\s*{_NUM}{_CUR}\s+(?:(?:en|de)\s+)?(?P<desc>\S.*)$", re.I
+)
+AMOUNT_END_RE = re.compile(rf"^\s*(?:{_GASTO_VERB}\s+)?(?P<desc>[^\d$]+?)\s+\$?\s*{_NUM}{_CUR}\s*$", re.I)
+AMOUNT_DOLLAR_RE = re.compile(rf"\$\s*{_NUM}", re.I)
+AMOUNT_MAX_DESC_WORDS = 3
+NOT_A_DESC_RE = re.compile(r"^(?:pesos|mxn|am|pm|hs|h|horas?|min|minutos?)\b", re.I)
+TIME_RE = re.compile(
+    r"\ba\s+las?\s+(?P<h1>\d{1,2})(?::(?P<m1>\d{2}))?\s*(?P<ap1>am|pm)?\b"
+    r"|\b(?P<h2>\d{1,2}):(?P<m2>\d{2})\s*(?P<ap2>am|pm)?\b"
+    r"|\b(?P<h3>\d{1,2})\s*(?P<ap3>am|pm)\b",
     re.I,
+)
+TAREA_VERB_RE = re.compile(
+    r"^\s*(?:agendar|agend[aá]|agend[aá]me|record[aá]me|recordarme|recu[eé]rdame)\b\s*", re.I
+)
+NO_ENTENDI = (
+    "No entendí, así que no guardé nada.\n"
+    "Probá: «35 en super», «/tarea mañana 5pm llamar al banco» o /briefing.\n"
+    "/ayuda muestra todos los comandos."
 )
 API_BASE = "https://api.telegram.org"
 
@@ -243,9 +273,10 @@ def start_link(user_id: int) -> tuple[bool, str, str | None]:
     """Genera código de 6 dígitos. El vínculo se completa desde Telegram (/start)."""
     ensure_telegram_schema()
     from app.db.core import ejecutar
+    from app.timezone_config import ahora
 
     code = f"{secrets.randbelow(1_000_000):06d}"
-    expires = (datetime.now(timezone.utc) + timedelta(minutes=10)).replace(tzinfo=None).isoformat(timespec="seconds")
+    expires = (ahora() + timedelta(minutes=LINK_TTL_MIN)).isoformat(timespec="seconds")
     ejecutar("DELETE FROM telegram_links WHERE user_id = ? AND COALESCE(verified, 0) = 0", [int(user_id)])
     existing = link_status(user_id)
     if existing and int(existing.get("verified") or 0) == 1:
@@ -284,16 +315,24 @@ def _find_pending_by_code(code: str) -> dict | None:
     m = CODE_RE.match((code or "").strip())
     if not m:
         return None
+    from app.timezone_config import ahora
+
     digest = _hash_code(m.group(1))
-    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds")
+    now = ahora()
+    # Tope superior: descarta vencimientos más lejanos que el TTL (p. ej. códigos viejos en UTC).
     rows = (
         ejecutar(
             """
             SELECT * FROM telegram_links
-             WHERE verified = 0 AND verify_hash = ? AND verify_expires >= ?
+             WHERE verified = 0 AND verify_hash = ?
+               AND verify_expires >= ? AND verify_expires <= ?
              ORDER BY user_id LIMIT 1
             """,
-            [digest, now],
+            [
+                digest,
+                now.isoformat(timespec="seconds"),
+                (now + timedelta(minutes=LINK_TTL_MIN)).isoformat(timespec="seconds"),
+            ],
             fetchall=True,
         )
         or []
@@ -360,6 +399,9 @@ def extract_inbound(payload: dict) -> list[dict]:
     chat = msg.get("chat") or {}
     chat_id = str(chat.get("id") or "")
     if not chat_id:
+        return []
+    if chat.get("type") != "private":
+        log.info("telegram ignora chat no privado type=%s chat=%s", chat.get("type"), chat_id[-4:])
         return []
     from_u = msg.get("from") or {}
     item = {
@@ -597,8 +639,7 @@ def _transcribe_inbound(
 
 
 def _dispatch(user: dict, text: str, chat_id: str, parse_fn: Callable | None = None) -> str:
-    low = text.lower().strip()
-    if any(w in low for w in BRIEFING_WORDS) or low in ("hoy", "agenda"):
+    if _is_briefing_request(text):
         return build_briefing(int(user["id"]))
 
     parsed = parse_fn(text) if parse_fn is not None else parse_intent(text)
@@ -609,9 +650,25 @@ def _dispatch(user: dict, text: str, chat_id: str, parse_fn: Callable | None = N
         return _apply_gasto(parsed, text)
     if intent == "tarea":
         return _apply_tarea(parsed, text, chat_id, int(user["id"]))
-    if AMOUNT_RE.search(text):
-        return _apply_gasto(_heuristic_gasto(text), text)
-    return _apply_tarea(_heuristic_tarea(text), text, chat_id, int(user["id"]))
+    gasto = _heuristic_gasto(text)
+    if gasto["intent"] == "gasto":
+        return _apply_gasto(gasto, text)
+    tarea = _heuristic_tarea(text)
+    if tarea["intent"] == "tarea":
+        return _apply_tarea(tarea, text, chat_id, int(user["id"]))
+    return NO_ENTENDI
+
+
+def _normalize(text: str) -> str:
+    import unicodedata
+
+    raw = unicodedata.normalize("NFKD", (text or "").lower())
+    raw = "".join(ch for ch in raw if not unicodedata.combining(ch))
+    return " ".join(re.sub(r"[^\w\s]", " ", raw).split())
+
+
+def _is_briefing_request(text: str) -> bool:
+    return _normalize(text) in BRIEFING_PHRASES
 
 
 def parse_intent(text: str) -> dict:
@@ -645,12 +702,28 @@ def _extract_json(raw: str) -> dict:
         return {}
 
 
+def _match_amount(text: str) -> tuple[float, str] | None:
+    raw = (text or "").strip()
+    m = AMOUNT_START_RE.match(raw)
+    if m and not NOT_A_DESC_RE.match(m.group("desc")):
+        return float(m.group("num").replace(",", ".")), m.group("desc")
+    m = AMOUNT_END_RE.match(raw)
+    if m and len(m.group("desc").split()) <= AMOUNT_MAX_DESC_WORDS:
+        return float(m.group("num").replace(",", ".")), m.group("desc")
+    m = AMOUNT_DOLLAR_RE.search(raw)
+    if m:
+        desc = (raw[: m.start()] + " " + raw[m.end() :]).strip()
+        desc = re.sub(rf"^{_GASTO_VERB}\s+|^(?:en|de)\s+|\s+(?:en|de)$", "", desc, flags=re.I)
+        return float(m.group("num").replace(",", ".")), desc
+    return None
+
+
 def _heuristic_gasto(text: str) -> dict:
-    m = AMOUNT_RE.search(text.strip())
-    if not m:
+    hit = _match_amount(text)
+    if not hit or hit[0] <= 0:
         return {"intent": "unknown"}
-    monto = float(m.group(1).replace(",", "."))
-    desc = (m.group(2) or "gasto").strip()[:80]
+    monto, desc = hit
+    desc = " ".join(desc.split())[:80] or "gasto"
     cat = "necesidades"
     low = text.lower()
     if any(w in low for w in ("cafe", "cine", " ocio", "gusto", "netflix")):
@@ -660,26 +733,50 @@ def _heuristic_gasto(text: str) -> dict:
     return {"intent": "gasto", "monto": monto, "categoria": cat, "descripcion": desc}
 
 
-def _heuristic_tarea(text: str) -> dict:
-    from app.timezone_config import hoy as hoy_fn
-
-    fecha = hoy_fn()
-    low = text.lower()
-    if "mañana" in low or "manana" in low:
-        fecha = fecha + timedelta(days=1)
-    hora = None
-    hm = re.search(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", low)
-    if hm:
-        h = int(hm.group(1))
-        mi = int(hm.group(2) or 0)
-        ap = (hm.group(3) or "").lower()
+def _find_time(text: str) -> tuple[str, tuple[int, int]] | None:
+    """Hora solo si es explícita: «5pm», «16:30», «a las 8». Un número suelto no es hora."""
+    for m in TIME_RE.finditer(text or ""):
+        idx = next(i for i in (1, 2, 3) if m.group(f"h{i}") is not None)
+        h = int(m.group(f"h{idx}"))
+        mi = int(m.group(f"m{idx}") or 0) if idx != 3 else 0
+        ap = (m.group(f"ap{idx}") or "").lower()
+        if ap and not 1 <= h <= 12:
+            continue
         if ap == "pm" and h < 12:
             h += 12
         if ap == "am" and h == 12:
             h = 0
-        hora = f"{h:02d}:{mi:02d}"
-    titulo = re.sub(r"mañana|manana|\d{1,2}(?::\d{2})?\s*(am|pm)?", "", text, flags=re.I)
+        if h > 23 or mi > 59:
+            continue
+        return f"{h:02d}:{mi:02d}", m.span()
+    return None
+
+
+def _explicit_time(text: str) -> str | None:
+    found = _find_time(text)
+    return found[0] if found else None
+
+
+def _heuristic_tarea(text: str, *, require_signal: bool = True) -> dict:
+    """Tarea por texto libre solo con hora explícita o verbo de agenda («agendar…», «recordame…»)."""
+    from app.timezone_config import hoy as hoy_fn
+
+    verb = TAREA_VERB_RE.match(text or "")
+    found = _find_time(text)
+    if require_signal and not (verb or found):
+        return {"intent": "unknown"}
+    fecha = hoy_fn()
+    low = text.lower()
+    if "mañana" in low or "manana" in low:
+        fecha = fecha + timedelta(days=1)
+    titulo = text
+    if found:
+        start, end = found[1]
+        titulo = titulo[:start] + " " + titulo[end:]
+    titulo = TAREA_VERB_RE.sub("", titulo)
+    titulo = re.sub(r"\bma[ñn]ana\b", "", titulo, flags=re.I)
     titulo = " ".join(titulo.split()).strip() or text[:80]
+    hora = found[0] if found else None
     return {
         "intent": "tarea",
         "titulo": titulo[:80],
@@ -691,6 +788,7 @@ def _heuristic_tarea(text: str) -> dict:
 
 def _apply_gasto(parsed: dict, original: str) -> str:
     from app.database import agregar_gasto_sobre
+    from app.db.schema import GASTO_ORIGEN_TELEGRAM
     from app.presupuesto import CATEGORIA_A_SOBRE
 
     if not parsed or parsed.get("intent") not in ("gasto", None):
@@ -706,15 +804,15 @@ def _apply_gasto(parsed: dict, original: str) -> str:
         cat = "necesidades"
     sobre, sub = CATEGORIA_A_SOBRE[cat]
     desc = str(parsed.get("descripcion") or original).strip()[:120] or "Gasto Telegram"
-    agregar_gasto_sobre(str(_hoy()), sobre, sub, desc, monto, origen="telegram")
-    return f"Gasté {monto:g} en «{desc}» → {cat}."
+    agregar_gasto_sobre(str(_hoy()), sobre, sub, desc, monto, origen=GASTO_ORIGEN_TELEGRAM)
+    return f"Anoté ${monto:.2f} en «{desc}» → sobre {sobre}."
 
 
 def _apply_tarea(parsed: dict, original: str, chat_id: str, user_id: int) -> str:
     from app.database import COLORES_TIPO, guardar_evento
 
     if not parsed or parsed.get("intent") in (None, "unknown"):
-        parsed = _heuristic_tarea(original)
+        parsed = _heuristic_tarea(original, require_signal=False)
     titulo = str(parsed.get("titulo") or original).strip()[:80] or "Tarea"
     fecha = str(parsed.get("fecha") or _hoy())
     hora = str(parsed.get("hora_inicio") or "09:00")[:5]
@@ -820,7 +918,10 @@ def send_due_reminders(
     ensure_telegram_schema()
     from app.db.core import ejecutar
 
-    stamp = (now or datetime.now(timezone.utc).replace(tzinfo=None)).isoformat(timespec="seconds")
+    from app.timezone_config import ahora
+
+    # fire_at se guarda en hora local (TZ_LOCAL): comparar contra UTC los dispara 6 h antes.
+    stamp = (now or ahora()).isoformat(timespec="seconds")
     rows = (
         ejecutar(
             """
