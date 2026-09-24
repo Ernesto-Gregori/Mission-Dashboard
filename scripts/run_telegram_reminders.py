@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Envía recordatorios de Telegram 30 min antes de la tarea.
+Recordatorios de Telegram para eventos con hora (cualquier fuente: web, Google, bot).
+
+Crea los que falten (anticipación por usuario en /app/usuarios?tab=telegram, default 30 min,
+0 = apagados) y envía los vencidos. Idempotente.
 
 Uso (cron cada 5-10 min / Railway cron):
   python scripts/run_telegram_reminders.py
@@ -21,11 +24,12 @@ load_dotenv()
 
 def main() -> int:
     from app.db.core import ensure_database
-    from app.telegram import send_due_reminders
+    from app.telegram import send_due_reminders, sync_event_reminders
 
     ensure_database()
+    creados = sync_event_reminders()
     n = send_due_reminders()
-    print(f"telegram_reminders: {n} enviados")
+    print(f"telegram_reminders: {creados} nuevos, {n} enviados")
     return 0
 
 

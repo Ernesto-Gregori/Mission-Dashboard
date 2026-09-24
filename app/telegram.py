@@ -29,6 +29,7 @@ from app.timezone_config import hoy as _hoy, iso_ahora
 log = get_logger("telegram")
 
 LINK_TTL_MIN = 10
+REMINDER_HORIZON_H = 24
 MAX_TEXT_CHARS = 1000
 LLM_MAX_TOKENS = 200
 TG_MAX_MESSAGE = 4096
@@ -130,10 +131,32 @@ def ensure_telegram_schema() -> None:
             chat_id TEXT NOT NULL,
             titulo TEXT,
             fire_at TEXT NOT NULL,
-            sent_at TEXT
+            sent_at TEXT,
+            hora TEXT
         )
         """,
         "CREATE INDEX IF NOT EXISTS idx_tg_remind_fire ON telegram_reminders(sent_at, fire_at)",
+        """
+        DELETE FROM telegram_reminders
+         WHERE evento_id IS NOT NULL
+           AND id NOT IN (
+               SELECT MIN(id) FROM telegram_reminders
+                WHERE evento_id IS NOT NULL
+                GROUP BY user_id, evento_id, fire_at
+           )
+        """,
+        "ALTER TABLE telegram_reminders ADD COLUMN hora TEXT",
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_tg_remind_evento
+            ON telegram_reminders(user_id, evento_id, fire_at)
+            WHERE evento_id IS NOT NULL
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS telegram_prefs (
+            user_id INTEGER PRIMARY KEY,
+            recordatorio_min INTEGER
+        )
+        """,
         """
         CREATE TABLE IF NOT EXISTS telegram_pending (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -893,21 +916,98 @@ def schedule_reminder(
     hora: str,
     titulo: str,
     chat_id: str,
-) -> None:
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Un recordatorio por evento + fire_at (hora local). Si el evento se movió, reemplaza el pendiente."""
     ensure_telegram_schema()
     from app.db.core import ejecutar
 
+    lead = state.recordatorio_min(user_id)
+    if lead <= 0:
+        return False
     try:
-        fire = datetime.fromisoformat(f"{fecha}T{hora[:5]}:00") - timedelta(minutes=30)
-    except Exception:
-        return
+        start = datetime.fromisoformat(f"{fecha}T{str(hora)[:5]}:00")
+    except ValueError:
+        return False
+    if now is not None and start <= now:
+        return False
+    fire = (start - timedelta(minutes=lead)).isoformat(timespec="seconds")
+    if evento_id is not None:
+        rows = ejecutar(
+            "SELECT fire_at FROM telegram_reminders WHERE user_id = ? AND evento_id = ?",
+            [int(user_id), int(evento_id)],
+            fetchall=True,
+        ) or []
+        if any(str(r["fire_at"]) == fire for r in rows):
+            return False
+        cancel_reminders(user_id, int(evento_id))
     ejecutar(
         """
-        INSERT INTO telegram_reminders (user_id, evento_id, chat_id, titulo, fire_at, sent_at)
-        VALUES (?, ?, ?, ?, ?, NULL)
+        INSERT INTO telegram_reminders (user_id, evento_id, chat_id, titulo, hora, fire_at, sent_at)
+        VALUES (?, ?, ?, ?, ?, ?, NULL)
         """,
-        [int(user_id), evento_id, str(chat_id), titulo[:80], fire.isoformat(timespec="seconds")],
+        [int(user_id), evento_id, str(chat_id), titulo[:80], str(hora)[:5], fire],
     )
+    return True
+
+
+def sync_event_reminders(*, now: datetime | None = None) -> int:
+    """Crea recordatorios para eventos con hora de cualquier fuente (web, Google, Telegram).
+
+    Solo chats vinculados con plan vigente. Idempotente: correrlo dos veces no duplica.
+    """
+    ensure_telegram_schema()
+    from app.billing import plan_vigente, puede_telegram
+    from app.db.agenda import eventos_con_hora
+    from app.db.core import ejecutar
+    from app.tenant import clear_current_user, set_current_user
+    from app.timezone_config import ahora
+
+    now = now or ahora()
+    hasta = (now + timedelta(hours=REMINDER_HORIZON_H)).date().isoformat()
+    links = ejecutar(
+        "SELECT user_id, chat_id FROM telegram_links WHERE verified = 1 AND chat_id IS NOT NULL AND chat_id != ''",
+        fetchall=True,
+    ) or []
+    n = 0
+    for link in links:
+        user = _user_by_id(int(link["user_id"]))
+        if not user or not puede_telegram(plan_vigente(user)):
+            continue
+        if state.recordatorio_min(int(user["id"])) <= 0:
+            ejecutar(
+                "DELETE FROM telegram_reminders WHERE user_id = ? AND sent_at IS NULL",
+                [int(user["id"])],
+            )
+            continue
+        set_current_user(user)
+        try:
+            eventos = eventos_con_hora(now.date().isoformat(), hasta)
+        finally:
+            clear_current_user()
+        for ev in eventos:
+            n += schedule_reminder(
+                int(user["id"]),
+                int(ev["id"]),
+                str(ev["fecha"]),
+                str(ev["hora_inicio"]),
+                str(ev.get("titulo") or "evento"),
+                str(link["chat_id"]),
+                now=now,
+            )
+        ejecutar(
+            """
+            DELETE FROM telegram_reminders
+             WHERE user_id = ? AND sent_at IS NULL AND evento_id IS NOT NULL
+               AND evento_id NOT IN (
+                   SELECT id FROM eventos_calendario
+                    WHERE user_id = ? AND hora_inicio IS NOT NULL AND hora_inicio != ''
+               )
+            """,
+            [int(user["id"]), int(user["id"])],
+        )
+    return n
 
 
 def cancel_reminders(user_id: int, evento_id: int) -> None:
@@ -927,7 +1027,6 @@ def send_due_reminders(
 ) -> int:
     ensure_telegram_schema()
     from app.db.core import ejecutar
-
     from app.timezone_config import ahora
 
     # fire_at se guarda en hora local (TZ_LOCAL): comparar contra UTC los dispara 6 h antes.
@@ -935,7 +1034,7 @@ def send_due_reminders(
     rows = (
         ejecutar(
             """
-            SELECT id, chat_id, titulo, fire_at FROM telegram_reminders
+            SELECT id, chat_id, titulo, hora, fire_at FROM telegram_reminders
             WHERE sent_at IS NULL AND fire_at <= ?
             ORDER BY fire_at LIMIT 50
             """,
@@ -948,7 +1047,9 @@ def send_due_reminders(
     for r in rows:
         ok = send_text(
             r["chat_id"],
-            f"Recordatorio: {r.get('titulo') or 'tarea'} (en ~30 min).",
+            "⏰ Recordatorio: "
+            + (f"{r['hora']} · " if r.get("hora") else "")
+            + f"{r.get('titulo') or 'evento'}.",
             send_fn=send_fn,
         )
         if ok or send_fn is not None:

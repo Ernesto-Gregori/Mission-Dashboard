@@ -12,6 +12,8 @@ from app.db.core import ejecutar
 
 PENDING_TTL_MIN = 10
 DESHACER_TTL_MIN = 30
+RECORDATORIO_DEFAULT_MIN = 30
+RECORDATORIO_OPCIONES = (0, 10, 15, 30, 60)
 
 
 def _stamp(dt) -> str:
@@ -110,3 +112,28 @@ def tomar_ultima(user_id: int, chat_id: str) -> dict | None:
     if not rows or str(rows[0]["expira_en"]) < _stamp(ahora()):
         return None
     return rows[0]
+
+
+def recordatorio_min(user_id: int) -> int:
+    """Minutos de anticipación de los recordatorios; 0 = apagados."""
+    rows = ejecutar(
+        "SELECT recordatorio_min FROM telegram_prefs WHERE user_id = ?",
+        [int(user_id)],
+        fetchall=True,
+    ) or []
+    if not rows or rows[0]["recordatorio_min"] is None:
+        return RECORDATORIO_DEFAULT_MIN
+    return int(rows[0]["recordatorio_min"])
+
+
+def guardar_recordatorio_min(user_id: int, minutos: int) -> bool:
+    if int(minutos) not in RECORDATORIO_OPCIONES:
+        return False
+    ejecutar(
+        """
+        INSERT INTO telegram_prefs (user_id, recordatorio_min) VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET recordatorio_min = excluded.recordatorio_min
+        """,
+        [int(user_id), int(minutos)],
+    )
+    return True
