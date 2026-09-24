@@ -39,6 +39,7 @@
       </div>
     </form>
     {% endif %}
+    {% include "telegram_briefing.html" %}
     {% if not puede_telegram %}
     <div class="flash-warn">Telegram requiere plan Premium o Familia. <a href="/app/billing">Ver planes</a></div>
     {% endif %}

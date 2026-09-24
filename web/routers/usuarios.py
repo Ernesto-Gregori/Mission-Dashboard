@@ -22,8 +22,11 @@ from app.database import crear_usuario, listar_usuarios
 from app.multiuser import provision_user_defaults
 from app.stability import invalidate_data_caches
 from app.db.telegram_state import (
+    BRIEFING_EXTRAS,
     RECORDATORIO_OPCIONES,
+    guardar_prefs_briefing,
     guardar_recordatorio_min,
+    prefs_briefing,
     recordatorio_min,
 )
 from app.telegram import deep_link, ensure_telegram_schema, link_status, start_link, unlink
@@ -84,6 +87,8 @@ def _ctx(
         "tg_deep_link": deep_link(request.session.get("tg_code") or ""),
         "tg_recordatorio_min": recordatorio_min(int(user["id"])),
         "tg_recordatorio_opciones": RECORDATORIO_OPCIONES,
+        "tg_briefing": prefs_briefing(int(user["id"])),
+        "tg_briefing_extras": BRIEFING_EXTRAS,
     }
 
 
@@ -274,3 +279,35 @@ async def tg_recordatorios(request: Request, user: Annotated[dict, Depends(requi
         )
     aviso = "Recordatorios apagados." if minutos == 0 else f"Te aviso {minutos} min antes de cada evento."
     return render(request, "usuarios.html", **_ctx(request, user, flash=aviso))
+
+
+@router.post("/telegram/briefing")
+async def tg_briefing(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    request.session["usr_tab"] = "telegram"
+    if not puede_telegram(plan_vigente(user)):
+        return render(
+            request,
+            "usuarios.html",
+            status_code=403,
+            **_ctx(request, user, error="Telegram requiere plan Premium o Familia."),
+        )
+    form = await request.form()
+    ensure_telegram_schema()
+    extra = [str(v) for v in form.getlist("extra")]
+    ok = guardar_prefs_briefing(
+        int(user["id"]),
+        activo=form.get("activo") == "1",
+        hora=str(form.get("hora") or ""),
+        extra=extra,
+    )
+    if not ok:
+        return render(
+            request,
+            "usuarios.html",
+            status_code=400,
+            **_ctx(request, user, error="Revisá la hora (HH:MM) y las secciones."),
+        )
+    ctx = _ctx(request, user, flash="Briefing de la mañana guardado.")
+    if request.headers.get("hx-request"):
+        return render(request, "telegram_briefing.html", **ctx)
+    return render(request, "usuarios.html", **ctx)

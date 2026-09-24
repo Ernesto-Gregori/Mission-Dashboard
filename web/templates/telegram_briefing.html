@@ -1,0 +1,19 @@
+<div id="tg-briefing" class="card">
+  <h2>Briefing de la mañana</h2>
+  <p class="muted">Apagado por defecto. Si lo activás, el cron te manda el foco del día a la hora local. Fe, pareja y salud no entran salvo que las marques.</p>
+  {% if puede_telegram %}
+  <form method="post" action="/app/usuarios/telegram/briefing" class="users-form-grid"
+        hx-post="/app/usuarios/telegram/briefing" hx-target="#tg-briefing" hx-swap="outerHTML">
+    <label><input type="checkbox" name="activo" value="1" {% if tg_briefing.activo %}checked{% endif %} /> Activar</label>
+    <label for="tg-briefing-hora">Hora
+      <input id="tg-briefing-hora" name="hora" value="{{ tg_briefing.hora }}" inputmode="numeric" />
+    </label>
+    {% for clave in tg_briefing_extras %}
+    <label><input type="checkbox" name="extra" value="{{ clave }}" {% if clave in tg_briefing.extra %}checked{% endif %} /> {{ clave }}</label>
+    {% endfor %}
+    <div class="form-actions">
+      <button class="btn secondary" type="submit">Guardar briefing</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
