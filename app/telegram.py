@@ -74,6 +74,9 @@ BOT_COMMANDS = [
     {"command": "salud", "description": "Resumen de salud de 7 días"},
     {"command": "enfoque", "description": "Bloques de enfoque de hoy"},
     {"command": "silencio", "description": "Pausar el briefing de la mañana"},
+    {"command": "alma", "description": "Hablar con Alma. Ej: /alma cómo viene mi semana"},
+    {"command": "coach", "description": "Briefing del coach, con su cupo semanal"},
+    {"command": "semana", "description": "Resumen de la semana"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
@@ -100,6 +103,9 @@ def help_text(*, linked: bool = True) -> str:
         "• /salud — resumen de 7 días\n"
         "• /enfoque — bloques de hoy; botones Completado, Parcial, Postergado\n"
         "• /silencio [días] — pausa el briefing de la mañana; /silencio 0 lo reanuda\n"
+        "• /alma cómo viene mi semana — Alma (no se activa sola)\n"
+        "• /coach — briefing del coach, respetando el cupo\n"
+        "• /semana — resumen de la semana\n"
         "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
         "• /cancelar 2 — borrar el evento (pide confirmación)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"

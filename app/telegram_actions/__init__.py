@@ -8,11 +8,13 @@ from app.telegram_actions.enfoque import ENFOQUE
 from app.telegram_actions.finanzas import BORRAR, GASTO, GASTOS, INGRESO, SALDO, VENCIMIENTOS
 from app.telegram_actions.habitos import HABITOS, HECHO
 from app.telegram_actions.salud import EJERCICIO, ENERGIA, SALUD, SUENO
+from app.telegram_actions.vida import ALMA, COACH, SEMANA
 
 # El orden importa: patrones y heurísticas se prueban en este orden.
 REGISTRO: list[Accion] = [
     AGENDA, BRIEFING, SILENCIO, GASTO, INGRESO, SALDO, GASTOS, VENCIMIENTOS, BORRAR,
-    HABITOS, HECHO, SUENO, ENERGIA, EJERCICIO, SALUD, ENFOQUE, MOVER, CANCELAR, TAREA,
+    HABITOS, HECHO, SUENO, ENERGIA, EJERCICIO, SALUD, ENFOQUE,
+    ALMA, COACH, SEMANA, MOVER, CANCELAR, TAREA,
 ]
 
 
