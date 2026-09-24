@@ -49,6 +49,7 @@ En la app: **Salud** → Conectar con Google.
   Se activa en Usuarios → Telegram. `/silencio` lo pausa. Una vez por usuario y día
 - Teclado: Briefing, Saldo (si Finanzas está activo), Hábitos, Ayuda
 - `/alma` usa el mismo historial que la web y no prende categorías. `/coach` respeta el cupo. `/semana` resume.
+- `/idea` guarda en Sandbox (dominio `#personal` y similares; si no, Otros). `/leyendo` y `/leer` actualizan la página.
 - Acciones en `app/telegram_actions/` (una por área, registro con módulo requerido);
   router: comando → botón → patrón → Groq (solo acciones de módulos activos) → heurística
 - Solo chats privados (grupos y canales se ignoran). Texto ambiguo → «no entendí», sin guardar nada
