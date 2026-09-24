@@ -117,13 +117,26 @@ def _ejecutar(ctx: Contexto, datos: dict) -> Respuesta:
         sync_google=True,
     )
     schedule_reminder(ctx.user_id, eid, fecha, hora, titulo, ctx.chat_id)
-    return Respuesta(f"Tarea creada: {titulo} el {fecha} a las {hora} (sync Calendar si está vinculado).")
+    return Respuesta(
+        f"Tarea creada: {titulo} el {fecha} a las {hora} (sync Calendar si está vinculado).",
+        entidad_id=int(eid),
+        resumen=f"tarea «{titulo}» del {fecha} {hora}",
+    )
+
+
+def _deshacer(ctx: Contexto, evento_id: int) -> bool:
+    from app.db.agenda import eliminar_evento
+    from app.telegram import cancel_reminders
+
+    cancel_reminders(ctx.user_id, int(evento_id))
+    return bool(eliminar_evento(int(evento_id)))
 
 
 TAREA = Accion(
     clave="tarea",
     comandos=("/tarea",),
     ejecutar=_ejecutar,
+    deshacer=_deshacer,
     uso=USO,
     llm_campos=(
         "titulo, fecha (YYYY-MM-DD o null), hora_inicio (HH:MM o null), hora_fin (HH:MM o null)"
