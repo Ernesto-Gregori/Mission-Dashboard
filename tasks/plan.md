@@ -170,7 +170,7 @@ Devocional solo si `guardar_devocional` no exige campos que habría que inventar
 
 ### Checkpoint final
 - [ ] Todas las acciones con la matriz de tests de la sección «Pruebas» del brief.
-- [ ] README, `help_text`, `BOT_COMMANDS`, `.env.example`, `CUTOVER.md` al día.
+- [x] README, `help_text`, `BOT_COMMANDS`, `.env.example`, `CUTOVER.md` al día.
 
 ## Matriz de tests por acción (`tests/test_telegram_<área>.py`)
 Feliz · faltan argumentos · módulo inactivo · plan Free · chat sin vincular · confirmar/cancelar/expirar ·
