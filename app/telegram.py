@@ -55,6 +55,9 @@ BOT_COMMANDS = [
     {"command": "briefing", "description": "Foco del día: agenda, hábitos y gastos"},
     {"command": "hoy", "description": "Lo mismo que /briefing"},
     {"command": "gasto", "description": "Anotar un gasto. Ej: /gasto 35 super"},
+    {"command": "ingreso", "description": "Anotar el ingreso del mes. Ej: /ingreso 800"},
+    {"command": "saldo", "description": "Ingreso, gastado y disponible por sobre"},
+    {"command": "gastos", "description": "Últimos gastos, con número para /borrar"},
     {"command": "tarea", "description": "Crear una tarea. Ej: /tarea mañana 5pm banco"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
@@ -67,6 +70,11 @@ def help_text(*, linked: bool = True) -> str:
         "• /briefing — foco del día (agenda, hábitos, gastos)\n"
         "• /hoy — lo mismo que /briefing\n"
         "• /gasto 35 super — anotar un gasto\n"
+        "• /ingreso 800 — ingreso del mes\n"
+        "• /saldo — ingreso, gastado y disponible\n"
+        "• /gastos — últimos 7, con número\n"
+        "• /borrar 2 — borrar uno de la lista (pide confirmación)\n"
+        "• /vencimientos — próximos 7 días\n"
         "• /tarea mañana 5pm banco — crear una tarea (va a Calendar si está vinculado)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
         "• /ayuda — este mensaje\n\n"
@@ -155,6 +163,17 @@ def ensure_telegram_schema() -> None:
         CREATE TABLE IF NOT EXISTS telegram_prefs (
             user_id INTEGER PRIMARY KEY,
             recordatorio_min INTEGER
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS telegram_refs (
+            chat_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            n INTEGER NOT NULL,
+            entidad_id INTEGER NOT NULL,
+            creado_en TEXT NOT NULL,
+            PRIMARY KEY (chat_id, user_id, tipo, n)
         )
         """,
         """
@@ -633,7 +652,11 @@ def handle_inbound(
     def reply(body: str, *, keyboard: bool = False, botones: list | None = None) -> str:
         markup = REPLY_KEYBOARD if keyboard else None
         if botones:
-            markup = {"inline_keyboard": [[{"text": t, "callback_data": d} for t, d in botones]]}
+            filas = [
+                [{"text": t, "callback_data": d} for t, d in botones[i : i + 2]]
+                for i in range(0, len(botones), 2)
+            ]
+            markup = {"inline_keyboard": filas}
         send_text(chat_id, body, send_fn=send_fn, reply_markup=markup)
         return body
 
@@ -814,6 +837,11 @@ def _normalize_yes_no(text: str) -> bool | None:
 
 
 def _route_callback(ctx: Contexto, data: str) -> Respuesta:
+    cambio = re.match(r"^c:(\d{1,12}):(\d{1,2})$", data or "")
+    if cambio:
+        from app.telegram_actions.finanzas import cambiar_subcategoria
+
+        return cambiar_subcategoria(ctx, int(cambio.group(1)), int(cambio.group(2)))
     m = CALLBACK_RE.match(data or "")
     if not m:
         return Respuesta("Ese botón ya no sirve. No guardé nada.", accion="callback")

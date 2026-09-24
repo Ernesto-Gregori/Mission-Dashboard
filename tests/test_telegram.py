@@ -69,7 +69,7 @@ def _onboard(client: TestClient, username: str = "tg_admin") -> None:
     assert r.status_code in (303, 307)
     client.post(
         "/app/coach/activar",
-        data={"modulos": ["agenda", "salud"]},
+        data={"modulos": ["agenda", "salud", "finanzas"]},
         follow_redirects=False,
     )
 

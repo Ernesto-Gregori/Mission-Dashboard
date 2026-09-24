@@ -126,6 +126,37 @@ def recordatorio_min(user_id: int) -> int:
     return int(rows[0]["recordatorio_min"])
 
 
+def guardar_refs(user_id: int, chat_id: str, tipo: str, ids: list[int]) -> None:
+    """Números cortos 1..N de este chat. Reemplaza la lista anterior del mismo tipo."""
+    from app.timezone_config import ahora
+
+    stamp = _stamp(ahora())
+    ejecutar(
+        "DELETE FROM telegram_refs WHERE chat_id = ? AND user_id = ? AND tipo = ?",
+        [str(chat_id), int(user_id), tipo],
+    )
+    for n, eid in enumerate(ids, start=1):
+        ejecutar(
+            """
+            INSERT INTO telegram_refs (chat_id, user_id, tipo, n, entidad_id, creado_en)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [str(chat_id), int(user_id), tipo, n, int(eid), stamp],
+        )
+
+
+def buscar_ref(user_id: int, chat_id: str, tipo: str, n: int) -> int | None:
+    rows = ejecutar(
+        """
+        SELECT entidad_id FROM telegram_refs
+         WHERE chat_id = ? AND user_id = ? AND tipo = ? AND n = ?
+        """,
+        [str(chat_id), int(user_id), tipo, int(n)],
+        fetchall=True,
+    ) or []
+    return int(rows[0]["entidad_id"]) if rows else None
+
+
 def guardar_recordatorio_min(user_id: int, minutos: int) -> bool:
     if int(minutos) not in RECORDATORIO_OPCIONES:
         return False
