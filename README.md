@@ -44,6 +44,7 @@ En la app: **Salud** → Conectar con Google.
 - `/agenda` lista el día, mañana o la semana. Ya no es un alias de `/briefing`
 - Salud: `/sueno`, `/energia`, `/ejercicio`, `/salud`. Guardar un dato no borra el resto del día
 - `/enfoque` muestra los bloques de hoy y los marca Completado, Parcial o Postergado
+- `/briefing` arma secciones según los módulos activos. Fe, pareja y salud no salen salvo opt-in (`briefing_extra`)
 - Teclado: Briefing, Saldo (si Finanzas está activo), Hábitos, Ayuda
 - Acciones en `app/telegram_actions/` (una por área, registro con módulo requerido);
   router: comando → botón → patrón → Groq (solo acciones de módulos activos) → heurística
