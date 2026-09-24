@@ -1,4 +1,6 @@
-"""Telegram Bot API — briefing, gastos, tareas y audio.
+"""Telegram Bot API — transporte, vínculo, seguridad y router de intención.
+
+Las acciones (briefing, gasto, tarea…) viven en ``app/telegram_actions/``.
 
 Sustituye WhatsApp Cloud API (Meta): BotFather, gratis, opt-in (el bot
 no escribe a extraños). Un chat no vinculado NUNCA ejecuta acciones.
@@ -18,8 +20,10 @@ from typing import Callable
 from urllib import request as urlrequest
 
 from app import telegram_actions as acciones
+from app.db import telegram_state as state
 from app.logging_config import get_logger
 from app.telegram_actions import Accion, Contexto, Respuesta
+from app.telegram_actions.briefing import normalize
 from app.timezone_config import hoy as _hoy, iso_ahora
 
 log = get_logger("telegram")
@@ -51,6 +55,7 @@ BOT_COMMANDS = [
     {"command": "hoy", "description": "Lo mismo que /briefing"},
     {"command": "gasto", "description": "Anotar un gasto. Ej: /gasto 35 super"},
     {"command": "tarea", "description": "Crear una tarea. Ej: /tarea mañana 5pm banco"},
+    {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
 
@@ -62,6 +67,7 @@ def help_text(*, linked: bool = True) -> str:
         "• /hoy — lo mismo que /briefing\n"
         "• /gasto 35 super — anotar un gasto\n"
         "• /tarea mañana 5pm banco — crear una tarea (va a Calendar si está vinculado)\n"
+        "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
         "• /ayuda — este mensaje\n\n"
         "También sirve texto suelto («35 en super») o una nota de voz.\n"
         "Desvincular: en la app → Usuarios → Telegram (no por el chat)."
@@ -128,6 +134,29 @@ def ensure_telegram_schema() -> None:
         )
         """,
         "CREATE INDEX IF NOT EXISTS idx_tg_remind_fire ON telegram_reminders(sent_at, fire_at)",
+        """
+        CREATE TABLE IF NOT EXISTS telegram_pending (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            chat_id TEXT NOT NULL,
+            accion TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            expira_en TEXT NOT NULL,
+            creado_en TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_tg_pending_chat ON telegram_pending(chat_id, id)",
+        """
+        CREATE TABLE IF NOT EXISTS telegram_last_action (
+            chat_id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            accion TEXT NOT NULL,
+            entidad_id INTEGER NOT NULL,
+            resumen TEXT,
+            expira_en TEXT NOT NULL,
+            creado_en TEXT NOT NULL
+        )
+        """,
     ):
         try:
             ejecutar(sql)
@@ -370,7 +399,11 @@ def _mark_seen(update_id: str, chat_id: str) -> bool:
 
 
 def extract_inbound(payload: dict) -> list[dict]:
-    """Normaliza un Update de Telegram a {chat_id, username, update_id, text, voice_id}."""
+    """Normaliza un Update (mensaje o botón inline) a
+    {chat_id, username, update_id, text, voice_id, callback_id, callback_data}."""
+    cq = payload.get("callback_query")
+    if isinstance(cq, dict) and cq:
+        return _extract_callback(payload, cq)
     msg = payload.get("message") or payload.get("edited_message") or {}
     if not isinstance(msg, dict) or not msg:
         return []
@@ -388,11 +421,31 @@ def extract_inbound(payload: dict) -> list[dict]:
         "update_id": str(payload.get("update_id") or msg.get("message_id") or ""),
         "text": str(msg.get("text") or msg.get("caption") or ""),
         "voice_id": "",
+        "callback_id": "",
+        "callback_data": "",
     }
     voice = msg.get("voice") or msg.get("audio") or {}
     if isinstance(voice, dict):
         item["voice_id"] = str(voice.get("file_id") or "")
     return [item]
+
+
+def _extract_callback(payload: dict, cq: dict) -> list[dict]:
+    chat = (cq.get("message") or {}).get("chat") or {}
+    chat_id = str(chat.get("id") or "")
+    if not chat_id or chat.get("type") != "private":
+        return []
+    return [
+        {
+            "chat_id": chat_id,
+            "username": str((cq.get("from") or {}).get("username") or ""),
+            "update_id": str(payload.get("update_id") or ""),
+            "text": "",
+            "voice_id": "",
+            "callback_id": str(cq.get("id") or ""),
+            "callback_data": str(cq.get("data") or "")[:64],
+        }
+    ]
 
 
 def _api(method: str, payload: dict | None = None, *, timeout: int = 20) -> dict:
@@ -474,6 +527,16 @@ def _download_voice(file_id: str) -> bytes:
         return b""
 
 
+def answer_callback_query(callback_id: str) -> None:
+    """Cierra el «cargando» del botón inline. Telegram lo exige aunque no haya texto."""
+    if not callback_id or not _secret("TELEGRAM_BOT_TOKEN"):
+        return
+    try:
+        _api("answerCallbackQuery", {"callback_query_id": callback_id})
+    except Exception as e:
+        log.warning("telegram answerCallbackQuery: %s", type(e).__name__)
+
+
 def register_bot_commands() -> bool:
     """Publica el menú / del bot (setMyCommands). No exige HTTPS."""
     if not _secret("TELEGRAM_BOT_TOKEN"):
@@ -502,7 +565,7 @@ def register_webhook(app_url: str = "") -> bool:
             {
                 "url": url,
                 "secret_token": secret,
-                "allowed_updates": ["message"],
+                "allowed_updates": ["message", "callback_query"],
             },
         )
         ok = bool(data.get("ok"))
@@ -525,6 +588,9 @@ def handle_inbound(
     transcribe_fn: Callable | None = None,
     parse_fn: Callable | None = None,
     download_fn: Callable | None = None,
+    callback_id: str = "",
+    callback_data: str = "",
+    answer_fn: Callable | None = None,
 ) -> str:
     from app.rate_limit import telegram_permitido
     from app.tenant import clear_current_user, set_current_user
@@ -536,16 +602,16 @@ def handle_inbound(
     if not telegram_permitido(chat_id):
         log.info("telegram rate-limit chat=%s", chat_id[-4:])
         return ""
+    if callback_id:
+        (answer_fn or answer_callback_query)(callback_id)
     if update_id and not _mark_seen(update_id, chat_id):
         return ""
 
-    def reply(body: str, *, keyboard: bool = False) -> str:
-        send_text(
-            chat_id,
-            body,
-            send_fn=send_fn,
-            reply_markup=REPLY_KEYBOARD if keyboard else None,
-        )
+    def reply(body: str, *, keyboard: bool = False, botones: list | None = None) -> str:
+        markup = REPLY_KEYBOARD if keyboard else None
+        if botones:
+            markup = {"inline_keyboard": [[{"text": t, "callback_data": d} for t, d in botones]]}
+        send_text(chat_id, body, send_fn=send_fn, reply_markup=markup)
         return body
 
     link = find_link_by_chat(chat_id)
@@ -583,9 +649,10 @@ def handle_inbound(
             body = _transcribe_inbound(voice_id, transcribe_fn, download_fn)[:MAX_TEXT_CHARS]
             if not body:
                 return reply("No pude transcribir el audio. Probá en texto o /ayuda.")
-        resp = _route(Contexto(user=user, chat_id=chat_id, parse_fn=parse_fn), body)
+        ctx = Contexto(user=user, chat_id=chat_id, parse_fn=parse_fn)
+        resp = _route_callback(ctx, callback_data) if callback_data else _route(ctx, body)
         accion, ok = resp.accion, True
-        return reply(resp.texto, keyboard=resp.teclado)
+        return reply(resp.texto, keyboard=resp.teclado, botones=resp.botones)
     except Exception as e:
         log.exception("telegram handle: %s", type(e).__name__)
         return reply("Hubo un error procesando el mensaje. No se guardó nada.")
@@ -637,6 +704,12 @@ def _route(ctx: Contexto, body: str) -> Respuesta:
         return Respuesta(help_text(linked=True), accion="ayuda", teclado=True)
     if cmd == "/start":
         return Respuesta("Ya estás vinculado.\n" + help_text(linked=True), accion="start", teclado=True)
+    if cmd == "/deshacer":
+        return _deshacer(ctx)
+    if not cmd and state.hay_pendiente(ctx.user_id, ctx.chat_id):
+        respuesta = _normalize_yes_no(body)
+        if respuesta is not None:
+            return _resolve_pending(ctx, None, respuesta)
     if cmd:
         acc = acciones.por_comando(cmd)
         if acc is None:
@@ -678,12 +751,83 @@ def _run_command(ctx: Contexto, acc: Accion, rest: str) -> Respuesta:
     return _run(ctx, acc, datos, rest)
 
 
-def _run(ctx: Contexto, acc: Accion, datos: dict, texto: str) -> Respuesta:
+def _run(ctx: Contexto, acc: Accion, datos: dict, texto: str, *, confirmado: bool = False) -> Respuesta:
+    from app.audit import registrar
+
     if not acciones.disponible(acc, ctx.user_id):
         return _modulo_apagado(acc)
-    resp = acc.ejecutar(ctx, {**datos, "_texto": texto})
+    datos = {**datos, "_texto": texto}
+    pregunta = acc.confirmar(ctx, datos) if acc.confirmar and not confirmado else None
+    if pregunta:
+        pid = state.crear_pendiente(ctx.user_id, ctx.chat_id, acc.clave, datos)
+        return Respuesta(
+            f"{pregunta}\n¿Lo guardo? Tocá un botón o respondé «sí» / «no» "
+            f"(vence en {state.PENDING_TTL_MIN} min).",
+            accion=f"{acc.clave}:confirmar",
+            botones=[("✅ Sí", f"p:{pid}:si"), ("✖️ No", f"p:{pid}:no")],
+        )
+    resp = acc.ejecutar(ctx, datos)
     resp.accion = resp.accion or acc.clave
+    if resp.entidad_id is not None:
+        registrar(f"telegram_{acc.clave}", acc.clave, resp.entidad_id, {"chat": ctx.chat_id[-4:]})
+        if acc.deshacer is not None:
+            state.registrar_ultima(ctx.user_id, ctx.chat_id, acc.clave, resp.entidad_id, resp.resumen)
+            resp.texto += "\n¿Error? /deshacer"
     return resp
+
+
+YES_WORDS = frozenset({"si", "dale", "confirmo", "confirmar"})
+NO_WORDS = frozenset({"no", "cancelar", "cancela", "cancelo"})
+CALLBACK_RE = re.compile(r"^p:(\d{1,12}):(si|no)$")
+
+
+def _normalize_yes_no(text: str) -> bool | None:
+    norm = normalize(text)
+    if norm in YES_WORDS:
+        return True
+    if norm in NO_WORDS:
+        return False
+    return None
+
+
+def _route_callback(ctx: Contexto, data: str) -> Respuesta:
+    m = CALLBACK_RE.match(data or "")
+    if not m:
+        return Respuesta("Ese botón ya no sirve. No guardé nada.", accion="callback")
+    return _resolve_pending(ctx, int(m.group(1)), m.group(2) == "si")
+
+
+def _resolve_pending(ctx: Contexto, pending_id: int | None, si: bool) -> Respuesta:
+    got = state.tomar_pendiente(ctx.user_id, ctx.chat_id, pending_id)
+    acc = acciones.por_clave(got[0]) if got else None
+    if got is None or acc is None:
+        return Respuesta("Esa confirmación ya no está disponible. No guardé nada.", accion="confirmar")
+    _clave, payload = got
+    if payload is None:
+        return Respuesta(
+            f"Esa confirmación venció ({state.PENDING_TTL_MIN} min). No guardé nada; mandalo de nuevo.",
+            accion=f"{acc.clave}:vencido",
+        )
+    if not si:
+        return Respuesta("Cancelado. No guardé nada.", accion=f"{acc.clave}:cancelado")
+    return _run(ctx, acc, payload, str(payload.get("_texto") or ""), confirmado=True)
+
+
+def _deshacer(ctx: Contexto) -> Respuesta:
+    from app.audit import registrar
+
+    last = state.tomar_ultima(ctx.user_id, ctx.chat_id)
+    acc = acciones.por_clave(str(last["accion"])) if last else None
+    if not last or acc is None or acc.deshacer is None:
+        return Respuesta(
+            f"No hay nada para deshacer (solo la última acción, hasta {state.DESHACER_TTL_MIN} min).",
+            accion="deshacer",
+        )
+    ok = acc.deshacer(ctx, int(last["entidad_id"]))
+    registrar("telegram_deshacer", acc.clave, last["entidad_id"], {"ok": ok, "chat": ctx.chat_id[-4:]})
+    if not ok:
+        return Respuesta(f"No pude deshacer: {last['resumen']}. Revisalo en la app.", accion="deshacer")
+    return Respuesta(f"Deshice: {last['resumen']}.", accion="deshacer")
 
 
 def _modulo_apagado(acc: Accion) -> Respuesta:
@@ -763,6 +907,16 @@ def schedule_reminder(
         VALUES (?, ?, ?, ?, ?, NULL)
         """,
         [int(user_id), evento_id, str(chat_id), titulo[:80], fire.isoformat(timespec="seconds")],
+    )
+
+
+def cancel_reminders(user_id: int, evento_id: int) -> None:
+    ensure_telegram_schema()
+    from app.db.core import ejecutar
+
+    ejecutar(
+        "DELETE FROM telegram_reminders WHERE user_id = ? AND evento_id = ? AND sent_at IS NULL",
+        [int(user_id), int(evento_id)],
     )
 
 

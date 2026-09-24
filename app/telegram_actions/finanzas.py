@@ -17,6 +17,7 @@ AMOUNT_END_RE = re.compile(rf"^\s*(?:{_GASTO_VERB}\s+)?(?P<desc>[^\d$]+?)\s+\$?\
 AMOUNT_DOLLAR_RE = re.compile(rf"\$\s*{_NUM}", re.I)
 AMOUNT_MAX_DESC_WORDS = 3
 NOT_A_DESC_RE = re.compile(r"^(?:pesos|mxn|am|pm|hs|h|horas?|min|minutos?)\b", re.I)
+MONTO_CONFIRMAR = 200.0
 USO = "Usá un monto. Ejemplo: /gasto 35 super  (o «35 en supermercado»)."
 
 
@@ -78,14 +79,34 @@ def _ejecutar(_ctx: Contexto, datos: dict) -> Respuesta:
     monto = float(datos["monto"])
     sobre, sub = CATEGORIA_A_SOBRE[datos["categoria"]]
     desc = str(datos.get("descripcion") or datos.get("_texto") or "").strip()[:120] or "Gasto Telegram"
-    agregar_gasto_sobre(str(hoy()), sobre, sub, desc, monto, origen=GASTO_ORIGEN_TELEGRAM)
-    return Respuesta(f"Anoté ${monto:.2f} en «{desc}» → sobre {sobre}.")
+    gid = agregar_gasto_sobre(str(hoy()), sobre, sub, desc, monto, origen=GASTO_ORIGEN_TELEGRAM)
+    return Respuesta(
+        f"Anoté ${monto:.2f} en «{desc}» → sobre {sobre}.",
+        entidad_id=int(gid),
+        resumen=f"gasto ${monto:.2f} «{desc}»",
+    )
+
+
+def _confirmar(_ctx: Contexto, datos: dict) -> str | None:
+    monto = float(datos["monto"])
+    if monto < MONTO_CONFIRMAR:
+        return None
+    desc = str(datos.get("descripcion") or datos.get("_texto") or "").strip()[:60]
+    return f"Vas a anotar ${monto:.2f} en «{desc}». Es un monto alto."
+
+
+def _deshacer(_ctx: Contexto, gasto_id: int) -> bool:
+    from app.db.finanzas import eliminar_gasto_sobre
+
+    return bool(eliminar_gasto_sobre(int(gasto_id)))
 
 
 GASTO = Accion(
     clave="gasto",
     comandos=("/gasto",),
     ejecutar=_ejecutar,
+    confirmar=_confirmar,
+    deshacer=_deshacer,
     uso=USO,
     llm_campos="monto (número), categoria (necesidades|deseos|ahorro), descripcion (texto corto)",
     parse=lambda args: _validar(heuristic_gasto(args)),

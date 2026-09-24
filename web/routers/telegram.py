@@ -47,6 +47,8 @@ async def telegram_inbound(
             voice_id=item.get("voice_id") or "",
             update_id=item.get("update_id") or "",
             username=item.get("username") or "",
+            callback_id=item.get("callback_id") or "",
+            callback_data=item.get("callback_data") or "",
         )
         n += 1
     return JSONResponse({"ok": True, "handled": n})

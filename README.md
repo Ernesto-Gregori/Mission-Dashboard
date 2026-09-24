@@ -41,7 +41,12 @@ En la app: **Salud** → Conectar con Google.
 - Vincular en `/app/usuarios?tab=telegram` (código + `t.me/bot?start=…`)
 - Intenciones: briefing, gasto, tarea (sync Calendar), nota de voz
 - Comandos: `/briefing` `/gasto` `/tarea` `/ayuda` (menú `/` + botones)
+- Acciones en `app/telegram_actions/` (una por área, registro con módulo requerido);
+  router: comando → botón → patrón → Groq (solo acciones de módulos activos) → heurística
 - Solo chats privados (grupos y canales se ignoran). Texto ambiguo → «no entendí», sin guardar nada
+- Confirmación con botones inline (o «sí» / «no») para gastos ≥ $200; vence en 10 min
+  (`telegram_pending`). `/deshacer` revierte la última acción del chat, hasta 30 min (`telegram_last_action`).
+  El webhook pide `message` + `callback_query` (se re-registra al arrancar)
 - Texto libre: gasto si el monto va al inicio, al final o con `$` («35 en super», «café 8»);
   tarea si hay hora explícita («5pm», «16:30», «a las 8») o empieza con «agendar» / «recordame»
 - Recordatorios: `python scripts/run_telegram_reminders.py` (hora local, `app.timezone_config`)
