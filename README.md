@@ -52,6 +52,7 @@ En la app: **Salud** → Conectar con Google.
 - `/idea` guarda en Sandbox (dominio `#personal` y similares; si no, Otros). `/leyendo` y `/leer` actualizan la página.
 - `/orar`, `/oraciones` y `/respondida` usan Teología. `/nota` y `/conexion` usan Matrimonio. `/rutina` resume el ejercicio. No hay devocional por el bot.
 - Una foto (máximo 5 MB) se lee como recibo si hay cupo de IA. No se guarda hasta confirmar. Documentos no.
+- `/precio` muestra los 3 más baratos del catálogo. `/estado` resume plan, módulos, Google y llamadas de IA del mes.
 - Acciones en `app/telegram_actions/` (una por área, registro con módulo requerido);
   router: comando → botón → patrón → Groq (solo acciones de módulos activos) → heurística
 - Solo chats privados (grupos y canales se ignoran). Texto ambiguo → «no entendí», sin guardar nada
