@@ -10,7 +10,7 @@ from app.telegram_actions.base import Accion, Contexto, Respuesta
 # Mensaje completo (sin acentos ni signos), no subcadena: «agendar…» no es briefing.
 BRIEFING_PHRASES = frozenset(
     {
-        "briefing", "briefing de hoy", "agenda", "agenda de hoy", "mi agenda",
+        "briefing", "briefing de hoy",
         "resumen", "resumen de hoy", "foco", "foco de hoy", "hoy", "hoy que",
         "que hay hoy", "que tengo hoy", "mi dia",
     }
@@ -78,7 +78,7 @@ def _ejecutar(ctx: Contexto, _datos: dict) -> Respuesta:
 
 BRIEFING = Accion(
     clave="briefing",
-    comandos=("/briefing", "/hoy", "/agenda"),
+    comandos=("/briefing", "/hoy"),
     ejecutar=_ejecutar,
     llm_campos="sin campos (el usuario pide el resumen o la agenda del día)",
     parse=lambda args: {},
