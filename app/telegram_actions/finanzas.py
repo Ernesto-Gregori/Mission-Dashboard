@@ -202,7 +202,7 @@ def _confirmar(_ctx: Contexto, datos: dict) -> str | None:
     return None
 
 
-def _deshacer(_ctx: Contexto, gasto_id: int) -> bool:
+def _deshacer(_ctx: Contexto, gasto_id: int, _resumen: str = "") -> bool:
     from app.db.finanzas import eliminar_gasto_sobre
 
     return bool(eliminar_gasto_sobre(int(gasto_id)))

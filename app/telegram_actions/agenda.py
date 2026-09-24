@@ -124,7 +124,7 @@ def _ejecutar(ctx: Contexto, datos: dict) -> Respuesta:
     )
 
 
-def _deshacer(ctx: Contexto, evento_id: int) -> bool:
+def _deshacer(ctx: Contexto, evento_id: int, _resumen: str = "") -> bool:
     from app.db.agenda import eliminar_evento
     from app.telegram import cancel_reminders
 

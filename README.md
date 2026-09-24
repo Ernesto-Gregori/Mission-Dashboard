@@ -40,7 +40,8 @@ En la app: **Salud** → Conectar con Google.
 - Bot API oficial (BotFather). Callback: `POST /telegram/webhook`
 - Vincular en `/app/usuarios?tab=telegram` (código + `t.me/bot?start=…`)
 - Intenciones: briefing, gasto, tarea (sync Calendar), nota de voz
-- Comandos: `/briefing` `/gasto` `/ingreso` `/saldo` `/gastos` `/borrar` `/vencimientos` `/tarea` `/ayuda`
+- Comandos: `/briefing` `/habitos` `/hecho` `/gasto` `/ingreso` `/saldo` `/gastos` `/borrar` `/vencimientos` `/tarea` `/ayuda`
+- Teclado: Briefing, Saldo (si Finanzas está activo), Hábitos, Ayuda
 - Acciones en `app/telegram_actions/` (una por área, registro con módulo requerido);
   router: comando → botón → patrón → Groq (solo acciones de módulos activos) → heurística
 - Solo chats privados (grupos y canales se ignoran). Texto ambiguo → «no entendí», sin guardar nada
