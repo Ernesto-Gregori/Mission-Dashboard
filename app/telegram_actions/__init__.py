@@ -9,6 +9,7 @@ from app.telegram_actions.fe import ORACIONES, ORAR, RESPONDIDA
 from app.telegram_actions.finanzas import BORRAR, GASTO, GASTOS, INGRESO, SALDO, VENCIMIENTOS
 from app.telegram_actions.habitos import HABITOS, HECHO
 from app.telegram_actions.pareja import CONEXION, NOTA
+from app.telegram_actions.recibo import RECIBO
 from app.telegram_actions.salud import EJERCICIO, ENERGIA, RUTINA, SALUD, SUENO
 from app.telegram_actions.ideas import IDEA, IDEAS
 from app.telegram_actions.lectura import LEER, LEYENDO
@@ -19,7 +20,7 @@ REGISTRO: list[Accion] = [
     AGENDA, BRIEFING, SILENCIO, GASTO, INGRESO, SALDO, GASTOS, VENCIMIENTOS, BORRAR,
     HABITOS, HECHO, SUENO, ENERGIA, EJERCICIO, SALUD, ENFOQUE,
     ALMA, COACH, SEMANA, IDEA, IDEAS, LEYENDO, LEER,
-    ORAR, ORACIONES, RESPONDIDA, NOTA, CONEXION, RUTINA,
+    ORAR, ORACIONES, RESPONDIDA, NOTA, CONEXION, RUTINA, RECIBO,
     MOVER, CANCELAR, TAREA,
 ]
 

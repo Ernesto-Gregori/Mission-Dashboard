@@ -528,12 +528,19 @@ def extract_inbound(payload: dict) -> list[dict]:
         "update_id": str(payload.get("update_id") or msg.get("message_id") or ""),
         "text": str(msg.get("text") or msg.get("caption") or ""),
         "voice_id": "",
+        "photo_id": "",
+        "photo_size": 0,
         "callback_id": "",
         "callback_data": "",
     }
     voice = msg.get("voice") or msg.get("audio") or {}
     if isinstance(voice, dict):
         item["voice_id"] = str(voice.get("file_id") or "")
+    photos = msg.get("photo") if isinstance(msg.get("photo"), list) else []
+    if photos:
+        mayor = max(photos, key=lambda p: int((p or {}).get("file_size") or 0))
+        item["photo_id"] = str((mayor or {}).get("file_id") or "")
+        item["photo_size"] = int((mayor or {}).get("file_size") or 0)
     return [item]
 
 
@@ -549,6 +556,8 @@ def _extract_callback(payload: dict, cq: dict) -> list[dict]:
             "update_id": str(payload.get("update_id") or ""),
             "text": "",
             "voice_id": "",
+            "photo_id": "",
+            "photo_size": 0,
             "callback_id": str(cq.get("id") or ""),
             "callback_data": str(cq.get("data") or "")[:64],
         }
@@ -698,6 +707,9 @@ def handle_inbound(
     callback_id: str = "",
     callback_data: str = "",
     answer_fn: Callable | None = None,
+    photo_id: str = "",
+    photo_size: int = 0,
+    photo_bytes: bytes | None = None,
 ) -> str:
     from app.rate_limit import telegram_permitido
     from app.tenant import clear_current_user, set_current_user
@@ -762,7 +774,17 @@ def handle_inbound(
             if not body:
                 return reply("No pude transcribir el audio. Probá en texto o /ayuda.")
         ctx = Contexto(user=user, chat_id=chat_id, parse_fn=parse_fn)
-        resp = _route_callback(ctx, callback_data) if callback_data else _route(ctx, body)
+        if (photo_id or photo_bytes is not None) and not body.startswith("/"):
+            from app.receipt_service import TELEGRAM_MAX_PHOTO_BYTES
+            from app.telegram_actions.recibo import desde_foto
+
+            accion = "recibo"
+            raw = photo_bytes
+            if raw is None and int(photo_size or 0) <= TELEGRAM_MAX_PHOTO_BYTES:
+                raw = (download_fn or _download_voice)(photo_id)
+            resp = desde_foto(ctx, raw or b"", int(photo_size or 0))
+        else:
+            resp = _route_callback(ctx, callback_data) if callback_data else _route(ctx, body)
         accion, ok = resp.accion, True
         return reply(resp.texto, keyboard=resp.teclado, botones=resp.botones)
     except Exception as e:
