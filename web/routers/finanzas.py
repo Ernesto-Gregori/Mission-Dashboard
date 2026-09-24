@@ -1,9 +1,8 @@
 """Finanzas HTMX — ingreso, sobres, gastos, escaneo y precios SV."""
 from __future__ import annotations
 
-import json
 import os
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -21,10 +20,6 @@ from app.db.schema import (
     DEFAULT_SOBRE_SCAN,
     DEFAULT_SUBCAT_SCAN,
     GASTO_ORIGEN_MANUAL,
-    GASTO_ORIGEN_RECIBO,
-    GASTO_ORIGEN_TRANSFERENCIA,
-    OCR_ESTADO_CONFIRMADO,
-    OCR_ESTADO_PENDIENTE,
     OCR_ESTADO_RECHAZADO,
     SUPERMERCADO_LABELS,
     SUPERMERCADOS,
@@ -43,7 +38,8 @@ from app.presupuesto import (
     resumen_mes,
 )
 from app.receipt_ocr import extract_from_image
-from app.receipt_uploads import resolve_upload_path, save_receipt_image
+from app.receipt_service import MAX_SCAN_BYTES, ScanError, armar_borrador, guardar_confirmado, lineas_desde_form
+from app.receipt_uploads import resolve_upload_path
 from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
 from web.deps import render, require_onboarded
@@ -55,7 +51,6 @@ MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "
 SESSION_DRAFT_KEY = "finanzas_scan_draft"
 SESSION_MATCHES_KEY = "finanzas_last_matches"
 SESSION_FLASH_KEY = "finanzas_flash"
-MAX_SCAN_BYTES = 8 * 1024 * 1024
 
 
 def _periodo(request: Request) -> tuple[int, int]:
@@ -401,7 +396,15 @@ async def escanear_recibo(
         )
 
     try:
-        rel = save_receipt_image(int(user["id"]), raw, imagen.filename)
+        draft = armar_borrador(int(user["id"]), raw, imagen.filename, extract=extract_from_image)
+    except ScanError as e:
+        request.session.pop(SESSION_DRAFT_KEY, None)
+        return render(
+            request,
+            "modules/finanzas.html",
+            status_code=422,
+            **_ctx(request, user, error=str(e)),
+        )
     except Exception as e:
         return render(
             request,
@@ -409,52 +412,6 @@ async def escanear_recibo(
             status_code=400,
             **_ctx(request, user, error=f"No se pudo guardar la imagen: {e}"),
         )
-
-    result = extract_from_image(raw)
-    if not result.ok:
-        request.session.pop(SESSION_DRAFT_KEY, None)
-        return render(
-            request,
-            "modules/finanzas.html",
-            status_code=422,
-            **_ctx(
-                request,
-                user,
-                error=result.error
-                or "No se pudo leer el comprobante. Reintenta con otra foto.",
-            ),
-        )
-
-    origen = (
-        GASTO_ORIGEN_TRANSFERENCIA
-        if result.tipo == "transferencia"
-        else GASTO_ORIGEN_RECIBO
-    )
-    desc = (result.comercio or result.tipo or "Gasto escaneado").strip()
-    draft: dict[str, Any] = {
-        "imagen_url": rel,
-        "tipo": result.tipo,
-        "origen": origen,
-        "comercio": result.comercio,
-        "fecha": result.fecha or str(_hoy()),
-        "monto_total": result.monto_total,
-        "metodo_pago": result.metodo_pago,
-        "descripcion": desc,
-        "sobre": DEFAULT_SOBRE_SCAN,
-        "subcategoria": DEFAULT_SUBCAT_SCAN,
-        "lineas": [
-            {
-                "nombre": it.nombre,
-                "cantidad": it.cantidad,
-                "precio_unitario": it.precio_unitario,
-                "precio_total": it.precio_total,
-            }
-            for it in result.items
-        ],
-        "warnings": list(result.warnings),
-        "raw_ocr_data": json.dumps(result.raw or {}, ensure_ascii=False),
-        "ocr_estado": OCR_ESTADO_PENDIENTE,
-    }
     request.session[SESSION_DRAFT_KEY] = draft
     return render(
         request,
@@ -488,115 +445,20 @@ async def escanear_confirmar(
     mes, anio = _periodo(request)
 
     try:
-        fecha = str(form.get("fecha") or draft.get("fecha") or _hoy())
-        sobre = str(form.get("sobre") or DEFAULT_SOBRE_SCAN)
-        sub = str(form.get("subcategoria") or DEFAULT_SUBCAT_SCAN)
-        desc = str(form.get("descripcion") or "").strip() or "Gasto escaneado"
-        comercio = str(form.get("comercio") or "").strip() or None
-        metodo = str(form.get("metodo_pago") or "").strip() or None
-        origen = str(form.get("origen") or draft.get("origen") or GASTO_ORIGEN_RECIBO)
-        if origen not in (
-            GASTO_ORIGEN_RECIBO,
-            GASTO_ORIGEN_TRANSFERENCIA,
-            GASTO_ORIGEN_MANUAL,
-        ):
-            origen = GASTO_ORIGEN_RECIBO
-        monto = float(str(form.get("monto_total") or "0").replace(",", ""))
-        if sobre not in SOBRES_CONFIG:
-            raise ValueError("sobre")
-        if monto <= 0:
-            raise ValueError("monto")
-
-        items: list[dict] = []
-        i = 0
-        while True:
-            nombre = form.get(f"item_nombre_{i}")
-            if nombre is None:
-                break
-            nombre_s = str(nombre).strip()
-            if nombre_s:
-                try:
-                    cant = float(
-                        str(form.get(f"item_cantidad_{i}") or "1").replace(",", "")
-                    )
-                except Exception:
-                    cant = 1.0
-                try:
-                    pu = form.get(f"item_pu_{i}")
-                    pu_f = (
-                        float(str(pu).replace(",", "")) if pu not in (None, "") else None
-                    )
-                except Exception:
-                    pu_f = None
-                try:
-                    pt = form.get(f"item_pt_{i}")
-                    pt_f = (
-                        float(str(pt).replace(",", "")) if pt not in (None, "") else None
-                    )
-                except Exception:
-                    pt_f = None
-                items.append(
-                    {
-                        "nombre": nombre_s,
-                        "cantidad": cant,
-                        "precio_unitario": pu_f,
-                        "precio_total": pt_f,
-                    }
-                )
-            i += 1
-            if i > 200:
-                break
-
-        gid = agregar_gasto_sobre(
-            fecha,
-            sobre,
-            sub,
-            desc,
-            monto,
-            comercio=comercio,
-            metodo_pago=metodo,
-            origen=origen,
-            imagen_url=draft.get("imagen_url"),
-            raw_ocr_data=draft.get("raw_ocr_data"),
-            ocr_estado=OCR_ESTADO_CONFIRMADO,
+        _gid, match_summaries = guardar_confirmado(
+            draft,
+            {
+                "fecha": form.get("fecha"),
+                "sobre": form.get("sobre"),
+                "subcategoria": form.get("subcategoria"),
+                "descripcion": form.get("descripcion"),
+                "comercio": form.get("comercio"),
+                "metodo_pago": form.get("metodo_pago"),
+                "origen": form.get("origen"),
+                "monto_total": form.get("monto_total"),
+                "items": lineas_desde_form(form),
+            },
         )
-        from app.price_matching import (
-            load_catalog,
-            match_item_against_catalog,
-            normalize_product_name,
-            persist_matches_for_receipt_item,
-        )
-
-        catalog = load_catalog() if items else []
-        match_summaries: list[dict] = []
-        for idx, it in enumerate(items):
-            rid = fr.agregar_receipt_item(
-                gasto_id=gid,
-                nombre_original=it["nombre"],
-                nombre_normalizado=normalize_product_name(it["nombre"]),
-                cantidad=float(it["cantidad"] or 1),
-                precio_unitario=it.get("precio_unitario"),
-                precio_total=it.get("precio_total"),
-                orden=idx,
-            )
-            match = match_item_against_catalog(it["nombre"], catalog)
-            persist_matches_for_receipt_item(rid, match)
-            match_summaries.append(
-                {
-                    "nombre": it["nombre"],
-                    "resumen": match.resumen_precios(),
-                    "sin_coincidencia_clara": match.sin_coincidencia_clara,
-                    "hits": [
-                        {
-                            "supermercado": h.supermercado,
-                            "nombre": h.nombre,
-                            "precio": h.precio,
-                            "score": round(h.score, 3),
-                        }
-                        for h in match.hits
-                    ],
-                }
-            )
         if match_summaries:
             request.session[SESSION_MATCHES_KEY] = match_summaries
     except Exception:
