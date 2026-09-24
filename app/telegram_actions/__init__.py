@@ -4,6 +4,7 @@ from __future__ import annotations
 from app.telegram_actions.agenda import AGENDA, CANCELAR, MOVER, TAREA
 from app.telegram_actions.base import Accion, Contexto, Respuesta
 from app.telegram_actions.briefing import BRIEFING, SILENCIO
+from app.telegram_actions.cuenta import ESTADO, PRECIO
 from app.telegram_actions.enfoque import ENFOQUE
 from app.telegram_actions.fe import ORACIONES, ORAR, RESPONDIDA
 from app.telegram_actions.finanzas import BORRAR, GASTO, GASTOS, INGRESO, SALDO, VENCIMIENTOS
@@ -20,7 +21,7 @@ REGISTRO: list[Accion] = [
     AGENDA, BRIEFING, SILENCIO, GASTO, INGRESO, SALDO, GASTOS, VENCIMIENTOS, BORRAR,
     HABITOS, HECHO, SUENO, ENERGIA, EJERCICIO, SALUD, ENFOQUE,
     ALMA, COACH, SEMANA, IDEA, IDEAS, LEYENDO, LEER,
-    ORAR, ORACIONES, RESPONDIDA, NOTA, CONEXION, RUTINA, RECIBO,
+    ORAR, ORACIONES, RESPONDIDA, NOTA, CONEXION, RUTINA, RECIBO, PRECIO, ESTADO,
     MOVER, CANCELAR, TAREA,
 ]
 

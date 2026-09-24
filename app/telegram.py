@@ -87,6 +87,8 @@ BOT_COMMANDS = [
     {"command": "nota", "description": "Nota de pareja. Ej: /nota le gusta el café"},
     {"command": "conexion", "description": "Minutos juntos. Ej: /conexion 30"},
     {"command": "rutina", "description": "Rutina de ejercicio del día"},
+    {"command": "precio", "description": "3 precios más baratos. Ej: /precio leche"},
+    {"command": "estado", "description": "Plan, módulos, Google y cupo de IA"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
@@ -125,6 +127,8 @@ def help_text(*, linked: bool = True) -> str:
         "• /nota le gusta el café — nota de pareja\n"
         "• /conexion 30 — minutos de conexión\n"
         "• /rutina — rutina de ejercicio\n"
+        "• /precio leche — los 3 más baratos del catálogo\n"
+        "• /estado — plan, módulos, Google y llamadas de IA\n"
         "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
         "• /cancelar 2 — borrar el evento (pide confirmación)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
