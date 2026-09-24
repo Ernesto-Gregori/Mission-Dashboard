@@ -114,7 +114,7 @@ def test_b4_time_is_not_an_amount(linked):
     ],
 )
 def test_b4_anchored_amounts(text, monto, desc):
-    from app.telegram import _heuristic_gasto
+    from app.telegram_actions.finanzas import heuristic_gasto as _heuristic_gasto
 
     g = _heuristic_gasto(text)
     assert g["intent"] == "gasto"
@@ -127,7 +127,7 @@ def test_b4_anchored_amounts(text, monto, desc):
     ["comprar 2 libros", "reunión 5pm con Juan", "leer el resumen del capítulo 3", "35 pesos en super"],
 )
 def test_b4_non_amounts(text):
-    from app.telegram import _heuristic_gasto
+    from app.telegram_actions.finanzas import heuristic_gasto as _heuristic_gasto
 
     assert _heuristic_gasto(text)["intent"] == "unknown"
 
@@ -143,7 +143,7 @@ def test_b4_non_amounts(text):
     ],
 )
 def test_b4_explicit_time_only(text, hora):
-    from app.telegram import _explicit_time
+    from app.telegram_actions.agenda import explicit_time as _explicit_time
 
     assert _explicit_time(text) == hora
 

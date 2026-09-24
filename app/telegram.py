@@ -12,47 +12,25 @@ import hmac
 import json
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+import time
+from datetime import datetime, timedelta
 from typing import Callable
 from urllib import request as urlrequest
 
+from app import telegram_actions as acciones
 from app.logging_config import get_logger
+from app.telegram_actions import Accion, Contexto, Respuesta
 from app.timezone_config import hoy as _hoy, iso_ahora
 
 log = get_logger("telegram")
 
-# Mensaje completo (sin acentos ni signos), no subcadena: «agendar…» no es briefing.
-BRIEFING_PHRASES = frozenset(
-    {
-        "briefing", "briefing de hoy", "agenda", "agenda de hoy", "mi agenda",
-        "resumen", "resumen de hoy", "foco", "foco de hoy", "hoy", "hoy que",
-        "que hay hoy", "que tengo hoy", "mi dia",
-    }
-)
 LINK_TTL_MIN = 10
+MAX_TEXT_CHARS = 1000
+LLM_MAX_TOKENS = 200
+TG_MAX_MESSAGE = 4096
+MAX_CHUNKS = 5
 CODE_RE = re.compile(r"^\s*(\d{6})\s*$")
 START_RE = re.compile(r"^/start(?:\s+|_)(\d{6})\s*$", re.I)
-_NUM = r"(?P<num>\d{1,7}(?:[.,]\d{1,2})?)(?![\d.,]*\d)"
-_CUR = r"(?:\s*(?:usd|d[oó]lares?|\$))?"
-_GASTO_VERB = r"(?:gast[eé]|pagu[eé]|compr[eé])"
-# Monto al inicio («35 en super», «gasté 8 en café»), al final de una descripción corta
-# («café 8») o con $ en cualquier lugar. Nunca un número suelto en medio de la frase.
-AMOUNT_START_RE = re.compile(
-    rf"^\s*(?:{_GASTO_VERB}\s+)?\$?\s*{_NUM}{_CUR}\s+(?:(?:en|de)\s+)?(?P<desc>\S.*)$", re.I
-)
-AMOUNT_END_RE = re.compile(rf"^\s*(?:{_GASTO_VERB}\s+)?(?P<desc>[^\d$]+?)\s+\$?\s*{_NUM}{_CUR}\s*$", re.I)
-AMOUNT_DOLLAR_RE = re.compile(rf"\$\s*{_NUM}", re.I)
-AMOUNT_MAX_DESC_WORDS = 3
-NOT_A_DESC_RE = re.compile(r"^(?:pesos|mxn|am|pm|hs|h|horas?|min|minutos?)\b", re.I)
-TIME_RE = re.compile(
-    r"\ba\s+las?\s+(?P<h1>\d{1,2})(?::(?P<m1>\d{2}))?\s*(?P<ap1>am|pm)?\b"
-    r"|\b(?P<h2>\d{1,2}):(?P<m2>\d{2})\s*(?P<ap2>am|pm)?\b"
-    r"|\b(?P<h3>\d{1,2})\s*(?P<ap3>am|pm)\b",
-    re.I,
-)
-TAREA_VERB_RE = re.compile(
-    r"^\s*(?:agendar|agend[aá]|agend[aá]me|record[aá]me|recordarme|recu[eé]rdame)\b\s*", re.I
-)
 NO_ENTENDI = (
     "No entendí, así que no guardé nada.\n"
     "Probá: «35 en super», «/tarea mañana 5pm llamar al banco» o /briefing.\n"
@@ -439,24 +417,44 @@ def send_text(
     *,
     reply_markup: dict | None = None,
 ) -> bool:
-    text = (body or "").strip()[:3500]
-    if not text:
+    chunks = split_message(body)
+    if not chunks:
         return False
     if send_fn is not None:
-        send_fn(chat_id, text)
+        for chunk in chunks:
+            send_fn(chat_id, chunk)
         return True
     if not _secret("TELEGRAM_BOT_TOKEN"):
-        log.info("telegram send skipped (no token): %s", text[:80])
+        log.info("telegram send skipped (no token) chars=%d", sum(len(c) for c in chunks))
         return False
     try:
-        payload: dict = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
-        if reply_markup:
-            payload["reply_markup"] = reply_markup
-        _api("sendMessage", payload)
+        for i, chunk in enumerate(chunks):
+            payload: dict = {"chat_id": chat_id, "text": chunk, "disable_web_page_preview": True}
+            if reply_markup and i == len(chunks) - 1:
+                payload["reply_markup"] = reply_markup
+            _api("sendMessage", payload)
         return True
     except Exception as e:
-        log.warning("telegram send failed: %s", e)
+        log.warning("telegram send failed: %s", type(e).__name__)
         return False
+
+
+def split_message(body: str, limit: int = TG_MAX_MESSAGE) -> list[str]:
+    """Texto plano en trozos ≤ limit (tope de Telegram), cortando en saltos de línea si se puede."""
+    text = (body or "").strip()
+    chunks: list[str] = []
+    while text and len(chunks) < MAX_CHUNKS:
+        if len(text) <= limit:
+            chunks.append(text)
+            break
+        cut = text.rfind("\n", 0, limit + 1)
+        if cut <= 0:
+            cut = text.rfind(" ", 0, limit + 1)
+        if cut <= 0:
+            cut = limit
+        chunks.append(text[:cut].rstrip())
+        text = text[cut:].lstrip()
+    return chunks
 
 
 def _download_voice(file_id: str) -> bytes:
@@ -575,37 +573,31 @@ def handle_inbound(
     if not puede_telegram(plan_vigente(user)):
         return reply("Telegram requiere plan Premium o Familia. Activalo en /app/billing — no ejecuté ninguna acción.")
 
-    token = set_current_user(user)
+    set_current_user(user)
+    started = time.monotonic()
+    accion, ok = "", False
     try:
-        body = (text or "").strip()
+        body = (text or "").strip()[:MAX_TEXT_CHARS]
         if voice_id and not body:
-            body = _transcribe_inbound(voice_id, transcribe_fn, download_fn)
+            accion = "voz"
+            body = _transcribe_inbound(voice_id, transcribe_fn, download_fn)[:MAX_TEXT_CHARS]
             if not body:
                 return reply("No pude transcribir el audio. Probá en texto o /ayuda.")
-        cmd, rest = _command_parts(body)
-        if cmd in ("/ayuda", "/help"):
-            return reply(help_text(linked=True), keyboard=True)
-        if cmd == "/start":
-            return reply("Ya estás vinculado.\n" + help_text(linked=True), keyboard=True)
-        if cmd in ("/briefing", "/hoy", "/agenda"):
-            return reply(build_briefing(int(user["id"])))
-        if cmd == "/gasto":
-            if not rest:
-                return reply("Usá un monto. Ejemplo: /gasto 35 super  (o «35 en supermercado»).")
-            return reply(_apply_gasto(parse_fn(rest) if parse_fn else parse_intent(rest), rest))
-        if cmd == "/tarea":
-            if not rest:
-                return reply("Usá un título y hora. Ejemplo: /tarea mañana 5pm llamar al banco.")
-            parsed = parse_fn(rest) if parse_fn else parse_intent(rest)
-            return reply(_apply_tarea(parsed, rest, chat_id, int(user["id"])))
-        if not body:
-            return reply("No entendí el mensaje. /ayuda muestra los comandos.")
-        return reply(_dispatch(user, body, chat_id, parse_fn=parse_fn))
+        resp = _route(Contexto(user=user, chat_id=chat_id, parse_fn=parse_fn), body)
+        accion, ok = resp.accion, True
+        return reply(resp.texto, keyboard=resp.teclado)
     except Exception as e:
-        log.exception("telegram handle: %s", e)
+        log.exception("telegram handle: %s", type(e).__name__)
         return reply("Hubo un error procesando el mensaje. No se guardó nada.")
     finally:
         clear_current_user()
+        log.info(
+            "telegram chat=%s accion=%s ok=%s ms=%d",
+            chat_id[-4:],
+            accion or "-",
+            ok,
+            (time.monotonic() - started) * 1000,
+        )
 
 
 def _transcribe_inbound(
@@ -638,56 +630,104 @@ def _transcribe_inbound(
             pass
 
 
-def _dispatch(user: dict, text: str, chat_id: str, parse_fn: Callable | None = None) -> str:
-    if _is_briefing_request(text):
-        return build_briefing(int(user["id"]))
+def _route(ctx: Contexto, body: str) -> Respuesta:
+    """(1) comando → (2) botón → (3) patrón determinístico → (4) LLM → (5) heurística / no entendí."""
+    cmd, rest = _command_parts(body)
+    if cmd in ("/ayuda", "/help"):
+        return Respuesta(help_text(linked=True), accion="ayuda", teclado=True)
+    if cmd == "/start":
+        return Respuesta("Ya estás vinculado.\n" + help_text(linked=True), accion="start", teclado=True)
+    if cmd:
+        acc = acciones.por_comando(cmd)
+        if acc is None:
+            return Respuesta(NO_ENTENDI, accion="desconocido")
+        return _run_command(ctx, acc, rest)
+    if not body:
+        return Respuesta(NO_ENTENDI, accion="desconocido")
 
-    parsed = parse_fn(text) if parse_fn is not None else parse_intent(text)
-    intent = (parsed or {}).get("intent") or "unknown"
-    if intent == "briefing":
-        return build_briefing(int(user["id"]))
-    if intent == "gasto":
-        return _apply_gasto(parsed, text)
-    if intent == "tarea":
-        return _apply_tarea(parsed, text, chat_id, int(user["id"]))
-    gasto = _heuristic_gasto(text)
-    if gasto["intent"] == "gasto":
-        return _apply_gasto(gasto, text)
-    tarea = _heuristic_tarea(text)
-    if tarea["intent"] == "tarea":
-        return _apply_tarea(tarea, text, chat_id, int(user["id"]))
-    return NO_ENTENDI
+    disponibles = acciones.activas(ctx.user_id)
+    for acc in disponibles:
+        datos = acc.patron(body)
+        if datos is not None:
+            return _run(ctx, acc, datos, body)
+
+    parsed = _parse(ctx, body)
+    acc = acciones.por_clave(str(parsed.get("intent") or ""))
+    if acc is not None and acc in disponibles:
+        datos = acc.validar(parsed)
+        if datos is not None:
+            return _run(ctx, acc, datos, body)
+
+    for acc in disponibles:
+        datos = acc.heuristica(body)
+        if datos is not None:
+            return _run(ctx, acc, datos, body)
+    return Respuesta(NO_ENTENDI, accion="desconocido")
 
 
-def _normalize(text: str) -> str:
-    import unicodedata
+def _run_command(ctx: Contexto, acc: Accion, rest: str) -> Respuesta:
+    if not acciones.disponible(acc, ctx.user_id):
+        return _modulo_apagado(acc)
+    datos = None
+    if rest and acc.llm_campos:
+        datos = acc.validar(_parse(ctx, rest))
+    if datos is None:
+        datos = acc.parse(rest)
+    if datos is None:
+        return Respuesta(acc.uso or NO_ENTENDI, accion=acc.clave)
+    return _run(ctx, acc, datos, rest)
 
-    raw = unicodedata.normalize("NFKD", (text or "").lower())
-    raw = "".join(ch for ch in raw if not unicodedata.combining(ch))
-    return " ".join(re.sub(r"[^\w\s]", " ", raw).split())
+
+def _run(ctx: Contexto, acc: Accion, datos: dict, texto: str) -> Respuesta:
+    if not acciones.disponible(acc, ctx.user_id):
+        return _modulo_apagado(acc)
+    resp = acc.ejecutar(ctx, {**datos, "_texto": texto})
+    resp.accion = resp.accion or acc.clave
+    return resp
 
 
-def _is_briefing_request(text: str) -> bool:
-    return _normalize(text) in BRIEFING_PHRASES
+def _modulo_apagado(acc: Accion) -> Respuesta:
+    return Respuesta(
+        f"El módulo «{acc.modulo}» está apagado, así que no guardé nada. "
+        "Activalo en la app → Coach → Módulos.",
+        accion=acc.clave,
+    )
+
+
+def _parse(ctx: Contexto, text: str) -> dict:
+    parsed = ctx.parse_fn(text) if ctx.parse_fn is not None else parse_intent(text)
+    return parsed if isinstance(parsed, dict) else {}
+
+
+DIAS_SEMANA = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+
+
+def build_intent_prompt(text: str, disponibles: list[Accion]) -> str:
+    dia = _hoy()
+    lineas = [f"- {a.clave}: {a.llm_campos}" for a in disponibles if a.llm_campos]
+    claves = "|".join([a.clave for a in disponibles if a.llm_campos] + ["unknown"])
+    return (
+        "Clasificá el mensaje del usuario de un dashboard personal. "
+        f"Respondé SOLO un JSON con la clave intent ({claves}) y los campos de esa acción:\n"
+        + "\n".join(lineas)
+        + '\nSi no encaja claramente con ninguna, respondé {"intent": "unknown"}.\n'
+        f"Hoy es {DIAS_SEMANA[dia.weekday()]} {dia.isoformat()}. Mensaje: {text[:400]}"
+    )
 
 
 def parse_intent(text: str) -> dict:
-    from app.ai_client import chat_simple
+    """Una llamada a Groq. Sin clave o con Groq caído → unknown (chat_simple devuelve texto, no JSON)."""
+    from app import ai_client
 
-    prompt = (
-        "Clasificá el mensaje del usuario de un dashboard personal. "
-        "Respondé SOLO un JSON con claves: intent (gasto|tarea|briefing|unknown), "
-        "monto (número o null), categoria (necesidades|deseos|ahorro o null), "
-        "descripcion, titulo, fecha (YYYY-MM-DD o null), hora_inicio (HH:MM o null), "
-        "hora_fin (HH:MM o null). Hoy es "
-        f"{_hoy().isoformat()}. Mensaje: {text[:400]}"
-    )
-    raw = chat_simple(
-        prompt,
+    if not ai_client.api_key_configurada():
+        return {"intent": "unknown"}
+    disponibles = acciones.activas()
+    raw = ai_client.chat_simple(
+        build_intent_prompt(text, disponibles),
         contexto="Sos un parser. Solo JSON válido, sin markdown.",
+        max_tokens=LLM_MAX_TOKENS,
     ) or ""
-    data = _extract_json(raw)
-    return data or {"intent": "unknown"}
+    return _extract_json(raw) or {"intent": "unknown"}
 
 
 def _extract_json(raw: str) -> dict:
@@ -700,190 +740,6 @@ def _extract_json(raw: str) -> dict:
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
-
-
-def _match_amount(text: str) -> tuple[float, str] | None:
-    raw = (text or "").strip()
-    m = AMOUNT_START_RE.match(raw)
-    if m and not NOT_A_DESC_RE.match(m.group("desc")):
-        return float(m.group("num").replace(",", ".")), m.group("desc")
-    m = AMOUNT_END_RE.match(raw)
-    if m and len(m.group("desc").split()) <= AMOUNT_MAX_DESC_WORDS:
-        return float(m.group("num").replace(",", ".")), m.group("desc")
-    m = AMOUNT_DOLLAR_RE.search(raw)
-    if m:
-        desc = (raw[: m.start()] + " " + raw[m.end() :]).strip()
-        desc = re.sub(rf"^{_GASTO_VERB}\s+|^(?:en|de)\s+|\s+(?:en|de)$", "", desc, flags=re.I)
-        return float(m.group("num").replace(",", ".")), desc
-    return None
-
-
-def _heuristic_gasto(text: str) -> dict:
-    hit = _match_amount(text)
-    if not hit or hit[0] <= 0:
-        return {"intent": "unknown"}
-    monto, desc = hit
-    desc = " ".join(desc.split())[:80] or "gasto"
-    cat = "necesidades"
-    low = text.lower()
-    if any(w in low for w in ("cafe", "cine", " ocio", "gusto", "netflix")):
-        cat = "deseos"
-    if any(w in low for w in ("ahorro", "inver")):
-        cat = "ahorro"
-    return {"intent": "gasto", "monto": monto, "categoria": cat, "descripcion": desc}
-
-
-def _find_time(text: str) -> tuple[str, tuple[int, int]] | None:
-    """Hora solo si es explícita: «5pm», «16:30», «a las 8». Un número suelto no es hora."""
-    for m in TIME_RE.finditer(text or ""):
-        idx = next(i for i in (1, 2, 3) if m.group(f"h{i}") is not None)
-        h = int(m.group(f"h{idx}"))
-        mi = int(m.group(f"m{idx}") or 0) if idx != 3 else 0
-        ap = (m.group(f"ap{idx}") or "").lower()
-        if ap and not 1 <= h <= 12:
-            continue
-        if ap == "pm" and h < 12:
-            h += 12
-        if ap == "am" and h == 12:
-            h = 0
-        if h > 23 or mi > 59:
-            continue
-        return f"{h:02d}:{mi:02d}", m.span()
-    return None
-
-
-def _explicit_time(text: str) -> str | None:
-    found = _find_time(text)
-    return found[0] if found else None
-
-
-def _heuristic_tarea(text: str, *, require_signal: bool = True) -> dict:
-    """Tarea por texto libre solo con hora explícita o verbo de agenda («agendar…», «recordame…»)."""
-    from app.timezone_config import hoy as hoy_fn
-
-    verb = TAREA_VERB_RE.match(text or "")
-    found = _find_time(text)
-    if require_signal and not (verb or found):
-        return {"intent": "unknown"}
-    fecha = hoy_fn()
-    low = text.lower()
-    if "mañana" in low or "manana" in low:
-        fecha = fecha + timedelta(days=1)
-    titulo = text
-    if found:
-        start, end = found[1]
-        titulo = titulo[:start] + " " + titulo[end:]
-    titulo = TAREA_VERB_RE.sub("", titulo)
-    titulo = re.sub(r"\bma[ñn]ana\b", "", titulo, flags=re.I)
-    titulo = " ".join(titulo.split()).strip() or text[:80]
-    hora = found[0] if found else None
-    return {
-        "intent": "tarea",
-        "titulo": titulo[:80],
-        "fecha": fecha.isoformat(),
-        "hora_inicio": hora or "09:00",
-        "hora_fin": None,
-    }
-
-
-def _apply_gasto(parsed: dict, original: str) -> str:
-    from app.database import agregar_gasto_sobre
-    from app.db.schema import GASTO_ORIGEN_TELEGRAM
-    from app.presupuesto import CATEGORIA_A_SOBRE
-
-    if not parsed or parsed.get("intent") not in ("gasto", None):
-        parsed = _heuristic_gasto(original)
-    try:
-        monto = float(str(parsed.get("monto") or "0").replace(",", "."))
-    except Exception:
-        monto = 0.0
-    if monto <= 0:
-        return "No pude sacar el monto. Ejemplo: «35 en supermercado»."
-    cat = str(parsed.get("categoria") or "necesidades")
-    if cat not in CATEGORIA_A_SOBRE:
-        cat = "necesidades"
-    sobre, sub = CATEGORIA_A_SOBRE[cat]
-    desc = str(parsed.get("descripcion") or original).strip()[:120] or "Gasto Telegram"
-    agregar_gasto_sobre(str(_hoy()), sobre, sub, desc, monto, origen=GASTO_ORIGEN_TELEGRAM)
-    return f"Anoté ${monto:.2f} en «{desc}» → sobre {sobre}."
-
-
-def _apply_tarea(parsed: dict, original: str, chat_id: str, user_id: int) -> str:
-    from app.database import COLORES_TIPO, guardar_evento
-
-    if not parsed or parsed.get("intent") in (None, "unknown"):
-        parsed = _heuristic_tarea(original, require_signal=False)
-    titulo = str(parsed.get("titulo") or original).strip()[:80] or "Tarea"
-    fecha = str(parsed.get("fecha") or _hoy())
-    hora = str(parsed.get("hora_inicio") or "09:00")[:5]
-    fin = str(parsed.get("hora_fin") or "")[:5]
-    if not fin:
-        try:
-            h, m = int(hora[:2]), int(hora[3:5] or 0)
-            end_m = h * 60 + m + 60
-            fin = f"{end_m // 60:02d}:{end_m % 60:02d}"
-        except Exception:
-            fin = "10:00"
-    eid = guardar_evento(
-        {
-            "fecha": fecha,
-            "hora_inicio": hora,
-            "hora_fin": fin,
-            "titulo": titulo,
-            "descripcion": "vía Telegram",
-            "tipo": "Personal",
-            "color": COLORES_TIPO.get("Personal", "#58a6ff"),
-            "fuente": "local",
-        },
-        sync_google=True,
-    )
-    schedule_reminder(user_id, eid, fecha, hora, titulo, chat_id)
-    return f"Tarea creada: {titulo} el {fecha} a las {hora} (sync Calendar si está vinculado)."
-
-
-def build_briefing(user_id: int) -> str:
-    from app.calendar_sync import items_foco
-    from app.db.core import ejecutar
-    from app.timezone_config import hoy as hoy_fn
-
-    dia = str(hoy_fn())
-    items = items_foco(dia, user_id=user_id)
-    lineas = [f"Foco {dia}"]
-    hab = [i for i in items if i.get("kind") == "habito"]
-    if hab:
-        bits = []
-        for h in hab[:8]:
-            mark = "✓" if h.get("completado") else "·"
-            bits.append(f"{mark} {h.get('titulo')}")
-        lineas.append("Hábitos: " + "; ".join(bits))
-    evs = [i for i in items if i.get("kind") in ("evento", "matrimonio", "enfoque")]
-    if evs:
-        bits = [f"{(e.get('hora_inicio') or '—')[:5]} {e.get('titulo')}" for e in evs[:8]]
-        lineas.append("Agenda: " + "; ".join(bits))
-    else:
-        lineas.append("Agenda: sin eventos.")
-    ent = next((i for i in items if i.get("kind") == "entrenamiento"), None)
-    if ent:
-        lineas.append(str(ent.get("titulo")))
-    corte = (hoy_fn() - timedelta(days=7)).isoformat()
-    gastos = (
-        ejecutar(
-            """
-            SELECT descripcion, monto, sobre FROM gastos_sobres
-            WHERE user_id = ? AND fecha >= ?
-            ORDER BY fecha DESC, id DESC LIMIT 5
-            """,
-            [int(user_id), corte],
-            fetchall=True,
-        )
-        or []
-    )
-    if gastos:
-        bits = [f"{g.get('monto'):g} {g.get('descripcion')}" for g in gastos]
-        lineas.append("Gastos 7d: " + "; ".join(bits))
-    else:
-        lineas.append("Gastos 7d: ninguno.")
-    return "\n".join(lineas)[:1500]
 
 
 def schedule_reminder(
