@@ -60,81 +60,80 @@ def reply_keyboard(user_id: int | None = None) -> dict:
     return {"keyboard": [fila], "resize_keyboard": True, "is_persistent": True}
 BOT_COMMANDS = [
     {"command": "start", "description": "Vincular o ver el menú"},
-    {"command": "briefing", "description": "Foco del día: agenda, hábitos y gastos"},
+    {"command": "briefing", "description": "Foco del día"},
     {"command": "hoy", "description": "Lo mismo que /briefing"},
     {"command": "gasto", "description": "Anotar un gasto. Ej: /gasto 35 super"},
-    {"command": "ingreso", "description": "Anotar el ingreso del mes. Ej: /ingreso 800"},
-    {"command": "saldo", "description": "Ingreso, gastado y disponible por sobre"},
-    {"command": "gastos", "description": "Últimos gastos, con número para /borrar"},
+    {"command": "saldo", "description": "Ingreso, gastado y disponible"},
     {"command": "habitos", "description": "Hábitos de hoy"},
-    {"command": "hecho", "description": "Marcar un hábito. Ej: /hecho leer"},
-    {"command": "tarea", "description": "Crear una tarea. Ej: /tarea mañana 5pm banco"},
     {"command": "agenda", "description": "Agenda de hoy, mañana o la semana"},
-    {"command": "sueno", "description": "Anotar el sueño. Ej: /sueno 7.5 calidad 4"},
-    {"command": "salud", "description": "Resumen de salud de 7 días"},
-    {"command": "enfoque", "description": "Bloques de enfoque de hoy"},
-    {"command": "silencio", "description": "Pausar el briefing de la mañana"},
-    {"command": "alma", "description": "Hablar con Alma. Ej: /alma cómo viene mi semana"},
-    {"command": "coach", "description": "Briefing del coach, con su cupo semanal"},
-    {"command": "semana", "description": "Resumen de la semana"},
-    {"command": "idea", "description": "Anotar una idea. Ej: /idea estante #personal"},
-    {"command": "ideas", "description": "Ideas guardadas"},
-    {"command": "leyendo", "description": "Libros que estás leyendo"},
-    {"command": "leer", "description": "Avanzar un libro. Ej: /leer El Hobbit 40"},
-    {"command": "orar", "description": "Anotar un pedido. Ej: /orar salud de mamá"},
-    {"command": "oraciones", "description": "Pedidos activos, con número"},
-    {"command": "respondida", "description": "Cerrar un pedido. Ej: /respondida 1"},
-    {"command": "nota", "description": "Nota de pareja. Ej: /nota le gusta el café"},
-    {"command": "conexion", "description": "Minutos juntos. Ej: /conexion 30"},
-    {"command": "rutina", "description": "Rutina de ejercicio del día"},
-    {"command": "precio", "description": "3 precios más baratos. Ej: /precio leche"},
-    {"command": "estado", "description": "Plan, módulos, Google y cupo de IA"},
+    {"command": "tarea", "description": "Crear una tarea"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
-    {"command": "ayuda", "description": "Cómo usar el bot"},
+    {"command": "ayuda", "description": "Menú, o /ayuda y un módulo"},
 ]
+
+
+_TEMAS_AYUDA = {
+    "finanzas": "finanzas",
+    "agenda": "agenda",
+    "salud": "salud",
+    "enfoque": "deep_work",
+    "ideas": "sandbox",
+    "lectura": "biblioteca",
+    "fe": "teologia",
+    "pareja": "matrimonio",
+}
+_CLAVES_AYUDA = {
+    "habitos": ("habitos", "habito"),
+    "hábitos": ("habitos", "habito"),
+    "alma": ("alma", "coach", "semana"),
+}
+
+
+def _lineas_acciones(acciones) -> str:
+    lineas = []
+    for acc in acciones:
+        if not acc.comandos:
+            continue
+        uso = acc.uso or acc.clave
+        lineas.append(f"• {acc.comandos[0]} — {uso}")
+    return "\n".join(lineas)
+
+
+def ayuda_texto(user_id: int | None, tema: str = "") -> str:
+    """Ayuda general, o la de un módulo, armada desde el registro y solo si está activo."""
+    from app.telegram_actions import REGISTRO, disponible
+    from app.telegram_actions.briefing import normalize
+
+    pedido = normalize(tema)
+    if not pedido:
+        return help_text(linked=True)
+    if pedido in _CLAVES_AYUDA:
+        claves = set(_CLAVES_AYUDA[pedido])
+        acciones = [a for a in REGISTRO if a.clave in claves]
+        return _lineas_acciones(acciones) or "Ese tema no tiene comandos."
+    modulo = _TEMAS_AYUDA.get(pedido)
+    if modulo is None:
+        return (
+            "No conozco ese tema. Probá /ayuda finanzas, agenda, salud, enfoque, "
+            "ideas, lectura, fe, pareja, habitos o alma."
+        )
+    muestra = next((a for a in REGISTRO if a.modulo == modulo), None)
+    if muestra is None or not disponible(muestra, user_id):
+        return f"El módulo «{modulo}» está apagado. Se prende en la app, en Coach. No listo comandos."
+    acciones = [a for a in REGISTRO if a.modulo == modulo and disponible(a, user_id)]
+    return _lineas_acciones(acciones) or "Ese módulo no tiene comandos."
 
 
 def help_text(*, linked: bool = True) -> str:
     body = (
-        "Comandos:\n"
-        "• /briefing — foco del día (agenda, hábitos, gastos)\n"
-        "• /hoy — lo mismo que /briefing\n"
+        "Menú:\n"
+        "• /briefing — foco del día\n"
         "• /gasto 35 super — anotar un gasto\n"
-        "• /ingreso 800 — ingreso del mes\n"
-        "• /saldo — ingreso, gastado y disponible\n"
-        "• /gastos — últimos 7, con número\n"
-        "• /borrar 2 — borrar uno de la lista (pide confirmación)\n"
-        "• /vencimientos — próximos 7 días\n"
-        "• /habitos — hábitos de hoy\n"
-        "• /hecho leer — marcar uno (o «ya leí»)\n"
-        "• /tarea mañana 5pm banco — crear una tarea (va a Calendar si está vinculado)\n"
-        "• /agenda [hoy|mañana|semana] — la agenda, con número\n"
-        "• /sueno 7.5 calidad 4 — sueño de anoche\n"
-        "• /energia 4 — energía (1 a 5); /energia tarde 3\n"
-        "• /ejercicio pierna 45 min\n"
-        "• /salud — resumen de 7 días\n"
-        "• /enfoque — bloques de hoy; botones Completado, Parcial, Postergado\n"
-        "• /silencio [días] — pausa el briefing de la mañana; /silencio 0 lo reanuda\n"
-        "• /alma cómo viene mi semana — Alma (no se activa sola)\n"
-        "• /coach — briefing del coach, respetando el cupo\n"
-        "• /semana — resumen de la semana\n"
-        "• /idea estante #personal — anotar una idea (sin # va a Otros)\n"
-        "• /ideas — ideas guardadas\n"
-        "• /leyendo — lo que estás leyendo\n"
-        "• /leer El Hobbit 40 — página actual\n"
-        "• /orar salud de mamá — pedido de oración; /oraciones los lista\n"
-        "• /respondida 1 — lo marca respondido (pide confirmación)\n"
-        "• /nota le gusta el café — nota de pareja\n"
-        "• /conexion 30 — minutos de conexión\n"
-        "• /rutina — rutina de ejercicio\n"
-        "• /precio leche — los 3 más baratos del catálogo\n"
-        "• /estado — plan, módulos, Google y llamadas de IA\n"
-        "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
-        "• /cancelar 2 — borrar el evento (pide confirmación)\n"
-        "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
-        "• /ayuda — este mensaje\n\n"
-        "También sirve texto suelto («35 en super») o una nota de voz.\n"
-        "Desvincular: en la app → Usuarios → Telegram (no por el chat)."
+        "• /saldo · /habitos · /agenda · /tarea\n"
+        "• /deshacer — lo último que guardé\n"
+        "• /ayuda finanzas — también agenda, salud, enfoque, ideas, lectura, fe, pareja, habitos, alma\n\n"
+        "Texto suelto («35 en super») o una nota de voz también sirven.\n"
+        "Desvincular: en la app → Usuarios → Telegram."
     )
     if linked:
         return body
@@ -839,7 +838,7 @@ def _route(ctx: Contexto, body: str) -> Respuesta:
     """(1) comando → (2) botón → (3) patrón determinístico → (4) LLM → (5) heurística / no entendí."""
     cmd, rest = _command_parts(body)
     if cmd in ("/ayuda", "/help"):
-        return Respuesta(help_text(linked=True), accion="ayuda", teclado=True)
+        return Respuesta(ayuda_texto(ctx.user_id, rest), accion="ayuda", teclado=True)
     if cmd == "/start":
         return Respuesta("Ya estás vinculado.\n" + help_text(linked=True), accion="start", teclado=True)
     if cmd == "/deshacer":
