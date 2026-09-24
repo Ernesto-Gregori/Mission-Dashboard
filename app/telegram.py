@@ -69,6 +69,7 @@ BOT_COMMANDS = [
     {"command": "habitos", "description": "Hábitos de hoy"},
     {"command": "hecho", "description": "Marcar un hábito. Ej: /hecho leer"},
     {"command": "tarea", "description": "Crear una tarea. Ej: /tarea mañana 5pm banco"},
+    {"command": "agenda", "description": "Agenda de hoy, mañana o la semana"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
@@ -88,6 +89,9 @@ def help_text(*, linked: bool = True) -> str:
         "• /habitos — hábitos de hoy\n"
         "• /hecho leer — marcar uno (o «ya leí»)\n"
         "• /tarea mañana 5pm banco — crear una tarea (va a Calendar si está vinculado)\n"
+        "• /agenda [hoy|mañana|semana] — la agenda, con número\n"
+        "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
+        "• /cancelar 2 — borrar el evento (pide confirmación)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
         "• /ayuda — este mensaje\n\n"
         "También sirve texto suelto («35 en super») o una nota de voz.\n"

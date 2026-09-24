@@ -40,7 +40,8 @@ En la app: **Salud** → Conectar con Google.
 - Bot API oficial (BotFather). Callback: `POST /telegram/webhook`
 - Vincular en `/app/usuarios?tab=telegram` (código + `t.me/bot?start=…`)
 - Intenciones: briefing, gasto, tarea (sync Calendar), nota de voz
-- Comandos: `/briefing` `/habitos` `/hecho` `/gasto` `/ingreso` `/saldo` `/gastos` `/borrar` `/vencimientos` `/tarea` `/ayuda`
+- Comandos: `/briefing` `/habitos` `/hecho` `/gasto` `/ingreso` `/saldo` `/gastos` `/borrar` `/vencimientos` `/tarea` `/agenda` `/mover` `/cancelar` `/ayuda`
+- `/agenda` lista el día, mañana o la semana. Ya no es un alias de `/briefing`
 - Teclado: Briefing, Saldo (si Finanzas está activo), Hábitos, Ayuda
 - Acciones en `app/telegram_actions/` (una por área, registro con módulo requerido);
   router: comando → botón → patrón → Groq (solo acciones de módulos activos) → heurística

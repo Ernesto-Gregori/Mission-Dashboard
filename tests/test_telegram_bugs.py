@@ -77,7 +77,7 @@ def test_b2_resumen_inside_sentence_is_not_briefing(linked):
     assert _rows("gastos_sobres") == []
 
 
-@pytest.mark.parametrize("text", ["briefing", "agenda", "resumen", "hoy", "¿qué hay hoy?"])
+@pytest.mark.parametrize("text", ["briefing", "resumen", "hoy", "¿qué hay hoy?"])
 def test_b2_short_briefing_phrases_still_work(linked, text):
     assert "Foco" in _say("42", text, f"b2-{text}")
 
