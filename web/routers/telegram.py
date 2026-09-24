@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.logging_config import get_logger
@@ -16,6 +16,7 @@ log = get_logger("telegram_webhook")
 @router.post("/telegram/webhook")
 async def telegram_inbound(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_telegram_bot_api_secret_token: str | None = Header(
         default=None, alias="X-Telegram-Bot-Api-Secret-Token"
     ),
@@ -35,9 +36,12 @@ async def telegram_inbound(
     if not isinstance(payload, dict):
         raise HTTPException(400, "JSON inválido")
 
+    # handle_inbound es síncrono (Groq, Whisper, BD): corre en el threadpool después de
+    # responder 200, así Telegram no reintenta por timeout. El dedupe por update_id cubre reintentos.
     n = 0
     for item in extract_inbound(payload):
-        handle_inbound(
+        background_tasks.add_task(
+            handle_inbound,
             item["chat_id"],
             text=item.get("text") or "",
             voice_id=item.get("voice_id") or "",
