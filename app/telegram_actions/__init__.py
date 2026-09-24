@@ -4,6 +4,7 @@ from __future__ import annotations
 from app.telegram_actions.agenda import AGENDA, CANCELAR, MOVER, TAREA
 from app.telegram_actions.base import Accion, Contexto, Respuesta
 from app.telegram_actions.briefing import BRIEFING
+from app.telegram_actions.enfoque import ENFOQUE
 from app.telegram_actions.finanzas import BORRAR, GASTO, GASTOS, INGRESO, SALDO, VENCIMIENTOS
 from app.telegram_actions.habitos import HABITOS, HECHO
 from app.telegram_actions.salud import EJERCICIO, ENERGIA, SALUD, SUENO
@@ -11,7 +12,7 @@ from app.telegram_actions.salud import EJERCICIO, ENERGIA, SALUD, SUENO
 # El orden importa: patrones y heurísticas se prueban en este orden.
 REGISTRO: list[Accion] = [
     AGENDA, BRIEFING, GASTO, INGRESO, SALDO, GASTOS, VENCIMIENTOS, BORRAR,
-    HABITOS, HECHO, SUENO, ENERGIA, EJERCICIO, SALUD, MOVER, CANCELAR, TAREA,
+    HABITOS, HECHO, SUENO, ENERGIA, EJERCICIO, SALUD, ENFOQUE, MOVER, CANCELAR, TAREA,
 ]
 
 

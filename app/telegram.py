@@ -72,6 +72,7 @@ BOT_COMMANDS = [
     {"command": "agenda", "description": "Agenda de hoy, mañana o la semana"},
     {"command": "sueno", "description": "Anotar el sueño. Ej: /sueno 7.5 calidad 4"},
     {"command": "salud", "description": "Resumen de salud de 7 días"},
+    {"command": "enfoque", "description": "Bloques de enfoque de hoy"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
@@ -96,6 +97,7 @@ def help_text(*, linked: bool = True) -> str:
         "• /energia 4 — energía (1 a 5); /energia tarde 3\n"
         "• /ejercicio pierna 45 min\n"
         "• /salud — resumen de 7 días\n"
+        "• /enfoque — bloques de hoy; botones Completado, Parcial, Postergado\n"
         "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
         "• /cancelar 2 — borrar el evento (pide confirmación)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
@@ -864,6 +866,13 @@ def _normalize_yes_no(text: str) -> bool | None:
 
 
 def _route_callback(ctx: Contexto, data: str) -> Respuesta:
+    enfoque = re.match(r"^e:(\d{1,12}):([cpo])$", data or "")
+    if enfoque:
+        from app.telegram_actions.enfoque import marcar_bloque
+
+        if not acciones.disponible(acciones.por_clave("enfoque"), ctx.user_id):
+            return _modulo_apagado(acciones.por_clave("enfoque"))
+        return marcar_bloque(int(enfoque.group(1)), enfoque.group(2))
     habito = re.match(r"^k:([a-z0-9_]{1,20})$", data or "")
     if habito:
         from app.audit import registrar
