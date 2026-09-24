@@ -134,6 +134,38 @@ def _ejecutar_resumen(_ctx: Contexto, _datos: dict) -> Respuesta:
     )
 
 
+def _rutina(ctx: Contexto, _datos: dict) -> Respuesta:
+    from app.db.exercises import obtener_routine
+    from app.timezone_config import hoy
+
+    rutina = obtener_routine(ctx.user_id)
+    if not rutina:
+        return Respuesta("No tenés una rutina guardada. Se arma en la app, en Salud.")
+    dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+    hoy_nombre = dias[hoy().weekday()]
+    plan = rutina.get("plan") or {}
+    del_dia = plan.get(hoy_nombre) or plan.get(hoy_nombre.lower()) or plan.get(str(hoy().weekday()))
+    lineas = [
+        f"Rutina: {rutina.get('dias_semana')} días · {rutina.get('minutos_sesion')} min",
+    ]
+    if isinstance(del_dia, dict):
+        lineas.append(str(del_dia.get("titulo") or del_dia.get("nombre") or "Sesión de hoy"))
+    elif isinstance(del_dia, str) and del_dia.strip():
+        lineas.append(del_dia.strip())
+    elif isinstance(del_dia, list) and del_dia:
+        lineas.append(", ".join(str(x) for x in del_dia[:4]))
+    return Respuesta("\n".join(lineas))
+
+
+RUTINA = Accion(
+    clave="rutina",
+    comandos=("/rutina",),
+    modulo="salud",
+    ejecutar=_rutina,
+    parse=lambda _args: {},
+)
+
+
 SALUD = Accion(
     clave="salud",
     comandos=("/salud",),

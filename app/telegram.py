@@ -81,6 +81,12 @@ BOT_COMMANDS = [
     {"command": "ideas", "description": "Ideas guardadas"},
     {"command": "leyendo", "description": "Libros que estás leyendo"},
     {"command": "leer", "description": "Avanzar un libro. Ej: /leer El Hobbit 40"},
+    {"command": "orar", "description": "Anotar un pedido. Ej: /orar salud de mamá"},
+    {"command": "oraciones", "description": "Pedidos activos, con número"},
+    {"command": "respondida", "description": "Cerrar un pedido. Ej: /respondida 1"},
+    {"command": "nota", "description": "Nota de pareja. Ej: /nota le gusta el café"},
+    {"command": "conexion", "description": "Minutos juntos. Ej: /conexion 30"},
+    {"command": "rutina", "description": "Rutina de ejercicio del día"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
 ]
@@ -114,6 +120,11 @@ def help_text(*, linked: bool = True) -> str:
         "• /ideas — ideas guardadas\n"
         "• /leyendo — lo que estás leyendo\n"
         "• /leer El Hobbit 40 — página actual\n"
+        "• /orar salud de mamá — pedido de oración; /oraciones los lista\n"
+        "• /respondida 1 — lo marca respondido (pide confirmación)\n"
+        "• /nota le gusta el café — nota de pareja\n"
+        "• /conexion 30 — minutos de conexión\n"
+        "• /rutina — rutina de ejercicio\n"
         "• /mover 2 18:00 — cambiar la hora (pide confirmación)\n"
         "• /cancelar 2 — borrar el evento (pide confirmación)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
