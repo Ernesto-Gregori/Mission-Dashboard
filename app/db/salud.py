@@ -117,6 +117,24 @@ def guardar_registro_salud(fecha, datos: dict) -> bool:
         return False
 
 
+def actualizar_registro_salud_parcial(fecha, campos: dict) -> bool:
+    """Actualiza solo las claves pedidas. El resto del día se conserva.
+
+    ``guardar_registro_salud`` hace UPSERT de todas las columnas: llamarlas con
+    un dict parcial borra sueño, energía o ejercicio. Esta función lee, fusiona y guarda.
+    """
+    previo = obtener_registro_salud(fecha) or {}
+    fusion = {
+        k: v
+        for k, v in previo.items()
+        if k not in ("id", "user_id", "fecha", "creado_en", "actualizado_en")
+    }
+    for clave, valor in campos.items():
+        if valor is not None:
+            fusion[clave] = valor
+    return guardar_registro_salud(fecha, fusion)
+
+
 def obtener_registro_salud(fecha) -> dict | None:
     fecha_iso = str(fecha) if not isinstance(fecha, str) else fecha
     rows = ejecutar(
