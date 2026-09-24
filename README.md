@@ -48,6 +48,7 @@ En la app: **Salud** → Conectar con Google.
 - Briefing de la mañana, apagado por defecto: `python scripts/run_telegram_briefings.py` (cron, hora local).
   Se activa en Usuarios → Telegram. `/silencio` lo pausa. Una vez por usuario y día
 - Teclado: Briefing, Saldo (si Finanzas está activo), Hábitos, Ayuda
+- `/alma` usa el mismo historial que la web y no prende categorías. `/coach` respeta el cupo. `/semana` resume.
 - Acciones en `app/telegram_actions/` (una por área, registro con módulo requerido);
   router: comando → botón → patrón → Groq (solo acciones de módulos activos) → heurística
 - Solo chats privados (grupos y canales se ignoran). Texto ambiguo → «no entendí», sin guardar nada
