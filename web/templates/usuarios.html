@@ -22,7 +22,23 @@
   <div class="card">
     <h2>Telegram</h2>
     <p class="muted">Vinculá tu cuenta con el bot. Un chat no vinculado solo recibe instrucciones; nunca crea gastos ni tareas. El bot no escribe a quien no le habló primero.</p>
-    <p class="muted">En el bot: <code>/briefing</code> foco del día · <code>/gasto 35 super</code> · <code>/tarea mañana 5pm banco</code> · <code>/ayuda</code>. También hay botones y el menú <code>/</code>.</p>
+    <p class="muted">En el bot: <code>/briefing</code> foco del día · <code>/gasto 35 super</code> · <code>/tarea mañana 5pm banco</code> · <code>/deshacer</code> · <code>/ayuda</code>.</p>
+    {% if puede_telegram %}
+    <form method="post" action="/app/usuarios/telegram/recordatorios" class="users-form-grid">
+      <label for="tg-recordatorio">Avisarme antes de cada evento
+        <select id="tg-recordatorio" name="recordatorio_min">
+          {% for m in tg_recordatorio_opciones %}
+          <option value="{{ m }}" {% if m == tg_recordatorio_min %}selected{% endif %}>
+            {{ 'Apagado' if m == 0 else m ~ ' min' }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="form-actions">
+        <button class="btn secondary" type="submit">Guardar</button>
+      </div>
+    </form>
+    {% endif %}
     {% if not puede_telegram %}
     <div class="flash-warn">Telegram requiere plan Premium o Familia. <a href="/app/billing">Ver planes</a></div>
     {% endif %}

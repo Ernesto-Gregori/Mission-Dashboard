@@ -21,7 +21,12 @@ from app.billing import (
 from app.database import crear_usuario, listar_usuarios
 from app.multiuser import provision_user_defaults
 from app.stability import invalidate_data_caches
-from app.telegram import deep_link, link_status, start_link, unlink
+from app.db.telegram_state import (
+    RECORDATORIO_OPCIONES,
+    guardar_recordatorio_min,
+    recordatorio_min,
+)
+from app.telegram import deep_link, ensure_telegram_schema, link_status, start_link, unlink
 from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/usuarios", tags=["usuarios"])
@@ -77,6 +82,8 @@ def _ctx(
         "puede_telegram": puede_telegram(plan),
         "tg_code": request.session.get("tg_code"),
         "tg_deep_link": deep_link(request.session.get("tg_code") or ""),
+        "tg_recordatorio_min": recordatorio_min(int(user["id"])),
+        "tg_recordatorio_opciones": RECORDATORIO_OPCIONES,
     }
 
 
@@ -240,3 +247,30 @@ def tg_desvincular(request: Request, user: Annotated[dict, Depends(require_onboa
     unlink(int(user["id"]))
     request.session.pop("tg_code", None)
     return render(request, "usuarios.html", **_ctx(request, user, flash="Telegram desvinculado."))
+
+
+@router.post("/telegram/recordatorios")
+async def tg_recordatorios(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    request.session["usr_tab"] = "telegram"
+    if not puede_telegram(plan_vigente(user)):
+        return render(
+            request,
+            "usuarios.html",
+            status_code=403,
+            **_ctx(request, user, error="Telegram requiere plan Premium o Familia."),
+        )
+    form = await request.form()
+    ensure_telegram_schema()
+    try:
+        minutos = int(str(form.get("recordatorio_min") or ""))
+    except ValueError:
+        minutos = -1
+    if not guardar_recordatorio_min(int(user["id"]), minutos):
+        return render(
+            request,
+            "usuarios.html",
+            status_code=400,
+            **_ctx(request, user, error="Elegí una anticipación de la lista."),
+        )
+    aviso = "Recordatorios apagados." if minutos == 0 else f"Te aviso {minutos} min antes de cada evento."
+    return render(request, "usuarios.html", **_ctx(request, user, flash=aviso))

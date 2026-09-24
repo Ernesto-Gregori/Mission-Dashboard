@@ -49,7 +49,9 @@ En la app: **Salud** → Conectar con Google.
   El webhook pide `message` + `callback_query` (se re-registra al arrancar)
 - Texto libre: gasto si el monto va al inicio, al final o con `$` («35 en super», «café 8»);
   tarea si hay hora explícita («5pm», «16:30», «a las 8») o empieza con «agendar» / «recordame»
-- Recordatorios: `python scripts/run_telegram_reminders.py` (hora local, `app.timezone_config`)
+- Recordatorios: `python scripts/run_telegram_reminders.py` (cron). Para todo evento con hora
+  (web, Google o bot), 30 min antes por defecto; se cambia o se apaga en Usuarios → Telegram.
+  Único por evento + horario; si el evento se mueve, se recalcula. Hora local (`app.timezone_config`)
 - Variables: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME` (opcional)
 
 ## Seguridad

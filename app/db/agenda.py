@@ -428,6 +428,23 @@ def actualizar_evento(evento_id: int, datos: dict, *, sync_google: bool = True) 
     return True
 
 
+def eventos_con_hora(desde: str, hasta: str) -> list[dict]:
+    """Eventos del usuario actual con hora de inicio entre dos fechas ISO (inclusive), cualquier fuente."""
+    return (
+        ejecutar(
+            """
+            SELECT id, fecha, hora_inicio, titulo FROM eventos_calendario
+            WHERE user_id = ? AND fecha BETWEEN ? AND ?
+              AND hora_inicio IS NOT NULL AND hora_inicio != ''
+            ORDER BY fecha, hora_inicio
+            """,
+            [uid(), str(desde), str(hasta)],
+            fetchall=True,
+        )
+        or []
+    )
+
+
 def eliminar_evento(evento_id: int) -> bool:
     rows = ejecutar(
         "SELECT google_id FROM eventos_calendario WHERE id = ? AND user_id = ?",
