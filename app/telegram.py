@@ -44,12 +44,20 @@ NO_ENTENDI = (
 API_BASE = "https://api.telegram.org"
 
 BTN_BRIEFING = "📋 Briefing"
+BTN_SALDO = "💸 Saldo"
+BTN_HABITOS = "✅ Hábitos"
 BTN_AYUDA = "❓ Ayuda"
-REPLY_KEYBOARD = {
-    "keyboard": [[{"text": BTN_BRIEFING}, {"text": BTN_AYUDA}]],
-    "resize_keyboard": True,
-    "is_persistent": True,
-}
+
+
+def reply_keyboard(user_id: int | None = None) -> dict:
+    from app.onboarding import modulo_activo
+
+    fila = [{"text": BTN_BRIEFING}]
+    if user_id is not None and modulo_activo("finanzas", user_id):
+        fila.append({"text": BTN_SALDO})
+    fila.append({"text": BTN_HABITOS})
+    fila.append({"text": BTN_AYUDA})
+    return {"keyboard": [fila], "resize_keyboard": True, "is_persistent": True}
 BOT_COMMANDS = [
     {"command": "start", "description": "Vincular o ver el menú"},
     {"command": "briefing", "description": "Foco del día: agenda, hábitos y gastos"},
@@ -58,6 +66,8 @@ BOT_COMMANDS = [
     {"command": "ingreso", "description": "Anotar el ingreso del mes. Ej: /ingreso 800"},
     {"command": "saldo", "description": "Ingreso, gastado y disponible por sobre"},
     {"command": "gastos", "description": "Últimos gastos, con número para /borrar"},
+    {"command": "habitos", "description": "Hábitos de hoy"},
+    {"command": "hecho", "description": "Marcar un hábito. Ej: /hecho leer"},
     {"command": "tarea", "description": "Crear una tarea. Ej: /tarea mañana 5pm banco"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
     {"command": "ayuda", "description": "Cómo usar el bot"},
@@ -75,6 +85,8 @@ def help_text(*, linked: bool = True) -> str:
         "• /gastos — últimos 7, con número\n"
         "• /borrar 2 — borrar uno de la lista (pide confirmación)\n"
         "• /vencimientos — próximos 7 días\n"
+        "• /habitos — hábitos de hoy\n"
+        "• /hecho leer — marcar uno (o «ya leí»)\n"
         "• /tarea mañana 5pm banco — crear una tarea (va a Calendar si está vinculado)\n"
         "• /deshacer — borrar lo último que guardé (hasta 30 min)\n"
         "• /ayuda — este mensaje\n\n"
@@ -95,6 +107,10 @@ def _command_parts(text: str) -> tuple[str, str]:
     raw = (text or "").strip()
     if raw in (BTN_BRIEFING, "Briefing"):
         return "/briefing", ""
+    if raw in (BTN_SALDO, "Saldo"):
+        return "/saldo", ""
+    if raw in (BTN_HABITOS, "Hábitos", "Habitos"):
+        return "/habitos", ""
     if raw in (BTN_AYUDA, "Ayuda"):
         return "/ayuda", ""
     if not raw.startswith("/"):
@@ -650,7 +666,8 @@ def handle_inbound(
         return ""
 
     def reply(body: str, *, keyboard: bool = False, botones: list | None = None) -> str:
-        markup = REPLY_KEYBOARD if keyboard else None
+        uid_kb = int(link["user_id"]) if keyboard and link and link.get("user_id") else None
+        markup = reply_keyboard(uid_kb) if keyboard else None
         if botones:
             filas = [
                 [{"text": t, "callback_data": d} for t, d in botones[i : i + 2]]
@@ -837,6 +854,17 @@ def _normalize_yes_no(text: str) -> bool | None:
 
 
 def _route_callback(ctx: Contexto, data: str) -> Respuesta:
+    habito = re.match(r"^k:([a-z0-9_]{1,20})$", data or "")
+    if habito:
+        from app.audit import registrar
+        from app.telegram_actions.habitos import marcar_desde_boton
+
+        resp = marcar_desde_boton(ctx, habito.group(1))
+        if resp.resumen:
+            registrar("telegram_habito", "habito", resp.resumen, {"chat": ctx.chat_id[-4:]})
+            state.registrar_ultima(ctx.user_id, ctx.chat_id, "habito", 0, resp.resumen)
+            resp.texto += "\n¿Error? /deshacer"
+        return resp
     cambio = re.match(r"^c:(\d{1,12}):(\d{1,2})$", data or "")
     if cambio:
         from app.telegram_actions.finanzas import cambiar_subcategoria
@@ -874,7 +902,7 @@ def _deshacer(ctx: Contexto) -> Respuesta:
             f"No hay nada para deshacer (solo la última acción, hasta {state.DESHACER_TTL_MIN} min).",
             accion="deshacer",
         )
-    ok = acc.deshacer(ctx, int(last["entidad_id"]))
+    ok = acc.deshacer(ctx, int(last["entidad_id"]), str(last.get("resumen") or ""))
     registrar("telegram_deshacer", acc.clave, last["entidad_id"], {"ok": ok, "chat": ctx.chat_id[-4:]})
     if not ok:
         return Respuesta(f"No pude deshacer: {last['resumen']}. Revisalo en la app.", accion="deshacer")

@@ -5,9 +5,10 @@ from app.telegram_actions.agenda import TAREA
 from app.telegram_actions.base import Accion, Contexto, Respuesta
 from app.telegram_actions.briefing import BRIEFING
 from app.telegram_actions.finanzas import BORRAR, GASTO, GASTOS, INGRESO, SALDO, VENCIMIENTOS
+from app.telegram_actions.habitos import HABITOS, HECHO
 
 # El orden importa: patrones y heurísticas se prueban en este orden.
-REGISTRO: list[Accion] = [BRIEFING, GASTO, INGRESO, SALDO, GASTOS, VENCIMIENTOS, BORRAR, TAREA]
+REGISTRO: list[Accion] = [BRIEFING, GASTO, INGRESO, SALDO, GASTOS, VENCIMIENTOS, BORRAR, HABITOS, HECHO, TAREA]
 
 
 def por_comando(cmd: str) -> Accion | None:
