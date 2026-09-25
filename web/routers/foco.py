@@ -30,8 +30,14 @@ def foco_page(request: Request, user: Annotated[dict, Depends(require_onboarded)
 def sync_now(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     dia = _hoy()
     try:
-        pull_range(dia, dia, user_id=int(user["id"]), force=True)
-        request.session["hoy_flash"] = "Calendar sincronizado."
+        stats = pull_range(dia, dia, user_id=int(user["id"]), force=True)
+        if stats.get("skipped") and stats.get("reason") not in (None, "throttle"):
+            from app.google_calendar import estado_google_calendar
+
+            err = (estado_google_calendar(int(user["id"])).get("error") or stats.get("reason") or "")
+            request.session["hoy_error"] = str(err)[:180]
+        else:
+            request.session["hoy_flash"] = "Calendar sincronizado."
     except Exception as e:
         request.session["hoy_error"] = str(e)[:160]
     return RedirectResponse("/app", status_code=303)

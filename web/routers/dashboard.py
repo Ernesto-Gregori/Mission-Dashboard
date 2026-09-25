@@ -51,15 +51,28 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
     hechos = habitos_hoy(uid)
     habitos = [{**h, "hecho": bool(hechos.get(h["clave"]))} for h in listar_habitos(uid)]
     google_ok = False
+    google_error = ""
     try:
-        from app.google_calendar import calendar_disponible
+        from app.google_calendar import estado_google_calendar
 
-        google_ok = bool(calendar_disponible())
-    except Exception:
+        estado_cal = estado_google_calendar(uid)
+        google_ok = bool(estado_cal.get("disponible"))
+        google_error = estado_cal.get("error") or ""
+    except Exception as e:
         google_ok = False
+        google_error = str(e)[:180]
     if google_ok and puede_google(plan):
         try:
             pull_range(_hoy(), _hoy(), user_id=uid)
+        except Exception as e:
+            google_error = str(e)[:180]
+        try:
+            from app.google_calendar import estado_google_calendar
+
+            estado_cal = estado_google_calendar(uid)
+            google_ok = bool(estado_cal.get("disponible"))
+            if estado_cal.get("error"):
+                google_error = estado_cal["error"]
         except Exception:
             pass
     try:
@@ -86,6 +99,7 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         habitos=habitos,
         foco_items=foco_items,
         google_ok=google_ok,
+        google_error=google_error,
         puede_google=puede_google(plan),
         hoy_flash=request.session.pop("hoy_flash", None),
         hoy_error=request.session.pop("hoy_error", None),

@@ -37,14 +37,17 @@
   <a href="/app/billing">Ver planes</a>
 </div>
 {% elif not google_ok %}
-<p class="muted">Sin Google Calendar vinculado. Conectalo desde <a href="/app/m/salud">Salud</a>.</p>
+<div class="flash-warn" role="alert">
+  {{ google_error or 'Sin Google Calendar vinculado.' }}
+  <a href="/app/m/salud">Conectar en Salud</a>
+</div>
 {% else %}
 <p class="muted">📅 Calendar vinculado. Crear, mover o borrar un bloque con horario lo sincroniza. Podés marcar “solo dashboard” para no subirlo.</p>
 <form method="post" action="/app/planificador/sync" class="inline-form">
   <button class="btn secondary" type="submit">Sincronizar ahora</button>
 </form>
+{% if google_error %}<div class="flash-warn" role="alert">{{ google_error }}</div>{% endif %}
 {% endif %}
-{% if google_error %}<p class="muted">{{ google_error }}</p>{% endif %}
 
 <div class="agenda-week-nav">
   <form method="post" action="/app/planificador/semana"><button class="btn secondary" name="action" value="prev" type="submit">◀ Anterior</button></form>

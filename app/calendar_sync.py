@@ -109,6 +109,43 @@ def _hora_habito(valor: Any) -> str | None:
     return None
 
 
+def leer_last_error(user_id: int | None = None) -> str:
+    ensure_calendar_sync_schema()
+    from app.db.core import ejecutar
+
+    uid_i = _uid(user_id)
+    rows = (
+        ejecutar(
+            "SELECT last_error FROM calendar_sync_state WHERE user_id = ?",
+            [uid_i],
+            fetchall=True,
+        )
+        or []
+    )
+    if not rows:
+        return ""
+    return str(rows[0].get("last_error") or "")
+
+
+def _log_cred_diag(fase: str) -> None:
+    """INFO temporal: token en BD, expiry, refresh y persistencia."""
+    try:
+        from app.google_fit import cred_diag
+
+        d = cred_diag()
+    except Exception as e:
+        log.info("pull_range fase=%s cred_diag_error=%s", fase, e)
+        return
+    log.info(
+        "pull_range fase=%s token_en_bd=%s expired=%s refresh_ran=%s persisted=%s",
+        fase,
+        int(bool(d.get("token_en_bd"))),
+        d.get("expired"),
+        int(bool(d.get("refresh_ran"))),
+        int(bool(d.get("persisted"))),
+    )
+
+
 def pull_range(
     fecha_inicio,
     fecha_fin,
@@ -137,6 +174,9 @@ def pull_range(
         if last is not None:
             age = datetime.now(timezone.utc) - last
             if age.total_seconds() < POLL_MIN_SECONDS:
+                log.info(
+                    "pull_range skipped=throttle token_en_bd=n/a expired=n/a refresh_ran=0 persisted=0"
+                )
                 return {"skipped": True, "reason": "throttle", "pulled": 0, "updated": 0, "deleted": 0}
 
     if list_events is None:
@@ -144,10 +184,17 @@ def pull_range(
 
         if not calendar_disponible():
             _touch_state(uid_i, error="calendar_unavailable")
+            _log_cred_diag("unavailable")
             return {"skipped": True, "reason": "unavailable", "pulled": 0, "updated": 0, "deleted": 0}
 
         def list_events(inicio, fin):
             return obtener_eventos_google(inicio, fin, include_deleted=True) or []
+
+        _log_cred_diag("list")
+    else:
+        log.info(
+            "pull_range list_injected=1 token_en_bd=n/a expired=n/a refresh_ran=0 persisted=0"
+        )
 
     try:
         remotos = list_events(fecha_inicio, fecha_fin) or []
