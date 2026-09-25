@@ -245,3 +245,47 @@ def test_items_foco_mezcla_habito_y_evento(db_ready):
     assert any("OracionFoco" in t for t in titles)
     assert any("Entrenamiento" in t for t in titles)
     clear_current_user()
+
+
+def test_pull_list_error_queda_visible(db_ready, monkeypatch):
+    from app.calendar_sync import leer_last_error, pull_range
+    from app.google_calendar import estado_google_calendar
+    from app.timezone_config import hoy as _hoy
+
+    uid = int(db_ready["id"])
+    monkeypatch.setattr("app.google_calendar.calendar_disponible", lambda: True)
+    monkeypatch.setattr(
+        "app.google_fit.get_ultimo_error_auth",
+        lambda: "",
+    )
+
+    def list_events(inicio, fin):
+        raise RuntimeError("calendar 403 forbidden")
+
+    dia = _hoy()
+    stats = pull_range(dia, dia, user_id=uid, force=True, list_events=list_events)
+    assert stats["reason"] == "list_error"
+    assert "403" in leer_last_error(uid)
+    estado = estado_google_calendar(uid)
+    assert estado["disponible"] is True
+    assert "403" in estado["error"]
+
+
+def test_pull_unavailable_muestra_error_de_auth(db_ready, monkeypatch):
+    from app.calendar_sync import pull_range
+    from app.google_calendar import estado_google_calendar
+    from app.timezone_config import hoy as _hoy
+
+    uid = int(db_ready["id"])
+    monkeypatch.setattr("app.google_calendar.calendar_disponible", lambda: False)
+    monkeypatch.setattr(
+        "app.google_fit.get_ultimo_error_auth",
+        lambda: "Google revocó el refresh_token (app en modo Testing expira ~7 días).",
+    )
+    dia = _hoy()
+    stats = pull_range(dia, dia, user_id=uid, force=True)
+    assert stats["reason"] == "unavailable"
+    estado = estado_google_calendar(uid)
+    assert estado["disponible"] is False
+    assert "Testing" in estado["error"]
+    assert "calendar_unavailable" not in estado["error"]

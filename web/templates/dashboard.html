@@ -47,6 +47,9 @@
       <h2 id="foco-hoy-title">Agenda de hoy</h2>
       <a href="/app/planificador?vista=dia">Línea de tiempo</a>
     </div>
+    {% if puede_google and google_error %}
+    <p class="flash-warn" role="alert">{{ google_error }}{% if not google_ok %} <a href="/app/m/salud">Conectar en Salud</a>{% endif %}</p>
+    {% endif %}
     {% if not foco_items %}
     <p class="muted empty-state">Nada agendado para hoy.</p>
     {% else %}

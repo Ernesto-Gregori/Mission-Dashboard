@@ -7,8 +7,14 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Optional, Dict, List
 
+from app.logging_config import get_logger
+
 # Reutiliza las credenciales de Google Fit
 from app.google_fit import _get_credentials
+
+log = get_logger("google_calendar")
+
+_ultimo_error: str = ""
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIGURACIÓN
@@ -56,16 +62,64 @@ def get_calendar_service():
             return None
         return build("calendar", "v3", credentials=creds)
     except Exception as e:
-        print(f"[Calendar] Error inicializando: {e}")
+        log.warning("[Calendar] Error inicializando: %s", e)
+        _set_error(str(e))
         return None
 
+
+def _set_error(msg: str) -> None:
+    global _ultimo_error
+    _ultimo_error = (msg or "")[:300]
+
+
 def calendar_disponible() -> bool:
-    """Verifica si Google Calendar está disponible."""
+    """Mismo token y scopes que Google Fit (incluye calendar).
+
+    Un 403 u otro fallo de la API Calendar no se decide acá: queda en
+    calendar_sync_state.last_error y en estado_google_calendar().
+    """
     try:
         from app.google_fit import fit_autenticado
         return fit_autenticado()
-    except Exception:
+    except Exception as e:
+        log.warning("[Calendar] calendar_disponible: %s", e)
+        _set_error(str(e))
         return False
+
+
+def estado_google_calendar(user_id: int | None = None) -> dict:
+    """Estado para la UI. `error` es el mensaje real, no solo «no conectado»."""
+    from app.calendar_sync import leer_last_error
+    from app.google_fit import get_ultimo_error_auth
+
+    try:
+        disponible = bool(calendar_disponible())
+    except Exception as e:
+        log.warning("[Calendar] estado: %s", e)
+        disponible = False
+        _set_error(str(e))
+    auth = "" if disponible else (
+        get_ultimo_error_auth() or _ultimo_error or "Sin vincular Google Calendar."
+    )
+    try:
+        last = leer_last_error(user_id) or ""
+    except Exception as e:
+        log.warning("[Calendar] last_error: %s", e)
+        last = ""
+    visible = ""
+    if not disponible:
+        visible = auth
+    if last and last != "calendar_unavailable":
+        visible = last if not visible else f"{visible} — {last}"
+    elif last == "calendar_unavailable" and not visible:
+        visible = auth or "Google Calendar no está disponible."
+    elif not visible and _ultimo_error and disponible:
+        visible = _ultimo_error
+    return {
+        "disponible": disponible,
+        "error": (visible or "")[:300],
+        "last_error": last,
+    }
     
 # ═══════════════════════════════════════════════════════════════
 # SINCRONIZAR BLOQUES DEEP WORK → GOOGLE CALENDAR
@@ -172,12 +226,14 @@ def sincronizar_bloques_semana(lunes: date, domingo: date) -> int:
                     creados += 1
                     print(f"[Calendar] Bloque creado: {titulo} {fecha_str}")
                 except Exception as e:
-                    print(f"[Calendar] Error creando bloque {titulo}: {e}")
+                    log.warning("[Calendar] Error creando bloque %s: %s", titulo, e)
+                    _set_error(str(e))
 
         return creados
 
     except Exception as e:
-        print(f"[Calendar] Error en sincronizar_bloques_semana: {e}")
+        log.warning("[Calendar] Error en sincronizar_bloques_semana: %s", e)
+        _set_error(str(e))
         return 0
 
 # ═══════════════════════════════════════════════════════════════
@@ -199,7 +255,9 @@ def obtener_eventos_google(
     try:
         service = get_calendar_service()
         if not service:
-            return resultado
+            err = _ultimo_error or "Google Calendar no disponible."
+            _set_error(err)
+            raise RuntimeError(err)
         
         # Formato RFC3339
         time_min = datetime.combine(fecha_inicio, datetime.min.time()).isoformat() + "Z"
@@ -264,10 +322,13 @@ def obtener_eventos_google(
                 "updated":      evento.get("updated") or "",
                 "status":       evento.get("status") or "confirmed",
             })
-    
+        _set_error("")
+
     except Exception as e:
-        print(f"[Calendar] Error obteniendo eventos: {e}")
-    
+        log.warning("[Calendar] Error obteniendo eventos: %s", e)
+        _set_error(str(e))
+        raise
+
     return resultado
 
 # ═══════════════════════════════════════════════════════════════
@@ -326,7 +387,8 @@ def crear_evento_google(datos: Dict) -> Optional[str]:
         return google_id
     
     except Exception as e:
-        print(f"[Calendar] Error creando evento: {e}")
+        log.warning("[Calendar] Error creando evento: %s", e)
+        _set_error(str(e))
         return None
 
 # ═══════════════════════════════════════════════════════════════
@@ -349,7 +411,8 @@ def eliminar_evento_google(google_id: str) -> bool:
         return True
     
     except Exception as e:
-        print(f"[Calendar] Error eliminando evento: {e}")
+        log.warning("[Calendar] Error eliminando evento: %s", e)
+        _set_error(str(e))
         return False
 
 # ═══════════════════════════════════════════════════════════════
@@ -388,5 +451,6 @@ def actualizar_evento_google(google_id: str, datos: Dict) -> bool:
         return True
     
     except Exception as e:
-        print(f"[Calendar] Error actualizando evento: {e}")
+        log.warning("[Calendar] Error actualizando evento: %s", e)
+        _set_error(str(e))
         return False

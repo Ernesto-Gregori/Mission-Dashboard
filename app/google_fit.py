@@ -8,9 +8,13 @@ redeploys (el disco efímero se borra).
 
 import os
 import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Dict, List
+
+from app.logging_config import get_logger
+
+log = get_logger("google_fit")
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIGURACIÓN
@@ -32,9 +36,60 @@ SCOPES = [
 # Último error de auth (para mostrar en UI)
 _ultimo_error_auth: str = ""
 
+# Diagnóstico temporal del refresh (INFO). No incluye el token.
+_cred_diag: dict = {
+    "token_en_bd": False,
+    "expired": None,
+    "refresh_ran": False,
+    "persisted": False,
+}
+
 
 def get_ultimo_error_auth() -> str:
     return _ultimo_error_auth or ""
+
+
+def cred_diag() -> dict:
+    """Snapshot del último _get_credentials / refresh. Sin secretos."""
+    return dict(_cred_diag)
+
+
+def _parse_expiry(value):
+    """ISO o datetime → datetime naive UTC (lo que compara google-auth)."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        raw = str(value).strip()
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        dt = datetime.fromisoformat(raw)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _expiry_to_iso(value) -> str | None:
+    dt = _parse_expiry(value)
+    if dt is None:
+        return None
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _stamp_expiry(token_data: dict) -> dict:
+    """Deja `expiry` como ISO string si venía en el dict."""
+    out = dict(token_data)
+    if "expiry" not in out or out.get("expiry") in (None, ""):
+        return out
+    try:
+        iso = _expiry_to_iso(out.get("expiry"))
+    except (TypeError, ValueError) as e:
+        log.warning("google_creds expiry no serializable: %s", e)
+        return out
+    if iso:
+        out["expiry"] = iso
+    return out
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -72,6 +127,12 @@ def _creds_from_token_dict(token_data: dict):
     data = _token_dict_from_mapping(token_data)
     if not data:
         return None
+    expiry = None
+    if data.get("expiry"):
+        try:
+            expiry = _parse_expiry(data.get("expiry"))
+        except (TypeError, ValueError) as e:
+            log.warning("google_creds expiry ilegible: %s", e)
     return Credentials(
         token=data.get("token"),
         refresh_token=data.get("refresh_token"),
@@ -79,6 +140,7 @@ def _creds_from_token_dict(token_data: dict):
         client_id=data.get("client_id"),
         client_secret=data.get("client_secret"),
         scopes=_normalize_scopes(data.get("scopes")),
+        expiry=expiry,
     )
 
 
@@ -95,7 +157,7 @@ def _ensure_oauth_table():
             )
         """)
     except Exception as e:
-        print(f"[GoogleFit] No se pudo asegurar tabla oauth_tokens: {e}")
+        log.warning("[GoogleFit] No se pudo asegurar tabla oauth_tokens: %s", e)
 
 
 def _load_token_from_db() -> Optional[dict]:
@@ -115,7 +177,7 @@ def _load_token_from_db() -> Optional[dict]:
             return None
         return json.loads(rows[0]["token_json"])
     except Exception as e:
-        print(f"[GoogleFit] Error leyendo token BD: {e}")
+        log.warning("[GoogleFit] Error leyendo token BD: %s", e)
         return None
 
 
@@ -132,6 +194,7 @@ def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
             _ultimo_error_auth = "Debes iniciar sesión para guardar el token de Google Fit"
             return False
         user_id = int(user_id)
+        token_data = _stamp_expiry(token_data)
         payload = json.dumps(token_data)
         # Asegurar columna user_id
         try:
@@ -162,7 +225,7 @@ def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             """, [user_id, PROVIDER, payload])
         except Exception as e2:
-            print(f"[GoogleFit] Error guardando token en BD: {e} / {e2}")
+            log.warning("[GoogleFit] Error guardando token en BD: %s / %s", e, e2)
             _ultimo_error_auth = f"No se pudo guardar token en BD: {e2}"
             return False
 
@@ -171,7 +234,7 @@ def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
         path = TOKEN_FILE.parent / f"token_fit_u{int(user_id)}.json"
         path.write_text(json.dumps(token_data, indent=2))
     except Exception as e:
-        print(f"[GoogleFit] Disco no escribible (ok si hay BD): {e}")
+        log.warning("[GoogleFit] Disco no escribible (ok si hay BD): %s", e)
     return True
 
 
@@ -238,6 +301,7 @@ def guardar_token_desde_json(texto: str) -> tuple[bool, str]:
     if not data.get("client_id") or not data.get("client_secret"):
         return False, "Falta client_id/client_secret en el JSON (o en credentials_fit.json)"
     data["scopes"] = _normalize_scopes(data.get("scopes") or SCOPES)
+    data = _stamp_expiry(data)
     if _save_token_dict(data):
         return True, "Token guardado en la base de datos. Ya no deberías re-vincular tras cada sleep."
     return False, "No se pudo guardar el token"
@@ -254,31 +318,52 @@ def _load_token_from_disk() -> Optional[dict]:
     try:
         return json.loads(TOKEN_FILE.read_text())
     except Exception as e:
-        print(f"[GoogleFit] Error leyendo disco: {e}")
+        log.warning("[GoogleFit] Error leyendo disco: %s", e)
         return None
 
 
 def _refresh_and_persist(creds):
     """Refresca access token y lo guarda en BD (clave para sobrevivir al sleep)."""
-    global _ultimo_error_auth
+    global _ultimo_error_auth, _cred_diag
     from google.auth.transport.requests import Request
 
     if creds.valid:
+        log.info(
+            "google_creds refresh_ran=0 persisted=0 valid=1 expiry=%s",
+            getattr(creds, "expiry", None),
+        )
         return creds
     if not creds.refresh_token:
         _ultimo_error_auth = (
             "No hay refresh_token. Vuelve a vincular Google y guarda el JSON completo."
         )
+        _cred_diag["refresh_ran"] = False
+        _cred_diag["persisted"] = False
+        log.info("google_creds refresh_ran=0 persisted=0 reason=no_refresh_token")
         return None
     try:
         creds.refresh(Request())
-        _save_token_dict(json.loads(creds.to_json()))
-        _ultimo_error_auth = ""
+        _cred_diag["refresh_ran"] = True
+        saved = _save_token_dict(json.loads(creds.to_json()))
+        _cred_diag["persisted"] = bool(saved)
+        _cred_diag["expired"] = bool(getattr(creds, "expired", None))
+        if saved:
+            _ultimo_error_auth = ""
+        elif not _ultimo_error_auth:
+            _ultimo_error_auth = "Token refrescado pero no se pudo guardar en BD."
+        log.info(
+            "google_creds refresh_ran=1 persisted=%s expiry=%s",
+            int(bool(saved)),
+            getattr(creds, "expiry", None),
+        )
         return creds
     except Exception as e:
         err = str(e)
         _ultimo_error_auth = err
-        print(f"[GoogleFit] Refresh falló: {err}")
+        _cred_diag["refresh_ran"] = True
+        _cred_diag["persisted"] = False
+        log.warning("[GoogleFit] Refresh falló: %s", err)
+        log.info("google_creds refresh_ran=1 persisted=0 error=1")
         # invalid_grant suele ser app en Testing (token ~7 días) o revocado
         if "invalid_grant" in err.lower():
             _ultimo_error_auth = (
@@ -293,18 +378,34 @@ def _get_credentials():
     Credenciales OAuth2 solo del usuario en sesión (tabla oauth_tokens).
     No reutiliza secrets/disco compartidos (evita fuga entre cuentas).
     """
-    global _ultimo_error_auth
+    global _ultimo_error_auth, _cred_diag
+    _cred_diag = {
+        "token_en_bd": False,
+        "expired": None,
+        "refresh_ran": False,
+        "persisted": False,
+    }
     token_data = _load_token_from_db()
+    _cred_diag["token_en_bd"] = bool(token_data)
     if not token_data:
         _ultimo_error_auth = (
             "Sin token para tu usuario. Conecta Google Fit o pega el JSON del token."
         )
+        log.info("google_creds token_en_bd=0 expired=None refresh_ran=0 persisted=0")
         return None
 
     creds = _creds_from_token_dict(token_data)
     if not creds:
+        log.info("google_creds token_en_bd=1 expired=None refresh_ran=0 persisted=0")
         return None
 
+    _cred_diag["expired"] = bool(creds.expired)
+    log.info(
+        "google_creds token_en_bd=1 expiry=%s expired=%s valid=%s",
+        creds.expiry,
+        int(bool(creds.expired)),
+        int(bool(creds.valid)),
+    )
     if creds.valid:
         return creds
 
@@ -570,7 +671,9 @@ def get_fit_service():
             return None
         return build("fitness", "v1", credentials=creds)
     except Exception as e:
-        print(f"[GoogleFit] Error inicializando servicio: {e}")
+        log.warning("[GoogleFit] Error inicializando servicio: %s", e)
+        if not _ultimo_error_auth:
+            _ultimo_error_auth = str(e)
         return None
 
 
@@ -580,7 +683,8 @@ def fit_autenticado() -> bool:
         creds = _get_credentials()
         return bool(creds and creds.valid)
     except Exception as e:
-        print(f"[GoogleFit] fit_autenticado error: {e}")
+        log.warning("[GoogleFit] fit_autenticado error: %s", e)
+        _ultimo_error_auth = str(e)
         return False
 
 
@@ -784,7 +888,7 @@ def _sum_best_int(service, data_type: str, start_ms: int, end_ms: int, sources) 
             if n > best:
                 best = n
         except Exception as e:
-            print(f"[GoogleFit] aggregate {data_type} src={src}: {e}")
+            log.warning(f"[GoogleFit] aggregate {data_type} src={src}: {e}")
     return best
 
 
@@ -798,7 +902,7 @@ def _sum_best_float(service, data_type: str, start_ms: int, end_ms: int, sources
             if n > best:
                 best = n
         except Exception as e:
-            print(f"[GoogleFit] aggregate {data_type} src={src}: {e}")
+            log.warning(f"[GoogleFit] aggregate {data_type} src={src}: {e}")
     return best
 
 
@@ -825,7 +929,7 @@ def _listar_tipos_disponibles(service) -> list[str]:
             if name and name not in tipos:
                 tipos.append(name)
     except Exception as e:
-        print(f"[GoogleFit] list dataSources: {e}")
+        log.warning(f"[GoogleFit] list dataSources: {e}")
     return tipos
 
 
@@ -849,7 +953,7 @@ def _sum_steps_dataset(service, start_ms: int, end_ms: int) -> int:
             if dsid and dsid not in source_ids:
                 source_ids.append(dsid)
     except Exception as e:
-        print(f"[GoogleFit] list step sources: {e}")
+        log.warning(f"[GoogleFit] list step sources: {e}")
 
     best = 0
     for dsid in source_ids:
@@ -875,7 +979,7 @@ def _sum_steps_dataset(service, start_ms: int, end_ms: int) -> int:
             if total > best:
                 best = total
         except Exception as e:
-            print(f"[GoogleFit] step dataset {str(dsid)[-40:]}: {e}")
+            log.warning(f"[GoogleFit] step dataset {str(dsid)[-40:]}: {e}")
     return best
 
 
@@ -900,6 +1004,7 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
         if service is None:
             service = get_fit_service()
         if service is None:
+            resultado["error"] = get_ultimo_error_auth() or "Google Fit no configurado"
             return resultado
 
         # 1) Sesiones de sueño — primero filtro 72; si vacío, listar y filtrar en cliente
@@ -915,7 +1020,7 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
                 ).execute()
                 sesiones = list(sessions_response.get("session", []) or [])
             except Exception as e:
-                print(f"[GoogleFit] Sueño sessions activityType=72: {e}")
+                log.warning(f"[GoogleFit] Sueño sessions activityType=72: {e}")
             if not sesiones:
                 sessions_response = service.users().sessions().list(
                     userId="me",
@@ -948,7 +1053,7 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
                 }
                 return resultado
         except Exception as e:
-            print(f"[GoogleFit] Sueño sessions: {e}")
+            log.warning(f"[GoogleFit] Sueño sessions: {e}")
 
         # 2) Segmentos de sueño (varias data sources)
         fecha_inicio = fecha - timedelta(days=1)
@@ -968,7 +1073,7 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
                 if dsid and dsid not in source_ids:
                     source_ids.append(dsid)
         except Exception as e:
-            print(f"[GoogleFit] list sleep sources: {e}")
+            log.warning(f"[GoogleFit] list sleep sources: {e}")
 
         puntos = []
         for dsid in source_ids:
@@ -984,7 +1089,7 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
                     resultado["_fuente"] = f"dataset:{dsid.split(':')[-1]}"
                     break
             except Exception as e:
-                print(f"[GoogleFit] sleep dataset {dsid[-40:]}: {e}")
+                log.warning(f"[GoogleFit] sleep dataset {dsid[-40:]}: {e}")
 
         if not puntos:
             return resultado
@@ -1026,7 +1131,8 @@ def obtener_sueno(fecha: date, service=None) -> Dict:
         })
 
     except Exception as e:
-        print(f"[GoogleFit] Error obteniendo sueño: {e}")
+        log.warning("[GoogleFit] Error obteniendo sueño: %s", e)
+        resultado["error"] = str(e)
 
     return resultado
 
@@ -1052,6 +1158,7 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
         if service is None:
             service = get_fit_service()
         if service is None:
+            resultado["error"] = get_ultimo_error_auth() or "Google Fit no configurado"
             return resultado
 
         start_ms, end_ms = _rango_dia_ms(fecha)
@@ -1092,7 +1199,7 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
                     "duracion_min": round(duracion_min),
                 })
         except Exception as e:
-            print(f"[GoogleFit] sessions ejercicio: {e}")
+            log.warning(f"[GoogleFit] sessions ejercicio: {e}")
 
         # Pasos / calorías — probar estimated_steps y merges (Fit UI ≠ API cruda)
         pasos_total = 0
@@ -1108,7 +1215,7 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
             if pasos_total <= 0:
                 pasos_total = _sum_steps_dataset(service, start_ms, end_ms)
         except Exception as e:
-            print(f"[GoogleFit] pasos: {e}")
+            log.warning(f"[GoogleFit] pasos: {e}")
         try:
             calorias_total = _sum_best_float(
                 service,
@@ -1118,7 +1225,7 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
                 _CAL_SOURCES,
             )
         except Exception as e:
-            print(f"[GoogleFit] calorias: {e}")
+            log.warning(f"[GoogleFit] calorias: {e}")
 
         # Si no hay sesiones pero hay muchos pasos, sugerir caminata
         if not sesiones_info and pasos_total >= 5000:
@@ -1141,7 +1248,8 @@ def obtener_ejercicio(fecha: date, service=None) -> Dict:
             resultado["calorias"] = round(calorias_total) if calorias_total else None
 
     except Exception as e:
-        print(f"[GoogleFit] Error obteniendo ejercicio: {e}")
+        log.warning("[GoogleFit] Error obteniendo ejercicio: %s", e)
+        resultado["error"] = str(e)
 
     return resultado
 
@@ -1182,6 +1290,7 @@ def obtener_frecuencia_cardiaca(fecha: date, service=None) -> Dict:
         if service is None:
             service = get_fit_service()
         if service is None:
+            resultado["error"] = get_ultimo_error_auth() or "Google Fit no configurado"
             return resultado
 
         start_ms, end_ms = _rango_dia_ms(fecha)
@@ -1211,7 +1320,7 @@ def obtener_frecuencia_cardiaca(fecha: date, service=None) -> Dict:
                                 if resultado["fc_promedio"] or resultado["fc_maxima"]:
                                     return resultado
             except Exception as e:
-                print(f"[GoogleFit] HR summary src={src}: {e}")
+                log.warning(f"[GoogleFit] HR summary src={src}: {e}")
 
         if resultado["fc_promedio"] or resultado["fc_maxima"]:
             return resultado
@@ -1251,14 +1360,15 @@ def obtener_frecuencia_cardiaca(fecha: date, service=None) -> Dict:
                 if samples:
                     break
             except Exception as e:
-                print(f"[GoogleFit] HR bpm src={src}: {e}")
+                log.warning(f"[GoogleFit] HR bpm src={src}: {e}")
 
         if samples:
             resultado["fc_promedio"] = round(sum(samples) / len(samples)) or None
             resultado["fc_maxima"] = round(max(samples)) or None
 
     except Exception as e:
-        print(f"[GoogleFit] Error obteniendo FC: {e}")
+        log.warning("[GoogleFit] Error obteniendo FC: %s", e)
+        resultado["error"] = str(e)
 
     return resultado
 
@@ -1271,7 +1381,7 @@ def obtener_datos_dia(fecha: date) -> Dict:
     Obtiene todos los datos de salud de Google Fit para una fecha.
     Retorna un dict compatible con el formulario del módulo Salud.
     """
-    print(f"[GoogleFit] Obteniendo datos para {fecha}...")
+    log.info("[GoogleFit] Obteniendo datos para %s", fecha)
 
     try:
         service = get_fit_service()
@@ -1289,6 +1399,14 @@ def obtener_datos_dia(fecha: date) -> Dict:
         sueno = obtener_sueno(fecha, service)
         ejercicio = obtener_ejercicio(fecha, service)
         fc = obtener_frecuencia_cardiaca(fecha, service)
+        sub_error = next(
+            (
+                x.get("error")
+                for x in (sueno, ejercicio, fc)
+                if isinstance(x, dict) and x.get("error")
+            ),
+            "",
+        )
 
         vacio = (
             sueno.get("horas_sueno") is None
@@ -1351,7 +1469,7 @@ def obtener_datos_dia(fecha: date) -> Dict:
                     f"{fecha.isoformat()} ({_tz_offset_label()}). Prueba otra fecha o espera sync."
                 )
 
-        return {
+        datos = {
             # Sueño
             "horas_sueno": sueno["horas_sueno"],
             "calidad_sueno": sueno["calidad_sueno"],
@@ -1378,6 +1496,9 @@ def obtener_datos_dia(fecha: date) -> Dict:
             "tipos_fit_api": tipos_api,
             "scopes_faltantes": faltan_scopes,
         }
+        if sub_error:
+            datos["error"] = sub_error
+        return datos
     except Exception as e:
-        print(f"[GoogleFit] Error obtener_datos_dia: {e}")
+        log.warning("[GoogleFit] Error obtener_datos_dia: %s", e)
         return {"error": str(e)}

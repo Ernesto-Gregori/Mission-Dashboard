@@ -154,9 +154,11 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
     google_ok = False
     google_error = None
     try:
-        from app.google_calendar import calendar_disponible
+        from app.google_calendar import estado_google_calendar
 
-        google_ok = bool(calendar_disponible())
+        estado_cal = estado_google_calendar(uid)
+        google_ok = bool(estado_cal.get("disponible"))
+        google_error = estado_cal.get("error") or None
     except Exception as e:
         google_error = str(e)[:160]
 
@@ -195,6 +197,15 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
             pull_range(inicio, fin, user_id=uid)
         except Exception as e:
             google_error = str(e)[:160]
+        try:
+            from app.google_calendar import estado_google_calendar
+
+            estado_cal = estado_google_calendar(uid)
+            google_ok = bool(estado_cal.get("disponible"))
+            if estado_cal.get("error"):
+                google_error = estado_cal["error"]
+        except Exception:
+            pass
 
     eventos = obtener_eventos_semana(inicio, fin)
     por_dia: dict[str, list] = {}
@@ -404,7 +415,16 @@ async def mover_bloque(request: Request, user: Annotated[dict, Depends(require_o
 def sync_now(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     ctx = _ctx(request, user)
     try:
-        pull_range(ctx["inicio"], ctx["fin"], user_id=int(user["id"]), force=True)
+        stats = pull_range(ctx["inicio"], ctx["fin"], user_id=int(user["id"]), force=True)
+        if stats.get("skipped") and stats.get("reason") not in (None, "throttle"):
+            from app.google_calendar import estado_google_calendar
+
+            err = estado_google_calendar(int(user["id"])).get("error") or stats.get("reason")
+            return render(
+                request,
+                "planificador.html",
+                **_ctx(request, user, error=str(err)[:160]),
+            )
         flash = "Calendar sincronizado."
     except Exception as e:
         flash = None

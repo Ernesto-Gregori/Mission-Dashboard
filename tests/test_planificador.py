@@ -71,6 +71,27 @@ def test_planificador_pagina(web_client):
     assert b"/app/planificador/vista/dia" in r.content
 
 
+def test_planificador_muestra_error_real_de_calendar(web_client, monkeypatch):
+    _onboard(web_client)
+    monkeypatch.setattr("web.routers.planificador.puede_google", lambda plan: True)
+    monkeypatch.setattr(
+        "web.routers.planificador.pull_range",
+        lambda *a, **k: {"skipped": False, "pulled": 0, "updated": 0, "deleted": 0},
+    )
+    monkeypatch.setattr(
+        "app.google_calendar.estado_google_calendar",
+        lambda user_id=None: {
+            "disponible": True,
+            "error": "calendar 403 forbidden",
+            "last_error": "calendar 403 forbidden",
+        },
+    )
+    r = web_client.get("/app/planificador")
+    assert r.status_code == 200
+    assert b"calendar 403 forbidden" in r.content
+    assert b'role="alert"' in r.content
+
+
 def test_planificador_bloque_local_no_sync_google(web_client, monkeypatch):
     _onboard(web_client)
     created = []
