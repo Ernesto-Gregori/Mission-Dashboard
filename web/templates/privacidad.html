@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block body %}
+<main class="legal-wrap" id="main-content" tabindex="-1">
+  <article class="card">
+    <p class="muted"><a href="/login">Volver al acceso</a></p>
+    <h1>Política de privacidad</h1>
+    <p class="muted">Mission Dashboard · vigente desde el 25 de septiembre de 2026</p>
+
+    <p>Mission Dashboard es un tablero privado de hábitos, agenda, salud y finanzas. Esta página explica qué datos guarda esta instalación y cómo usa los datos de Google. El acceso al tablero pide usuario y contraseña. Publicar esta página no abre el registro.</p>
+
+    <h2>Cuenta</h2>
+    <p>Guardamos el nombre de usuario, una contraseña hasheada, el plan y las preferencias de la cuenta. Las cuentas nuevas las crea un administrador. No hay registro público.</p>
+
+    <h2>Datos que cargás en la app</h2>
+    <p>Lo que escribís en los módulos (hábitos, ritual, finanzas, salud, agenda, notas y archivos que subís) queda asociado a tu usuario en la base de datos de esta instalación.</p>
+
+    <h2>Datos de Google</h2>
+    <p>Si conectás Google, pedimos permiso solo para:</p>
+    <ul>
+      <li>Google Calendar: leer y escribir eventos del calendario principal, para mostrarlos y sincronizarlos con el planificador.</li>
+      <li>Google Fit: leer sueño, actividad, pasos, calorías, frecuencia cardíaca y medidas corporales, para el módulo de salud.</li>
+    </ul>
+    <p>El token de acceso se guarda por usuario en la base de datos y se usa únicamente para esas funciones, dentro de tu sesión. No vendemos esos datos, no los usamos para publicidad y no los compartimos con anunciantes. Podés revocar el acceso desde tu cuenta de Google. Si el token deja de servir, la app te pide volver a vincular.</p>
+    <p>El uso de los datos recibidos de las APIs de Google cumple la <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de datos de usuario de los servicios de API de Google</a>, incluidos los requisitos de uso limitado.</p>
+
+    <h2>Asistente</h2>
+    <p>Si usás el asistente y marcás calendario, salud u otro módulo, el texto necesario para esa consulta se envía al proveedor de IA (Groq) para armar la respuesta. Si no marcás esa casilla, ese módulo no entra en la consulta.</p>
+
+    <h2>Pagos y Telegram</h2>
+    <p>Si contratás un plan, el cobro lo procesa Stripe o Lemon Squeezy. Ellos reciben los datos del pago; esta app guarda el estado de la suscripción. Si vinculás Telegram, guardamos el identificador de chat para enviarte avisos de tu cuenta.</p>
+
+    <h2>Dónde está alojado</h2>
+    <p>La aplicación corre en Railway y la base de datos en Turso. Esos proveedores almacenan los datos para prestar el servicio.</p>
+
+    <h2>Contacto</h2>
+    {% if contacto %}
+    <p>Para privacidad o para pedir la baja de una cuenta: <a href="mailto:{{ contacto }}">{{ contacto }}</a>.</p>
+    {% else %}
+    <p>Para privacidad o para pedir la baja de una cuenta, escribinos al correo de soporte publicado en la pantalla de permiso de Google.</p>
+    {% endif %}
+
+    <p class="muted"><a href="/terminos">Términos de servicio</a></p>
+  </article>
+</main>
+{% endblock %}

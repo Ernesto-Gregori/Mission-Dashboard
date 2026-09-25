@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block body %}
+<main class="legal-wrap" id="main-content" tabindex="-1">
+  <article class="card">
+    <p class="muted"><a href="/login">Volver al acceso</a></p>
+    <h1>Términos de servicio</h1>
+    <p class="muted">Mission Dashboard · vigentes desde el 25 de septiembre de 2026</p>
+
+    <p>Estos términos cubren el uso de esta instalación de Mission Dashboard. Entrar con usuario y contraseña implica que los aceptás.</p>
+
+    <h2>Acceso</h2>
+    <p>El tablero es privado. No hay registro abierto: un administrador crea las cuentas. Cada persona usa su propia cuenta y no comparte la contraseña. Podemos cerrar una cuenta que se use para abusar del servicio o de las APIs de terceros.</p>
+
+    <h2>El servicio</h2>
+    <p>Mission Dashboard organiza hábitos, agenda, salud, finanzas y módulos relacionados. Conectar Google Calendar o Google Fit es opcional. Esos permisos se usan solo para sincronizar tu calendario y mostrar tus datos de salud dentro de tu cuenta, como describe la <a href="/privacidad">política de privacidad</a>.</p>
+
+    <h2>Planes</h2>
+    <p>Parte de las funciones (incluida la vinculación con Google) depende del plan de la cuenta. Si hay un cobro, lo procesa Stripe o Lemon Squeezy y se rige por el checkout de ese proveedor. Podés dejar de usar un plan de pago según las opciones de facturación de la app.</p>
+
+    <h2>Tus datos</h2>
+    <p>Los registros que cargás son de tu cuenta. No los vendemos. El asistente solo recibe el contexto de los módulos que marcás en esa consulta. Los datos obtenidos de Google se usan para mostrarte y sincronizar tu información, no para publicidad.</p>
+
+    <h2>Disponibilidad</h2>
+    <p>El servicio se ofrece tal como está, para uso personal de las cuentas de esta instalación. Puede haber interrupciones por el hosting, por Google o por un proveedor de pago. No garantizamos que Calendar o Fit devuelvan datos si Google cambia o limita esas APIs.</p>
+
+    <h2>Cambios</h2>
+    <p>Si estos términos cambian, la versión nueva se publica en esta misma página. Seguir usando la app después de ese cambio implica aceptarlos.</p>
+
+    <h2>Contacto</h2>
+    {% if contacto %}
+    <p>Consultas: <a href="mailto:{{ contacto }}">{{ contacto }}</a>.</p>
+    {% else %}
+    <p>Consultas: el correo de soporte publicado en la pantalla de permiso de Google.</p>
+    {% endif %}
+
+    <p class="muted"><a href="/privacidad">Política de privacidad</a></p>
+  </article>
+</main>
+{% endblock %}

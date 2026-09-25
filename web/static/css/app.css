@@ -285,6 +285,23 @@ label { color: var(--muted); font-size: 0.9rem; }
   margin: 8vh auto;
   padding: 0 1rem;
 }
+.legal-wrap {
+  max-width: 42rem;
+  margin: 4vh auto 3rem;
+  padding: 0 1rem;
+}
+.legal-wrap h1 { margin-bottom: 0.25rem; }
+.legal-wrap h2 {
+  font-size: 1.05rem;
+  margin: 1.35rem 0 0.35rem;
+}
+.legal-wrap p,
+.legal-wrap li { line-height: 1.55; }
+.legal-wrap ul { margin: 0.35rem 0 0.8rem; padding-left: 1.2rem; }
+.auth-legal {
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+}
 .coach-auth-wrap { max-width: 640px; }
 .coach-suggestion-wrap { max-width: 720px; }
 .coach-area-grid {
