@@ -86,6 +86,16 @@ def test_favicon_is_linked(web_client):
     assert b"#58a6ff" in icon.content
 
 
+def test_inicio_publica_explica_la_app(web_client):
+    r = web_client.get("/", follow_redirects=False)
+    assert r.status_code == 200
+    assert "Tablero privado" in r.text
+    assert "Google Calendar" in r.text
+    assert "Google Fit" in r.text
+    assert 'href="/privacidad"' in r.text
+    assert 'href="/login"' in r.text
+
+
 def test_paginas_legales_sin_sesion(web_client):
     priv = web_client.get("/privacidad", follow_redirects=False)
     terms = web_client.get("/terminos", follow_redirects=False)

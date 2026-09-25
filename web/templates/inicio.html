@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block body %}
+<main class="legal-wrap" id="main-content" tabindex="-1">
+  <article class="card">
+    <h1>Mission Dashboard</h1>
+    <p class="muted">Tablero privado de hábitos, agenda, salud y finanzas.</p>
+
+    <p>Mission Dashboard es una aplicación de uso personal. Cada persona entra con un usuario que crea un administrador. No hay registro público. Desde el tablero se registran hábitos, el día, la agenda y la salud.</p>
+
+    <h2>Para qué pide Google</h2>
+    <p>La conexión con Google es opcional. Solo se usa si alguien con cuenta en la app elige «Conectar con Google»:</p>
+    <ul>
+      <li><strong>Google Calendar.</strong> Leer y escribir eventos del calendario principal para mostrarlos en el planificador y mantenerlos sincronizados con la agenda de la app.</li>
+      <li><strong>Google Fit.</strong> Leer sueño, actividad, pasos, calorías y frecuencia cardíaca para completar el registro de salud de esa persona.</li>
+    </ul>
+    <p>Esos datos quedan en la cuenta de quien los conectó. No se venden ni se usan para publicidad. El detalle está en la <a href="/privacidad">política de privacidad</a>.</p>
+
+    <p>
+      <a class="btn" href="/login">Entrar</a>
+    </p>
+    <p class="muted auth-legal"><a href="/privacidad">Privacidad</a> · <a href="/terminos">Términos</a></p>
+  </article>
+</main>
+{% endblock %}
