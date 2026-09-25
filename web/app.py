@@ -34,6 +34,7 @@ from web.deps import (
     init_app_state,
 )
 from web.routers import auth as auth_router
+from web.routers import legal as legal_router
 from web.routers import billing as billing_router
 from web.routers import coach as coach_router
 from web.routers import dashboard as dash_router
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     app.include_router(auth_router.router)
+    app.include_router(legal_router.router)  # /privacidad y /terminos, sin sesión
     app.include_router(oauth_router.router)  # /oauth/google/callback (sin auth)
     app.include_router(coach_router.router)
     app.include_router(dash_router.router)

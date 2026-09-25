@@ -86,6 +86,19 @@ def test_favicon_is_linked(web_client):
     assert b"#58a6ff" in icon.content
 
 
+def test_paginas_legales_sin_sesion(web_client):
+    priv = web_client.get("/privacidad", follow_redirects=False)
+    terms = web_client.get("/terminos", follow_redirects=False)
+    assert priv.status_code == 200
+    assert terms.status_code == 200
+    assert "Política de privacidad" in priv.text
+    assert "Google Calendar" in priv.text
+    assert "Google Fit" in priv.text
+    assert "Términos de servicio" in terms.text
+    assert b'href="/privacidad"' in terms.content
+    assert b'href="/terminos"' in priv.content
+
+
 def test_setup_redirects_to_coach(web_client):
     r = web_client.get("/login", follow_redirects=False)
     assert r.status_code in (303, 307)
