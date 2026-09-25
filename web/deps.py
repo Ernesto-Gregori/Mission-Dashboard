@@ -210,6 +210,10 @@ def render(request: Request, name: str, status_code: int = 200, **ctx):
     from web.nav import attach_nav
 
     ctx.setdefault("theme", tema_para_request(request))
+    ctx.setdefault(
+        "google_site_verification",
+        (os.getenv("GOOGLE_SITE_VERIFICATION") or "").strip(),
+    )
     attach_nav(request, ctx)
     return TEMPLATES.TemplateResponse(
         request,

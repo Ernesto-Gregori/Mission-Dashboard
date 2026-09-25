@@ -162,7 +162,9 @@ def create_app() -> FastAPI:
             return RedirectResponse(dest, status_code=303)
         if request.session.get("user_id"):
             return RedirectResponse("/app", status_code=303)
-        return RedirectResponse("/login", status_code=303)
+        from web.deps import render
+
+        return render(request, "inicio.html", title="Inicio")
 
     return app
 
