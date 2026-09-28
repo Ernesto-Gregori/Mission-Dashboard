@@ -5,7 +5,14 @@ from typing import Any
 
 from fastapi import Request
 
-from app.onboarding import listar_modulos_usuario, usuario_onboarding_completo
+from app.onboarding import (
+    etiqueta_blurb,
+    etiqueta_nav,
+    listar_modulos_usuario,
+    modulo_activo,
+    usuario_onboarding_completo,
+)
+from app.templates import MODULE_TEMPLATES
 
 _HUB_SPECS: tuple[dict[str, Any], ...] = (
     {
@@ -69,8 +76,8 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "id": "alma",
         "label": "Alma",
         "group": "Sistema",
-        "always": True,
         "prefixes": ("/app/asistente",),
+        "modules": ("alma",),
     },
     {
         "id": "cuenta",
@@ -109,7 +116,27 @@ GROUP_ORDER = ("Día", "Vida", "Sistema")
 
 def _activos(user_id: int) -> set[str]:
     rows = listar_modulos_usuario(user_id)
-    return {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
+    activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
+    for clave in ("ritual", "rueda", "alma"):
+        if modulo_activo(clave, user_id):
+            activos.add(clave)
+        else:
+            activos.discard(clave)
+    return activos
+
+
+def _hub_label(hub: dict[str, Any], user_id: int) -> str:
+    mods = hub.get("modules") or ()
+    if len(mods) == 1 and mods[0] in MODULE_TEMPLATES:
+        return etiqueta_nav(mods[0], user_id)
+    return hub["label"]
+
+
+def _hub_blurb(hub: dict[str, Any], user_id: int) -> str:
+    mods = hub.get("modules") or ()
+    if len(mods) == 1 and hub["id"] in _HUB_BLURB:
+        return etiqueta_blurb(mods[0], user_id)
+    return _HUB_BLURB.get(hub["id"], "")
 
 
 def _norm_path(path: str) -> str:
@@ -152,7 +179,7 @@ def build_sidebar(user: dict, request: Request) -> list[dict]:
         groups[hub["group"]].append(
             {
                 "id": hub["id"],
-                "label": hub["label"],
+                "label": _hub_label(hub, uid),
                 "href": _HUB_HREF[hub["id"]],
                 "active": _matches(path, hub),
             }
@@ -183,7 +210,13 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
     if hub == "semana":
         tabs.append(_tab("/app/planificador", "Planificador", path.startswith("/app/planificador")))
         if "deep_work" in activos:
-            tabs.append(_tab("/app/m/deep_work", "Enfoque", path.startswith("/app/m/deep_work")))
+            tabs.append(
+                _tab(
+                    "/app/m/deep_work",
+                    etiqueta_nav("deep_work", uid),
+                    path.startswith("/app/m/deep_work"),
+                )
+            )
         tabs.append(_tab("/app/revision", "Revisión", path.startswith("/app/revision")))
     elif hub == "dinero":
         mes = request.query_params.get("mes") or request.session.get("fin_mes") or ""
@@ -222,7 +255,11 @@ def dashboard_hubs(user: dict) -> list[dict]:
     children: dict[str, list[dict]] = {
         "semana": [
             {"label": "Planificador", "href": "/app/planificador"},
-            *([{"label": "Enfoque", "href": "/app/m/deep_work"}] if "deep_work" in activos else []),
+            *(
+                [{"label": etiqueta_nav("deep_work", uid), "href": "/app/m/deep_work"}]
+                if "deep_work" in activos
+                else []
+            ),
             {"label": "Revisión", "href": "/app/revision"},
         ],
         "dinero": [
@@ -238,9 +275,9 @@ def dashboard_hubs(user: dict) -> list[dict]:
         out.append(
             {
                 "id": hub["id"],
-                "label": hub["label"],
+                "label": _hub_label(hub, uid),
                 "href": _HUB_HREF[hub["id"]],
-                "descripcion": _HUB_BLURB[hub["id"]],
+                "descripcion": _hub_blurb(hub, uid),
                 "children": children.get(hub["id"], []),
                 "activo": True,
             }

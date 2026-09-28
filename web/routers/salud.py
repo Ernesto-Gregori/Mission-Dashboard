@@ -25,8 +25,7 @@ from app.db.salud import (
     obtener_objetivo,
     serie_progreso,
 )
-from app.onboarding import modulo_activo
-from app.templates import MODULE_TEMPLATES
+from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
 from web.routers.ejercicios import ejercicios_page_extras
@@ -149,9 +148,9 @@ def _ctx(
     }
 
     return {
-        "title": "Salud",
+        "title": meta_para("salud", int(user["id"]))["nombre"],
         "user": user,
-        "meta": MODULE_TEMPLATES["salud"],
+        "meta": meta_para("salud", int(user["id"])),
         "tab": tab,
         "flash": flash,
         "error": error,
@@ -200,9 +199,9 @@ def salud_page(request: Request, user: Annotated[dict, Depends(require_onboarded
         return render(
             request,
             "paywall.html",
-            title="Salud",
+            title=meta_para("salud", int(user["id"]))["nombre"],
             user=user,
-            meta=MODULE_TEMPLATES["salud"],
+            meta=meta_para("salud", int(user["id"])),
             clave="salud",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

@@ -37,7 +37,7 @@ from app.exercise_uploads import (
     save_exercise_video,
 )
 from app.onboarding import modulo_activo
-from app.templates import MODULE_TEMPLATES
+from app.onboarding import meta_para
 from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/m/salud", tags=["salud-ejercicios"])
@@ -71,7 +71,7 @@ def _detail_ctx(request: Request, user: dict, ex: dict, **extra) -> dict:
     return {
         "title": ex.get("nombre_ejercicio") or "Ejercicio",
         "user": user,
-        "meta": MODULE_TEMPLATES["salud"],
+        "meta": meta_para("salud", int(user["id"])),
         "ex": ex,
         "platforms": PLATFORMS,
         "platform_labels": PLATFORM_LABELS,
@@ -169,7 +169,7 @@ def ejercicio_detalle(
             "paywall.html",
             title="Salud",
             user=user,
-            meta=MODULE_TEMPLATES["salud"],
+            meta=meta_para("salud", int(user["id"])),
             clave="salud",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

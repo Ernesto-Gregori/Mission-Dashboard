@@ -24,7 +24,7 @@ from app.db.schema import (
     SUPERMERCADO_LABELS,
     SUPERMERCADOS,
 )
-from app.onboarding import modulo_activo
+from app.onboarding import meta_para, modulo_activo
 from app.presupuesto import (
     PRESETS,
     SOBRES,
@@ -40,7 +40,6 @@ from app.presupuesto import (
 from app.receipt_ocr import extract_from_image
 from app.receipt_service import MAX_SCAN_BYTES, ScanError, armar_borrador, guardar_confirmado, lineas_desde_form
 from app.receipt_uploads import resolve_upload_path
-from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
 from web.deps import render, require_onboarded
 
@@ -99,7 +98,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
     return {
         "title": "Finanzas",
         "user": user,
-        "meta": MODULE_TEMPLATES["finanzas"],
+        "meta": meta_para("finanzas", int(user["id"])),
         "mes": mes,
         "anio": anio,
         "meses": list(enumerate(MESES, start=1)),
@@ -123,7 +122,7 @@ def _vencimientos_ctx(request: Request, user: dict, *, error: str | None = None)
     return {
         "title": "Vencimientos",
         "user": user,
-        "meta": MODULE_TEMPLATES["finanzas"],
+        "meta": meta_para("finanzas", int(user["id"])),
         "mes": mes,
         "anio": anio,
         "meses": list(enumerate(MESES, start=1)),
@@ -141,7 +140,7 @@ def _paywall(request: Request, user: dict):
         "paywall.html",
         title="Finanzas",
         user=user,
-        meta=MODULE_TEMPLATES["finanzas"],
+        meta=meta_para("finanzas", int(user["id"])),
         clave="finanzas",
         plan=plan_vigente(user),
         plan_free=plan_vigente(user) == PLAN_FREE,
@@ -167,7 +166,7 @@ def _precios_ctx(request: Request, user: dict, *, flash: str | None = None, erro
     return {
         "title": "Precios supermercados",
         "user": user,
-        "meta": MODULE_TEMPLATES["finanzas"],
+        "meta": meta_para("finanzas", int(user["id"])),
         "mes": mes,
         "anio": anio,
         "meses": list(enumerate(MESES, start=1)),
@@ -200,7 +199,7 @@ def _confirm_ctx(request: Request, user: dict, draft: dict, *, error: str | None
     return {
         "title": "Confirmar escaneo",
         "user": user,
-        "meta": MODULE_TEMPLATES["finanzas"],
+        "meta": meta_para("finanzas", int(user["id"])),
         "mes": mes,
         "anio": anio,
         "hoy": str(_hoy()),

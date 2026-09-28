@@ -32,8 +32,7 @@ from app.database import (
     verificar_alerta_20_30,
 )
 from app.db.matrimonio import gastos_vigentes, registrar_gasto_cita
-from app.onboarding import modulo_activo
-from app.templates import MODULE_TEMPLATES
+from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
 
@@ -126,9 +125,9 @@ def _ctx(
             nota_edit = None
 
     return {
-        "title": "Matrimonio",
+        "title": meta_para("matrimonio", int(user["id"]))["nombre"],
         "user": user,
-        "meta": MODULE_TEMPLATES["matrimonio"],
+        "meta": meta_para("matrimonio", int(user["id"])),
         "tab": tab,
         "flash": flash or request.session.pop("mat_flash", None),
         "error": error or request.session.pop("mat_error", None),
@@ -171,9 +170,9 @@ def matrimonio_page(request: Request, user: Annotated[dict, Depends(require_onbo
         return render(
             request,
             "paywall.html",
-            title="Matrimonio",
+            title=meta_para("matrimonio", int(user["id"]))["nombre"],
             user=user,
-            meta=MODULE_TEMPLATES["matrimonio"],
+            meta=meta_para("matrimonio", int(user["id"])),
             clave="matrimonio",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

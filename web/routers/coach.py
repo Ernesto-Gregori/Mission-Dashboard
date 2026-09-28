@@ -22,6 +22,7 @@ from app.onboarding import (
     aplicar_modulos,
     marcar_admins_existentes_como_onboarded,
     marcar_onboarding_completo,
+    meta_para,
     modulos_activos,
     sugerir_con_ia,
     usuario_onboarding_completo,
@@ -164,8 +165,8 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
         plan=plan,
         plan_label=limites(plan)["nombre"],
         plan_resumen=resumen_plan_ui(user),
-        activos=[{"clave": k, **MODULE_TEMPLATES[k]} for k in activos],
-        bloqueados=[{"clave": k, **MODULE_TEMPLATES[k]} for k in bloqueados[:8]],
+        activos=[{"clave": k, **meta_para(k, uid)} for k in activos],
+        bloqueados=[{"clave": k, **meta_para(k, uid)} for k in bloqueados[:8]],
         puede_reconfig=puede_reconfigurar_coach(plan),
         stripe_ok=payments_configured(),
         tope=modulos_max(plan),
@@ -240,7 +241,8 @@ def _render_sugerencia(request: Request, user: dict, sug: dict, plan: str):
     mods_ui = []
     selected = set(sug.get("modulos") or [])
     razones = sug.get("razones") or {}
-    for key, meta in MODULE_TEMPLATES.items():
+    for key in MODULE_TEMPLATES:
+        meta = meta_para(key, uid)
         mods_ui.append({
             **meta,
             "clave": key,
@@ -296,7 +298,8 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
                 "checked": False,
                 "razon": meta["descripcion"],
             }
-            for key, meta in MODULE_TEMPLATES.items()
+            for key in MODULE_TEMPLATES
+            for meta in [meta_para(key, uid)]
         ]
         return render(
             request,
@@ -333,7 +336,8 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
                 "checked": key in seleccion,
                 "razon": (sug.get("razones") or {}).get(key) or meta["descripcion"],
             }
-            for key, meta in MODULE_TEMPLATES.items()
+            for key in MODULE_TEMPLATES
+            for meta in [meta_para(key, uid)]
         ]
         return render(
             request,

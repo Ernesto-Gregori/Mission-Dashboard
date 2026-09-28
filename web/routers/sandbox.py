@@ -30,8 +30,7 @@ from app.database import (
     parsear_lista_sandbox,
     stats_sandbox,
 )
-from app.onboarding import modulo_activo
-from app.templates import MODULE_TEMPLATES
+from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
 
@@ -137,9 +136,9 @@ def _ctx(
     categorias = obtener_categorias_dominio(dominio_form)
 
     return {
-        "title": "Sandbox",
+        "title": meta_para("sandbox", int(user["id"]))["nombre"],
         "user": user,
-        "meta": MODULE_TEMPLATES["sandbox"],
+        "meta": meta_para("sandbox", int(user["id"])),
         "tab": tab,
         "flash": flash,
         "error": error,
@@ -188,9 +187,9 @@ def sandbox_page(request: Request, user: Annotated[dict, Depends(require_onboard
         return render(
             request,
             "paywall.html",
-            title="Sandbox",
+            title=meta_para("sandbox", int(user["id"]))["nombre"],
             user=user,
-            meta=MODULE_TEMPLATES["sandbox"],
+            meta=meta_para("sandbox", int(user["id"])),
             clave="sandbox",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

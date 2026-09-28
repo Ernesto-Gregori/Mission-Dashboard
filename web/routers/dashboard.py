@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from app.billing import limites, plan_vigente, puede_google, resumen_plan_ui
 from app.calendar_sync import items_foco, pull_range
 from app.coach_insights import ultimo_briefing
-from app.onboarding import listar_modulos_usuario
+from app.onboarding import listar_modulos_usuario, meta_para, modulo_activo
 from app.ritual import habitos_hoy, listar_habitos, obtener_ritual
 from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
@@ -31,9 +31,9 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
     rows = listar_modulos_usuario(uid)
     activos = {r["modulo"] for r in rows if int(r.get("activo") or 0) == 1}
     mods = []
-    for key, meta in MODULE_TEMPLATES.items():
+    for key in MODULE_TEMPLATES:
         mods.append({
-            **meta,
+            **meta_para(key, uid),
             "clave": key,
             "activo": key in activos,
             "href": f"/app/m/{key}",
@@ -101,6 +101,7 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         google_ok=google_ok,
         google_error=google_error,
         puede_google=puede_google(plan),
+        ritual_activo=modulo_activo("ritual", uid),
         hoy_flash=request.session.pop("hoy_flash", None),
         hoy_error=request.session.pop("hoy_error", None),
         life_hubs=dashboard_hubs(user),

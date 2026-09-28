@@ -235,6 +235,14 @@ def test_items_foco_mezcla_habito_y_evento(db_ready):
             """,
             [uid, dia],
         )
+        ejecutar(
+            """
+            INSERT INTO user_modulos (user_id, modulo, activo, config_json)
+            VALUES (?, 'salud', 1, '{}')
+            ON CONFLICT(user_id, modulo) DO UPDATE SET activo = 1
+            """,
+            [uid],
+        )
         items = items_foco(dia, user_id=uid)
     kinds = {i["kind"] for i in items}
     titles = [i["titulo"] for i in items]

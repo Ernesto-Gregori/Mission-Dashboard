@@ -10,6 +10,8 @@ from typing import Any
 from app.database import ejecutar, invalidate_data_caches
 from app.templates import (
     COACH_SYSTEM,
+    MODULE_TEMPLATES,
+    SUPERFICIES,
     catalogo_para_prompt,
     claves_validas,
 )
@@ -74,9 +76,9 @@ def listar_modulos_usuario(user_id: int | None = None) -> list[dict]:
     user_id = user_id or uid()
     rows = ejecutar(
         """
-        SELECT modulo, activo, config_json
+        SELECT modulo, activo, config_json, orden, alias
         FROM user_modulos WHERE user_id = ?
-        ORDER BY modulo
+        ORDER BY COALESCE(orden, 999), modulo
         """,
         [user_id],
         fetchall=True,
@@ -86,15 +88,130 @@ def listar_modulos_usuario(user_id: int | None = None) -> list[dict]:
 
 def modulos_activos(user_id: int | None = None) -> set[str]:
     user_id = user_id or uid()
+    valid = claves_validas()
     return {
         r["modulo"]
         for r in listar_modulos_usuario(user_id)
-        if int(r.get("activo") or 0) == 1
+        if r["modulo"] in valid and int(r.get("activo") or 0) == 1
     }
 
 
 def modulo_activo(clave: str, user_id: int | None = None) -> bool:
+    """Life modules need an active row. Surfaces stay on until turned off."""
+    user_id = user_id or uid()
+    if clave in SUPERFICIES:
+        fila = next(
+            (r for r in listar_modulos_usuario(user_id) if r.get("modulo") == clave),
+            None,
+        )
+        if fila is None:
+            return True
+        return int(fila.get("activo") or 0) == 1
     return clave in modulos_activos(user_id)
+
+
+def _alias(clave: str, user_id: int | None) -> str:
+    if not user_id:
+        return ""
+    fila = next(
+        (r for r in listar_modulos_usuario(user_id) if r.get("modulo") == clave),
+        None,
+    )
+    if not fila:
+        return ""
+    return str(fila.get("alias") or "").strip()
+
+
+def nombre_visible(clave: str, user_id: int | None = None) -> str:
+    meta = MODULE_TEMPLATES.get(clave) or {}
+    alias = _alias(clave, user_id or uid())
+    if alias:
+        return alias
+    return str(meta.get("nombre") or clave)
+
+
+def etiqueta_nav(clave: str, user_id: int | None = None) -> str:
+    meta = MODULE_TEMPLATES.get(clave) or {}
+    alias = _alias(clave, user_id or uid())
+    if alias and alias != str(meta.get("nombre_cuenta") or ""):
+        return alias
+    if alias:
+        return str(meta.get("nav_cuenta") or meta.get("nav") or meta.get("nombre") or clave)
+    return str(meta.get("nav") or meta.get("nombre") or clave)
+
+
+def etiqueta_blurb(clave: str, user_id: int | None = None) -> str:
+    meta = MODULE_TEMPLATES.get(clave) or {}
+    alias = _alias(clave, user_id or uid())
+    if alias:
+        return str(meta.get("blurb_cuenta") or meta.get("blurb") or "")
+    return str(meta.get("blurb") or meta.get("blurb_cuenta") or "")
+
+
+def meta_para(clave: str, user_id: int | None = None) -> dict:
+    meta = dict(MODULE_TEMPLATES[clave])
+    meta["nombre"] = nombre_visible(clave, user_id)
+    return meta
+
+
+MIGRACION_ALIAS = "personalizacion_alias_v1"
+
+
+def migrar_nombres_cuenta() -> None:
+    """Alias con el nombre actual para cuentas que ya terminaron el onboarding.
+
+    Corre una sola vez. Quien se da de alta después no hereda esos nombres.
+    Ritual, rueda y Alma quedan activos en esas cuentas, sin borrar datos.
+    """
+    _ensure_user_modulos_table(ejecutar)
+    _ensure_onboarding_column()
+    try:
+        hecho = ejecutar(
+            "SELECT id FROM _migrations WHERE id = ?",
+            [MIGRACION_ALIAS],
+            fetchall=True,
+        ) or []
+    except Exception:
+        hecho = []
+    if hecho:
+        return
+
+    usuarios = ejecutar(
+        """
+        SELECT id FROM usuarios
+        WHERE COALESCE(onboarding_completo, 0) = 1
+        """,
+        fetchall=True,
+    ) or []
+    for u in usuarios:
+        uid_i = int(u["id"])
+        for clave, meta in MODULE_TEMPLATES.items():
+            ejecutar(
+                """
+                UPDATE user_modulos
+                SET alias = ?,
+                    orden = COALESCE(orden, ?)
+                WHERE user_id = ? AND modulo = ?
+                  AND (alias IS NULL OR TRIM(alias) = '')
+                """,
+                [meta["nombre_cuenta"], int(meta.get("prioridad") or 0), uid_i, clave],
+            )
+        for i, clave in enumerate(SUPERFICIES):
+            ejecutar(
+                """
+                INSERT INTO user_modulos (user_id, modulo, activo, config_json, orden, alias)
+                VALUES (?, ?, 1, '{}', ?, NULL)
+                ON CONFLICT(user_id, modulo) DO NOTHING
+                """,
+                [uid_i, clave, 80 + i],
+            )
+    try:
+        ejecutar(
+            "INSERT OR IGNORE INTO _migrations (id) VALUES (?)",
+            [MIGRACION_ALIAS],
+        )
+    except Exception:
+        pass
 
 
 def aplicar_modulos(

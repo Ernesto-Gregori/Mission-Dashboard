@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from app.billing import PLAN_FREE, limites, plan_vigente, puede_google
-from app.onboarding import modulo_activo, usuario_onboarding_completo
+from app.onboarding import meta_para, modulo_activo, usuario_onboarding_completo
 from app.templates import MODULE_TEMPLATES
 from web.deps import require_onboarded, render
 
@@ -31,7 +31,10 @@ def module_page(
     request: Request,
     user: Annotated[dict, Depends(require_onboarded)],
 ):
-    meta = MODULE_TEMPLATES.get(clave)
+    if clave not in MODULE_TEMPLATES:
+        meta = None
+    else:
+        meta = meta_para(clave, int(user["id"]))
     if not meta:
         return render(
             request,
