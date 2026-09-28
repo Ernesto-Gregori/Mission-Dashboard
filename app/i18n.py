@@ -86,7 +86,6 @@ CATALOGO = {
     "Elige cómo empezar": "Choose how to start",
     "Coach — cuéntame de ti": "Coach — tell me about you",
     "Coach — tu sistema": "Coach — your system",
-    "Control de mando": "Today",
     "Política de privacidad": "Privacy policy",
     "Términos de servicio": "Terms of service",
     "Módulo": "Module",
@@ -210,7 +209,9 @@ CATALOGO = {
     "Plan Free: el Coach IA de setup es una sola vez.": "Free plan: the AI setup coach runs once.",
     "Desbloquear reconfiguración (Premium)": "Unlock reconfiguration (Premium)",
     "Disponibles en Premium": "Available on Premium",
-    "Upgrade": "Upgrade",
+    "Ver planes": "See plans",
+    "Elegir este plan": "Choose this plan",
+    "Tu plan actual": "Your current plan",
     "Tu sistema propuesto": "Your proposed system",
     "Hábitos sugeridos": "Suggested habits",
     "← Atrás": "← Back",
@@ -326,7 +327,7 @@ _PATRONES = (
     (re.compile(r"^Generado (.+) · ventana (\d+) días$"), r"Generated \1 · \2-day window"),
     (re.compile(r"^(\d+) días · (\d+) min$"), r"\1 days · \2 min"),
     (re.compile(r"^JSON inválido: (.+)$"), r"Invalid JSON: \1"),
-    (re.compile(r"^Último scrape: (.+)$"), r"Last scrape: \1"),
+    (re.compile(r"^Última actualización: (.+)$"), r"Last update: \1"),
     (re.compile(r"^(\d+) productos$"), r"\1 products"),
     (
         re.compile(r"^(\d+) productos indexados\. Usa la búsqueda o actualiza una tienda\.$"),
@@ -344,11 +345,11 @@ _PATRONES = (
     (re.compile(r"^(.*?) · Free: máx\. (\d+) módulos$"), r"\1 · Free: max. \2 modules"),
     (
         re.compile(
-            r"^Este módulo no está en tu cupo Free \(máx\. (\d+) módulos\)\. "
-            r"Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX\.$"
+            r"^Tu plan Free permite (\d+) áreas activas\. Puedes cambiar cuáles están activas, "
+            r"o pasar a Premium para tenerlas todas\.$"
         ),
-        r"This module is outside your Free allowance (max. \1 modules). "
-        r"Move to Premium to unlock it, or turn it on inside your allowance.",
+        r"Your Free plan allows \1 active areas. You can change which ones are on, "
+        r"or move to Premium to have them all.",
     ),
 )
 

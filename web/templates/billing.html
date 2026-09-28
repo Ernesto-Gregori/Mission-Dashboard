@@ -1,7 +1,7 @@
 {% extends "layout_app.html" %}
 {% block content %}
 <h1>Plan y cobros</h1>
-<p class="muted">Plan actual: <strong>{{ plan_label }}</strong> ({{ plan }})</p>
+<p class="muted">Plan actual: <strong>{{ plan_label }}</strong></p>
 {% if checkout_flash %}
   {% if checkout_flash.kind == 'ok' %}
   <div class="flash-ok">{{ checkout_flash.message }}</div>
@@ -13,13 +13,10 @@
 
 {% if not payments_ok %}
 <div class="flash-warn">
-  Cobros no configurados. Preferido: <strong>Lemon Squeezy</strong>
-  (<code>LEMON_SQUEEZY_API_KEY</code>, <code>LEMON_SQUEEZY_STORE_ID</code>,
-  <code>LEMON_SQUEEZY_VARIANT_PREMIUM</code>, <code>LEMON_SQUEEZY_WEBHOOK_SECRET</code>)
-  y <code>APP_URL</code>. Stripe queda como alternativa.
+  Los cobros todavía no están configurados en esta instalación, así que no se puede cambiar de plan.
 </div>
 {% elif payment_provider == 'lemon' %}
-<p class="muted">Pagos con Lemon Squeezy (Merchant of Record).</p>
+<p class="muted">Pagos con Lemon Squeezy.</p>
 {% elif payment_provider == 'stripe' %}
 <p class="muted">Pagos con Stripe.</p>
 {% endif %}
@@ -37,7 +34,7 @@
     </ul>
     <form method="post" action="/app/billing/checkout/{{ p.clave }}">
       <button class="btn block" type="submit" {% if plan == p.clave or not payments_ok %}disabled{% endif %}>
-        {% if plan == p.clave %}Plan actual{% else %}Upgrade{% endif %}
+        {% if plan == p.clave %}Tu plan actual{% else %}Elegir este plan{% endif %}
       </button>
     </form>
   </div>

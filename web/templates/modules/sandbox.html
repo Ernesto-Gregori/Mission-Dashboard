@@ -136,7 +136,7 @@
         <textarea id="idea-notes" name="notas" rows="2">{{ idea_edit.notas if idea_edit else '' }}</textarea>
       </div>
       <div class="form-actions">
-        <button class="btn" type="submit">{% if idea_edit %}💾 Guardar{% else %}➕ Crear idea{% endif %}</button>
+        <button class="btn" type="submit">{% if idea_edit %}💾 Guardar{% else %}➕ Agregar idea{% endif %}</button>
         {% if idea_edit %}<a class="btn secondary" href="/app/m/sandbox?tab=nueva">Cancelar</a>{% endif %}
       </div>
     </form>
@@ -207,7 +207,7 @@
         </div>
       </div>
       <div class="form-actions">
-        <button class="btn" type="submit">{% if snip_edit %}💾 Guardar{% else %}➕ Guardar snippet{% endif %}</button>
+        <button class="btn" type="submit">{% if snip_edit %}💾 Guardar{% else %}➕ Agregar snippet{% endif %}</button>
         {% if snip_edit %}<a class="btn secondary" href="/app/m/sandbox?tab=snippets">Cancelar</a>{% endif %}
       </div>
     </form>

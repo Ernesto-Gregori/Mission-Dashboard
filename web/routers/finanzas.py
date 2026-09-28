@@ -372,7 +372,7 @@ async def escanear_recibo(
             **_ctx(
                 request,
                 user,
-                error="Para escanear hace falta GROQ_API_KEY en el entorno.",
+                error="El escaneo de tickets necesita la IA, que está desactivada.",
             ),
         )
 

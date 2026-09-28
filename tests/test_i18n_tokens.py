@@ -110,7 +110,7 @@ def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
     assert ">Matrimonio</option>" in traducir_html('<option value="Matrimonio">Matrimonio</option>')
     assert ">/gasto 35 super</code>" in traducir_html("<code>/gasto 35 super</code>")
     assert "💾 Save day" in traducir_html("<button>💾 Guardar día</button>")
-    assert "Last scrape: ok" in traducir_html("<p>Último scrape: ok</p>")
+    assert "Last update: ok" in traducir_html("<p>Última actualización: ok</p>")
     assert "12 products" in traducir_html("<span>12 productos</span>")
     assert "· sleep 7.5h · ⚡8" in traducir_html("<span> · sueño 7.5h · ⚡8</span>")
     assert "Day 5 · 🏠 Alquiler · $100.00" in traducir_html("<span>Día 5 · 🏠 Alquiler · $100.00</span>")
@@ -158,10 +158,10 @@ def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     assert "Quota this week: 1/3." in traducir_html("<p>Cupo esta semana: 1/3.</p>")
     assert "Week 28/09 — 04/10/2026" in traducir_html("<h2>Semana 28/09 — 04/10/2026</h2>")
     aviso = (
-        "<div>Este módulo no está en tu cupo Free (máx. 3 módulos).\n"
-        "  Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX.</div>"
+        "<div>Tu plan Free permite 3 áreas activas.\n"
+        "  Puedes cambiar cuáles están activas, o pasar a Premium para tenerlas todas.</div>"
     )
-    assert "Free allowance (max. 3 modules)" in traducir_html(aviso)
+    assert "Your Free plan allows 3 active areas" in traducir_html(aviso)
     assert ">Mar</option>" in traducir_html("<option>Mar</option>")
     assert "Days in a row met: Hacer ejercicio" in traducir_html(
         "<p>Días seguidos cumpliendo: Hacer ejercicio</p>"
@@ -309,12 +309,12 @@ def test_lectura_y_enfoque_en_ingles(web_client):
     assert "No books yet. Add one under New." in libros.text
     assert "Sin libros" not in libros.text
     nuevo = web_client.get("/app/m/biblioteca?tab=nuevo")
-    assert "Save book" in nuevo.text
+    assert "Add book" in nuevo.text
     foco = web_client.get("/app/m/deep_work")
     assert "Focus blocks · daily log" in foco.text
     assert "Bloques de enfoque" not in foco.text
     config = web_client.get("/app/m/deep_work?tab=config")
-    assert "Create block" in config.text
+    assert "Add block" in config.text
 
 
 def test_token_de_google_se_guarda_cifrado_y_el_plano_se_migra(web_client, monkeypatch, tmp_path):

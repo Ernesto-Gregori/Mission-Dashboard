@@ -15,7 +15,7 @@
   <h2>Tiendas</h2>
   <p class="muted compact-copy">
     Catálogo local para cruzar precios al escanear recibos.
-    <strong>Actualizar</strong> hace un scrape corto; el completo sigue por CLI/cron.
+    <strong>Actualizar</strong> trae una muestra de precios de esa tienda.
   </p>
   {% if total_productos_sv == 0 %}
   <div class="flash-warn">
@@ -30,7 +30,7 @@
         <span class="badge">{{ c.productos }} productos</span>
         {% if c.ultimo_status %}
         <p class="muted store-meta">
-          Último scrape: {{ c.ultimo_status }}
+          Última actualización: {{ c.ultimo_status }}
           {% if c.ultimo_finished_at %}· {{ c.ultimo_finished_at }}{% endif %}
           {% if c.ultimo_upserted %}· +{{ c.ultimo_upserted }}{% endif %}
         </p>
@@ -38,7 +38,7 @@
         <p class="flash-error compact-alert">{{ c.ultimo_error }}</p>
         {% endif %}
         {% else %}
-        <p class="muted store-meta">Sin scrapes todavía</p>
+        <p class="muted store-meta">Sin precios todavía</p>
         {% endif %}
       </div>
       <form method="post" action="/app/m/finanzas/precios/actualizar"

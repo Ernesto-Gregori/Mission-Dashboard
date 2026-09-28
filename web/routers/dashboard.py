@@ -84,7 +84,7 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
     return render(
         request,
         "dashboard.html",
-        title="Control de mando",
+        title="Hoy",
         user=user,
         plan=plan,
         plan_label=limites(plan)["nombre"],

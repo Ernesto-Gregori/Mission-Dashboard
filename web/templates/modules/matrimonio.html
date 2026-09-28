@@ -166,7 +166,7 @@
         <textarea id="appointment-preparation" name="preparacion" rows="2">{{ cita_edit.notas_preparacion if cita_edit else '' }}</textarea>
       </div>
       <div class="form-actions">
-        <button class="btn" type="submit">{% if cita_edit %}💾 Guardar cambios{% else %}➕ Crear cita{% endif %}</button>
+        <button class="btn" type="submit">{% if cita_edit %}💾 Guardar cambios{% else %}➕ Agregar cita{% endif %}</button>
         {% if cita_edit %}<a class="btn secondary" href="/app/m/matrimonio?tab=nueva">Cancelar</a>{% endif %}
       </div>
     </form>
@@ -220,7 +220,7 @@
         <input id="note-context" name="contexto" value="{{ nota_edit.contexto if nota_edit else '' }}" placeholder="Cuándo / por qué lo anotaste" />
       </div>
       <div class="form-actions">
-        <button class="btn" type="submit">{% if nota_edit %}💾 Guardar{% else %}➕ Añadir nota{% endif %}</button>
+        <button class="btn" type="submit">{% if nota_edit %}💾 Guardar{% else %}➕ Agregar nota{% endif %}</button>
         {% if nota_edit %}<a class="btn secondary" href="/app/m/matrimonio?tab=notas">Cancelar</a>{% endif %}
       </div>
     </form>

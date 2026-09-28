@@ -93,11 +93,7 @@
         </form>
       </div>
       {% else %}
-      <p class="muted">No vinculado.
-        {% if fit.oauth_web %}
-        Redirect: <code>{{ fit.redirect_uri or '—' }}</code>
-        {% endif %}
-      </p>
+      <p class="muted">No vinculado.</p>
       <div class="form-actions">
         <a class="btn" href="/app/m/salud/oauth/start">🔐 Conectar con Google</a>
       </div>
@@ -325,7 +321,7 @@
       <label for="eq-name">Nuevo equipamiento</label>
       <div class="ex-equip-row">
         <input id="eq-name" name="equipment_name" maxlength="80" placeholder="Ej. banda elástica" required />
-        <button class="btn" type="submit">Añadir</button>
+        <button class="btn" type="submit">Agregar</button>
       </div>
     </form>
   </div>

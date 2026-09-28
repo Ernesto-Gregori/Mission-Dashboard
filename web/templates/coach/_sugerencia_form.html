@@ -4,13 +4,11 @@
 
 <div class="flash-ok" role="status">{{ sug.resumen }}</div>
 <p class="muted compact-copy coach-source">
-  Fuente: {% if sug.fuente == 'ia' %}Groq IA{% else %}reglas / fallback (IA offline){% endif %}
+  Fuente: {% if sug.fuente == 'ia' %}el Coach IA{% else %}reglas simples, sin IA{% endif %}
 </p>
 {% if sug.fuente != 'ia' %}
 <div class="flash-warn">
-  El Coach IA está offline. FastAPI lee <code>GROQ_API_KEY</code> desde el entorno
-  o en <code>.env</code> / variables de Railway
-  si corres uvicorn aparte. Reinicia el servidor tras añadir la clave.
+  El Coach IA está desactivado en esta instalación, así que esta propuesta sale de reglas simples.
 </div>
 {% endif %}
 

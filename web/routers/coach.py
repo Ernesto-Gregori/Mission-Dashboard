@@ -83,7 +83,7 @@ def coach_home(request: Request, user: Annotated[dict, Depends(require_user)]):
                 plan,
                 error=(
                     "Plan Free: el Coach IA de setup es una sola vez. "
-                    "Upgrade a Premium para reconfigurar."
+                    "Pasa a Premium para reconfigurar tu sistema."
                 ),
             )
         request.session["coach_reconfig"] = True

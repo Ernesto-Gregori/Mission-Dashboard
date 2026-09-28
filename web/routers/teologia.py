@@ -199,7 +199,7 @@ async def sugerir(request: Request, user: Annotated[dict, Depends(require_onboar
     request.session["teo_tab"] = "hoy"
     ctx = _ctx(request, user)
     if not api_key_configurada():
-        ctx["error"] = "IA offline: configura GROQ_API_KEY."
+        ctx["error"] = "La IA está desactivada, así que no puedo sugerir una lectura."
         return render(request, "modules/teologia.html", **ctx)
     tema = str(form.get("tema") or "ánimo y fe").strip()
     texto = sugerir_lectura_devocional(tema) or "Sin sugerencia."

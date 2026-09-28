@@ -39,7 +39,7 @@
     <input id="hab-new-label" name="label" placeholder="Ej: Leer 20 minutos" maxlength="40" required />
     <label class="sr-only" for="hab-new-hora">Hora (opcional)</label>
     <input id="hab-new-hora" name="hora" type="time" />
-    <span class="habit-actions"><button class="btn" type="submit">Agregar</button></span>
+    <span class="habit-actions"><button class="btn" type="submit">Agregar hábito</button></span>
   </form>
 
   {% if habitos_archivados %}
@@ -90,7 +90,7 @@
     <li>{{ m.emoji }} {{ m.nombre }} — {{ m.descripcion }}</li>
     {% endfor %}
   </ul>
-  <a class="btn secondary" href="/app/billing">Upgrade</a>
+  <a class="btn secondary" href="/app/billing">Ver planes</a>
 </div>
 {% endif %}
 {% endblock %}
