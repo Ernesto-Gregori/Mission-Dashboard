@@ -218,12 +218,14 @@ def aplicar_modulos(
     claves: list[str],
     user_id: int | None = None,
     razones: dict | None = None,
+    *,
+    permitir_vacio: bool = False,
 ) -> None:
     _ensure_user_modulos_table(ejecutar)
     user_id = user_id or uid()
     valid = claves_validas()
     elegidos = [c for c in claves if c in valid]
-    if not elegidos:
+    if not elegidos and not permitir_vacio:
         elegidos = ["agenda"]
 
     # Cupo por plan (Free: máx N; agenda primero)
@@ -432,21 +434,15 @@ def _sugerencia_fallback(perfil: dict) -> dict:
         if key and key not in mods:
             mods.append(key)
             razones[key] = f"Lo pediste en el área «{a}»."
-    # Si no marcó nada, set equilibrado corto
-    if len(mods) == 1:
-        mods += ["teologia", "finanzas", "salud"]
-        razones.update({
-            "teologia": "Base espiritual práctica.",
-            "finanzas": "Visibilidad del dinero.",
-            "salud": "Energía y cuerpo.",
-        })
+    habitos = []
+    if "teologia" in mods:
+        habitos.append({"clave": "practica", "label": "Práctica", "emoji": "🕯️", "hora": ""})
+    if "salud" in mods:
+        habitos.append({"clave": "movimiento", "label": "Movimiento", "emoji": "🚶", "hora": ""})
     return {
         "resumen": "Armé un set inicial según lo que compartiste (modo sin IA o IA offline).",
         "modulos": mods[:6],
         "razones": razones,
-        "habitos": [
-            {"clave": "devocional", "label": "Devocional", "emoji": "📖", "hora": "05:45"},
-            {"clave": "movimiento", "label": "Movimiento", "emoji": "🚶", "hora": "—"},
-        ],
+        "habitos": habitos,
         "fuente": "fallback",
     }

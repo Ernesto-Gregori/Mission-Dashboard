@@ -141,6 +141,13 @@ def ensure_database() -> None:
             migrar_nombres_cuenta()
         except Exception as e:
             print(f"[ensure_database] personalizacion: {e}")
+        try:
+            from app.db.relax import relajar_cheques_personales
+            from app.cuenta import asegurar_schema
+            relajar_cheques_personales()
+            asegurar_schema()
+        except Exception as e:
+            print(f"[ensure_database] cuenta: {e}")
         _db_ready = True
     except Exception:
         init_database()
@@ -159,6 +166,13 @@ def ensure_database() -> None:
             migrar_nombres_cuenta()
         except Exception as e:
             print(f"[ensure_database] personalizacion: {e}")
+        try:
+            from app.db.relax import relajar_cheques_personales
+            from app.cuenta import asegurar_schema
+            relajar_cheques_personales()
+            asegurar_schema()
+        except Exception as e:
+            print(f"[ensure_database] cuenta: {e}")
 
 
 def ensure_remote_schema():

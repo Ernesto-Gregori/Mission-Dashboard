@@ -84,11 +84,11 @@
     <form class="ritual-form ritual-compact" method="post" action="/app/ritual">
       <input type="hidden" name="next" value="/app" />
       <div>
-        <label for="ritual-gratitud">Gratitud</label>
+        <label for="ritual-gratitud">{{ ritual_a }}</label>
         <textarea id="ritual-gratitud" name="gratitud" rows="2" maxlength="800" placeholder="Tres cosas por las que estoy agradecido">{{ ritual.gratitud }}</textarea>
       </div>
       <div>
-        <label for="ritual-intencion">Intención</label>
+        <label for="ritual-intencion">{{ ritual_b }}</label>
         <textarea id="ritual-intencion" name="intencion" rows="2" maxlength="800" placeholder="Lo único que, si lo hago, el día ya valió">{{ ritual.intencion }}</textarea>
       </div>
       {% if habitos %}
@@ -117,8 +117,14 @@
       <h2 id="modules-title">Tus áreas</h2>
       <p class="muted">{{ activos_count }} módulos activos</p>
     </div>
+    <a href="/app/configuracion">Configuración</a>
     <a href="/app/coach">Mi sistema</a>
   </div>
+  {% set areas_vida = life_hubs | rejectattr('id', 'equalto', 'semana') | list %}
+  {% if not areas_vida %}
+  <p class="muted empty-state">Todavía no activaste áreas. Hoy, Semana y Cuenta siguen aquí. Puedes armarlas en <a href="/app/configuracion">Configuración</a>.</p>
+  {% endif %}
+  {% if life_hubs %}
   <div class="module-grid hub-grid">
     {% for h in life_hubs %}
     <article class="module-card hub-card" data-hub="{{ h.id }}">
@@ -138,6 +144,7 @@
     </article>
     {% endfor %}
   </div>
+  {% endif %}
 </section>
 
 {% endblock %}

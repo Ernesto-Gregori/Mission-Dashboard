@@ -6,8 +6,10 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.database import autenticar_usuario, contar_usuarios, crear_usuario
+from app.i18n import aplicar_cookie_idioma, normalizar
 from app.multiuser import provision_user_defaults
 from app.rate_limit import registrar_exito, registrar_fallo, segundos_bloqueo
+from app.tema import next_seguro
 from web.deps import get_session_user, login_user, logout_user, render
 
 router = APIRouter(tags=["auth"])
@@ -103,3 +105,20 @@ def setup_submit(
 def logout(request: Request):
     logout_user(request)
     return RedirectResponse("/login", status_code=303)
+
+
+@router.get("/idioma")
+def cambiar_idioma(request: Request, lang: str = "es", next: str = ""):
+    idioma = normalizar(lang)
+    user = get_session_user(request)
+    if user and user.get("id") is not None:
+        try:
+            from app.cuenta import guardar_idioma
+
+            guardar_idioma(int(user["id"]), idioma)
+        except Exception:
+            pass
+    destino = next_seguro(request, next)
+    response = RedirectResponse(destino, status_code=303)
+    aplicar_cookie_idioma(response, idioma)
+    return response

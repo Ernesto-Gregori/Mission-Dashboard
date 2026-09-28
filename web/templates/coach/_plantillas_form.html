@@ -1,0 +1,19 @@
+<h1>Coach Mission Dashboard</h1>
+<p class="muted">Elige una plantilla. Si no eliges, no se crea ningún hábito ni área.</p>
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<form method="post" action="/app/coach/plantilla">
+  <fieldset class="coach-area-grid">
+    <legend class="form-label">Cómo quieres empezar</legend>
+    {% for p in perfiles %}
+    <label class="check-row" for="plantilla-{{ p.id }}">
+      <input id="plantilla-{{ p.id }}" type="radio" name="plantilla" value="{{ p.id }}" required />
+      <span><strong>{{ p.nombre }}</strong><br><span class="muted">{{ p.detalle }}</span></span>
+    </label>
+    {% endfor %}
+  </fieldset>
+  <div class="form-actions">
+    <button class="btn block" type="submit">Empezar</button>
+  </div>
+</form>
+<p class="muted"><a href="/app/coach?modo=perfil">Prefiero contárselo al coach</a></p>

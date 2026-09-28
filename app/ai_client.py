@@ -372,12 +372,49 @@ def probar_groq() -> dict:
         info["detalle"] = last_ai_error()
     return info
 
+def system_mision_para(user_id: int | None = None) -> str:
+    """Prompt de sistema según las áreas activas de la cuenta."""
+    try:
+        from app.onboarding import modulos_activos, modulo_activo, nombre_visible
+        from app.tenant import uid as _uid
+
+        uid_i = int(user_id) if user_id is not None else int(_uid())
+        nombres = [nombre_visible(k, uid_i) for k in sorted(modulos_activos(uid_i))]
+        texto = (
+            "Eres la asistente de Mission Dashboard. "
+            "Respondes en español, de forma breve y práctica. "
+            "Solo hablas de las áreas activas: "
+            + (", ".join(nombres) if nombres else "ninguna todavía")
+            + "."
+        )
+        if not modulo_activo("teologia", uid_i):
+            texto += " No cites versículos ni des por sentada una práctica espiritual."
+        return texto
+    except Exception:
+        return SYSTEM_MISION
+
+
 def generar_resumen_semanal(*args, **kwargs) -> str:
-    resultado = _llamar_ai(
-        "Genera un resumen motivacional semanal. Incluye: victorias posibles, "
-        "área de mejora y un versículo bíblico. Máximo 200 palabras. Usa markdown.",
-        system=SYSTEM_MISION,
-    )
+    espiritual = True
+    try:
+        from app.onboarding import modulo_activo
+        from app.tenant import uid as _uid
+
+        espiritual = modulo_activo("teologia", int(_uid()))
+    except Exception:
+        espiritual = True
+    if espiritual:
+        pedido = (
+            "Genera un resumen motivacional semanal. Incluye: victorias posibles, "
+            "área de mejora y un versículo bíblico. Máximo 200 palabras. Usa markdown."
+        )
+    else:
+        pedido = (
+            "Genera un resumen motivacional semanal. Incluye: victorias posibles y "
+            "un área de mejora. Máximo 200 palabras. Usa markdown. "
+            "No cites versículos."
+        )
+    resultado = _llamar_ai(pedido, system=system_mision_para())
     return resultado or _fallback("resumen_semanal")
 
 def generar_alerta_matrimonio(contexto: str = "") -> str:

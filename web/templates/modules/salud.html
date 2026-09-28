@@ -149,8 +149,8 @@
         <legend>Energía</legend>
         <div class="health-form-grid cols-3">
           <div><label for="energy-morning">Mañana</label><input id="energy-morning" name="energia_manana" type="number" min="1" max="10" value="{{ form.energia_manana }}" /></div>
-          <div><label for="energy-afternoon">Tarde</label><input id="energy-afternoon" name="energia_tarde" type="number" min="1" max="10" value="{{ form.energia_tarde }}" /></div>
-          <div><label for="energy-night">Noche</label><input id="energy-night" name="energia_noche" type="number" min="1" max="10" value="{{ form.energia_noche }}" /></div>
+          {% if 'energia_tarde' in metricas %}<div><label for="energy-afternoon">Tarde</label><input id="energy-afternoon" name="energia_tarde" type="number" min="1" max="10" value="{{ form.energia_tarde }}" /></div>{% endif %}
+          {% if 'energia_noche' in metricas %}<div><label for="energy-night">Noche</label><input id="energy-night" name="energia_noche" type="number" min="1" max="10" value="{{ form.energia_noche }}" /></div>{% endif %}
         </div>
       </fieldset>
 

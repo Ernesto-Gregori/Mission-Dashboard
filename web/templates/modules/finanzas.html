@@ -74,9 +74,9 @@
   <div class="flash-warn">Sin ingreso este mes — registra uno arriba para ver presupuestos.</div>
   {% else %}
   <dl class="finance-metrics">
-    <div><dt>Ingreso</dt><dd>${{ '%.0f'|format(resumen.ingreso) }}</dd></div>
-    <div><dt>Gastado</dt><dd>${{ '%.0f'|format(resumen.total_gastado) }}</dd></div>
-    <div><dt>Disponible</dt><dd>${{ '%.0f'|format(resumen.total_disponible) }}</dd></div>
+    <div><dt>Ingreso</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.ingreso) }}</dd></div>
+    <div><dt>Gastado</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.total_gastado) }}</dd></div>
+    <div><dt>Disponible</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.total_disponible) }}</dd></div>
     <div><dt>Uso global</dt><dd>{{ '%.0f'|format(resumen.pct_global) }}%</dd></div>
   </dl>
   {% endif %}
@@ -89,11 +89,11 @@
     <div class="envelope-heading"><span aria-hidden="true">{{ s.emoji }}</span> <strong>{{ s.nombre }}</strong> · {{ s.pct }}%</div>
     <p class="muted compact-copy">{{ s.descripcion }}</p>
     <p class="envelope-progress">
-      ${{ '%.0f'|format(s.gastado) }} / ${{ '%.0f'|format(s.presupuesto) }}
+      {{ moneda }}{{ '%.0f'|format(s.gastado) }} / {{ moneda }}{{ '%.0f'|format(s.presupuesto) }}
       · {{ '%.0f'|format(s.pct_usado) }}%
     </p>
     <p class="envelope-available{% if s.disponible < 0 %} is-negative{% endif %}">
-      Disponible: ${{ '%.0f'|format(s.disponible) }}
+      Disponible: {{ moneda }}{{ '%.0f'|format(s.disponible) }}
     </p>
   </article>
   {% endfor %}
@@ -231,7 +231,7 @@
   </div>
   <ul class="spend-legend">
     {% for d in resumen.chart %}
-    <li>{{ d.nombre }} ${{ '%.0f'|format(d.monto) }} ({{ '%.0f'|format(d.pct) }}%)</li>
+    <li>{{ d.nombre }} {{ moneda }}{{ '%.0f'|format(d.monto) }} ({{ '%.0f'|format(d.pct) }}%)</li>
     {% endfor %}
   </ul>
   {% endif %}
@@ -263,7 +263,7 @@
             <span class="badge">{{ g.origen_label }}</span>
             {% endif %}
           </td>
-          <td>${{ '%.2f'|format(g.monto) }}</td>
+          <td>{{ moneda }}{{ '%.2f'|format(g.monto) }}</td>
           <td>
             <form method="post" action="/app/m/finanzas/gasto/{{ g.id }}/eliminar" onsubmit="return confirm('¿Eliminar gasto?')">
               <button class="btn secondary icon-button" type="submit" aria-label="Eliminar gasto {{ g.descripcion }}">✕</button>
