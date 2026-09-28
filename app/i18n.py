@@ -1,9 +1,14 @@
-"""Idioma de la interfaz. Español es el origen; inglés se aplica al HTML ya renderizado."""
+"""Idioma de la interfaz. Español es el origen; inglés se aplica al HTML ya renderizado
+y, en el bot, al texto plano de cada respuesta."""
 from __future__ import annotations
 
 import html
 import re
 from html.parser import HTMLParser
+
+from app.i18n_frases import FRASES
+from app.i18n_telegram import FRASES as FRASES_TG
+from app.i18n_telegram import PATRONES as _PATRONES_TG_SRC
 
 IDIOMAS = ("es", "en")
 COOKIE = "mission_lang"
@@ -258,11 +263,62 @@ CATALOGO = {
     "admin": "admin",
 }
 
+for _clave, _valor in FRASES.items():
+    CATALOGO.setdefault(_clave, _valor)
+for _clave, _valor in FRASES_TG.items():
+    CATALOGO.setdefault(_clave, _valor)
+
 _PATRONES = (
     (re.compile(r"^(\d+) módulos activos$"), r"\1 active modules"),
     (re.compile(r"^Archivados \((\d+)\)$"), r"Archived (\1)"),
     (re.compile(r"^Demasiados intentos\. Espera (\d+)s\.$"), r"Too many attempts. Wait \1s."),
+    (re.compile(r"^Cupo esta semana: (\d+)/(\d+)\.$"), r"Quota this week: \1/\2."),
+    (re.compile(r"^Semana (\d{2}/\d{2}) — (\d{2}/\d{2}/\d{4})$"), r"Week \1 — \2"),
+    (re.compile(r"^Días seguidos cumpliendo: (.+)$"), r"Days in a row met: \1"),
+    (re.compile(r"^3 sobres · (.+)$"), r"3 envelopes · \1"),
+    (re.compile(r"^3 sobres \(([\d/]+)\)$"), r"3 envelopes (\1)"),
+    (re.compile(r"^Disponible: (.+)$"), r"Available: \1"),
+    (re.compile(r"^(.*?) · Free: máx\. (\d+) módulos$"), r"\1 · Free: max. \2 modules"),
+    (
+        re.compile(
+            r"^Este módulo no está en tu cupo Free \(máx\. (\d+) módulos\)\. "
+            r"Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX\.$"
+        ),
+        r"This module is outside your Free allowance (max. \1 modules). "
+        r"Move to Premium to unlock it, or turn it on inside your allowance.",
+    ),
 )
+
+_PATRONES_TG = tuple((re.compile(patron), reemplazo) for patron, reemplazo in _PATRONES_TG_SRC)
+
+_MODULO_EN = {
+    "finanzas": "Finance",
+    "agenda": "Calendar",
+    "salud": "Health",
+    "deep_work": "Focus",
+    "sandbox": "Ideas",
+    "biblioteca": "Reading",
+    "teologia": "Spirituality",
+    "matrimonio": "Relationships",
+}
+_ESTADO_EN = {"Completado": "Done", "Parcial": "Partial", "Postergado": "Postponed"}
+_MOMENTO_EN = {"manana": "morning", "tarde": "afternoon", "noche": "evening"}
+_RE_GASTO = re.compile(r"^Anoté \$([0-9.]+) en «(.+)» → (.+) \((.+)\)\.$")
+_RE_LISTO = re.compile(r"^Listo: ahora está en (.+) \((.+)\)\.$")
+_RE_SOBRE = re.compile(r"^Sobre más justo: (🟢|🟡|🔴) (.+) \$(\d+)$")
+_RE_LUZ = re.compile(r"^(🟢|🟡|🔴) (.+): \$(\d+) de \$(\d+)$")
+_RE_SALUD = re.compile(r"^Salud: (.+)$")
+_RE_ROJOS = re.compile(r"^Sobres en rojo: (.+)$")
+_RE_MODULO_AYUDA = re.compile(
+    r"^El módulo «([a-z0-9_]+)» está apagado\. Se prende en la app, en Coach\. No listo comandos\.$"
+)
+_RE_MODULO_OFF = re.compile(
+    r"^El módulo «([a-z0-9_]+)» está apagado, así que no guardé nada\. "
+    r"Activalo en la app → Coach → Módulos\.$"
+)
+_RE_ENERGIA = re.compile(r"^Anoté energía de (manana|tarde|noche) en (\d)/5\.$")
+_RE_BLOQUE = re.compile(r"^(\d{2}:\d{2}) (.+) · (Completado|Parcial|Postergado)$")
+_RE_ESTADO = re.compile(r"^(.+): (Completado|Parcial|Postergado)\.$")
 
 _ATRIBUTOS = {"placeholder", "aria-label", "title", "alt"}
 _SALTAR = {"script", "style", "textarea"}
@@ -295,11 +351,102 @@ def traducir_fragmento(texto: str) -> str:
         return texto
     lead = texto[: len(texto) - len(texto.lstrip())]
     trail = texto[len(texto.rstrip()) :]
-    nucleo = texto.strip()
+    nucleo = " ".join(texto.split())
     nuevo = _nucleo(nucleo)
     if nuevo == nucleo:
         return texto
     return f"{lead}{nuevo}{trail}"
+
+
+def _caso_telegram(nucleo: str) -> str | None:
+    """Líneas del bot cuyo dato (nombre, monto, título) no se traduce, salvo etiquetas conocidas."""
+    gasto = _RE_GASTO.fullmatch(nucleo)
+    if gasto:
+        return (
+            f"Logged ${gasto.group(1)} under «{gasto.group(2)}» → "
+            f"{_nucleo(gasto.group(3))} ({_nucleo(gasto.group(4))})."
+        )
+    listo = _RE_LISTO.fullmatch(nucleo)
+    if listo:
+        return f"Done: it is now in {_nucleo(listo.group(1))} ({_nucleo(listo.group(2))})."
+    sobre = _RE_SOBRE.fullmatch(nucleo)
+    if sobre:
+        return f"Tightest envelope: {sobre.group(1)} {_nucleo(sobre.group(2))} ${sobre.group(3)}"
+    luz = _RE_LUZ.fullmatch(nucleo)
+    if luz:
+        return f"{luz.group(1)} {_nucleo(luz.group(2))}: ${luz.group(3)} of ${luz.group(4)}"
+    rojos = _RE_ROJOS.fullmatch(nucleo)
+    if rojos:
+        nombres = ", ".join(_nucleo(p.strip()) for p in rojos.group(1).split(","))
+        return f"Envelopes in the red: {nombres}"
+    salud = _RE_SALUD.fullmatch(nucleo)
+    if salud:
+        resto = re.sub(r"sueño ([\d.]+) h", r"sleep \1 h", salud.group(1))
+        resto = re.sub(r"rutina (.+) días", r"routine \1 days", resto)
+        return f"Health: {resto}"
+    ayuda = _RE_MODULO_AYUDA.fullmatch(nucleo)
+    if ayuda:
+        return (
+            f"The «{_MODULO_EN.get(ayuda.group(1), ayuda.group(1))}» module is off. "
+            "Turn it on in the app, under Coach. I won't list commands."
+        )
+    apagado = _RE_MODULO_OFF.fullmatch(nucleo)
+    if apagado:
+        return (
+            f"The «{_MODULO_EN.get(apagado.group(1), apagado.group(1))}» module is off, so I saved nothing. "
+            "Turn it on in the app → Coach → Modules."
+        )
+    mods = re.fullmatch(r"Módulos: (.+)", nucleo)
+    if mods and mods.group(1) != "ninguno":
+        nombres = ", ".join(_MODULO_EN.get(p.strip(), p.strip()) for p in mods.group(1).split(","))
+        return f"Modules: {nombres}"
+    energia = _RE_ENERGIA.fullmatch(nucleo)
+    if energia:
+        momento = _MOMENTO_EN.get(energia.group(1), energia.group(1))
+        return f"Logged {momento} energy at {energia.group(2)}/5."
+    bloque = _RE_BLOQUE.fullmatch(nucleo)
+    if bloque:
+        return f"{bloque.group(1)} {bloque.group(2)} · {_ESTADO_EN.get(bloque.group(3), bloque.group(3))}"
+    estado = _RE_ESTADO.fullmatch(nucleo)
+    if estado:
+        return f"{estado.group(1)}: {_ESTADO_EN.get(estado.group(2), estado.group(2))}."
+    return None
+
+
+def _nucleo_telegram(nucleo: str) -> str:
+    nuevo = _nucleo(nucleo)
+    if nuevo != nucleo:
+        return nuevo
+    especial = _caso_telegram(nucleo)
+    if especial is not None:
+        return especial
+    for patron, reemplazo in _PATRONES_TG:
+        if patron.fullmatch(nucleo):
+            return patron.sub(reemplazo, nucleo)
+    if " — " in nucleo:
+        izquierda, derecha = nucleo.split(" — ", 1)
+        izq = _nucleo_telegram(izquierda)
+        der = _nucleo_telegram(derecha)
+        if izq != izquierda or der != derecha:
+            return f"{izq} — {der}"
+    return nucleo
+
+
+def traducir_plano(texto: str, idioma: str | None = "es") -> str:
+    """Texto de Telegram, línea a línea. En español el mensaje no cambia."""
+    if normalizar(idioma or "es") != "en" or not texto:
+        return texto
+    lineas = []
+    for linea in texto.split("\n"):
+        if not linea.strip():
+            lineas.append(linea)
+            continue
+        lead = linea[: len(linea) - len(linea.lstrip())]
+        trail = linea[len(linea.rstrip()) :]
+        nucleo = " ".join(linea.split())
+        nuevo = _nucleo_telegram(nucleo)
+        lineas.append(linea if nuevo == nucleo else f"{lead}{nuevo}{trail}")
+    return "\n".join(lineas)
 
 
 class _Reescritor(HTMLParser):
