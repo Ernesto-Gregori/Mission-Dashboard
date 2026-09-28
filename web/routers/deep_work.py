@@ -24,8 +24,7 @@ from app.database import (
     reactivar_bloque,
     registrar_sesion,
 )
-from app.onboarding import modulo_activo
-from app.templates import MODULE_TEMPLATES
+from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
 
@@ -90,13 +89,14 @@ def _ctx(
             DIAS_LABELS_DW[d - 1] for d in b["dias_list"] if 1 <= d <= 7
         )
 
-    tipos = obtener_tipos_bloque() or ["Deep Work", "Estudio", "Código", "Otro"]
+    tipos = obtener_tipos_bloque() or ["Enfoque", "Estudio", "Código", "Otro"]
     color_labels = list(COLORES_DW.keys())
+    meta = meta_para("deep_work", int(user["id"]))
 
     return {
-        "title": "Deep Work",
+        "title": meta["nombre"],
         "user": user,
-        "meta": MODULE_TEMPLATES["deep_work"],
+        "meta": meta,
         "tab": tab,
         "flash": flash,
         "error": error,
@@ -141,12 +141,13 @@ def _redirect(tab: str = "dia", fecha: str | None = None) -> RedirectResponse:
 @router.get("/", response_class=HTMLResponse)
 def deep_work_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     if not modulo_activo("deep_work", int(user["id"])):
+        meta = meta_para("deep_work", int(user["id"]))
         return render(
             request,
             "paywall.html",
-            title="Deep Work",
+            title=meta["nombre"],
             user=user,
-            meta=MODULE_TEMPLATES["deep_work"],
+            meta=meta,
             clave="deep_work",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

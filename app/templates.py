@@ -5,10 +5,17 @@ La IA del coach elige entre estas plantillas según el perfil del usuario.
 """
 from __future__ import annotations
 
-# Clave = id estable en user_modulos.modulo
+# Clave = id estable en user_modulos.modulo. No se renombra.
+# nombre / nav / blurb: quien no tiene alias.
+# nombre_cuenta / nav_cuenta / blurb_cuenta: la cuenta ya existente, vía alias.
 MODULE_TEMPLATES: dict[str, dict] = {
     "agenda": {
         "nombre": "Revisión semanal",
+        "nombre_cuenta": "Revisión semanal",
+        "nav": "Semana",
+        "nav_cuenta": "Semana",
+        "blurb": "Planificar la semana, bloques de enfoque y revisión del domingo.",
+        "blurb_cuenta": "Planificar la semana, bloques de enfoque y revisión del domingo.",
         "emoji": "📋",
         "page": "pages/01_Agenda.py",
         "descripcion": "Bitácora de la semana (victorias y reflexión) con tus datos ya calculados.",
@@ -17,30 +24,50 @@ MODULE_TEMPLATES: dict[str, dict] = {
     },
     "finanzas": {
         "nombre": "Finanzas",
+        "nombre_cuenta": "Finanzas",
+        "nav": "Dinero",
+        "nav_cuenta": "Dinero",
+        "blurb": "Ingreso, gastos y vencimientos.",
+        "blurb_cuenta": "Ingreso repartido en sobres, vencimientos y precios.",
         "emoji": "💰",
         "page": "pages/02_Finanzas.py",
-        "descripcion": "Ingreso repartido en sobres (3 sobres, 50/30/20 o personalizado), gastos y vencimientos.",
-        "para_quien": "Controlar dinero, deudas, ahorro u ofrendas.",
+        "descripcion": "Ingreso, gastos, vencimientos y un reparto si quieres usarlo.",
+        "para_quien": "Controlar dinero, deudas o ahorro.",
         "prioridad": 2,
     },
     "deep_work": {
-        "nombre": "Deep Work",
+        "nombre": "Enfoque",
+        "nombre_cuenta": "Deep Work",
+        "nav": "Enfoque",
+        "nav_cuenta": "Enfoque",
+        "blurb": "Bloques de trabajo concentrado.",
+        "blurb_cuenta": "Bloques de trabajo concentrado.",
         "emoji": "⏱️",
         "page": "pages/03_Deep_Work.py",
         "descripcion": "Bloques de enfoque profundo y registro diario.",
-        "para_quien": "Estudiar, programar o proyectos con horarios fijos.",
+        "para_quien": "Estudiar, trabajar o proyectos con horarios fijos.",
         "prioridad": 3,
     },
     "teologia": {
-        "nombre": "Teología / Devocional",
+        "nombre": "Espiritualidad",
+        "nombre_cuenta": "Teología / Devocional",
+        "nav": "Espiritualidad",
+        "nav_cuenta": "Fe",
+        "blurb": "Una práctica para cuidar lo que te sostiene.",
+        "blurb_cuenta": "Devocional y oración.",
         "emoji": "✝️",
         "page": "pages/04_Teologia.py",
-        "descripcion": "Devocional diario y pedidos de oración.",
-        "para_quien": "Vida espiritual, instituto bíblico, ministerio.",
+        "descripcion": "Práctica espiritual, lectura y pedidos.",
+        "para_quien": "Quien quiere un espacio de fe o crecimiento interior.",
         "prioridad": 2,
     },
     "biblioteca": {
-        "nombre": "Biblioteca",
+        "nombre": "Lectura",
+        "nombre_cuenta": "Biblioteca",
+        "nav": "Lectura",
+        "nav_cuenta": "Lectura",
+        "blurb": "Libros, progreso y resaltados.",
+        "blurb_cuenta": "Libros, progreso y resaltados.",
         "emoji": "📚",
         "page": "pages/05_Biblioteca.py",
         "descripcion": "Catálogo de libros, progreso y resaltados.",
@@ -48,30 +75,49 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "prioridad": 4,
     },
     "salud": {
-        "nombre": "Salud & Energía",
+        "nombre": "Salud",
+        "nombre_cuenta": "Salud & Energía",
+        "nav": "Cuerpo",
+        "nav_cuenta": "Cuerpo",
+        "blurb": "Sueño, ejercicio y energía.",
+        "blurb_cuenta": "Sueño, ejercicio y energía.",
         "emoji": "💪",
         "page": "pages/06_Salud.py",
-        "descripcion": "Sueño, ejercicio, energía y Google Fit.",
-        "para_quien": "Hábitos físicos, calistenia, sueño y productividad.",
+        "descripcion": "Sueño, ejercicio, energía y Google Fit si quieres conectarlo.",
+        "para_quien": "Quien quiere registrar el cuerpo sin obligación de entrenar.",
         "prioridad": 3,
     },
     "sandbox": {
-        "nombre": "Sandbox",
+        "nombre": "Ideas",
+        "nombre_cuenta": "Sandbox",
+        "nav": "Ideas",
+        "nav_cuenta": "Ideas",
+        "blurb": "Proyectos y notas sueltas.",
+        "blurb_cuenta": "Proyectos y snippets.",
         "emoji": "🧪",
         "page": "pages/07_Sandbox.py",
-        "descripcion": "Ideas, proyectos y snippets.",
-        "para_quien": "Proyectos creativos, código o experimentos.",
+        "descripcion": "Ideas y proyectos. Los snippets de código van dentro, se pueden ocultar.",
+        "para_quien": "Proyectos creativos o experimentos.",
         "prioridad": 5,
     },
     "matrimonio": {
-        "nombre": "Matrimonio / Pareja",
+        "nombre": "Relaciones",
+        "nombre_cuenta": "Matrimonio / Pareja",
+        "nav": "Relaciones",
+        "nav_cuenta": "Pareja",
+        "blurb": "Personas que quieres cuidar: pareja, familia o amigos.",
+        "blurb_cuenta": "Citas, notas y conexión.",
         "emoji": "💑",
         "page": "pages/08_Matrimonio.py",
-        "descripcion": "Citas, notas y hábitos de conexión.",
-        "para_quien": "Cuidar la relación de pareja o matrimonio.",
+        "descripcion": "Citas, notas y hábitos de conexión, sin asumir un estado civil.",
+        "para_quien": "Cuidar una relación de pareja, familia o amistad.",
         "prioridad": 2,
     },
 }
+
+# Superficies del día. No entran al catálogo del Coach en esta fase.
+# Si no hay fila, siguen activas para no cambiar la app de quien ya entra.
+SUPERFICIES = ("ritual", "rueda", "alma")
 
 # Siempre accesibles (no se ocultan)
 CORE_ALWAYS = {"usuarios"}  # página admin

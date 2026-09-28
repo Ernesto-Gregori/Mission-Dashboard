@@ -366,7 +366,7 @@ def test_deep_work_dia_y_bloque(web_client):
 
     r = web_client.get("/app/m/deep_work")
     assert r.status_code == 200, r.text[:500]
-    assert b"Deep Work" in r.content
+    assert b"Enfoque" in r.content
     assert b'class="module-header"' in r.content
     assert b'class="deep-work-date-form"' in r.content
 
@@ -745,7 +745,7 @@ def test_biblioteca_catalogo_y_progreso(web_client):
 
     r = web_client.get("/app/m/biblioteca")
     assert r.status_code == 200, r.text[:500]
-    assert b"Biblioteca" in r.content
+    assert b"Lectura" in r.content
     assert b'class="module-header"' in r.content
     assert b'class="library-metrics"' in r.content
     assert b'class="library-filter-form"' in r.content

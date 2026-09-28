@@ -16,7 +16,7 @@
   <strong>✝️ {{ racha }} días</strong>
 </div>
 
-<nav class="agenda-tabs theology-tabs" aria-label="Secciones de Teología">
+<nav class="agenda-tabs theology-tabs" aria-label="Secciones de espiritualidad">
   <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/teologia?tab=hoy&fecha={{ fecha }}"{% if tab == 'hoy' %} aria-current="page"{% endif %}>📖 Hoy</a>
   <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/teologia?tab=historial"{% if tab == 'historial' %} aria-current="page"{% endif %}>🗂️ Historial</a>
   <a class="{% if tab == 'oracion' %}active{% endif %}" href="/app/m/teologia?tab=oracion"{% if tab == 'oracion' %} aria-current="page"{% endif %}>🙏 Oración</a>

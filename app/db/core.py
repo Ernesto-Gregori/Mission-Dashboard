@@ -136,6 +136,11 @@ def ensure_database() -> None:
             ensure_billing_schema()
         except Exception as e:
             print(f"[ensure_database] billing: {e}")
+        try:
+            from app.onboarding import migrar_nombres_cuenta
+            migrar_nombres_cuenta()
+        except Exception as e:
+            print(f"[ensure_database] personalizacion: {e}")
         _db_ready = True
     except Exception:
         init_database()
@@ -149,6 +154,11 @@ def ensure_database() -> None:
             ensure_billing_schema()
         except Exception as e:
             print(f"[ensure_database] billing: {e}")
+        try:
+            from app.onboarding import migrar_nombres_cuenta
+            migrar_nombres_cuenta()
+        except Exception as e:
+            print(f"[ensure_database] personalizacion: {e}")
 
 
 def ensure_remote_schema():

@@ -26,8 +26,7 @@ from app.database import (
     parse_dias_oracion,
     pedidos_para_hoy,
 )
-from app.onboarding import modulo_activo
-from app.templates import MODULE_TEMPLATES
+from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
 
@@ -100,9 +99,9 @@ def _ctx(
     }
 
     return {
-        "title": "Teología",
+        "title": meta_para("teologia", int(user["id"]))["nombre"],
         "user": user,
-        "meta": MODULE_TEMPLATES["teologia"],
+        "meta": meta_para("teologia", int(user["id"])),
         "tab": tab,
         "flash": flash,
         "error": error,
@@ -142,9 +141,9 @@ def teologia_page(request: Request, user: Annotated[dict, Depends(require_onboar
         return render(
             request,
             "paywall.html",
-            title="Teología",
+            title=meta_para("teologia", int(user["id"]))["nombre"],
             user=user,
-            meta=MODULE_TEMPLATES["teologia"],
+            meta=meta_para("teologia", int(user["id"])),
             clave="teologia",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

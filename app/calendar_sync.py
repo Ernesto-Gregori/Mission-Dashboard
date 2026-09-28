@@ -427,19 +427,23 @@ def items_foco(fecha: str | None = None, user_id: int | None = None) -> list[dic
             }
         )
 
-    salud = (
-        ejecutar(
-            """
-            SELECT hizo_ejercicio, notas_ejercicio
-            FROM registros_salud
-            WHERE user_id = ? AND fecha = ?
-            LIMIT 1
-            """,
-            [uid_i, dia],
-            fetchall=True,
+    from app.onboarding import modulo_activo
+
+    salud = []
+    if modulo_activo("salud", uid_i):
+        salud = (
+            ejecutar(
+                """
+                SELECT hizo_ejercicio, notas_ejercicio
+                FROM registros_salud
+                WHERE user_id = ? AND fecha = ?
+                LIMIT 1
+                """,
+                [uid_i, dia],
+                fetchall=True,
+            )
+            or []
         )
-        or []
-    )
     if salud:
         row = salud[0]
         hecho = bool(int(row.get("hizo_ejercicio") or 0))
@@ -461,19 +465,21 @@ def items_foco(fecha: str | None = None, user_id: int | None = None) -> list[dic
             }
         )
 
-    citas = (
-        ejecutar(
-            """
-            SELECT id, fecha, hora AS hora_inicio, titulo
-            FROM matrimonio_citas
-            WHERE user_id = ? AND fecha = ?
-            ORDER BY hora
-            """,
-            [uid_i, dia],
-            fetchall=True,
+    citas = []
+    if modulo_activo("matrimonio", uid_i):
+        citas = (
+            ejecutar(
+                """
+                SELECT id, fecha, hora AS hora_inicio, titulo
+                FROM matrimonio_citas
+                WHERE user_id = ? AND fecha = ?
+                ORDER BY hora
+                """,
+                [uid_i, dia],
+                fetchall=True,
+            )
+            or []
         )
-        or []
-    )
     for c in citas:
         items.append(
             {
@@ -492,7 +498,8 @@ def items_foco(fecha: str | None = None, user_id: int | None = None) -> list[dic
     from app.db.deep_work import bloques_en_rango
 
     dia_d = _date.fromisoformat(dia)
-    for b in bloques_en_rango(dia_d, dia_d, uid_i):
+    bloques = bloques_en_rango(dia_d, dia_d, uid_i) if modulo_activo("deep_work", uid_i) else []
+    for b in bloques:
         items.append(
             {
                 "id": None,

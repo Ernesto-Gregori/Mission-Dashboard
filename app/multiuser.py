@@ -101,9 +101,19 @@ def _ensure_user_modulos_table(ejecutar) -> None:
             modulo TEXT NOT NULL,
             activo BOOLEAN DEFAULT 1,
             config_json TEXT DEFAULT '{}',
+            orden INTEGER,
+            alias TEXT,
             PRIMARY KEY (user_id, modulo)
         )
     """)
+    for sql in (
+        "ALTER TABLE user_modulos ADD COLUMN orden INTEGER",
+        "ALTER TABLE user_modulos ADD COLUMN alias TEXT",
+    ):
+        try:
+            ejecutar(sql)
+        except Exception:
+            pass
 
 
 def _rebuild_oauth_tokens(ejecutar) -> None:

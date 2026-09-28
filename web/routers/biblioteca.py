@@ -22,8 +22,7 @@ from app.database import (
     pct_progreso,
     stats_biblioteca,
 )
-from app.onboarding import modulo_activo
-from app.templates import MODULE_TEMPLATES
+from app.onboarding import meta_para, modulo_activo
 from web.deps import require_onboarded, render
 
 router = APIRouter(prefix="/app/m/biblioteca", tags=["biblioteca"])
@@ -93,9 +92,9 @@ def _ctx(
     pages = max(1, (total + 11) // 12)
 
     return {
-        "title": "Biblioteca",
+        "title": meta_para("biblioteca", int(user["id"]))["nombre"],
         "user": user,
-        "meta": MODULE_TEMPLATES["biblioteca"],
+        "meta": meta_para("biblioteca", int(user["id"])),
         "tab": tab,
         "flash": flash,
         "error": error,
@@ -133,9 +132,9 @@ def biblioteca_page(request: Request, user: Annotated[dict, Depends(require_onbo
         return render(
             request,
             "paywall.html",
-            title="Biblioteca",
+            title=meta_para("biblioteca", int(user["id"]))["nombre"],
             user=user,
-            meta=MODULE_TEMPLATES["biblioteca"],
+            meta=meta_para("biblioteca", int(user["id"])),
             clave="biblioteca",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

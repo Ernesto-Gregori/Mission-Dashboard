@@ -19,11 +19,12 @@
   <h2 id="numeros-title">La semana en números</h2>
   <p class="muted compact-copy">Se calcula de tus registros; se corrige en su sección, no acá.</p>
   <dl class="finance-metrics">
-    <div><dt>✝️ Devocionales</dt><dd>{{ semana.devocionales }}/7</dd></div>
-    <div><dt>⏱️ Deep Work</dt><dd>{{ semana.dw_completados }}/{{ semana.dw_total }}</dd></div>
-    <div><dt>💪 Días con ejercicio</dt><dd>{{ semana.ejercicios }}</dd></div>
-    <div><dt>⚡ Energía (mañana)</dt><dd>{% if semana.energia is not none %}{{ semana.energia }}/10{% else %}—{% endif %}</dd></div>
+    {% if ver_teologia %}<div><dt>✝️ Devocionales</dt><dd>{{ semana.devocionales }}/7</dd></div>{% endif %}
+    {% if ver_enfoque %}<div><dt>⏱️ Enfoque</dt><dd>{{ semana.dw_completados }}/{{ semana.dw_total }}</dd></div>{% endif %}
+    {% if ver_salud %}<div><dt>💪 Días con ejercicio</dt><dd>{{ semana.ejercicios }}</dd></div>{% endif %}
+    {% if ver_salud %}<div><dt>⚡ Energía (mañana)</dt><dd>{% if semana.energia is not none %}{{ semana.energia }}/10{% else %}—{% endif %}</dd></div>{% endif %}
   </dl>
+  {% if ver_finanzas %}
   <h3>💰 Sobres de {{ semana.mes_label }}</h3>
   {% if semana.sin_ingreso %}
   <p class="muted">Sin ingreso cargado para el mes. <a href="/app/m/finanzas">Cargarlo en Finanzas</a></p>
@@ -34,12 +35,16 @@
     {% endfor %}
   </ul>
   {% endif %}
+  {% endif %}
+  {% if ver_lectura %}
   <h3>📚 Lectura</h3>
   {% if semana.libro %}
   <p>{{ semana.libro.titulo }}{% if semana.libro.autor %} — {{ semana.libro.autor }}{% endif %} · pág. {{ semana.libro.pagina_actual or 0 }}{% if semana.libro.total_paginas %}/{{ semana.libro.total_paginas }}{% endif %}</p>
   {% else %}
   <p class="muted">Ningún libro en lectura.</p>
   {% endif %}
+  {% endif %}
+  {% if ver_relaciones %}
   <h3>💑 Citas</h3>
   {% if semana.citas %}
   <ul class="agenda-ev-list">
@@ -49,6 +54,7 @@
   </ul>
   {% else %}
   <p class="muted">Sin citas esta semana.</p>
+  {% endif %}
   {% endif %}
 </section>
 
@@ -90,6 +96,7 @@
   {% endif %}
 </section>
 
+{% if ver_rueda %}
 <section class="rueda-layout" id="rueda" aria-labelledby="rueda-svg-title">
   <div class="card rueda-visual">
     <h2 id="rueda-svg-title">Rueda de la vida · {{ geo.promedio }} / 10</h2>
@@ -120,6 +127,7 @@
     </div>
   </form>
 </section>
+{% endif %}
 
 <section class="briefing-block" id="briefing" aria-labelledby="briefing-title">
   <h2 id="briefing-title">Briefing cruzado</h2>
