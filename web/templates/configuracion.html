@@ -142,9 +142,19 @@
         <label for="freq-{{ h.clave }}">{{ h.emoji }} {{ h.label }}</label>
         <select id="freq-{{ h.clave }}" name="freq_{{ h.clave }}">
           {% for clave, label in frecuencias %}
-          <option value="{{ clave }}" {% if (h.frecuencia or 'diaria') == clave %}selected{% endif %}>{{ label }}</option>
+          <option value="{{ clave }}" {% if not h.es_custom and (h.frecuencia or 'diaria') == clave %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
+          <option value="custom" {% if h.es_custom %}selected{% endif %}>Días concretos</option>
         </select>
+        <fieldset class="freq-days">
+          <legend class="sr-only">Días concretos</legend>
+          {% for clave, label in dias_habito %}
+          <label class="check-row" for="freqdia-{{ h.clave }}-{{ clave }}">
+            <input id="freqdia-{{ h.clave }}-{{ clave }}" type="checkbox" name="freqdia_{{ h.clave }}" value="{{ clave }}" {% if clave in h.dias %}checked{% endif %} />
+            {{ label }}
+          </label>
+          {% endfor %}
+        </fieldset>
       </li>
       {% endfor %}
     </ul>

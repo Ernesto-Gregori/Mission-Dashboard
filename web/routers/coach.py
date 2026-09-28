@@ -218,7 +218,7 @@ async def habito_editar(
         str(form.get("emoji") or ""),
         str(form.get("hora") or ""),
         user_id=int(user["id"]),
-        frecuencia=str(form.get("frecuencia") or "diaria"),
+        frecuencia=str(form.get("frecuencia")) if form.get("frecuencia") else None,
     )
     return _volver_habitos(request, ok, msg)
 

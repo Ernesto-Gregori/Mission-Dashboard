@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.billing import modulos_max, plan_vigente, puede_exportar
 from app.cuenta import (
+    DIAS_HABITO,
     FRECUENCIAS,
     METODOS,
     MONEDAS,
@@ -19,6 +20,8 @@ from app.cuenta import (
     exportar_datos,
     guardar_categorias,
     guardar_modulos,
+    dias_de_frecuencia,
+    frecuencia_desde_eleccion,
     guardar_prefs,
     leer_prefs,
     snippets_visibles,
@@ -30,6 +33,18 @@ from app.templates import MODULE_TEMPLATES, SUPERFICIES
 from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/configuracion", tags=["configuracion"])
+
+
+def _habitos_con_dias(uid: int) -> list[dict]:
+    presets = {clave for clave, _ in FRECUENCIAS}
+    filas = []
+    for hab in listar_habitos_config(uid):
+        fila = dict(hab)
+        freq = str(fila.get("frecuencia") or "diaria")
+        fila["es_custom"] = freq not in presets
+        fila["dias"] = dias_de_frecuencia(freq)
+        filas.append(fila)
+    return filas
 
 _SUPERFICIE_NOMBRE = {
     "ritual": ("Ritual", "Gratitud e intención en Hoy"),
@@ -84,7 +99,8 @@ def _ctx(request: Request, user: dict, *, error: str | None = None, flash: str |
         "monedas": MONEDAS,
         "metodos": METODOS,
         "frecuencias": FRECUENCIAS,
-        "habitos": listar_habitos_config(uid),
+        "dias_habito": DIAS_HABITO,
+        "habitos": _habitos_con_dias(uid),
         "categorias": categorias,
         "areas": areas_rueda(uid),
         "salud_ops": _SALUD,
@@ -161,12 +177,21 @@ async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(
     from app.db.core import ejecutar
 
     for hab in listar_habitos_config(uid):
-        freq = str(form.get(f"freq_{hab['clave']}") or "")
-        if freq:
-            ejecutar(
-                "UPDATE habitos_config SET frecuencia = ? WHERE user_id = ? AND clave = ?",
-                [freq, uid, hab["clave"]],
+        freq_sel = str(form.get(f"freq_{hab['clave']}") or "")
+        if not freq_sel:
+            continue
+        freq = frecuencia_desde_eleccion(freq_sel, [str(d) for d in form.getlist(f"freqdia_{hab['clave']}")])
+        if freq is None:
+            return render(
+                request,
+                "configuracion.html",
+                status_code=400,
+                **_ctx(request, user, error="Elige al menos un día."),
             )
+        ejecutar(
+            "UPDATE habitos_config SET frecuencia = ? WHERE user_id = ? AND clave = ?",
+            [freq, uid, hab["clave"]],
+        )
     request.session["config_flash"] = "Configuración guardada."
     response = RedirectResponse("/app/configuracion", status_code=303)
     if idioma:

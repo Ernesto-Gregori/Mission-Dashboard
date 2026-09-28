@@ -673,6 +673,15 @@ h3 { font-size: 1rem; line-height: 1.35; }
   min-height: auto;
   margin: 0;
 }
+.freq-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.75rem;
+  border: 0;
+  margin: 0.15rem 0 0;
+  padding: 0;
+}
+.freq-days .check-row { min-height: 36px; }
 .journal-section {
   margin-top: 1.25rem;
   padding-top: 1rem;

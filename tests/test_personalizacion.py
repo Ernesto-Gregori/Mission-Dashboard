@@ -182,6 +182,59 @@ def test_snippets_se_ocultan_dentro_de_ideas(web_client):
     assert page.status_code == 200
 
 
+def test_habito_en_dias_concretos_solo_sale_esos_dias(web_client):
+    _setup(web_client, "dias")
+    web_client.post("/app/coach/plantilla", data={"plantilla": "blanco"}, follow_redirects=False)
+    from app.ritual import crear_habito, listar_habitos, listar_habitos_config
+
+    ok, _ = crear_habito("Piano", user_id=1)
+    assert ok
+    clave = listar_habitos_config(1)[0]["clave"]
+    vacio = web_client.post(
+        "/app/configuracion",
+        data={
+            "moneda": "USD",
+            "metodo": "sobres",
+            "ritual_a": "Gratitud",
+            "ritual_b": "Intención",
+            "hora_desde": "6",
+            "hora_hasta": "22",
+            f"freq_{clave}": "custom",
+        },
+        follow_redirects=True,
+    )
+    assert vacio.status_code == 400
+    assert "Elige al menos un día." in vacio.text
+    assert listar_habitos(1, fecha="2026-09-29")
+    guardado = web_client.post(
+        "/app/configuracion",
+        data={
+            "moneda": "USD",
+            "metodo": "sobres",
+            "ritual_a": "Gratitud",
+            "ritual_b": "Intención",
+            "hora_desde": "6",
+            "hora_hasta": "22",
+            f"freq_{clave}": "custom",
+            f"freqdia_{clave}": ["mie", "lun"],
+        },
+        follow_redirects=True,
+    )
+    assert guardado.status_code == 200
+    assert listar_habitos(1, fecha="2026-09-28")
+    assert listar_habitos(1, fecha="2026-09-30")
+    assert listar_habitos(1, fecha="2026-09-29") == []
+    web_client.post(
+        f"/app/coach/habitos/{clave}/editar",
+        data={"label": "Piano suave", "emoji": "🎹", "hora": ""},
+        follow_redirects=False,
+    )
+    assert listar_habitos(1, fecha="2026-09-29") == []
+    assert listar_habitos(1, fecha="2026-09-28")
+    pagina = web_client.get("/app/configuracion").text
+    assert 'value="custom" selected' in pagina or "selected>Días concretos" in pagina
+
+
 def test_habito_entre_semana_no_sale_el_domingo(web_client):
     _setup(web_client, "hab")
     web_client.post("/app/coach/activar", data={"modulos": ["agenda"]}, follow_redirects=False)
