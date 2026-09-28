@@ -1,0 +1,168 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Configuración</h1>
+    <p class="muted">Nombres, áreas y el día a día. Apagar un área lo esconde y deja tus registros donde están.</p>
+  </div>
+</header>
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+<form method="post" action="/app/configuracion">
+  <section class="card" aria-labelledby="areas-title">
+    <h2 id="areas-title">Áreas</h2>
+    {% if modulos %}
+    <ul class="habit-list">
+      {% for m in modulos %}
+      <li>
+        <label class="check-row" for="mod-{{ m.clave }}">
+          <input id="mod-{{ m.clave }}" type="checkbox" name="activo" value="{{ m.clave }}" {% if m.activo %}checked{% endif %} />
+          {{ m.emoji }} {{ m.nombre }}
+        </label>
+        <label for="alias-{{ m.clave }}">Nombre en tu cuenta</label>
+        <input id="alias-{{ m.clave }}" name="alias_{{ m.clave }}" value="{{ m.alias }}" maxlength="40" placeholder="Vacío usa el nombre neutro" />
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted empty-state">Todavía no hay áreas. Hoy, Semana y Cuenta siguen disponibles.</p>
+    {% endif %}
+    {% if 'sandbox' in modulos|map(attribute='clave') %}
+    <label class="check-row" for="snippets-on">
+      <input id="snippets-on" type="checkbox" name="snippets" value="1" {% if snippets %}checked{% endif %} />
+      Mostrar snippets dentro de Ideas
+    </label>
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="sup-title">
+    <h2 id="sup-title">Día y asistente</h2>
+    <ul class="habit-list">
+      {% for s in superficies %}
+      <li>
+        <label class="check-row" for="sup-{{ s.clave }}">
+          <input id="sup-{{ s.clave }}" type="checkbox" name="activo" value="{{ s.clave }}" {% if s.activo %}checked{% endif %} />
+          <span><strong>{{ s.nombre }}</strong> — {{ s.detalle }}</span>
+        </label>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="finance-form-grid">
+      <div>
+        <label for="ritual-a">Primera pregunta del ritual</label>
+        <input id="ritual-a" name="ritual_a" value="{{ prefs.ritual_a }}" maxlength="40" />
+      </div>
+      <div>
+        <label for="ritual-b">Segunda pregunta del ritual</label>
+        <input id="ritual-b" name="ritual_b" value="{{ prefs.ritual_b }}" maxlength="40" />
+      </div>
+      <div>
+        <label for="hora-desde">El día en el plan empieza a las</label>
+        <input id="hora-desde" name="hora_desde" type="number" min="0" max="22" value="{{ prefs.hora_desde }}" />
+      </div>
+      <div>
+        <label for="hora-hasta">y termina a las</label>
+        <input id="hora-hasta" name="hora_hasta" type="number" min="1" max="24" value="{{ prefs.hora_hasta }}" />
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="dinero-title">
+    <h2 id="dinero-title">Dinero</h2>
+    <div class="finance-form-grid">
+      <div>
+        <label for="moneda">Moneda</label>
+        <select id="moneda" name="moneda">
+          {% for codigo, simbolo in monedas %}
+          <option value="{{ codigo }}" {% if prefs.moneda == codigo %}selected{% endif %}>{{ codigo }} ({{ simbolo }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="metodo">Método</label>
+        <select id="metodo" name="metodo">
+          {% for clave, label in metodos %}
+          <option value="{{ clave }}" {% if prefs.metodo == clave %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <h3>Categorías</h3>
+    <ul class="habit-list">
+      {% for c in categorias %}
+      <li>
+        <input type="hidden" name="cat_clave" value="{{ c.clave }}" />
+        <label for="cat-{{ c.clave }}">{{ c.clave }}</label>
+        <input id="cat-{{ c.clave }}" name="cat_nombre_{{ c.clave }}" value="{{ c.nombre }}" maxlength="40" />
+      </li>
+      {% endfor %}
+    </ul>
+    <label for="cat-nueva">Nueva categoría</label>
+    <input id="cat-nueva" name="cat_nueva" maxlength="40" placeholder="Ej: Mascotas" />
+  </section>
+
+  <section class="card" aria-labelledby="rueda-title">
+    <h2 id="rueda-title">Rueda de la vida</h2>
+    <ul class="habit-list">
+      {% for clave, nombre, emoji in areas %}
+      <li>
+        <label for="rueda-{{ clave }}">{{ emoji }} {{ nombre }}</label>
+        <input id="rueda-{{ clave }}" name="rueda_{{ clave }}" value="{{ nombre }}" maxlength="40" />
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card" aria-labelledby="salud-title">
+    <h2 id="salud-title">Salud</h2>
+    {% for clave, label in salud_ops %}
+    <label class="check-row" for="salud-{{ clave }}">
+      <input id="salud-{{ clave }}" type="checkbox" name="salud" value="{{ clave }}" {% if clave in salud_on %}checked{% endif %} />
+      {{ label }}
+    </label>
+    {% endfor %}
+  </section>
+
+  {% if habitos %}
+  <section class="card" aria-labelledby="hab-title">
+    <h2 id="hab-title">Frecuencia de hábitos</h2>
+    <ul class="habit-list">
+      {% for h in habitos %}
+      <li>
+        <label for="freq-{{ h.clave }}">{{ h.emoji }} {{ h.label }}</label>
+        <select id="freq-{{ h.clave }}" name="freq_{{ h.clave }}">
+          {% for clave, label in frecuencias %}
+          <option value="{{ clave }}" {% if (h.frecuencia or 'diaria') == clave %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar</button>
+  </div>
+</form>
+
+<section class="card" aria-labelledby="datos-title">
+  <h2 id="datos-title">Tus datos</h2>
+  {% if puede_exportar %}
+  <p><a class="btn secondary" href="/app/configuracion/exportar">Descargar una copia</a></p>
+  {% else %}
+  <p class="muted">La exportación está en Premium.</p>
+  {% endif %}
+  <form id="borrar" method="post" action="/app/configuracion/borrar">
+    <h3>Eliminar la cuenta</h3>
+    <p class="muted">Borra tu usuario y tus registros. No se puede deshacer.</p>
+    <label for="borrar-password">Contraseña</label>
+    <input id="borrar-password" name="password" type="password" autocomplete="current-password" required />
+    <div class="form-actions">
+      <button class="btn secondary" type="submit">Eliminar cuenta</button>
+    </div>
+  </form>
+</section>
+<p class="muted"><a href="/app/coach">El coach sigue disponible para rearmar el sistema.</a></p>
+{% endblock %}

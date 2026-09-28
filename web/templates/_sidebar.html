@@ -19,6 +19,7 @@
     {% endif %}
   </nav>
   <div class="sidebar-footer">
+    <a class="btn secondary block" href="/app/configuracion">Configuración</a>
     <form method="post" action="/app/tema">
       <input type="hidden" name="theme" value="{% if theme == 'light' %}dark{% else %}light{% endif %}" />
       <input type="hidden" name="next" value="{{ request.url.path }}" />

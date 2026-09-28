@@ -9,6 +9,7 @@ from app.billing import limites, plan_vigente, puede_google, resumen_plan_ui
 from app.calendar_sync import items_foco, pull_range
 from app.coach_insights import ultimo_briefing
 from app.onboarding import listar_modulos_usuario, meta_para, modulo_activo
+from app.cuenta import ritual_etiquetas
 from app.ritual import habitos_hoy, listar_habitos, obtener_ritual
 from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy
@@ -96,6 +97,8 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         checkout_flash=checkout_flash,
         insight_destacado=insight_destacado,
         ritual=ritual,
+        ritual_a=ritual_etiquetas(uid)[0],
+        ritual_b=ritual_etiquetas(uid)[1],
         habitos=habitos,
         foco_items=foco_items,
         google_ok=google_ok,

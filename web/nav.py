@@ -84,7 +84,7 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "label": "Cuenta",
         "group": "Sistema",
         "always": True,
-        "prefixes": ("/app/coach", "/app/usuarios", "/app/billing", "/app/familia"),
+        "prefixes": ("/app/coach", "/app/configuracion", "/app/usuarios", "/app/billing", "/app/familia"),
     },
 )
 

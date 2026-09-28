@@ -30,6 +30,7 @@ from app.database import (
     parsear_lista_sandbox,
     stats_sandbox,
 )
+from app.cuenta import snippets_visibles
 from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
@@ -86,6 +87,9 @@ def _ctx(
     snip_edit: dict | None = None,
 ):
     tab = _tab(request)
+    ver_snippets = snippets_visibles(int(user["id"]))
+    if tab == "snippets" and not ver_snippets:
+        tab = "ideas"
     f_estado = request.query_params.get("estado") or ""
     f_dominio = request.query_params.get("dominio") or ""
     f_q = request.query_params.get("q") or ""
@@ -140,6 +144,7 @@ def _ctx(
         "user": user,
         "meta": meta_para("sandbox", int(user["id"])),
         "tab": tab,
+        "ver_snippets": ver_snippets,
         "flash": flash,
         "error": error,
         "hoy": str(_hoy()),

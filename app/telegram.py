@@ -656,12 +656,31 @@ def answer_callback_query(callback_id: str) -> None:
         log.warning("telegram answerCallbackQuery: %s", type(e).__name__)
 
 
-def register_bot_commands() -> bool:
+def comandos_para(user_id: int | None) -> list:
+    if user_id is None:
+        return list(BOT_COMMANDS)
+    from app.onboarding import modulo_activo
+
+    ocultos = set()
+    if not modulo_activo("finanzas", user_id):
+        ocultos.update({"gasto", "saldo"})
+    if not modulo_activo("agenda", user_id) and not modulo_activo("deep_work", user_id):
+        ocultos.add("agenda")
+    return [c for c in BOT_COMMANDS if c["command"] not in ocultos]
+
+
+_COMANDOS_CHAT: set[str] = set()
+
+
+def register_bot_commands(chat_id: str | None = None, user_id: int | None = None) -> bool:
     """Publica el menú / del bot (setMyCommands). No exige HTTPS."""
     if not _secret("TELEGRAM_BOT_TOKEN"):
         return False
     try:
-        data = _api("setMyCommands", {"commands": BOT_COMMANDS})
+        payload: dict = {"commands": comandos_para(user_id) if user_id else BOT_COMMANDS}
+        if chat_id and str(chat_id).lstrip("-").isdigit():
+            payload["scope"] = {"type": "chat", "chat_id": int(chat_id)}
+        data = _api("setMyCommands", payload)
         ok = bool(data.get("ok"))
         log.info("telegram setMyCommands → %s", data.get("description") or ok)
         return ok
@@ -767,6 +786,9 @@ def handle_inbound(
         return reply("Telegram requiere plan Premium o Familia. Activalo en /app/billing — no ejecuté ninguna acción.")
 
     set_current_user(user)
+    if chat_id not in _COMANDOS_CHAT:
+        _COMANDOS_CHAT.add(chat_id)
+        register_bot_commands(chat_id, int(user["id"]))
     started = time.monotonic()
     accion, ok = "", False
     try:

@@ -98,7 +98,7 @@ def _fmt_mins(total: int) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-def _decorate(evento: dict) -> dict:
+def _decorate(evento: dict, hour_start: int = HOUR_START) -> dict:
     item = dict(evento)
     item["origen"] = _origen(item)
     start = _mins(item.get("hora_inicio"))
@@ -110,7 +110,7 @@ def _decorate(evento: dict) -> dict:
         return item
     if end is None or end <= start:
         end = start + 60
-    top = ((start - HOUR_START * 60) / 60.0) * PX_PER_HOUR
+    top = ((start - hour_start * 60) / 60.0) * PX_PER_HOUR
     height = max(PX_PER_HOUR / 4.0, ((end - start) / 60.0) * PX_PER_HOUR)
     item["style"] = f"top:{top:.1f}px;height:{height:.1f}px"
     item["draggable"] = bool(item.get("id"))
@@ -207,10 +207,13 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         except Exception:
             pass
 
+    from app.cuenta import horas_plan
+
+    hour_start, hour_end = horas_plan(uid)
     eventos = obtener_eventos_semana(inicio, fin)
     por_dia: dict[str, list] = {}
     for e in eventos:
-        item = _decorate(e)
+        item = _decorate(e, hour_start)
         por_dia.setdefault(str(item.get("fecha") or ""), []).append(item)
 
     dias = []
@@ -238,7 +241,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         )
 
     month_cells = _month_cells(inicio.year, inicio.month, week_start, por_dia) if vista == "mes" else []
-    horas = list(range(HOUR_START, HOUR_END))
+    horas = list(range(hour_start, hour_end))
     locales = [e for e in eventos if _origen(e) == "local" and e.get("id")]
     return {
         "title": "Planificador",
@@ -262,8 +265,8 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "plan_premium": PLAN_PREMIUM,
         "locales": locales[:12],
         "horas": horas,
-        "hour_start": HOUR_START,
-        "hour_end": HOUR_END,
+        "hour_start": hour_start,
+        "hour_end": hour_end,
         "px_per_hour": PX_PER_HOUR,
         "weekday_labels": labels,
         "iconos": ICONOS_ORIGEN,

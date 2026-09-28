@@ -21,12 +21,13 @@ MAX_INSIGHTS = 5
 
 SYSTEM_BRIEFING = (
     "Eres el Coach de Mission Dashboard. Analizas la vida del usuario con datos "
-    "estructurados de varios módulos (finanzas, deep work, matrimonio, salud, hábitos). "
+    "estructurados de los módulos que vienen en los datos. "
     "Respondes SOLO JSON válido (sin markdown) con esta forma:\n"
     '{"insights":[{"titulo":"...","cuerpo":"...","modulos":["finanzas","deep_work"]}]}\n'
     "Reglas: español, tono cercano y respetuoso (sin alarmismo en pareja/finanzas), "
     "máximo 5 insights, cada cuerpo ≤ 2 oraciones, prioriza correlaciones cruzadas "
-    "entre módulos. Si hay pocos datos, di qué falta registrar en vez de inventar."
+    "entre módulos. Si hay pocos datos, di qué falta registrar en vez de inventar. "
+    "No hables de áreas que no estén en los datos ni cites versículos si no hay práctica espiritual."
 )
 
 
@@ -333,6 +334,20 @@ def agregar_senales(user_id: int, dias: int = PERIOD_DAYS_DEFAULT) -> dict[str, 
     except Exception as e:
         log.debug("senales habitos: %s", e)
         signals["modulos"]["habitos"] = {"error": "sin_datos"}
+
+    from app.onboarding import modulo_activo
+
+    mapa = {
+        "finanzas": "finanzas",
+        "deep_work": "deep_work",
+        "matrimonio": "matrimonio",
+        "salud": "salud",
+        "habitos": "agenda",
+    }
+    mods = signals.get("modulos") or {}
+    for clave, modulo in mapa.items():
+        if clave in mods and not modulo_activo(modulo, uid_i):
+            del mods[clave]
 
     return signals
 

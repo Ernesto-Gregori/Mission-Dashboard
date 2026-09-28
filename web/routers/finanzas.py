@@ -24,6 +24,7 @@ from app.db.schema import (
     SUPERMERCADO_LABELS,
     SUPERMERCADOS,
 )
+from app.cuenta import moneda_simbolo, sobre_permitido
 from app.onboarding import meta_para, modulo_activo
 from app.presupuesto import (
     PRESETS,
@@ -114,6 +115,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "vision_ok": api_key_configurada(),
         "price_matches": request.session.pop(SESSION_MATCHES_KEY, None),
         "finanzas_section": "sobres",
+        "moneda": moneda_simbolo(int(user["id"])),
     }
 
 
@@ -329,7 +331,7 @@ async def add_gasto(request: Request, user: Annotated[dict, Depends(require_onbo
         desc = str(form.get("descripcion") or "").strip() or "Gasto"
         monto = float(str(form.get("monto") or "0").replace(",", ""))
         es_fijo = str(form.get("es_fijo") or "") in ("1", "on", "true", "True")
-        if sobre not in SOBRES_CONFIG:
+        if not sobre_permitido(sobre, int(user["id"])):
             raise ValueError("sobre")
         if monto <= 0:
             raise ValueError("monto")

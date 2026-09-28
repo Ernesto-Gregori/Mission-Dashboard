@@ -129,11 +129,14 @@ def test_setup_redirects_to_coach(web_client):
     r = web_client.get("/app/coach")
     assert r.status_code == 200
     assert b"Coach" in r.content
-    assert b"Cu" in r.content or b"llam" in r.content  # formulario perfil
+    assert b"Empezar en blanco" in r.content
     assert b'id="main-content"' in r.content
+    r = web_client.get("/app/coach?modo=perfil")
+    assert r.status_code == 200
     assert b'for="coach-name"' in r.content
     assert b'class="coach-area-grid"' in r.content
     assert b'for="coach-area-' in r.content
+    assert b'value="espiritual" checked' not in r.content
 
 
 def test_coach_flow_activa_modulos(web_client):
@@ -444,7 +447,7 @@ def test_teologia_devocional_y_pedido(web_client):
 
     r = web_client.get("/app/m/teologia")
     assert r.status_code == 200, r.text[:500]
-    assert b"Teolog" in r.content or b"Devocional" in r.content
+    assert b"Espiritualidad" in r.content or b"Teolog" in r.content or b"Devocional" in r.content
     assert b'class="module-header"' in r.content
     assert b'class="devotional-form"' in r.content
 

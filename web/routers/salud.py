@@ -25,6 +25,7 @@ from app.db.salud import (
     obtener_objetivo,
     serie_progreso,
 )
+from app.cuenta import metricas_salud
 from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
@@ -177,6 +178,7 @@ def _ctx(
         "progreso30": serie_progreso(30, int(user["id"])),
         "tipos_objetivo": TIPOS_OBJETIVO,
         "objetivo_labels": OBJETIVO_LABELS,
+        "metricas": metricas_salud(int(user["id"])),
         "warn": warn,
         **ejercicios_page_extras(int(user["id"])),
     }

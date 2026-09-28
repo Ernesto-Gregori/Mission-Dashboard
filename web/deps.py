@@ -90,6 +90,14 @@ def init_app_state() -> None:
     except Exception as e:
         print(f"[web.startup] migrate_multiuser: {e}")
     try:
+        from app.cuenta import asegurar_schema
+        from app.db.relax import relajar_cheques_personales
+
+        relajar_cheques_personales()
+        asegurar_schema()
+    except Exception as e:
+        print(f"[web.startup] cuenta: {e}")
+    try:
         ensure_billing_schema()
     except Exception as e:
         print(f"[web.startup] billing: {e}")

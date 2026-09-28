@@ -127,15 +127,16 @@ def guardar_scores(vals: dict, user_id: int | None = None) -> tuple[bool, str, d
     return True, "Rueda actualizada.", clean
 
 
-def geometria(scores: dict[str, int], *, size: int = 280) -> dict:
+def geometria(scores: dict[str, int], *, size: int = 280, areas: tuple | None = None) -> dict:
     """Puntos SVG para ejes y polígono de la rueda."""
+    areas = areas or AREAS
     cx = cy = size / 2
     r = size * 0.38
-    n = len(AREAS)
+    n = len(areas)
     ejes = []
     labels = []
     poly = []
-    for i, (key, nombre, emoji) in enumerate(AREAS):
+    for i, (key, nombre, emoji) in enumerate(areas):
         ang = -math.pi / 2 + i * 2 * math.pi / n
         x = cx + r * math.cos(ang)
         y = cy + r * math.sin(ang)
@@ -170,7 +171,7 @@ def geometria(scores: dict[str, int], *, size: int = 280) -> dict:
         "anillos": anillos,
         "areas": [
             {"key": k, "nombre": n, "emoji": e, "valor": _clamp(int(scores.get(k, 0) or 0))}
-            for k, n, e in AREAS
+            for k, n, e in areas
         ],
         "promedio": round(sum(scores.get(k, 0) for k in CLAVES) / len(CLAVES), 1) if scores else 0,
     }

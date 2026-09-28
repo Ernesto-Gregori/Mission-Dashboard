@@ -23,12 +23,49 @@ def _key(username: str) -> str:
     return (username or "").strip().lower() or "_"
 
 
+def _leer_intento(username: str) -> dict | None:
+    try:
+        from app.cuenta import asegurar_schema
+        from app.db.core import ejecutar
+
+        asegurar_schema()
+        rows = ejecutar(
+            "SELECT fails, locked_until FROM login_intentos WHERE username = ?",
+            [username],
+            fetchall=True,
+        ) or []
+        return dict(rows[0]) if rows else None
+    except Exception:
+        return None
+
+
+def _guardar_intento(username: str, fails: int, locked_until: float) -> None:
+    try:
+        from app.cuenta import asegurar_schema
+        from app.db.core import ejecutar
+
+        asegurar_schema()
+        ejecutar(
+            """
+            INSERT INTO login_intentos (username, fails, locked_until)
+            VALUES (?, ?, ?)
+            ON CONFLICT(username) DO UPDATE SET
+                fails = excluded.fails,
+                locked_until = excluded.locked_until
+            """,
+            [username, fails, locked_until],
+        )
+    except Exception:
+        pass
+
+
 def segundos_bloqueo(username: str) -> int:
     """Segundos restantes de bloqueo (0 = libre)."""
-    rec = _FAILS.get(_key(username))
-    if not rec:
-        return 0
+    rec = _FAILS.get(_key(username)) or {}
     until = float(rec.get("locked_until") or 0)
+    persisted = _leer_intento(_key(username))
+    if persisted:
+        until = max(until, float(persisted.get("locked_until") or 0))
     left = int(until - time.time())
     return max(0, left)
 
@@ -45,17 +82,31 @@ def registrar_fallo(username: str) -> int:
         lock = min(LOCK_SECONDS_MAX, LOCK_SECONDS * (2 ** max(0, extra)))
         rec["locked_until"] = time.time() + lock
     _FAILS[k] = rec
+    _guardar_intento(k, int(rec["fails"]), float(rec.get("locked_until") or 0))
     return lock
 
 
 def registrar_exito(username: str) -> None:
-    _FAILS.pop(_key(username), None)
+    k = _key(username)
+    _FAILS.pop(k, None)
+    try:
+        from app.db.core import ejecutar
+
+        ejecutar("DELETE FROM login_intentos WHERE username = ?", [k])
+    except Exception:
+        pass
 
 
 def limpiar_todo() -> None:
     """Solo para tests."""
     _FAILS.clear()
     _TG_HITS.clear()
+    try:
+        from app.db.core import ejecutar
+
+        ejecutar("DELETE FROM login_intentos")
+    except Exception:
+        pass
 
 
 def telegram_permitido(chat_id: str) -> bool:
