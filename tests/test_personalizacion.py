@@ -69,6 +69,9 @@ def test_en_blanco_no_siembra_habitos_ni_areas(web_client):
     hoy = web_client.get("/app")
     assert hoy.status_code == 200
     assert "Todavía no activaste áreas" in hoy.text
+    cfg = web_client.get("/app/configuracion").text
+    assert cfg.count('value="Relaciones"') == 1
+    assert 'value="Vínculos"' in cfg
 
 
 def test_plantilla_diario_solo_siembra_lo_suyo(web_client):

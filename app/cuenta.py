@@ -202,7 +202,7 @@ def areas_rueda(user_id: int | None = None) -> tuple[tuple[str, str, str], ...]:
         elif clave == "fe" and not usa_vocabulario_cuenta("teologia", uid_i):
             nombre = "Espiritualidad"
         elif clave == "matrimonio" and not usa_vocabulario_cuenta("matrimonio", uid_i):
-            nombre = "Relaciones"
+            nombre = "Vínculos"
         out.append((clave, nombre, emoji))
     return tuple(out)
 
