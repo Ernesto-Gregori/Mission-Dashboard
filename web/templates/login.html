@@ -13,6 +13,11 @@
       <button class="btn block" type="submit">Entrar</button>
     </form>
     <p class="muted auth-legal"><a href="/privacidad">Privacidad</a> · <a href="/terminos">Términos</a></p>
+    <nav class="muted lang-switch" aria-label="Idioma">
+      <a href="/idioma?lang=es&amp;next=/login" hreflang="es" lang="es"{% if lang != 'en' %} aria-current="page"{% endif %}>Español</a>
+      <span aria-hidden="true"> · </span>
+      <a href="/idioma?lang=en&amp;next=/login" hreflang="en" lang="en"{% if lang == 'en' %} aria-current="page"{% endif %}>English</a>
+    </nav>
   </div>
 </main>
 {% endblock %}

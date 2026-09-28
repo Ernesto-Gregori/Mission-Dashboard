@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block body %}
+{% if hide_nav %}
+<main class="auth-wrap coach-auth-wrap" id="main-content" tabindex="-1">
+  <div class="card">
+    {% include "coach/_plantillas_form.html" %}
+  </div>
+</main>
+{% else %}
+<div class="shell">
+  {% include "_sidebar.html" %}
+  <main class="main" id="main-content" tabindex="-1">
+    {% include "coach/_plantillas_form.html" %}
+  </main>
+</div>
+{% endif %}
+{% endblock %}

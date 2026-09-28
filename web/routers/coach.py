@@ -27,6 +27,7 @@ from app.onboarding import (
     sugerir_con_ia,
     usuario_onboarding_completo,
 )
+from app.perfiles import listar_perfiles, obtener_perfil
 from app.ritual import actualizar_habito, crear_habito, listar_habitos_config, set_habito_activo
 from app.templates import MODULE_TEMPLATES
 from web.deps import require_onboarded, require_user, render
@@ -91,6 +92,17 @@ def coach_home(request: Request, user: Annotated[dict, Depends(require_user)]):
     sug = request.session.get("coach_sugerencia")
     if sug:
         return _render_sugerencia(request, user, sug, plan)
+
+    if not done and request.query_params.get("modo") != "perfil":
+        return render(
+            request,
+            "coach/plantillas.html",
+            title="Elige cómo empezar",
+            user=user,
+            perfiles=listar_perfiles(),
+            error=None,
+            hide_nav=True,
+        )
 
     tope = modulos_max(plan)
     return render(
@@ -190,6 +202,7 @@ async def habito_crear(request: Request, user: Annotated[dict, Depends(require_o
         str(form.get("emoji") or ""),
         str(form.get("hora") or ""),
         user_id=int(user["id"]),
+        frecuencia=str(form.get("frecuencia") or "diaria"),
     )
     return _volver_habitos(request, ok, msg)
 
@@ -205,6 +218,7 @@ async def habito_editar(
         str(form.get("emoji") or ""),
         str(form.get("hora") or ""),
         user_id=int(user["id"]),
+        frecuencia=str(form.get("frecuencia") or "diaria"),
     )
     return _volver_habitos(request, ok, msg)
 
@@ -376,6 +390,33 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
         "seleccion": seleccion,
         "resto": resto[:4] if plan == PLAN_FREE else [],
     }
+    return RedirectResponse("/app?onboarded=1", status_code=303)
+
+
+@router.post("/plantilla")
+async def coach_plantilla(request: Request, user: Annotated[dict, Depends(require_user)]):
+    uid = int(user["id"])
+    plan = plan_vigente(user)
+    form = await request.form()
+    perfil = obtener_perfil(str(form.get("plantilla") or ""))
+    if not perfil:
+        return render(
+            request,
+            "coach/plantillas.html",
+            title="Elige cómo empezar",
+            user=user,
+            perfiles=listar_perfiles(),
+            error="Elige una plantilla para empezar.",
+            hide_nav=not usuario_onboarding_completo(uid),
+            status_code=400,
+        )
+    mods = _clamp_mods(list(perfil["modulos"]), plan)
+    aplicar_modulos(mods, user_id=uid, permitir_vacio=not mods)
+    aplicar_habitos_sugeridos(list(perfil["habitos"]), user_id=uid)
+    marcar_onboarding_completo(uid, True)
+    request.session.pop("coach_sugerencia", None)
+    request.session.pop("coach_perfil", None)
+    request.session.pop("coach_reconfig", None)
     return RedirectResponse("/app?onboarded=1", status_code=303)
 
 

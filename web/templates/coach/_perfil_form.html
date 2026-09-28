@@ -16,7 +16,7 @@
     <legend class="form-label">Áreas importantes ahora</legend>
     {% for a in areas %}
     <label class="check-row" for="coach-area-{{ a }}">
-      <input id="coach-area-{{ a }}" type="checkbox" name="areas" value="{{ a }}" {% if a == 'espiritual' %}checked{% endif %} />
+      <input id="coach-area-{{ a }}" type="checkbox" name="areas" value="{{ a }}" />
       {{ a }}
     </label>
     {% endfor %}

@@ -121,6 +121,15 @@ def obtener_gastos_sobre(mes=None, anio=None, sobre=None, limite=100) -> list:
     from app.tenant import uid
     query = "SELECT * FROM gastos_sobres WHERE user_id = ?"
     params = [uid()]
+    try:
+        from app.billing import fecha_minima_historial
+
+        desde = fecha_minima_historial()
+    except Exception:
+        desde = None
+    if desde:
+        query += " AND fecha >= ?"
+        params.append(desde.isoformat())
 
     if mes and anio:
         query += """ AND strftime('%m', fecha) = ?

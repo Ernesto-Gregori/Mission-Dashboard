@@ -460,7 +460,8 @@ def responder(mensaje: str, flags: dict[str, bool], user_id: int | None = None) 
     guardar_mensaje("user", texto, categorias=cats, user_id=uid_i)
 
     ctx = construir_contexto(flags, user_id=uid_i)
-    system = SYSTEM_ALMA
+    from app.ai_client import system_mision_para
+
     if ctx:
         system = SYSTEM_ALMA + "\n\n" + ctx
     else:
@@ -469,6 +470,7 @@ def responder(mensaje: str, flags: dict[str, bool], user_id: int | None = None) 
             + "\n\nEl usuario no autorizó categorías de datos. "
             "No asumas datos de ninguna sección."
         )
+    system += "\n\n" + system_mision_para(uid_i)
 
     prev = listar_mensajes(uid_i, limite=MAX_HISTORIAL_LLM + 2)
     historial = []

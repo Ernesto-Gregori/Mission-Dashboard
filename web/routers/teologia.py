@@ -26,6 +26,7 @@ from app.database import (
     parse_dias_oracion,
     pedidos_para_hoy,
 )
+from app.cuenta import usa_vocabulario_cuenta
 from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
@@ -121,6 +122,7 @@ def _ctx(
         "urgencia_labels": URGENCIA_LABELS,
         "hoy_pedidos": hoy_pedidos,
         "ia_ok": api_key_configurada(),
+        "vocabulario_cuenta": usa_vocabulario_cuenta("teologia", int(user["id"])),
     }
 
 

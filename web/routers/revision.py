@@ -15,9 +15,10 @@ from app.db.agenda import (
     obtener_bitacoras_recientes,
     obtener_lunes_semana,
 )
+from app.cuenta import areas_rueda
 from app.onboarding import modulo_activo
 from app.revision import CAMPOS_BITACORA, resumen_semana
-from app.rueda import AREAS, geometria, obtener_scores
+from app.rueda import geometria, obtener_scores
 from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/revision", tags=["revision"])
@@ -48,6 +49,7 @@ def revision_ctx(
     lunes = _lunes(request)
     bit = obtener_bitacora(lunes.isoformat()) or {}
     scores = rueda_scores if rueda_scores is not None else obtener_scores(uid)
+    areas = areas_rueda(uid)
     return {
         "title": "Revisión semanal",
         "user": user,
@@ -66,8 +68,8 @@ def revision_ctx(
         "ver_lectura": modulo_activo("biblioteca", uid),
         "ver_relaciones": modulo_activo("matrimonio", uid),
         "ver_rueda": modulo_activo("rueda", uid),
-        "geo": geometria(scores),
-        "areas": AREAS,
+        "geo": geometria(scores, areas=areas),
+        "areas": areas,
         "scores": scores,
         "briefing": ultimo_briefing(uid),
         "briefing_cuota": resumen_cuota_briefing(uid, plan_vigente(user)),

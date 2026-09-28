@@ -49,14 +49,20 @@ def _uid(user_id: int | None = None) -> int:
     return int(uid())
 
 
-def listar_habitos(user_id: int | None = None) -> list[dict]:
+def listar_habitos(user_id: int | None = None, fecha: str | None = None) -> list[dict]:
+    from datetime import date as _date
+
+    from app.cuenta import asegurar_schema, habito_toca
     from app.db.core import ejecutar
 
+    asegurar_schema()
     uid_i = _uid(user_id)
-    return (
+    dia = _date.fromisoformat(fecha) if fecha else _hoy()
+    rows = (
         ejecutar(
             """
-            SELECT clave, label, emoji, hora, COALESCE(activo, 1) AS activo, orden
+            SELECT clave, label, emoji, hora, COALESCE(activo, 1) AS activo, orden,
+                   COALESCE(frecuencia, 'diaria') AS frecuencia
             FROM habitos_config
             WHERE user_id = ? AND COALESCE(activo, 1) = 1
             ORDER BY orden, label
@@ -66,6 +72,7 @@ def listar_habitos(user_id: int | None = None) -> list[dict]:
         )
         or []
     )
+    return [h for h in rows if habito_toca(h.get("frecuencia"), dia)]
 
 
 def listar_habitos_config(user_id: int | None = None) -> list[dict]:
@@ -75,7 +82,8 @@ def listar_habitos_config(user_id: int | None = None) -> list[dict]:
     return (
         ejecutar(
             """
-            SELECT clave, label, emoji, hora, COALESCE(activo, 1) AS activo, orden
+            SELECT clave, label, emoji, hora, COALESCE(activo, 1) AS activo, orden,
+                   COALESCE(frecuencia, 'diaria') AS frecuencia
             FROM habitos_config
             WHERE user_id = ?
             ORDER BY COALESCE(activo, 1) DESC, orden, label
@@ -85,6 +93,14 @@ def listar_habitos_config(user_id: int | None = None) -> list[dict]:
         )
         or []
     )
+
+
+def _frecuencia(valor: str | None) -> str:
+    from app.cuenta import FRECUENCIAS
+
+    permitidas = {k for k, _ in FRECUENCIAS}
+    freq = (valor or "diaria").strip().lower()
+    return freq if freq in permitidas else "diaria"
 
 
 def _clave_desde(label: str) -> str:
@@ -106,8 +122,17 @@ def _limpiar(label: str, emoji: str, hora: str) -> tuple[str | None, dict]:
     }
 
 
-def crear_habito(label: str, emoji: str = "", hora: str = "", user_id: int | None = None) -> tuple[bool, str]:
+def crear_habito(
+    label: str,
+    emoji: str = "",
+    hora: str = "",
+    user_id: int | None = None,
+    frecuencia: str = "diaria",
+) -> tuple[bool, str]:
+    from app.cuenta import asegurar_schema
     from app.db.core import ejecutar, invalidate_data_caches
+
+    asegurar_schema()
 
     error, datos = _limpiar(label, emoji, hora)
     if error:
@@ -125,19 +150,27 @@ def crear_habito(label: str, emoji: str = "", hora: str = "", user_id: int | Non
     orden = max((int(h.get("orden") or 0) for h in existentes), default=0) + 1
     ejecutar(
         """
-        INSERT INTO habitos_config (user_id, clave, label, emoji, hora, activo, orden)
-        VALUES (?, ?, ?, ?, ?, 1, ?)
+        INSERT INTO habitos_config (user_id, clave, label, emoji, hora, activo, orden, frecuencia)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?)
         """,
-        [uid_i, clave, datos["label"], datos["emoji"], datos["hora"], orden],
+        [uid_i, clave, datos["label"], datos["emoji"], datos["hora"], orden, _frecuencia(frecuencia)],
     )
     invalidate_data_caches()
     return True, f"Hábito «{datos['label']}» agregado."
 
 
 def actualizar_habito(
-    clave: str, label: str, emoji: str = "", hora: str = "", user_id: int | None = None
+    clave: str,
+    label: str,
+    emoji: str = "",
+    hora: str = "",
+    user_id: int | None = None,
+    frecuencia: str | None = None,
 ) -> tuple[bool, str]:
+    from app.cuenta import asegurar_schema
     from app.db.core import ejecutar, invalidate_data_caches
+
+    asegurar_schema()
 
     error, datos = _limpiar(label, emoji, hora)
     if error:
@@ -147,10 +180,17 @@ def actualizar_habito(
         return False, "Hábito no encontrado."
     ejecutar(
         """
-        UPDATE habitos_config SET label = ?, emoji = ?, hora = ?
+        UPDATE habitos_config SET label = ?, emoji = ?, hora = ?, frecuencia = COALESCE(?, frecuencia)
         WHERE user_id = ? AND clave = ?
         """,
-        [datos["label"], datos["emoji"], datos["hora"], uid_i, clave],
+        [
+            datos["label"],
+            datos["emoji"],
+            datos["hora"],
+            _frecuencia(frecuencia) if frecuencia is not None else None,
+            uid_i,
+            clave,
+        ],
     )
     invalidate_data_caches()
     return True, "Hábito actualizado."

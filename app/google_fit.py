@@ -160,10 +160,30 @@ def _ensure_oauth_table():
         log.warning("[GoogleFit] No se pudo asegurar tabla oauth_tokens: %s", e)
 
 
+def _payload_sellado(token_data: dict) -> str:
+    from app.token_crypto import sellar
+
+    return sellar(json.dumps(token_data, separators=(",", ":")))
+
+
+def _abrir_token_json(payload: str) -> Optional[dict]:
+    from app.token_crypto import TokenIlegible, abrir
+
+    try:
+        data = json.loads(abrir(payload or ""))
+    except (TokenIlegible, json.JSONDecodeError, TypeError, ValueError):
+        log.warning("[GoogleFit] Token ilegible o alterado")
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
 def _load_token_from_db() -> Optional[dict]:
     try:
         from app.database import ejecutar
         from app.tenant import try_uid
+        from app.token_crypto import PREFIJO
         _ensure_oauth_table()
         user_id = try_uid()
         if user_id is None:
@@ -175,9 +195,15 @@ def _load_token_from_db() -> Optional[dict]:
         ) or []
         if not rows:
             return None
-        return json.loads(rows[0]["token_json"])
+        raw = rows[0]["token_json"]
+        data = _abrir_token_json(raw)
+        if not data:
+            return None
+        if not str(raw).startswith(PREFIJO):
+            _save_token_dict(data, user_id=user_id)
+        return data
     except Exception as e:
-        log.warning("[GoogleFit] Error leyendo token BD: %s", e)
+        log.warning("[GoogleFit] Error leyendo token BD: %s", type(e).__name__)
         return None
 
 
@@ -195,7 +221,7 @@ def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
             return False
         user_id = int(user_id)
         token_data = _stamp_expiry(token_data)
-        payload = json.dumps(token_data)
+        payload = _payload_sellado(token_data)
         # Asegurar columna user_id
         try:
             ejecutar("ALTER TABLE oauth_tokens ADD COLUMN user_id INTEGER")
@@ -215,7 +241,7 @@ def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
             from app.tenant import try_uid
             if user_id is None:
                 user_id = try_uid()
-            payload = json.dumps(token_data)
+            payload = _payload_sellado(token_data)
             ejecutar(
                 "DELETE FROM oauth_tokens WHERE provider = ? AND user_id = ?",
                 [PROVIDER, user_id],
@@ -225,16 +251,16 @@ def _save_token_dict(token_data: dict, user_id: int | None = None) -> bool:
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             """, [user_id, PROVIDER, payload])
         except Exception as e2:
-            log.warning("[GoogleFit] Error guardando token en BD: %s / %s", e, e2)
-            _ultimo_error_auth = f"No se pudo guardar token en BD: {e2}"
+            log.warning("[GoogleFit] Error guardando token en BD: %s / %s", type(e).__name__, type(e2).__name__)
+            _ultimo_error_auth = "No se pudo guardar token en BD"
             return False
 
-    # Disco opcional SOLO por usuario (evita compartir token entre cuentas)
+    # Disco opcional SOLO por usuario. El archivo queda sellado, no en JSON plano.
     try:
         path = TOKEN_FILE.parent / f"token_fit_u{int(user_id)}.json"
-        path.write_text(json.dumps(token_data, indent=2))
+        path.write_text(payload, encoding="utf-8")
     except Exception as e:
-        log.warning("[GoogleFit] Disco no escribible (ok si hay BD): %s", e)
+        log.warning("[GoogleFit] Disco no escribible (ok si hay BD): %s", type(e).__name__)
     return True
 
 
@@ -316,9 +342,9 @@ def _load_token_from_disk() -> Optional[dict]:
     if not TOKEN_FILE.exists():
         return None
     try:
-        return json.loads(TOKEN_FILE.read_text())
-    except Exception as e:
-        log.warning("[GoogleFit] Error leyendo disco: %s", e)
+        return _abrir_token_json(TOKEN_FILE.read_text())
+    except Exception:
+        log.warning("[GoogleFit] Error leyendo disco")
         return None
 
 
@@ -648,7 +674,7 @@ def intercambiar_oauth_code(
                     or []
                 )
                 if rows:
-                    existing = json.loads(rows[0]["token_json"])
+                    existing = _abrir_token_json(rows[0]["token_json"])
             except Exception:
                 pass
             if existing and existing.get("refresh_token"):

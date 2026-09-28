@@ -20,7 +20,7 @@
 <nav class="agenda-tabs sandbox-tabs" aria-label="Secciones de ideas">
   <a class="{% if tab == 'ideas' %}active{% endif %}" href="/app/m/sandbox?tab=ideas"{% if tab == 'ideas' %} aria-current="page"{% endif %}>💡 Ideas</a>
   <a class="{% if tab == 'nueva' %}active{% endif %}" href="/app/m/sandbox?tab=nueva"{% if tab == 'nueva' %} aria-current="page"{% endif %}>➕ Nueva</a>
-  <a class="{% if tab == 'snippets' %}active{% endif %}" href="/app/m/sandbox?tab=snippets"{% if tab == 'snippets' %} aria-current="page"{% endif %}>🧩 Snippets</a>
+  {% if ver_snippets %}<a class="{% if tab == 'snippets' %}active{% endif %}" href="/app/m/sandbox?tab=snippets"{% if tab == 'snippets' %} aria-current="page"{% endif %}>🧩 Snippets</a>{% endif %}
 </nav>
 
 {% if tab == 'ideas' %}
@@ -144,7 +144,7 @@
 </section>
 {% endif %}
 
-{% if tab == 'snippets' %}
+{% if ver_snippets and tab == 'snippets' %}
 <section>
   <form class="sandbox-filter-form" method="get" action="/app/m/sandbox">
     <input type="hidden" name="tab" value="snippets" />

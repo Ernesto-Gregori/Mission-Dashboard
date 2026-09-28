@@ -100,6 +100,14 @@ def test_agregar_senales_finanzas(db_ready):
     from app.tenant import uid
 
     user_id = int(uid())
+    ejecutar(
+        """
+        INSERT INTO user_modulos (user_id, modulo, activo, config_json)
+        VALUES (?, 'finanzas', 1, '{}')
+        ON CONFLICT(user_id, modulo) DO UPDATE SET activo = 1
+        """,
+        [user_id],
+    )
     hoy = date.today()
     for i, monto in enumerate((20.0, 30.0, 10.0)):
         f = (hoy - timedelta(days=i)).isoformat()

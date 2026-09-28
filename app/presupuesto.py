@@ -193,16 +193,18 @@ def resumen_mes(mes: int, anio: int, user_id: int | None = None) -> dict:
     """Ingreso del mes repartido en sobres según los ratios vs gasto real."""
     from app.db.finanzas import obtener_gastos_sobre, obtener_ingreso
 
+    from app.cuenta import catalogo_sobres
+
     ratios = obtener_ratios(user_id)
     ingreso = float(obtener_ingreso(mes, anio) or 0)
     gastos = obtener_gastos_sobre(mes=mes, anio=anio, limite=500)
     total_gastado = sum(float(g.get("monto") or 0) for g in gastos)
 
     sobres: dict[str, dict] = {}
-    for key, config in SOBRES_CONFIG.items():
+    for key, config in catalogo_sobres(user_id).items():
         propios = [g for g in gastos if g.get("sobre") == key]
         gastado = sum(float(g.get("monto") or 0) for g in propios)
-        presupuesto = ingreso * ratios[key] / 100.0
+        presupuesto = ingreso * ratios.get(key, 0) / 100.0
         por_subcat: dict[str, float] = {}
         for g in propios:
             sub = str(g.get("subcategoria") or "")
@@ -211,7 +213,7 @@ def resumen_mes(mes: int, anio: int, user_id: int | None = None) -> dict:
         sobres[key] = {
             **config,
             "key": key,
-            "pct": ratios[key],
+            "pct": ratios.get(key, 0),
             "presupuesto": presupuesto,
             "gastado": gastado,
             "disponible": presupuesto - gastado,
