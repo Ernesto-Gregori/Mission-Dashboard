@@ -56,7 +56,7 @@ def _onboard(client: TestClient, username: str = "nav_user", mods=None) -> None:
 
 def _sidebar(html: bytes) -> str:
     text = html.decode()
-    m = re.search(r'<aside class="sidebar">(.*?)</aside>', text, re.S)
+    m = re.search(r'<aside class="sidebar"[^>]*>(.*?)</aside>', text, re.S)
     assert m, "sidebar missing"
     return m.group(1)
 
@@ -103,6 +103,25 @@ def test_sidebar_uses_hubs_not_page_dump(web_client):
     assert "Teología" not in side and "Teologia" not in side
 
     assert len(hrefs) <= 10
+
+
+def test_el_menu_se_puede_plegar_en_movil(web_client):
+    """En móvil la navegación es un drawer, no una barra que empuja el contenido."""
+    _onboard(web_client)
+    body = web_client.get("/app").content.decode()
+
+    assert '<aside class="sidebar" id="app-sidebar">' in body
+    assert 'aria-controls="app-sidebar"' in body
+    assert 'aria-expanded="false"' in body
+    assert 'class="nav-scrim" hidden' in body
+    assert 'aria-label="Cerrar el menú"' in body
+    assert "/static/js/nav.js?v=" in body
+
+    css = (Path(__file__).resolve().parent.parent / "web/static/css/app.css").read_text("utf-8")
+    assert '.sidebar[data-open="true"]' in css
+    assert "body.nav-open" in css
+    # El patrón viejo (sidebar siempre visible con scroll horizontal) no vuelve.
+    assert ".nav-group-label { display: none; }" not in css
 
 
 def test_inactive_module_hubs_hidden(web_client):

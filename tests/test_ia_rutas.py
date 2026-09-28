@@ -112,7 +112,7 @@ def _onboard_completo(client: TestClient, username: str = "mapa") -> None:
 
 
 def _sidebar(html: bytes) -> str:
-    m = re.search(r'<aside class="sidebar">(.*?)</aside>', html.decode(), re.S)
+    m = re.search(r'<aside class="sidebar"[^>]*>(.*?)</aside>', html.decode(), re.S)
     assert m, "sidebar missing"
     return m.group(1)
 
