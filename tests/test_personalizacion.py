@@ -270,6 +270,8 @@ def test_habito_en_dias_concretos_solo_sale_esos_dias(web_client):
     ok, _ = crear_habito("Piano", user_id=1)
     assert ok
     clave = listar_habitos_config(1)[0]["clave"]
+    inicial = web_client.get("/app/configuracion").text
+    assert f'id="freq-days-{clave}" hidden' in inicial
     vacio = web_client.post(
         "/app/configuracion",
         data={
@@ -313,6 +315,8 @@ def test_habito_en_dias_concretos_solo_sale_esos_dias(web_client):
     assert listar_habitos(1, fecha="2026-09-28")
     pagina = web_client.get("/app/configuracion").text
     assert 'value="custom" selected' in pagina or "selected>Días concretos" in pagina
+    assert f'id="freq-days-{clave}" hidden' not in pagina
+    assert "Solo se guardan si eliges Días concretos." in pagina
 
 
 def test_habito_entre_semana_no_sale_el_domingo(web_client):
