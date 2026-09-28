@@ -96,7 +96,7 @@ def _ctx(
         "user": user,
         "meta": meta_para("biblioteca"),
         "tab": tab,
-        "flash": flash,
+        "flash": flash or request.session.pop("bib_flash", None),
         "error": error,
         "stats": stats_biblioteca(),
         "libros": libros,
@@ -179,6 +179,7 @@ async def nuevo_libro(request: Request, user: Annotated[dict, Depends(require_on
             status_code=400,
             **_ctx(request, user, error="No se pudo crear el libro."),
         )
+    request.session["bib_flash"] = "Libro agregado."
     return _redirect("catalogo")
 
 
@@ -196,6 +197,7 @@ async def set_progreso(
     estado = str(form.get("estado") or "") or None
     actualizar_progreso(int(libro_id), pagina, estado)
     tab = str(form.get("next_tab") or "leyendo")
+    request.session["bib_flash"] = "Progreso guardado."
     return _redirect(tab if tab in TABS else "leyendo")
 
 
@@ -230,6 +232,7 @@ async def edit_libro(
             status_code=400,
             **_ctx(request, user, error="No se pudo editar el libro."),
         )
+    request.session["bib_flash"] = "Libro actualizado."
     return _redirect("catalogo")
 
 
@@ -240,6 +243,7 @@ def delete_libro(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     eliminar_libro(int(libro_id))
+    request.session["bib_flash"] = "Libro eliminado."
     return _redirect("catalogo")
 
 
@@ -279,4 +283,5 @@ async def add_resaltado(request: Request, user: Annotated[dict, Depends(require_
             status_code=400,
             **_ctx(request, user, error="No se pudo guardar el resaltado."),
         )
+    request.session["bib_flash"] = "Resaltado agregado."
     return _redirect("resaltados", libro=libro_id)

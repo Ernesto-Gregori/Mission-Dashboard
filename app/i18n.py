@@ -393,6 +393,7 @@ _RE_BLOQUE = re.compile(r"^(\d{2}:\d{2}) (.+) · (Completado|Parcial|Postergado)
 _RE_ESTADO = re.compile(r"^(.+): (Completado|Parcial|Postergado)\.$")
 
 _ATRIBUTOS = {"placeholder", "aria-label", "title", "alt"}
+_ATRIBUTOS_CONFIRM = {"onsubmit", "onclick"}
 _SALTAR = {"script", "style", "textarea"}
 
 
@@ -621,7 +622,7 @@ class _Reescritor(HTMLParser):
 
 def _atributos_cambiaron(attrs) -> bool:
     for clave, valor in attrs:
-        if valor is None or clave not in _ATRIBUTOS and clave != "onsubmit":
+        if valor is None or (clave not in _ATRIBUTOS and clave not in _ATRIBUTOS_CONFIRM):
             continue
         if _valor_atributo(clave, valor) != valor:
             return True
@@ -640,7 +641,7 @@ def _traducir_confirm(decoded: str) -> str:
 
 def _valor_atributo(clave: str, valor: str) -> str:
     decoded = html.unescape(valor)
-    if clave == "onsubmit":
+    if clave in _ATRIBUTOS_CONFIRM:
         nuevo = _traducir_confirm(decoded)
     elif clave in _ATRIBUTOS:
         nuevo = traducir_fragmento(decoded)
@@ -657,7 +658,11 @@ def _reconstruir(tag: str, attrs) -> str:
         if valor is None:
             partes.append(f" {clave}")
             continue
-        shown = _valor_atributo(clave, valor) if clave in _ATRIBUTOS or clave == "onsubmit" else valor
+        shown = (
+            _valor_atributo(clave, valor)
+            if clave in _ATRIBUTOS or clave in _ATRIBUTOS_CONFIRM
+            else valor
+        )
         partes.append(f' {clave}="{shown}"')
     partes.append(">")
     return "".join(partes)

@@ -145,7 +145,7 @@ def _ctx(
         "meta": meta_para("sandbox"),
         "tab": tab,
         "ver_snippets": ver_snippets,
-        "flash": flash,
+        "flash": flash or request.session.pop("sb_flash", None),
         "error": error,
         "hoy": str(_hoy()),
         "stats": stats_sandbox(),
@@ -233,6 +233,7 @@ async def create_idea(request: Request, user: Annotated[dict, Depends(require_on
         notas=str(form.get("notas") or ""),
         estado=str(form.get("estado") or "Idea"),
     )
+    request.session["sb_flash"] = "Idea agregada."
     return _redirect("ideas")
 
 
@@ -271,6 +272,7 @@ async def update_idea(
         motivacion=max(1, min(10, motivacion)),
         notas=str(form.get("notas") or ""),
     )
+    request.session["sb_flash"] = "Idea actualizada."
     return _redirect("ideas")
 
 
@@ -281,6 +283,7 @@ async def delete_idea(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     eliminar_idea(idea_id)
+    request.session["sb_flash"] = "Idea eliminada."
     return _redirect("ideas")
 
 
@@ -304,6 +307,7 @@ async def create_snippet(request: Request, user: Annotated[dict, Depends(require
         tags=_tags(form.get("tags")),
         dominio=str(form.get("dominio") or "Programacion"),
     )
+    request.session["sb_flash"] = "Snippet agregado."
     return _redirect("snippets")
 
 
@@ -332,6 +336,7 @@ async def update_snippet(
         tags=_tags(form.get("tags")),
         dominio=str(form.get("dominio") or "Programacion"),
     )
+    request.session["sb_flash"] = "Snippet actualizado."
     return _redirect("snippets")
 
 
@@ -342,6 +347,7 @@ async def delete_snippet(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     eliminar_snippet(snip_id)
+    request.session["sb_flash"] = "Snippet eliminado."
     return _redirect("snippets")
 
 

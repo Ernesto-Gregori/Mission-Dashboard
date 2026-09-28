@@ -21,7 +21,7 @@
         <input id="hab-hora-{{ h.clave }}" name="hora" type="time" value="{{ h.hora if h.hora and h.hora != '—' else '' }}" />
         <span class="habit-actions">
           <button class="btn secondary" type="submit">Guardar</button>
-          <button class="btn secondary" type="submit" formaction="/app/coach/habitos/{{ h.clave }}/archivar" formnovalidate>Archivar</button>
+          <button class="btn secondary" type="submit" formaction="/app/coach/habitos/{{ h.clave }}/archivar" formnovalidate onclick="return confirm('¿Archivar este hábito? Deja de aparecer en Hoy.')">Archivar</button>
         </span>
       </form>
     </li>

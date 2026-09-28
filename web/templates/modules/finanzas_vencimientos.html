@@ -73,7 +73,7 @@
     {% for it in cal.recurrentes %}
     <li>
       <span>Día {{ it.dia }} · {{ it.meta.emoji }} {{ it.titulo }} · ${{ '%.2f'|format(it.monto) }}</span>
-      <form class="inline-form" method="post" action="/app/m/finanzas/vencimientos/{{ it.id }}/eliminar">
+      <form class="inline-form" method="post" action="/app/m/finanzas/vencimientos/{{ it.id }}/eliminar" onsubmit="return confirm('¿Eliminar este vencimiento?')">
         <button class="btn secondary icon-button" type="submit" aria-label="Eliminar {{ it.titulo }}">🗑️</button>
       </form>
     </li>

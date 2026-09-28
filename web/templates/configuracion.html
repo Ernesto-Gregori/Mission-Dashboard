@@ -195,7 +195,7 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
   {% else %}
   <p class="muted">La exportación está en Premium.</p>
   {% endif %}
-  <form id="borrar" method="post" action="/app/configuracion/borrar">
+  <form id="borrar" method="post" action="/app/configuracion/borrar" onsubmit="return confirm('Esto borra tu cuenta y todos tus registros. No se puede deshacer. ¿Seguir?')">
     <h3>Eliminar la cuenta</h3>
     <p class="muted">Borra tu usuario y tus registros. No se puede deshacer.</p>
     <label for="borrar-password">Contraseña</label>

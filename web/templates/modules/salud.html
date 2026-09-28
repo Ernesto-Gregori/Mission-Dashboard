@@ -308,7 +308,7 @@
       {% for eq in user_equipment %}
       <li>
         <span>{{ eq.equipment_name }}</span>
-        <form method="post" action="/app/m/salud/equipamiento/{{ eq.id }}/borrar">
+        <form method="post" action="/app/m/salud/equipamiento/{{ eq.id }}/borrar" onsubmit="return confirm('¿Eliminar este equipamiento?')">
           <button class="btn secondary" type="submit">Quitar</button>
         </form>
       </li>

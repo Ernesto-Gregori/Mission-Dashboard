@@ -98,7 +98,7 @@ def _ctx(
         "user": user,
         "meta": meta,
         "tab": tab,
-        "flash": flash,
+        "flash": flash or request.session.pop("dw_flash", None),
         "error": error,
         "fecha": fecha,
         "dia_nombre": dia_nombre,
@@ -180,6 +180,8 @@ async def save_sesion(request: Request, user: Annotated[dict, Depends(require_on
     estado = str(form.get("estado") or "Pendiente")
     notas = str(form.get("notas") or "")
     ok = registrar_sesion(fecha, bloque_id, estado, notas)
+    if ok:
+        request.session["dw_flash"] = "Sesión guardada."
     if not ok:
         return render(
             request,
@@ -231,6 +233,7 @@ async def create_bloque(request: Request, user: Annotated[dict, Depends(require_
             status_code=400,
             **_ctx(request, user, error="No se pudo crear el bloque."),
         )
+    request.session["dw_flash"] = "Bloque agregado."
     return _redirect("config")
 
 
@@ -271,6 +274,7 @@ async def update_bloque(
         color,
         activo,
     )
+    request.session["dw_flash"] = "Bloque actualizado."
     return _redirect("config")
 
 
@@ -281,6 +285,7 @@ def deactivate_bloque(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     desactivar_bloque(int(bloque_id))
+    request.session["dw_flash"] = "Bloque desactivado."
     return _redirect("config")
 
 
@@ -291,4 +296,5 @@ def reactivate_bloque(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     reactivar_bloque(int(bloque_id))
+    request.session["dw_flash"] = "Bloque reactivado."
     return _redirect("config")

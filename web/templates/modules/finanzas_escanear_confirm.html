@@ -110,7 +110,7 @@
 
   <div class="form-actions">
     <button class="btn" type="submit">Guardar gasto</button>
-    <button class="btn secondary" type="submit" formaction="/app/m/finanzas/escanear/cancelar" formmethod="post">Cancelar</button>
+    <button class="btn secondary" type="submit" formaction="/app/m/finanzas/escanear/cancelar" formmethod="post" onclick="return confirm('¿Descartar este escaneo?')">Cancelar</button>
     <a class="btn secondary" href="/app/m/finanzas">Volver</a>
   </div>
 </form>

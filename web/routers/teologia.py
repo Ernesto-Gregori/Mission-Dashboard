@@ -103,7 +103,7 @@ def _ctx(
         "user": user,
         "meta": meta_para("teologia"),
         "tab": tab,
-        "flash": flash,
+        "flash": flash or request.session.pop("teo_flash", None),
         "error": error,
         "sugerencia": sugerencia or request.session.pop("teo_sugerencia", None),
         "fecha": fecha,
@@ -190,6 +190,7 @@ async def save_devocional(request: Request, user: Annotated[dict, Depends(requir
             status_code=400,
             **_ctx(request, user, error="No se pudo guardar el devocional."),
         )
+    request.session["teo_flash"] = "Devocional guardado."
     return _redirect("hoy", fecha)
 
 
@@ -247,6 +248,7 @@ async def create_pedido(request: Request, user: Annotated[dict, Depends(require_
             status_code=400,
             **_ctx(request, user, error="No se pudo crear el pedido."),
         )
+    request.session["teo_flash"] = "Pedido agregado."
     return _redirect("oracion")
 
 
@@ -261,6 +263,7 @@ async def pedido_estado(
     estado = str(form.get("estado") or "Activo")
     nota = str(form.get("nota_respuesta") or "")
     actualizar_estado_pedido(int(pedido_id), estado, nota)
+    request.session["teo_flash"] = "Pedido actualizado."
     return _redirect("oracion")
 
 
@@ -296,6 +299,7 @@ async def pedido_editar(
         urgencia,
         dias,
     )
+    request.session["teo_flash"] = "Pedido actualizado."
     return _redirect("oracion")
 
 
@@ -306,4 +310,5 @@ def pedido_eliminar(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     eliminar_pedido(int(pedido_id))
+    request.session["teo_flash"] = "Pedido eliminado."
     return _redirect("oracion")

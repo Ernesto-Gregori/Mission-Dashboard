@@ -145,7 +145,7 @@
       {% for ep in locales %}
       <li>
         <span>📌 {{ ep.fecha }} — {{ (ep.titulo or '')[:28] }}</span>
-        <form class="inline-form" method="post" action="/app/planificador/bloque/{{ ep.id }}/eliminar">
+        <form class="inline-form" method="post" action="/app/planificador/bloque/{{ ep.id }}/eliminar" onsubmit="return confirm('¿Eliminar este bloque?')">
           <button class="btn secondary icon-button" type="submit" aria-label="Eliminar {{ ep.titulo }}">🗑️</button>
         </form>
       </li>
