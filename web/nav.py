@@ -234,6 +234,7 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
     elif hub == "cuenta":
         tabs = [
             _tab("/app/coach", "Mi sistema", path.startswith("/app/coach")),
+            _tab("/app/configuracion", "Configuración", path.startswith("/app/configuracion")),
             _tab("/app/billing", "Plan y cobros", path.startswith("/app/billing")),
             _tab("/app/usuarios", "Telegram y usuarios", path.startswith("/app/usuarios")),
         ]

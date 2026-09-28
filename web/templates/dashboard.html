@@ -119,8 +119,7 @@
       <h2 id="modules-title">Tus áreas</h2>
       <p class="muted">{{ activos_count }} áreas activas</p>
     </div>
-    <a href="/app/configuracion">Configuración</a>
-    <a href="/app/coach">Mi sistema</a>
+    <a href="/app/configuracion">Elegir mis áreas</a>
   </div>
   {% set areas_vida = life_hubs | rejectattr('id', 'equalto', 'semana') | list %}
   {% if not areas_vida %}

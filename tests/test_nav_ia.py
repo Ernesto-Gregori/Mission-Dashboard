@@ -198,6 +198,23 @@ def test_familia_vive_en_cuenta_admin(web_client):
     assert b'href="/app/familia"' in r.content
 
 
+def test_configuracion_es_una_pestana_de_cuenta_y_no_un_atajo_aparte(web_client):
+    """Ajustar la cuenta se hace en un solo lugar: el hub Cuenta."""
+    _onboard(web_client)
+    r = web_client.get("/app/configuracion")
+    assert r.status_code == 200
+    body = r.content.decode()
+    # La pestaña existe y queda marcada como la página actual.
+    assert re.search(r'<a[^>]*href="/app/configuracion"[^>]*aria-current="page"', body)
+    assert 'href="/app/coach"' in body
+    assert 'href="/app/billing"' in body
+    # El atajo del pie ya no compite con la pestaña.
+    side = _sidebar(r.content)
+    pie = side[side.index('class="sidebar-footer"') :]
+    assert 'href="/app/configuracion"' not in pie
+    assert "/app/configuracion" not in _link_hrefs(side)
+
+
 def test_cuenta_hub_covers_billing(web_client):
     _onboard(web_client)
     r = web_client.get("/app/usuarios")
