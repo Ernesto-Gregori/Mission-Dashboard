@@ -33,6 +33,27 @@ def test_json_legado_sigue_abriendo_y_un_sobre_alterado_falla(monkeypatch):
         abrir(cerrado[:-8] + "xxxxxxxx")
 
 
+def test_meses_y_avisos_sueltos_pasan_a_ingles():
+    meses = "<option>Ene</option><option>Mar</option><option>Abr</option><option>Ago</option><option>Dic</option>"
+    out = traducir_html(meses)
+    assert ">Jan</option>" in out
+    assert ">Mar</option>" in out
+    assert ">Apr</option>" in out
+    assert ">Aug</option>" in out
+    assert ">Dec</option>" in out
+    assert "Wheel updated." in traducir_html("<p>Rueda actualizada.</p>")
+    assert "Log saved." in traducir_html("<p>Bitácora guardada.</p>")
+    assert "Settings saved." in traducir_html("<p>Configuración guardada.</p>")
+    sugerido = "<p>Sugerido desde tus vencimientos de ingreso (Nómina). Guárdalo para usarlo este mes.</p>"
+    assert "Suggested from your income bills (Nómina)" in traducir_html(sugerido)
+    assert "Payment received. Active plan: Premium." in traducir_html(
+        "<p>Pago recibido. Plan activo: Premium.</p>"
+    )
+    assert "Checkout cancelled." in traducir_html(
+        "<p>Checkout cancelado. Puedes intentarlo cuando quieras.</p>"
+    )
+
+
 def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     html = (
         '<p>Hoy</p><p>3 módulos activos</p>'
@@ -189,6 +210,9 @@ def test_los_modulos_se_traducen_y_el_espanol_sigue_igual(web_client):
     assert dinero.status_code == 200
     assert "Add expense" in dinero.text
     assert "Agregar gasto" not in dinero.text
+    assert ">Jan</option>" in dinero.text
+    assert ">Dec</option>" in dinero.text
+    assert ">Mar</option>" in dinero.text
     plan = web_client.get("/app/planificador")
     assert "Draggable timeline, synced with Google Calendar." in plan.text
     assert "Línea de tiempo arrastrable" not in plan.text

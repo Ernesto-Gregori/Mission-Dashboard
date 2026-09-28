@@ -278,6 +278,27 @@ _PATRONES = (
     (re.compile(r"^3 sobres · (.+)$"), r"3 envelopes · \1"),
     (re.compile(r"^3 sobres \(([\d/]+)\)$"), r"3 envelopes (\1)"),
     (re.compile(r"^Disponible: (.+)$"), r"Available: \1"),
+    (
+        re.compile(r"^Sugerido desde tus vencimientos de ingreso \((.+)\)\. Guárdalo para usarlo este mes\.$"),
+        r"Suggested from your income bills (\1). Save it to use it this month.",
+    ),
+    (re.compile(r"^No se pudo guardar la imagen: (.+)$"), r"Could not save the image: \1"),
+    (re.compile(r"^Supermercado desconocido: (.+)$"), r"Unknown store: \1"),
+    (re.compile(r"^No se pudo actualizar (.+): (.+)$"), r"Could not update \1: \2"),
+    (
+        re.compile(r"^Código generado\. Vence en 10 minutos\. Código: (\d+)$"),
+        r"Code generated. It expires in 10 minutes. Code: \1",
+    ),
+    (re.compile(r"^Pago recibido\. Plan activo: (.+)\.$"), r"Payment received. Active plan: \1."),
+    (
+        re.compile(
+            r"^Pago recibido( \(.*\))?\. Si tu plan aún aparece Free, espera unos segundos y recarga — "
+            r"el webhook de Stripe actualiza Turso\.$"
+        ),
+        r"Payment received\1. If your plan still shows Free, wait a few seconds and reload — "
+        r"the Stripe webhook updates the database.",
+    ),
+    (re.compile(r"^Fit: (.+)$"), r"Fit: \1"),
     (re.compile(r"^(.*?) · Free: máx\. (\d+) módulos$"), r"\1 · Free: max. \2 modules"),
     (
         re.compile(
