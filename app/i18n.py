@@ -5,6 +5,8 @@ import html
 import re
 from html.parser import HTMLParser
 
+from app.i18n_frases import FRASES
+
 IDIOMAS = ("es", "en")
 COOKIE = "mission_lang"
 _MAX_AGE = 60 * 60 * 24 * 365
@@ -258,10 +260,24 @@ CATALOGO = {
     "admin": "admin",
 }
 
+for _clave, _valor in FRASES.items():
+    CATALOGO.setdefault(_clave, _valor)
+
 _PATRONES = (
     (re.compile(r"^(\d+) módulos activos$"), r"\1 active modules"),
     (re.compile(r"^Archivados \((\d+)\)$"), r"Archived (\1)"),
     (re.compile(r"^Demasiados intentos\. Espera (\d+)s\.$"), r"Too many attempts. Wait \1s."),
+    (re.compile(r"^Cupo esta semana: (\d+)/(\d+)\.$"), r"Quota this week: \1/\2."),
+    (re.compile(r"^Semana (\d{2}/\d{2}) — (\d{2}/\d{2}/\d{4})$"), r"Week \1 — \2"),
+    (re.compile(r"^(.*?) · Free: máx\. (\d+) módulos$"), r"\1 · Free: max. \2 modules"),
+    (
+        re.compile(
+            r"^Este módulo no está en tu cupo Free \(máx\. (\d+) módulos\)\. "
+            r"Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX\.$"
+        ),
+        r"This module is outside your Free allowance (max. \1 modules). "
+        r"Move to Premium to unlock it, or turn it on inside your allowance.",
+    ),
 )
 
 _ATRIBUTOS = {"placeholder", "aria-label", "title", "alt"}
@@ -295,7 +311,7 @@ def traducir_fragmento(texto: str) -> str:
         return texto
     lead = texto[: len(texto) - len(texto.lstrip())]
     trail = texto[len(texto.rstrip()) :]
-    nucleo = texto.strip()
+    nucleo = " ".join(texto.split())
     nuevo = _nucleo(nucleo)
     if nuevo == nucleo:
         return texto

@@ -59,6 +59,14 @@ def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     assert "Choose how to start · Mission" in traducir_html(
         "<title>Elige cómo empezar · Mission</title>"
     )
+    assert ">💑 Pareja</span>" in traducir_html("<span>💑 Pareja</span>")
+    assert "Quota this week: 1/3." in traducir_html("<p>Cupo esta semana: 1/3.</p>")
+    assert "Week 28/09 — 04/10/2026" in traducir_html("<h2>Semana 28/09 — 04/10/2026</h2>")
+    aviso = (
+        "<div>Este módulo no está en tu cupo Free (máx. 3 módulos).\n"
+        "  Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX.</div>"
+    )
+    assert "Free allowance (max. 3 modules)" in traducir_html(aviso)
 
 
 @pytest.fixture()
@@ -161,6 +169,46 @@ def test_ingles_conserva_el_script_de_finanzas(web_client):
     assert "function fillSubs()" in page.text
     assert "innerHTML" in page.text
     assert ">Money</a>" in page.text
+
+
+def test_los_modulos_se_traducen_y_el_espanol_sigue_igual(web_client):
+    _setup(web_client, "modulos")
+    web_client.post("/app/coach/plantilla", data={"plantilla": "diario"}, follow_redirects=False)
+    antes = web_client.get("/app/planificador")
+    assert "Línea de tiempo arrastrable, sincronizada con Google Calendar." in antes.text
+    web_client.get("/idioma?lang=en&next=/app/m/finanzas", follow_redirects=False)
+    dinero = web_client.get("/app/m/finanzas")
+    assert dinero.status_code == 200
+    assert "Add expense" in dinero.text
+    assert "Agregar gasto" not in dinero.text
+    plan = web_client.get("/app/planificador")
+    assert "Draggable timeline, synced with Google Calendar." in plan.text
+    assert "Línea de tiempo arrastrable" not in plan.text
+    revision = web_client.get("/app/revision")
+    assert "The week in numbers" in revision.text
+    assert "Generate briefing" in revision.text
+    assert "La semana en números" not in revision.text
+    assert "Generar briefing" not in revision.text
+    salud = web_client.get("/app/m/salud")
+    assert "Save day" in salud.text or "Today's log" in salud.text
+    assert "Registro del día" not in salud.text
+
+
+def test_lectura_y_enfoque_en_ingles(web_client):
+    _setup(web_client, "estudio")
+    web_client.post("/app/coach/plantilla", data={"plantilla": "estudio"}, follow_redirects=False)
+    web_client.get("/idioma?lang=en&next=/app/m/biblioteca", follow_redirects=False)
+    libros = web_client.get("/app/m/biblioteca")
+    assert libros.status_code == 200
+    assert "No books yet. Add one under New." in libros.text
+    assert "Sin libros" not in libros.text
+    nuevo = web_client.get("/app/m/biblioteca?tab=nuevo")
+    assert "Save book" in nuevo.text
+    foco = web_client.get("/app/m/deep_work")
+    assert "Focus blocks · daily log" in foco.text
+    assert "Bloques de enfoque" not in foco.text
+    config = web_client.get("/app/m/deep_work?tab=config")
+    assert "Create block" in config.text
 
 
 def test_token_de_google_se_guarda_cifrado_y_el_plano_se_migra(web_client, monkeypatch, tmp_path):
