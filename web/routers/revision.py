@@ -48,8 +48,10 @@ def revision_ctx(
     uid = int(user["id"])
     lunes = _lunes(request)
     bit = obtener_bitacora(lunes.isoformat()) or {}
-    scores = rueda_scores if rueda_scores is not None else obtener_scores(uid)
+    scores = dict(rueda_scores if rueda_scores is not None else obtener_scores(uid))
     areas = areas_rueda(uid)
+    for clave, _nombre, _emoji in areas:
+        scores.setdefault(clave, 0)
     return {
         "title": "Revisión semanal",
         "user": user,

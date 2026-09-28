@@ -2247,6 +2247,21 @@ a.ex-card:hover {
 
 /* Mi sistema — hábitos */
 .habit-list { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: 0.5rem; }
+.rueda-config-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+}
+.rueda-config-row .check-row { min-height: 44px; padding-top: 0; }
+.rueda-config-row input[type="text"],
+.rueda-config-row input:not([type="checkbox"]) { margin: 0; }
+.rueda-nueva {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5rem;
+  gap: 0.5rem;
+  align-items: end;
+}
 .habit-row {
   display: grid;
   grid-template-columns: 4rem minmax(0, 1fr) 8rem auto;

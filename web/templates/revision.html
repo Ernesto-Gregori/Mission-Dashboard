@@ -100,7 +100,7 @@
 <section class="rueda-layout" id="rueda" aria-labelledby="rueda-svg-title">
   <div class="card rueda-visual">
     <h2 id="rueda-svg-title">Rueda de la vida · {{ geo.promedio }} / 10</h2>
-    <svg class="rueda-svg" viewBox="0 0 {{ geo.size }} {{ geo.size }}" role="img" aria-label="Rueda de la vida con ocho áreas">
+    <svg class="rueda-svg" viewBox="0 0 {{ geo.size }} {{ geo.size }}" role="img" aria-label="Rueda de la vida con {{ areas|length }} áreas">
       <title>Rueda de la vida</title>
       {% for anillo in geo.anillos %}
       <polygon class="rueda-ring" points="{{ anillo }}"></polygon>

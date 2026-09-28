@@ -14,6 +14,9 @@ from app.cuenta import (
     MONEDAS,
     areas_rueda,
     borrar_cuenta,
+    catalogo_areas_rueda,
+    rueda_conservando_estructura,
+    rueda_desde_eleccion,
     catalogo_sobres,
     clave_categoria,
     exportar_datos,
@@ -87,6 +90,7 @@ def _ctx(request: Request, user: dict, *, error: str | None = None, flash: str |
         "habitos": listar_habitos_config(uid),
         "categorias": categorias,
         "areas": areas_rueda(uid),
+        "areas_cfg": catalogo_areas_rueda(uid),
         "salud_ops": _SALUD,
         "salud_on": set(prefs["salud"]) or {k for k, _ in _SALUD},
         "puede_exportar": puede_exportar(plan_vigente(user)),
@@ -104,6 +108,30 @@ def configuracion_page(request: Request, user: Annotated[dict, Depends(require_o
 async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     uid = int(user["id"])
     form = await request.form()
+    prev_rueda = leer_prefs(uid)["rueda"]
+    etiquetas = {
+        clave: str(form.get(f"rueda_{clave}") or "")
+        for clave, _nombre, _emoji in AREAS
+    }
+    for fila in catalogo_areas_rueda(uid):
+        etiquetas.setdefault(fila["clave"], str(form.get(f"rueda_{fila['clave']}") or ""))
+    if str(form.get("rueda_areas") or "") == "1":
+        rueda, error_rueda = rueda_desde_eleccion(
+            prev_rueda,
+            activas=[str(v) for v in form.getlist("rueda_on")],
+            nueva=str(form.get("rueda_nueva") or ""),
+            nueva_emoji=str(form.get("rueda_nueva_emoji") or ""),
+            etiquetas=etiquetas,
+        )
+        if error_rueda:
+            return render(
+                request,
+                "configuracion.html",
+                status_code=400,
+                **_ctx(request, user, error=error_rueda),
+            )
+    else:
+        rueda = rueda_conservando_estructura(prev_rueda, etiquetas)
     activos = {str(v) for v in form.getlist("activo")}
     alias = {
         clave: str(form.get(f"alias_{clave}") or "")
@@ -123,11 +151,6 @@ async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(
             status_code=400,
             **_ctx(request, user, error=error),
         )
-    rueda = {}
-    for clave, _nombre, _emoji in AREAS:
-        texto = str(form.get(f"rueda_{clave}") or "").strip()
-        if texto:
-            rueda[clave] = texto[:40]
     salud = [str(v) for v in form.getlist("salud")]
     try:
         desde = int(form.get("hora_desde") or 6)
