@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 
 from app.logging_config import get_logger
 
@@ -19,6 +20,7 @@ AREAS = (
     ("proposito", "Propósito", "🎯"),
 )
 CLAVES = tuple(a[0] for a in AREAS)
+CLAVE_AREA = re.compile(r"^[a-z][a-z0-9_]{0,19}$")
 
 
 def ensure_rueda_schema() -> None:
@@ -69,19 +71,31 @@ def parsear_scores(raw: dict | str | None) -> dict[str, int]:
             out[k] = _clamp(int(data.get(k, 0) or 0))
         except (TypeError, ValueError):
             out[k] = 0
+    for k, valor in data.items():
+        clave = str(k)
+        if clave in out or not CLAVE_AREA.fullmatch(clave):
+            continue
+        try:
+            out[clave] = _clamp(int(valor or 0))
+        except (TypeError, ValueError):
+            out[clave] = 0
     return out
 
 
-def validar_scores(vals: dict) -> tuple[bool, str, dict[str, int]]:
-    clean = scores_default()
-    for k in CLAVES:
+def validar_scores(vals: dict, claves: tuple | list | None = None) -> tuple[bool, str, dict[str, int]]:
+    objetivo = tuple(claves) if claves is not None else CLAVES
+    vacio = scores_default()
+    clean: dict[str, int] = {}
+    for k in objetivo:
+        if k not in CLAVES and not CLAVE_AREA.fullmatch(str(k)):
+            return False, "Cada área necesita un número del 0 al 10.", vacio
         try:
             n = int(vals.get(k, 0) or 0)
         except (TypeError, ValueError):
-            return False, "Cada área necesita un número del 0 al 10.", clean
+            return False, "Cada área necesita un número del 0 al 10.", vacio
         if n < 0 or n > 10:
-            return False, "Cada área debe estar entre 0 y 10.", clean
-        clean[k] = n
+            return False, "Cada área debe estar entre 0 y 10.", vacio
+        clean[str(k)] = n
     return True, "", clean
 
 
@@ -102,14 +116,25 @@ def obtener_scores(user_id: int | None = None) -> dict[str, int]:
     return parsear_scores(rows[0].get("scores_json"))
 
 
-def guardar_scores(vals: dict, user_id: int | None = None) -> tuple[bool, str, dict[str, int]]:
-    ok, msg, clean = validar_scores(vals)
+def guardar_scores(
+    vals: dict,
+    user_id: int | None = None,
+    claves: tuple | list | None = None,
+) -> tuple[bool, str, dict[str, int]]:
+    ok, msg, clean = validar_scores(vals, claves=claves)
     if not ok:
         return False, msg, clean
     ensure_rueda_schema()
     from app.db.core import ejecutar, invalidate_data_caches
 
     uid_i = _uid(user_id)
+    previo = obtener_scores(uid_i)
+    merged = {**previo, **clean}
+    persist = {
+        k: _clamp(v)
+        for k, v in merged.items()
+        if k in CLAVES or CLAVE_AREA.fullmatch(str(k))
+    }
     ejecutar(
         """
         INSERT INTO rueda_vida (user_id, scores_json)
@@ -118,13 +143,13 @@ def guardar_scores(vals: dict, user_id: int | None = None) -> tuple[bool, str, d
             scores_json = excluded.scores_json,
             actualizado_en = CURRENT_TIMESTAMP
         """,
-        [uid_i, json.dumps(clean)],
+        [uid_i, json.dumps(persist)],
     )
     try:
         invalidate_data_caches()
     except Exception:
         pass
-    return True, "Rueda actualizada.", clean
+    return True, "Rueda actualizada.", persist
 
 
 def geometria(scores: dict[str, int], *, size: int = 280, areas: tuple | None = None) -> dict:
@@ -173,5 +198,7 @@ def geometria(scores: dict[str, int], *, size: int = 280, areas: tuple | None = 
             {"key": k, "nombre": n, "emoji": e, "valor": _clamp(int(scores.get(k, 0) or 0))}
             for k, n, e in areas
         ],
-        "promedio": round(sum(scores.get(k, 0) for k in CLAVES) / len(CLAVES), 1) if scores else 0,
+        "promedio": (
+            round(sum(_clamp(int(scores.get(k, 0) or 0)) for k, _, _ in areas) / n, 1) if n else 0
+        ),
     }

@@ -49,6 +49,86 @@ def _setup(client: TestClient, username: str = "persona") -> None:
     assert r.status_code in (303, 307)
 
 
+def test_la_rueda_oculta_un_area_y_acepta_otra(web_client):
+    _setup(web_client, "rueda")
+    web_client.post("/app/coach/plantilla", data={"plantilla": "blanco"}, follow_redirects=False)
+    base = ["fe", "matrimonio", "salud", "finanzas", "trabajo", "relaciones", "descanso", "proposito"]
+    datos = {k: "4" for k in base}
+    datos["fe"] = "9"
+    primera = web_client.post("/app/rueda", data=datos, follow_redirects=True)
+    assert primera.status_code == 200
+    assert 'name="fe" type="number" min="0" max="10" step="1" value="9"' in primera.text
+    on = [k for k in base if k != "descanso"]
+    guardado = web_client.post(
+        "/app/configuracion",
+        data={
+            "moneda": "USD",
+            "metodo": "sobres",
+            "ritual_a": "Gratitud",
+            "ritual_b": "Intención",
+            "activo": ["rueda"],
+            "hora_desde": "6",
+            "hora_hasta": "22",
+            "rueda_areas": "1",
+            "rueda_on": on,
+            "rueda_nueva": "Creatividad",
+            "rueda_nueva_emoji": "🎨",
+        },
+        follow_redirects=True,
+    )
+    assert guardado.status_code == 200
+    revision = web_client.get("/app/revision").text
+    assert 'name="descanso"' not in revision
+    assert 'name="creatividad"' in revision
+    assert "Creatividad" in revision
+    puntuar = {k: "4" for k in on}
+    puntuar["fe"] = "9"
+    puntuar["creatividad"] = "8"
+    web_client.post("/app/rueda", data=puntuar, follow_redirects=True)
+    otra = web_client.get("/app/revision").text
+    assert 'name="creatividad" type="number" min="0" max="10" step="1" value="8"' in otra
+    assert 'name="fe" type="number" min="0" max="10" step="1" value="9"' in otra
+    web_client.post(
+        "/app/configuracion",
+        data={
+            "activo": ["rueda"],
+            "moneda": "USD",
+            "metodo": "sobres",
+            "ritual_a": "Gratitud",
+            "ritual_b": "Intención",
+            "hora_desde": "6",
+            "hora_hasta": "22",
+        },
+        follow_redirects=True,
+    )
+    sigue = web_client.get("/app/revision").text
+    assert 'name="creatividad"' in sigue
+    assert 'name="descanso"' not in sigue
+
+
+def test_la_rueda_no_baja_de_tres_areas(web_client):
+    _setup(web_client, "ruedamin")
+    web_client.post("/app/coach/plantilla", data={"plantilla": "blanco"}, follow_redirects=False)
+    r = web_client.post(
+        "/app/configuracion",
+        data={
+            "moneda": "USD",
+            "metodo": "sobres",
+            "ritual_a": "Gratitud",
+            "ritual_b": "Intención",
+            "activo": ["rueda"],
+            "hora_desde": "6",
+            "hora_hasta": "22",
+            "rueda_areas": "1",
+            "rueda_on": ["fe", "salud"],
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 400
+    assert "al menos 3" in r.text
+    assert 'name="descanso"' in web_client.get("/app/revision").text
+
+
 def test_en_blanco_no_siembra_habitos_ni_areas(web_client):
     _setup(web_client)
     r = web_client.post(

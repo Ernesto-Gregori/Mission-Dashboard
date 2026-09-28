@@ -113,14 +113,30 @@
 
   <section class="card" aria-labelledby="rueda-title">
     <h2 id="rueda-title">Rueda de la vida</h2>
+    <p class="muted">Marca las que entran en la revisión. Mínimo 3.</p>
+    <input type="hidden" name="rueda_areas" value="1" />
     <ul class="habit-list">
-      {% for clave, nombre, emoji in areas %}
-      <li>
-        <label for="rueda-{{ clave }}">{{ emoji }} {{ nombre }}</label>
-        <input id="rueda-{{ clave }}" name="rueda_{{ clave }}" value="{{ nombre }}" maxlength="40" />
+      {% for a in areas_cfg %}
+      <li class="rueda-config-row">
+        <label class="check-row" for="rueda-on-{{ a.clave }}">
+          <input id="rueda-on-{{ a.clave }}" type="checkbox" name="rueda_on" value="{{ a.clave }}" {% if a.activo %}checked{% endif %} />
+          <span class="sr-only">Mostrar {{ a.nombre }}</span>
+        </label>
+        <span aria-hidden="true">{{ a.emoji }}</span>
+        <input id="rueda-{{ a.clave }}" name="rueda_{{ a.clave }}" value="{{ a.nombre }}" maxlength="40" aria-label="{{ a.nombre }}" />
       </li>
       {% endfor %}
     </ul>
+    <div class="rueda-nueva">
+      <div>
+        <label for="rueda-nueva">Nueva área</label>
+        <input id="rueda-nueva" name="rueda_nueva" maxlength="40" />
+      </div>
+      <div>
+        <label for="rueda-nueva-emoji">Emoji</label>
+        <input id="rueda-nueva-emoji" name="rueda_nueva_emoji" maxlength="4" />
+      </div>
+    </div>
   </section>
 
   <section class="card" aria-labelledby="salud-title">

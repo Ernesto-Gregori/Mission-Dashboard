@@ -230,21 +230,193 @@ def usa_vocabulario_cuenta(clave: str, user_id: int | None = None) -> bool:
     return bool(alias) and alias == cuenta
 
 
+_RUEDA_MIN = 3
+_RUEDA_MAX = 12
+_RUEDA_EXTRA_MAX = 4
+
+
+def _nombre_area(clave: str, nombre: str, overrides: dict, user_id: int) -> str:
+    propio = overrides.get(clave)
+    if isinstance(propio, str) and propio.strip():
+        return propio.strip()[:40]
+    if clave == "fe" and not usa_vocabulario_cuenta("teologia", user_id):
+        return "Espiritualidad"
+    if clave == "matrimonio" and not usa_vocabulario_cuenta("matrimonio", user_id):
+        return "Vínculos"
+    return nombre
+
+
+def _ocultas_rueda(raw: dict) -> list[str]:
+    from app.rueda import CLAVES
+
+    ocultas = raw.get("_ocultas")
+    if not isinstance(ocultas, list):
+        return []
+    permitidas = set(CLAVES)
+    out: list[str] = []
+    for item in ocultas:
+        clave = str(item)
+        if clave in permitidas and clave not in out:
+            out.append(clave)
+    return out
+
+
+def _extras_rueda(raw: dict) -> list[tuple[str, str, str]]:
+    from app.rueda import CLAVE_AREA, CLAVES
+
+    extra = raw.get("_extra")
+    if not isinstance(extra, list):
+        return []
+    base = set(CLAVES)
+    out: list[tuple[str, str, str]] = []
+    vistos: set[str] = set()
+    for item in extra:
+        if not isinstance(item, dict):
+            continue
+        clave = str(item.get("clave") or "")
+        nombre = str(item.get("nombre") or "").strip()[:40]
+        emoji = str(item.get("emoji") or "•").strip()[:4] or "•"
+        if not CLAVE_AREA.fullmatch(clave) or clave in base or clave in vistos or not nombre:
+            continue
+        vistos.add(clave)
+        out.append((clave, nombre, emoji))
+        if len(out) >= _RUEDA_EXTRA_MAX:
+            break
+    return out
+
+
+def _clave_area(nombre: str, ocupadas: set[str]) -> str | None:
+    import unicodedata
+
+    from app.rueda import CLAVE_AREA
+
+    bruto = unicodedata.normalize("NFKD", nombre or "")
+    bruto = "".join(ch for ch in bruto if not unicodedata.combining(ch))
+    base = re.sub(r"[^a-z0-9]+", "", bruto.lower())[:20]
+    if not base or not base[0].isalpha():
+        return None
+    clave = base
+    n = 2
+    while clave in ocupadas or not CLAVE_AREA.fullmatch(clave):
+        sufijo = str(n)
+        clave = (base[: 20 - len(sufijo)] + sufijo)[:20]
+        n += 1
+        if n > 30:
+            return None
+    return clave
+
+
 def areas_rueda(user_id: int | None = None) -> tuple[tuple[str, str, str], ...]:
     from app.rueda import AREAS
 
     uid_i = _uid(user_id)
-    overrides = leer_prefs(uid_i)["rueda"]
+    raw = leer_prefs(uid_i)["rueda"]
+    overrides = {k: v for k, v in raw.items() if isinstance(v, str)}
+    ocultas = set(_ocultas_rueda(raw))
     out = []
     for clave, nombre, emoji in AREAS:
-        if overrides.get(clave):
-            nombre = str(overrides[clave])[:40]
-        elif clave == "fe" and not usa_vocabulario_cuenta("teologia", uid_i):
-            nombre = "Espiritualidad"
-        elif clave == "matrimonio" and not usa_vocabulario_cuenta("matrimonio", uid_i):
-            nombre = "Vínculos"
-        out.append((clave, nombre, emoji))
-    return tuple(out)
+        if clave in ocultas:
+            continue
+        out.append((clave, _nombre_area(clave, nombre, overrides, uid_i), emoji))
+    out.extend(_extras_rueda(raw))
+    if len(out) < _RUEDA_MIN:
+        out = [
+            (clave, _nombre_area(clave, nombre, overrides, uid_i), emoji)
+            for clave, nombre, emoji in AREAS
+        ]
+    return tuple(out[:_RUEDA_MAX])
+
+
+def catalogo_areas_rueda(user_id: int | None = None) -> list[dict]:
+    """Cada radio que Configuración puede mostrar u ocultar."""
+    from app.rueda import AREAS
+
+    uid_i = _uid(user_id)
+    raw = leer_prefs(uid_i)["rueda"]
+    overrides = {k: v for k, v in raw.items() if isinstance(v, str)}
+    ocultas = set(_ocultas_rueda(raw))
+    filas = []
+    for clave, nombre, emoji in AREAS:
+        filas.append({
+            "clave": clave,
+            "nombre": _nombre_area(clave, nombre, overrides, uid_i),
+            "emoji": emoji,
+            "activo": clave not in ocultas,
+        })
+    for clave, nombre, emoji in _extras_rueda(raw):
+        filas.append({"clave": clave, "nombre": nombre, "emoji": emoji, "activo": True})
+    return filas
+
+
+def rueda_desde_eleccion(
+    prev: dict,
+    *,
+    activas: list[str],
+    nueva: str,
+    nueva_emoji: str,
+    etiquetas: dict[str, str],
+) -> tuple[dict | None, str | None]:
+    """Arma rueda_json. None y un mensaje si quedan menos de 3 o más de 12."""
+    from app.rueda import AREAS, CLAVES
+
+    prev = prev if isinstance(prev, dict) else {}
+    base = list(CLAVES)
+    extras_prev = _extras_rueda(prev)
+    conocidas = set(base) | {clave for clave, _, _ in extras_prev}
+    on = {str(item) for item in activas or [] if str(item) in conocidas}
+    ocultas = [clave for clave in base if clave not in on]
+    extras = []
+    for clave, nombre, emoji in extras_prev:
+        if clave not in on:
+            continue
+        texto = str(etiquetas.get(clave) or "").strip()[:40]
+        extras.append((clave, texto or nombre, emoji))
+    nombre_nuevo = (nueva or "").strip()[:40]
+    if nombre_nuevo:
+        if len(extras) >= _RUEDA_EXTRA_MAX:
+            return None, "La rueda admite hasta 12 áreas."
+        clave = _clave_area(nombre_nuevo, set(base) | {c for c, _, _ in extras})
+        if not clave:
+            return None, "La rueda admite hasta 12 áreas."
+        emoji = (nueva_emoji or "").strip()[:4] or "•"
+        extras.append((clave, nombre_nuevo, emoji))
+    visibles = (len(base) - len(ocultas)) + len(extras)
+    if visibles < _RUEDA_MIN:
+        return None, "Deja al menos 3 áreas en la rueda."
+    if visibles > _RUEDA_MAX:
+        return None, "La rueda admite hasta 12 áreas."
+    rueda: dict = {}
+    for clave, _nombre, _emoji in AREAS:
+        texto = str(etiquetas.get(clave) or "").strip()[:40]
+        if texto:
+            rueda[clave] = texto
+        elif isinstance(prev.get(clave), str) and str(prev.get(clave)).strip():
+            rueda[clave] = str(prev[clave]).strip()[:40]
+    if ocultas:
+        rueda["_ocultas"] = ocultas
+    if extras:
+        rueda["_extra"] = [
+            {"clave": clave, "nombre": nombre, "emoji": emoji}
+            for clave, nombre, emoji in extras
+        ]
+    return rueda, None
+
+
+def rueda_conservando_estructura(prev: dict, etiquetas: dict[str, str]) -> dict:
+    """Un guardado viejo, sin el formulario de áreas, no borra radios ocultos ni añadidos."""
+    from app.rueda import AREAS
+
+    prev = prev if isinstance(prev, dict) else {}
+    rueda: dict = {}
+    for clave, _nombre, _emoji in AREAS:
+        texto = str(etiquetas.get(clave) or "").strip()[:40]
+        if texto:
+            rueda[clave] = texto
+    if isinstance(prev.get("_ocultas"), list):
+        rueda["_ocultas"] = prev["_ocultas"]
+    if isinstance(prev.get("_extra"), list):
+        rueda["_extra"] = prev["_extra"]
+    return rueda
 
 
 def metricas_salud(user_id: int | None = None) -> set[str]:

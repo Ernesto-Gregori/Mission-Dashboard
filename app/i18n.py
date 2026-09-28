@@ -129,6 +129,11 @@ CATALOGO = {
     "Ritual": "Ritual",
     "Gratitud e intención en Hoy": "Gratitude and intention on Today",
     "Rueda de la vida": "Life wheel",
+    "Marca las que entran en la revisión. Mínimo 3.": "Check the ones that appear in the review. At least 3.",
+    "Nueva área": "New area",
+    "Mostrar": "Show",
+    "Deja al menos 3 áreas en la rueda.": "Leave at least 3 areas on the wheel.",
+    "La rueda admite hasta 12 áreas.": "The wheel allows up to 12 areas.",
     "La puntuación de la revisión semanal": "The weekly review score",
     "La asistente": "The assistant",
     "Primera pregunta del ritual": "First ritual question",
@@ -301,6 +306,7 @@ _PATRONES = (
     ),
     (re.compile(r"^Fit: (.+)$"), r"Fit: \1"),
     (re.compile(r"^Rueda de la vida · (.+) / 10$"), r"Life wheel · \1 / 10"),
+    (re.compile(r"^Rueda de la vida con (\d+) áreas$"), r"Life wheel with \1 areas"),
     (re.compile(r"^(\d+) días de racha$"), r"\1-day streak"),
     (re.compile(r"^✝️ (\d+) días$"), r"✝️ \1 days"),
     (
@@ -396,6 +402,9 @@ def _nucleo(texto: str) -> str:
     for patron, reemplazo in _PATRONES:
         if patron.fullmatch(texto):
             return patron.sub(reemplazo, texto)
+    mostrar = re.fullmatch(r"Mostrar (.+)", texto)
+    if mostrar:
+        return f"Show {_nucleo(mostrar.group(1))}"
     titulo = re.fullmatch(r"(.+) · Mission", texto)
     if titulo:
         interno = _nucleo(titulo.group(1))

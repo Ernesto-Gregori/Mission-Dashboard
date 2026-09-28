@@ -6,7 +6,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 
-from app.rueda import CLAVES, guardar_scores
+from app.cuenta import areas_rueda
+from app.rueda import guardar_scores
 from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/rueda", tags=["rueda"])
@@ -23,8 +24,10 @@ async def guardar(request: Request, user: Annotated[dict, Depends(require_onboar
     from web.routers.revision import revision_ctx
 
     form = await request.form()
-    raw = {k: form.get(k) for k in CLAVES}
-    ok, msg, clean = guardar_scores(raw, user_id=int(user["id"]))
+    uid = int(user["id"])
+    claves = [clave for clave, _nombre, _emoji in areas_rueda(uid)]
+    raw = {k: form.get(k) for k in claves}
+    ok, msg, clean = guardar_scores(raw, user_id=uid, claves=claves)
     if not ok:
         return render(
             request,
