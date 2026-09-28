@@ -119,6 +119,13 @@ def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
     )
     assert "El quijote · p. 12/300" in traducir_html("<p>El quijote · pág. 12/300</p>")
     assert "p. 0/— · 4%" in traducir_html("<span>pág. 0/— · 4%</span>")
+    assert ">Calisthenics</option>" in traducir_html('<option value="Calistenia">Calistenia</option>')
+    assert 'value="Calistenia"' in traducir_html('<option value="Calistenia">Calistenia</option>')
+    assert ">Chest</label>" in traducir_html("<label>Pecho</label>")
+    assert "At home</option>" in traducir_html('<option value="En_casa"> En casa</option>')
+    assert "🎊 Celebration" in traducir_html("<option>🎊 Celebracion</option>")
+    assert ">Matrimonio</option>" in traducir_html('<option value="Matrimonio">Matrimonio</option>')
+    assert ">Pasos mínimos</option>" in traducir_html('<option value="pasos">Pasos mínimos</option>')
 
 
 def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
