@@ -299,6 +299,42 @@ _PATRONES = (
         r"the Stripe webhook updates the database.",
     ),
     (re.compile(r"^Fit: (.+)$"), r"Fit: \1"),
+    (re.compile(r"^Rueda de la vida · (.+) / 10$"), r"Life wheel · \1 / 10"),
+    (re.compile(r"^(\d+) días de racha$"), r"\1-day streak"),
+    (re.compile(r"^✝️ (\d+) días$"), r"✝️ \1 days"),
+    (
+        re.compile(r"^Una lectura de tus módulos juntos\. Cupo esta semana: (\d+)/(\d+)\.$"),
+        r"A reading of your modules together. Quota this week: \1/\2.",
+    ),
+    (
+        re.compile(r"^Una lectura de tus módulos juntos\. Cupo esta semana: ilimitado\.$"),
+        r"A reading of your modules together. Quota this week: unlimited.",
+    ),
+    (
+        re.compile(
+            r"^Máximo (\d+) MB\. Lo ideal es un solo ejercicio de (\d+) s o menos "
+            r"\(se rechaza si supera (\d+) s\)\.$"
+        ),
+        r"Maximum \1 MB. A single exercise of \2 s or less is ideal (it is rejected if it runs over \3 s).",
+    ),
+    (re.compile(r"^Generado (.+) · ventana (\d+) días$"), r"Generated \1 · \2-day window"),
+    (re.compile(r"^(\d+) días · (\d+) min$"), r"\1 days · \2 min"),
+    (re.compile(r"^JSON inválido: (.+)$"), r"Invalid JSON: \1"),
+    (re.compile(r"^Último scrape: (.+)$"), r"Last scrape: \1"),
+    (re.compile(r"^(\d+) productos$"), r"\1 products"),
+    (
+        re.compile(r"^(\d+) productos indexados\. Usa la búsqueda o actualiza una tienda\.$"),
+        r"\1 products indexed. Use search or refresh a store.",
+    ),
+    (re.compile(r"^· sueño (.+)h · ⚡(.+)$"), r"· sleep \1h · ⚡\2"),
+    (re.compile(r"^· 💪 ejercicio\s*(\d*)min$"), r"· 💪 exercise \1min"),
+    (re.compile(r"^Día (\d+) · (.+) · \$(.+)$"), r"Day \1 · \2 · $\3"),
+    (re.compile(r"^Eliminar gasto (.+)$"), r"Delete expense \1"),
+    (re.compile(r"^Eliminar (.+)$"), r"Delete \1"),
+    (re.compile(r"^💰 Sobres de (.+)$"), r"💰 Envelopes for \1"),
+    (re.compile(r"^(.+) · pág\. (\d+)/(\d+)$"), r"\1 · p. \2/\3"),
+    (re.compile(r"^(.+) · pág\. (\d+)$"), r"\1 · p. \2"),
+    (re.compile(r"^pág\. (\d+)/(—|\d+) · ([\d.]+)%$"), r"p. \1/\2 · \3%"),
     (re.compile(r"^(.*?) · Free: máx\. (\d+) módulos$"), r"\1 · Free: max. \2 modules"),
     (
         re.compile(
@@ -364,7 +400,34 @@ def _nucleo(texto: str) -> str:
         interno = _nucleo(titulo.group(1))
         if interno != titulo.group(1):
             return f"{interno} · Mission"
+    compuesto = _componer(texto)
+    if compuesto:
+        return compuesto
     return texto
+
+
+def _componer(texto: str) -> str | None:
+    """Une cromo que el HTML deja en un solo nodo: «emoji Nombre — descripción»."""
+    if texto.startswith("— "):
+        resto = texto[2:]
+        nuevo = _nucleo(resto)
+        if nuevo != resto:
+            return f"— {nuevo}"
+        return None
+    if " — " in texto:
+        izquierda, derecha = texto.split(" — ", 1)
+        izq = _nucleo(izquierda)
+        der = _nucleo(derecha)
+        if izq != izquierda or der != derecha:
+            return f"{izq} — {der}"
+        return None
+    marca = re.fullmatch(r"(\S+) (.+)", texto)
+    if not marca or any(c.isalnum() for c in marca.group(1)):
+        return None
+    nombre = _nucleo(marca.group(2))
+    if nombre == marca.group(2):
+        return None
+    return f"{marca.group(1)} {nombre}"
 
 
 def traducir_fragmento(texto: str) -> str:
@@ -495,9 +558,11 @@ class _Reescritor(HTMLParser):
     def _emit_start(self, tag: str, attrs) -> None:
         self._flush()
         raw = self.get_starttag_text()
+        # El placeholder de un textarea se traduce; el cuerpo (lo que escribió la persona) no.
+        traducir_attrs = self.skip == 0 and _atributos_cambiaron(attrs)
         if tag in _SALTAR:
             self.skip += 1
-        if self.skip == 0 and _atributos_cambiaron(attrs):
+        if traducir_attrs:
             self.out.append(_reconstruir(tag, attrs))
         else:
             self.out.append(raw)
@@ -538,12 +603,34 @@ class _Reescritor(HTMLParser):
 
 def _atributos_cambiaron(attrs) -> bool:
     for clave, valor in attrs:
-        if valor is None or clave not in _ATRIBUTOS:
+        if valor is None or clave not in _ATRIBUTOS and clave != "onsubmit":
             continue
-        decoded = html.unescape(valor)
-        if traducir_fragmento(decoded) != decoded:
+        if _valor_atributo(clave, valor) != valor:
             return True
     return False
+
+
+def _traducir_confirm(decoded: str) -> str:
+    marca = re.fullmatch(r"return confirm\('(.*)'\)", decoded)
+    if not marca:
+        return decoded
+    nuevo = traducir_fragmento(marca.group(1))
+    if nuevo == marca.group(1) or "'" in nuevo or "\\" in nuevo:
+        return decoded
+    return f"return confirm('{nuevo}')"
+
+
+def _valor_atributo(clave: str, valor: str) -> str:
+    decoded = html.unescape(valor)
+    if clave == "onsubmit":
+        nuevo = _traducir_confirm(decoded)
+    elif clave in _ATRIBUTOS:
+        nuevo = traducir_fragmento(decoded)
+    else:
+        return valor
+    if nuevo == decoded:
+        return valor
+    return html.escape(nuevo, quote=True)
 
 
 def _reconstruir(tag: str, attrs) -> str:
@@ -552,12 +639,7 @@ def _reconstruir(tag: str, attrs) -> str:
         if valor is None:
             partes.append(f" {clave}")
             continue
-        shown = valor
-        if clave in _ATRIBUTOS:
-            decoded = html.unescape(valor)
-            nuevo = traducir_fragmento(decoded)
-            if nuevo != decoded:
-                shown = html.escape(nuevo, quote=True)
+        shown = _valor_atributo(clave, valor) if clave in _ATRIBUTOS or clave == "onsubmit" else valor
         partes.append(f' {clave}="{shown}"')
     partes.append(">")
     return "".join(partes)
