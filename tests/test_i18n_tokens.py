@@ -56,6 +56,9 @@ def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     assert 'return "Hoy"' in out
     assert "<textarea>Hoy</textarea>" in out
     assert "<textarea>Today</textarea>" not in out
+    assert "Choose how to start · Mission" in traducir_html(
+        "<title>Elige cómo empezar · Mission</title>"
+    )
 
 
 @pytest.fixture()
