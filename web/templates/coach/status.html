@@ -1,7 +1,7 @@
 {% extends "layout_app.html" %}
 {% block content %}
 <h1>Mi sistema</h1>
-<p class="muted">Qué módulos usas y qué hábitos marcas cada día en Hoy.</p>
+<p class="muted">Qué áreas usas y qué hábitos marcas cada día en Hoy.</p>
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
@@ -60,7 +60,7 @@
 </section>
 
 <div class="card">
-  <h2>Módulos</h2>
+  <h2>Áreas</h2>
   {% if activos %}
   <ul>
     {% for m in activos %}
@@ -68,13 +68,13 @@
     {% endfor %}
   </ul>
   {% else %}
-  <p class="muted">Ningún módulo activo.</p>
+  <p class="muted">Ninguna área activa.</p>
   {% endif %}
 
-  <p><a href="/app/configuracion">Abrir configuración</a> para renombrar, apagar o cambiar el ritual sin pasar por el coach.</p>
+  <p><a href="/app/configuracion">Abrir configuración</a> para apagar un área o cambiar el ritual sin pasar por el coach.</p>
   {% if puede_reconfig %}
   <form method="post" action="/app/coach/reconfigurar">
-    <button class="btn" type="submit">✏️ Cambiar módulos con el coach</button>
+    <button class="btn" type="submit">✏️ Cambiar mis áreas con el coach</button>
   </form>
   {% else %}
   <p class="muted">Plan Free: el Coach IA de setup es una sola vez.</p>

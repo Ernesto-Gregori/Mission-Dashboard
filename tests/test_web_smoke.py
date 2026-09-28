@@ -177,7 +177,7 @@ def test_coach_flow_activa_modulos(web_client):
     r = web_client.get("/app")
     assert r.status_code == 200
     assert "<title>Hoy · Mission</title>" in r.text
-    assert b"activo" in r.content
+    assert "áreas activas" in r.text
     assert b"badge stub" not in r.content and b">stub<" not in r.content
     assert b'class="skip-link"' in r.content
     assert b'id="main-content"' in r.content

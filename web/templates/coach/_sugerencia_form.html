@@ -1,5 +1,5 @@
 <h1>Tu sistema propuesto</h1>
-<p class="muted">{{ plan_resumen }}{% if tope %} · elige hasta {{ tope }} módulos{% endif %}</p>
+<p class="muted">{{ plan_resumen }}{% if tope %} · elige hasta {{ tope }} áreas{% endif %}</p>
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
 <div class="flash-ok" role="status">{{ sug.resumen }}</div>
@@ -13,7 +13,7 @@
 {% endif %}
 
 <form class="coach-suggestion-form" method="post" action="/app/coach/activar">
-  <h2>Módulos</h2>
+  <h2>Áreas</h2>
   {% for m in mods_ui %}
   <label class="coach-module-option" for="coach-mod-{{ m.clave }}">
     <input id="coach-mod-{{ m.clave }}" type="checkbox" name="modulos" value="{{ m.clave }}" {% if m.checked %}checked{% endif %} />
@@ -41,7 +41,7 @@
 
 {% if plan == free and stripe_ok %}
 <div class="card coach-upsell">
-  <p class="muted">¿Necesitas más de {{ tope }} módulos? Premium desbloquea todos.</p>
+  <p class="muted">¿Necesitas más de {{ tope }} áreas? Premium desbloquea todas.</p>
   <a class="btn secondary" href="/app/billing">Ver Premium</a>
 </div>
 {% endif %}

@@ -31,10 +31,10 @@
   <h2>También te pueden servir (Premium)</h2>
   <ul class="muted">
     {% for k in just_finished.resto %}
-    <li>Módulo «{{ k }}»</li>
+    <li>{{ k }}</li>
     {% endfor %}
   </ul>
-  <a class="btn secondary" href="/app/billing">Ver upgrade</a>
+  <a class="btn secondary" href="/app/billing">Ver planes</a>
 </section>
 {% endif %}
 
@@ -115,7 +115,7 @@
   <div class="section-heading">
     <div>
       <h2 id="modules-title">Tus áreas</h2>
-      <p class="muted">{{ activos_count }} módulos activos</p>
+      <p class="muted">{{ activos_count }} áreas activas</p>
     </div>
     <a href="/app/configuracion">Configuración</a>
     <a href="/app/coach">Mi sistema</a>

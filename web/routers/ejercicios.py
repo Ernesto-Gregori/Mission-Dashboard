@@ -91,7 +91,7 @@ async def subir_ejercicio(
     source_platform: str = Form(""),
 ):
     if not modulo_activo("salud", int(user["id"])):
-        return _redirect_ejercicios(error="Módulo Salud inactivo.")
+        return _redirect_ejercicios(error="El área Cuerpo está apagada.")
 
     uid = int(user["id"])
     raw = await video.read(max_video_bytes() + 1)
@@ -314,7 +314,7 @@ async def generar_rutina(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     if not modulo_activo("salud", int(user["id"])):
-        return _redirect_rutina(error="Módulo Salud inactivo.")
+        return _redirect_rutina(error="El área Cuerpo está apagada.")
     uid = int(user["id"])
     form = await request.form()
     try:

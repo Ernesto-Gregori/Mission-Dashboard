@@ -39,8 +39,8 @@ def module_page(
         return render(
             request,
             "error.html",
-            title="Módulo",
-            error="Módulo desconocido.",
+            title="Área",
+            error="No conozco esa área.",
             user=user,
             status_code=404,
         )

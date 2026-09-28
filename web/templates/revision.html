@@ -61,7 +61,7 @@
 <section class="card" aria-labelledby="bitacora-title">
   <h2 id="bitacora-title">Bitácora</h2>
   {% if not bitacora_activa %}
-  <p class="muted">Activa el módulo Revisión semanal desde el <a href="/app/coach">Coach</a> para escribir tu bitácora.</p>
+  <p class="muted">Activa el área Revisión semanal desde el <a href="/app/coach">Coach</a> para escribir tu bitácora.</p>
   {% else %}
   <form method="post" action="/app/revision/bitacora">
     <input type="hidden" name="semana_inicio" value="{{ semana.lunes.isoformat() }}" />
@@ -135,7 +135,7 @@
   <div class="{% if briefing_flash.ok %}flash-ok{% else %}flash-warn{% endif %}">{{ briefing_flash.message }}</div>
   {% endif %}
   <p class="muted">
-    Una lectura de tus módulos juntos.
+    Una lectura de tus áreas juntas.
     {% if briefing_cuota and briefing_cuota.limite is not none %}
     Cupo esta semana: {{ briefing_cuota.usados }}/{{ briefing_cuota.limite }}.
     {% else %}

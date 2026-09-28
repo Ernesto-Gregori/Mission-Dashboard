@@ -91,8 +91,8 @@ def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
     assert "Deep Work this week" in traducir_html("<span>Deep Work de la semana</span>")
     assert 'aria-label="0-day streak"' in traducir_html('<p aria-label="0 días de racha">🔥 0</p>')
     assert "✝️ 0 days" in traducir_html("<strong>✝️ 0 días</strong>")
-    cuota = "<p>\n    Una lectura de tus módulos juntos.\n    Cupo esta semana: 0/7.\n  </p>"
-    assert "A reading of your modules together. Quota this week: 0/7." in traducir_html(cuota)
+    cuota = "<p>\n    Una lectura de tus áreas juntas.\n    Cupo esta semana: 0/7.\n  </p>"
+    assert "A reading of your areas together. Quota this week: 0/7." in traducir_html(cuota)
     assert "Maximum 100 MB." in traducir_html(
         "<p>Máximo 100 MB. Lo ideal es un solo ejercicio de 60 s o menos (se rechaza si supera 90 s).</p>"
     )
@@ -130,7 +130,7 @@ def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
 
 def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     html = (
-        '<p>Hoy</p><p>3 módulos activos</p>'
+        '<p>Hoy</p><p>3 áreas activas</p>'
         '<input value="Hoy" placeholder="Usuario">'
         '<span>Teología / Devocional</span>'
         '<span>Salud &amp; Energía</span>'
@@ -140,7 +140,7 @@ def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     )
     out = traducir_html(html)
     assert "<p>Today</p>" in out
-    assert "<p>3 active modules</p>" in out
+    assert "<p>3 active areas</p>" in out
     assert 'value="Hoy"' in out
     assert 'placeholder="Username"' in out
     assert "Teología / Devocional" in out
@@ -249,7 +249,7 @@ def test_la_preferencia_guardada_gana_a_la_cookie(web_client):
     assert ">Sign out</button>" in hoy.text
     assert ">Hoy</a>" not in hoy.text
     assert ">Configuración</a>" not in hoy.text
-    assert "0 active modules" in hoy.text
+    assert "0 active areas" in hoy.text
     cfg = web_client.get("/app/configuracion")
     assert "Language" in cfg.text
     from app.db.core import ejecutar

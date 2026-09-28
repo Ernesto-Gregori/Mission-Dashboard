@@ -202,10 +202,10 @@ CATALOGO = {
     "Agregar": "Add",
     "Reactivar": "Reactivate",
     "Módulos": "Modules",
-    "Ningún módulo activo.": "No active module.",
+    "Ninguna área activa.": "No active area.",
     "Abrir configuración": "Open settings",
     "para renombrar, apagar o cambiar el ritual sin pasar por el coach.": "to rename, turn off, or change the ritual without the coach.",
-    "✏️ Cambiar módulos con el coach": "✏️ Change modules with the coach",
+    "✏️ Cambiar mis áreas con el coach": "✏️ Change my areas with the coach",
     "Plan Free: el Coach IA de setup es una sola vez.": "Free plan: the AI setup coach runs once.",
     "Desbloquear reconfiguración (Premium)": "Unlock reconfiguration (Premium)",
     "Disponibles en Premium": "Available on Premium",
@@ -260,7 +260,7 @@ CATALOGO = {
     "Guardar briefing": "Save briefing",
     # Plan y avisos
     "Plan actual:": "Current plan:",
-    "Módulos ilimitados": "Unlimited modules",
+    "Áreas ilimitadas": "Unlimited areas",
     "Coach reconfigurable": "Coach can be reconfigured",
     "Briefings diarios": "Daily briefings",
     "Google Fit / Calendar": "Google Fit / Calendar",
@@ -275,7 +275,7 @@ for _clave, _valor in FRASES_TG.items():
     CATALOGO.setdefault(_clave, _valor)
 
 _PATRONES = (
-    (re.compile(r"^(\d+) módulos activos$"), r"\1 active modules"),
+    (re.compile(r"^(\d+) áreas activas$"), r"\1 active areas"),
     (re.compile(r"^Archivados \((\d+)\)$"), r"Archived (\1)"),
     (re.compile(r"^Demasiados intentos\. Espera (\d+)s\.$"), r"Too many attempts. Wait \1s."),
     (re.compile(r"^Cupo esta semana: (\d+)/(\d+)\.$"), r"Quota this week: \1/\2."),
@@ -310,12 +310,12 @@ _PATRONES = (
     (re.compile(r"^(\d+) días de racha$"), r"\1-day streak"),
     (re.compile(r"^✝️ (\d+) días$"), r"✝️ \1 days"),
     (
-        re.compile(r"^Una lectura de tus módulos juntos\. Cupo esta semana: (\d+)/(\d+)\.$"),
-        r"A reading of your modules together. Quota this week: \1/\2.",
+        re.compile(r"^Una lectura de tus áreas juntas\. Cupo esta semana: (\d+)/(\d+)\.$"),
+        r"A reading of your areas together. Quota this week: \1/\2.",
     ),
     (
-        re.compile(r"^Una lectura de tus módulos juntos\. Cupo esta semana: ilimitado\.$"),
-        r"A reading of your modules together. Quota this week: unlimited.",
+        re.compile(r"^Una lectura de tus áreas juntas\. Cupo esta semana: ilimitado\.$"),
+        r"A reading of your areas together. Quota this week: unlimited.",
     ),
     (
         re.compile(
@@ -342,7 +342,15 @@ _PATRONES = (
     (re.compile(r"^(.+) · pág\. (\d+)/(\d+)$"), r"\1 · p. \2/\3"),
     (re.compile(r"^(.+) · pág\. (\d+)$"), r"\1 · p. \2"),
     (re.compile(r"^pág\. (\d+)/(—|\d+) · ([\d.]+)%$"), r"p. \1/\2 · \3%"),
-    (re.compile(r"^(.*?) · Free: máx\. (\d+) módulos$"), r"\1 · Free: max. \2 modules"),
+    (re.compile(r"^(.*?) · Free: máx\. (\d+) áreas$"), r"\1 · Free: max. \2 areas"),
+    (
+        re.compile(r"^Tu plan permite máximo (\d+) áreas\.$"),
+        r"Your plan allows at most \1 areas.",
+    ),
+    (
+        re.compile(r"^Tu plan permite máximo (\d+) áreas\. Desmarca (\d+) o pasa a Premium\.$"),
+        r"Your plan allows at most \1 areas. Uncheck \2 or move to Premium.",
+    ),
     (
         re.compile(
             r"^Tu plan Free permite (\d+) áreas activas\. Puedes cambiar cuáles están activas, "

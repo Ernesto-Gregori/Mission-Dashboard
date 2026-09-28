@@ -326,7 +326,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
             sug=sug,
             mods_ui=mods_ui,
             tope=modulos_max(plan),
-            error="Elige al menos un módulo.",
+            error="Elige al menos un área.",
             hide_nav=True,
             premium=PLAN_PREMIUM,
             free=PLAN_FREE,
@@ -365,7 +365,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
             mods_ui=mods_ui,
             tope=tope,
             error=(
-                f"Tu plan permite máximo {tope} módulos. "
+                f"Tu plan permite máximo {tope} áreas. "
                 f"Desmarca {len(seleccion) - int(tope)} o pasa a Premium."
             ),
             hide_nav=True,
@@ -384,8 +384,8 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
     request.session.pop("coach_perfil", None)
     request.session.pop("coach_reconfig", None)
 
-    # Upsell Free: módulos no elegidos
-    resto = [k for k in MODULE_TEMPLATES if k not in seleccion]
+    # Upsell Free: áreas no elegidas
+    resto = [meta_para(k)["nombre"] for k in MODULE_TEMPLATES if k not in seleccion]
     request.session["coach_just_finished"] = {
         "seleccion": seleccion,
         "resto": resto[:4] if plan == PLAN_FREE else [],

@@ -296,7 +296,7 @@ Elige el set mínimo útil. JSON únicamente.
                 sug["modulos"] = mods[: int(tope)]
             sug["resumen"] = (
                 (sug.get("resumen") or "")
-                + f" (ajustado al cupo Free de {tope} módulos)."
+                + f" (ajustado al cupo Free de {tope} áreas)."
             )
     except Exception:
         pass
