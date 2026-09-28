@@ -147,6 +147,12 @@ def init_app_state() -> None:
             register_webhook()
         except Exception as e:
             print(f"[web.startup] telegram webhook: {e}")
+        try:
+            from app.telegram_jobs import start_telegram_jobs
+
+            start_telegram_jobs()
+        except Exception as e:
+            print(f"[web.startup] telegram jobs: {e}")
     except Exception as e:
         print(f"[web.startup] fase3-5: {e}")
 

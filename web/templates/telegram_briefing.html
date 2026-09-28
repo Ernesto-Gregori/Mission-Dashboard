@@ -1,6 +1,6 @@
 <div id="tg-briefing" class="card">
   <h2>Briefing de la mañana</h2>
-  <p class="muted">Apagado por defecto. Si lo activás, el cron te manda el foco del día a la hora local. Fe, pareja y salud no entran salvo que las marques.</p>
+  <p class="muted">Apagado por defecto. Si lo activás, la app te manda el foco del día a esa hora (hora local, con hasta 15 min de demora). Fe, pareja y salud no entran salvo que las marques.</p>
   {% if puede_telegram %}
   <form method="post" action="/app/usuarios/telegram/briefing" class="users-form-grid"
         hx-post="/app/usuarios/telegram/briefing" hx-target="#tg-briefing" hx-swap="outerHTML">
