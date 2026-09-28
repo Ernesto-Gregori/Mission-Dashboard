@@ -67,6 +67,14 @@ def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
         "  Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX.</div>"
     )
     assert "Free allowance (max. 3 modules)" in traducir_html(aviso)
+    assert ">Mar</option>" in traducir_html("<option>Mar</option>")
+    assert "Days in a row met: Hacer ejercicio" in traducir_html(
+        "<p>Días seguidos cumpliendo: Hacer ejercicio</p>"
+    )
+    assert "3 envelopes · Sep 2026" in traducir_html("<p>3 sobres · Sep 2026</p>")
+    assert ">SURVIVAL</strong>" in traducir_html("<strong>SUPERVIVENCIA</strong>")
+    assert "Available: $0" in traducir_html("<p>Disponible: $0</p>")
+    assert "🔴 SURVIVAL" in traducir_html("<option>🔴 SUPERVIVENCIA</option>")
 
 
 @pytest.fixture()

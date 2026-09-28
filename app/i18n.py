@@ -269,6 +269,10 @@ _PATRONES = (
     (re.compile(r"^Demasiados intentos\. Espera (\d+)s\.$"), r"Too many attempts. Wait \1s."),
     (re.compile(r"^Cupo esta semana: (\d+)/(\d+)\.$"), r"Quota this week: \1/\2."),
     (re.compile(r"^Semana (\d{2}/\d{2}) — (\d{2}/\d{2}/\d{4})$"), r"Week \1 — \2"),
+    (re.compile(r"^Días seguidos cumpliendo: (.+)$"), r"Days in a row met: \1"),
+    (re.compile(r"^3 sobres · (.+)$"), r"3 envelopes · \1"),
+    (re.compile(r"^3 sobres \(([\d/]+)\)$"), r"3 envelopes (\1)"),
+    (re.compile(r"^Disponible: (.+)$"), r"Available: \1"),
     (re.compile(r"^(.*?) · Free: máx\. (\d+) módulos$"), r"\1 · Free: max. \2 modules"),
     (
         re.compile(
