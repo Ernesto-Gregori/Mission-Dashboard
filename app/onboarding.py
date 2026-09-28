@@ -110,65 +110,29 @@ def modulo_activo(clave: str, user_id: int | None = None) -> bool:
     return clave in modulos_activos(user_id)
 
 
-def _alias(clave: str, user_id: int | None) -> str:
-    if not user_id:
-        return ""
-    fila = next(
-        (r for r in listar_modulos_usuario(user_id) if r.get("modulo") == clave),
-        None,
-    )
-    if not fila:
-        return ""
-    return str(fila.get("alias") or "").strip()
-
-
-def nombre_visible(clave: str, user_id: int | None = None) -> str:
+def nombre_visible(clave: str) -> str:
     meta = MODULE_TEMPLATES.get(clave) or {}
-    alias = _alias(clave, user_id or uid())
-    if alias:
-        return alias
     return str(meta.get("nombre") or clave)
 
 
-def etiqueta_nav(clave: str, user_id: int | None = None) -> str:
-    meta = MODULE_TEMPLATES.get(clave) or {}
-    alias = _alias(clave, user_id or uid())
-    if alias and alias != str(meta.get("nombre_cuenta") or ""):
-        return alias
-    if alias:
-        return str(meta.get("nav_cuenta") or meta.get("nav") or meta.get("nombre") or clave)
-    return str(meta.get("nav") or meta.get("nombre") or clave)
+def meta_para(clave: str) -> dict:
+    return dict(MODULE_TEMPLATES[clave])
 
 
-def etiqueta_blurb(clave: str, user_id: int | None = None) -> str:
-    meta = MODULE_TEMPLATES.get(clave) or {}
-    alias = _alias(clave, user_id or uid())
-    if alias:
-        return str(meta.get("blurb_cuenta") or meta.get("blurb") or "")
-    return str(meta.get("blurb") or meta.get("blurb_cuenta") or "")
+MIGRACION_VOCABULARIO = "vocabulario_unico_v1"
 
 
-def meta_para(clave: str, user_id: int | None = None) -> dict:
-    meta = dict(MODULE_TEMPLATES[clave])
-    meta["nombre"] = nombre_visible(clave, user_id)
-    return meta
+def migrar_vocabulario_unico() -> None:
+    """Un solo nombre por área: borra los alias heredados de la cuenta original.
 
-
-MIGRACION_ALIAS = "personalizacion_alias_v1"
-
-
-def migrar_nombres_cuenta() -> None:
-    """Alias con el nombre actual para cuentas que ya terminaron el onboarding.
-
-    Corre una sola vez. Quien se da de alta después no hereda esos nombres.
-    Ritual, rueda y Alma quedan activos en esas cuentas, sin borrar datos.
+    Corre una sola vez. No toca registros: sólo la etiqueta con que se muestran.
     """
     _ensure_user_modulos_table(ejecutar)
     _ensure_onboarding_column()
     try:
         hecho = ejecutar(
             "SELECT id FROM _migrations WHERE id = ?",
-            [MIGRACION_ALIAS],
+            [MIGRACION_VOCABULARIO],
             fetchall=True,
         ) or []
     except Exception:
@@ -176,39 +140,11 @@ def migrar_nombres_cuenta() -> None:
     if hecho:
         return
 
-    usuarios = ejecutar(
-        """
-        SELECT id FROM usuarios
-        WHERE COALESCE(onboarding_completo, 0) = 1
-        """,
-        fetchall=True,
-    ) or []
-    for u in usuarios:
-        uid_i = int(u["id"])
-        for clave, meta in MODULE_TEMPLATES.items():
-            ejecutar(
-                """
-                UPDATE user_modulos
-                SET alias = ?,
-                    orden = COALESCE(orden, ?)
-                WHERE user_id = ? AND modulo = ?
-                  AND (alias IS NULL OR TRIM(alias) = '')
-                """,
-                [meta["nombre_cuenta"], int(meta.get("prioridad") or 0), uid_i, clave],
-            )
-        for i, clave in enumerate(SUPERFICIES):
-            ejecutar(
-                """
-                INSERT INTO user_modulos (user_id, modulo, activo, config_json, orden, alias)
-                VALUES (?, ?, 1, '{}', ?, NULL)
-                ON CONFLICT(user_id, modulo) DO NOTHING
-                """,
-                [uid_i, clave, 80 + i],
-            )
+    ejecutar("UPDATE user_modulos SET alias = NULL WHERE alias IS NOT NULL")
     try:
         ejecutar(
             "INSERT OR IGNORE INTO _migrations (id) VALUES (?)",
-            [MIGRACION_ALIAS],
+            [MIGRACION_VOCABULARIO],
         )
     except Exception:
         pass

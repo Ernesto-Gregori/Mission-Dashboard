@@ -4,7 +4,7 @@
   <span class="module-header-icon" aria-hidden="true">{{ meta.emoji }}</span>
   <div>
     <h1>{{ meta.nombre }}</h1>
-    <p class="muted">{% if vocabulario_cuenta %}Devocional 05:45 · método inductivo · oración{% else %}Una práctica para cuidar lo que te sostiene.{% endif %}</p>
+    <p class="muted">{{ meta.blurb }}</p>
   </div>
 </header>
 
@@ -76,7 +76,7 @@
       <fieldset class="devotional-section">
         <legend>Conexiones</legend>
         <div class="theology-form-grid cols-2">
-          {% if vocabulario_cuenta %}<div><label for="institute-connection">Instituto</label><textarea id="institute-connection" name="conexion_instituto" rows="2">{{ form.conexion_instituto }}</textarea></div>{% endif %}
+          <div><label for="study-connection">Estudio o clase</label><textarea id="study-connection" name="conexion_instituto" rows="2">{{ form.conexion_instituto }}</textarea></div>
           <div><label for="situation-connection">Situación actual</label><textarea id="situation-connection" name="conexion_situacion" rows="2">{{ form.conexion_situacion }}</textarea></div>
         </div>
       </fieldset>

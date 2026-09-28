@@ -177,8 +177,8 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
         plan=plan,
         plan_label=limites(plan)["nombre"],
         plan_resumen=resumen_plan_ui(user),
-        activos=[{"clave": k, **meta_para(k, uid)} for k in activos],
-        bloqueados=[{"clave": k, **meta_para(k, uid)} for k in bloqueados[:8]],
+        activos=[{"clave": k, **meta_para(k)} for k in activos],
+        bloqueados=[{"clave": k, **meta_para(k)} for k in bloqueados[:8]],
         puede_reconfig=puede_reconfigurar_coach(plan),
         stripe_ok=payments_configured(),
         tope=modulos_max(plan),
@@ -256,7 +256,7 @@ def _render_sugerencia(request: Request, user: dict, sug: dict, plan: str):
     selected = set(sug.get("modulos") or [])
     razones = sug.get("razones") or {}
     for key in MODULE_TEMPLATES:
-        meta = meta_para(key, uid)
+        meta = meta_para(key)
         mods_ui.append({
             **meta,
             "clave": key,
@@ -313,7 +313,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
                 "razon": meta["descripcion"],
             }
             for key in MODULE_TEMPLATES
-            for meta in [meta_para(key, uid)]
+            for meta in [meta_para(key)]
         ]
         return render(
             request,
@@ -351,7 +351,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
                 "razon": (sug.get("razones") or {}).get(key) or meta["descripcion"],
             }
             for key in MODULE_TEMPLATES
-            for meta in [meta_para(key, uid)]
+            for meta in [meta_para(key)]
         ]
         return render(
             request,

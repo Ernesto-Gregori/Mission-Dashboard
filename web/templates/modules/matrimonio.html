@@ -108,9 +108,13 @@
         </div>
         <div>
           <label for="appointment-scope">Ámbito</label>
+          {% set ambito_actual = cita_edit.ambito if cita_edit else ambitos[0] %}
           <select id="appointment-scope" name="ambito">
+            {% if ambito_actual and ambito_actual not in ambitos %}
+            <option value="{{ ambito_actual }}" selected>{{ ambito_actual }}</option>
+            {% endif %}
             {% for a in ambitos %}
-            <option value="{{ a }}" {% if (cita_edit.ambito if cita_edit else 'Matrimonio') == a %}selected{% endif %}>{{ a }}</option>
+            <option value="{{ a }}" {% if ambito_actual == a %}selected{% endif %}>{{ a }}</option>
             {% endfor %}
           </select>
         </div>
@@ -118,9 +122,13 @@
       <div class="relationship-form-grid cols-2">
         <div>
           <label for="appointment-type">Tipo</label>
+          {% set tipo_actual = cita_edit.tipo_cita if cita_edit else '' %}
           <select id="appointment-type" name="tipo_cita">
-            {% for t in tipos_flat %}
-            <option value="{{ t }}" {% if (cita_edit.tipo_cita if cita_edit else '') == t %}selected{% endif %}>{{ emojis_tipo.get(t, '') }} {{ t.replace('_', ' ') }}</option>
+            {% if tipo_actual and tipo_actual not in tipos_cita %}
+            <option value="{{ tipo_actual }}" selected>{{ emojis_tipo.get(tipo_actual, '') }} {{ tipo_actual.replace('_', ' ') }}</option>
+            {% endif %}
+            {% for t in tipos_cita %}
+            <option value="{{ t }}" {% if tipo_actual == t %}selected{% endif %}>{{ emojis_tipo.get(t, '') }} {{ t.replace('_', ' ') }}</option>
             {% endfor %}
           </select>
         </div>

@@ -7,33 +7,17 @@ from app.db.core import ejecutar, ejecutar_cached, invalidate_data_caches
 from app.tenant import uid
 from app.timezone_config import datetime, hoy as _hoy, iso_ahora
 
-AMBITOS = ["Matrimonio", "Familia"]
+AMBITOS = ["Cercanos", "Familia"]
 
-TIPOS_CITA = {
-    "Matrimonio": [
-        "Cena_Romantica",
-        "Salida_Casual",
-        "Estadia_Casa",
-        "Viaje_Corto",
-        "Aniversario",
-        "Cumpleanos_Esposa",
-        "Sorpresa",
-        "Otra",
-    ],
-    "Familia": [
-        "Salida_Familiar",
-        "Vacaciones",
-        "Actividad_Recreativa",
-        "Visita_Familiares",
-        "Celebracion",
-        "Deporte_Juntos",
-        "Cine_Teatro",
-        "Parque",
-        "Otra",
-    ],
-}
+TIPOS_CITA = ["Cena", "Salida", "En_casa", "Viaje", "Fecha_especial", "Celebracion", "Otra"]
 
+# Los tipos largos son de citas ya guardadas: siguen mostrando su emoji.
 EMOJIS_TIPO = {
+    "Cena": "🍽️",
+    "Salida": "☕",
+    "En_casa": "🏠",
+    "Viaje": "🚗",
+    "Fecha_especial": "💍",
     "Cena_Romantica": "🍷",
     "Salida_Casual": "☕",
     "Estadia_Casa": "🏠",

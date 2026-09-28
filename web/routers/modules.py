@@ -34,7 +34,7 @@ def module_page(
     if clave not in MODULE_TEMPLATES:
         meta = None
     else:
-        meta = meta_para(clave, int(user["id"]))
+        meta = meta_para(clave)
     if not meta:
         return render(
             request,

@@ -379,7 +379,7 @@ def system_mision_para(user_id: int | None = None) -> str:
         from app.tenant import uid as _uid
 
         uid_i = int(user_id) if user_id is not None else int(_uid())
-        nombres = [nombre_visible(k, uid_i) for k in sorted(modulos_activos(uid_i))]
+        nombres = [nombre_visible(k) for k in sorted(modulos_activos(uid_i))]
         texto = (
             "Eres la asistente de Mission Dashboard. "
             "Respondes en español, de forma breve y práctica. "

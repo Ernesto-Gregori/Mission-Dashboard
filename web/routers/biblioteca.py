@@ -92,9 +92,9 @@ def _ctx(
     pages = max(1, (total + 11) // 12)
 
     return {
-        "title": meta_para("biblioteca", int(user["id"]))["nombre"],
+        "title": meta_para("biblioteca")["nombre"],
         "user": user,
-        "meta": meta_para("biblioteca", int(user["id"])),
+        "meta": meta_para("biblioteca"),
         "tab": tab,
         "flash": flash,
         "error": error,
@@ -132,9 +132,9 @@ def biblioteca_page(request: Request, user: Annotated[dict, Depends(require_onbo
         return render(
             request,
             "paywall.html",
-            title=meta_para("biblioteca", int(user["id"]))["nombre"],
+            title=meta_para("biblioteca")["nombre"],
             user=user,
-            meta=meta_para("biblioteca", int(user["id"])),
+            meta=meta_para("biblioteca"),
             clave="biblioteca",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

@@ -190,7 +190,7 @@ def test_familia_vive_en_cuenta_admin(web_client):
     r = web_client.get("/app/m/matrimonio")
     assert r.status_code == 200
     assert b'href="/app/familia"' not in r.content
-    assert b'data-hub="pareja"' in r.content
+    assert b'data-hub="relaciones"' in r.content
     r = web_client.get("/app/familia")
     assert r.status_code == 200
     assert b'href="/app/coach"' in r.content

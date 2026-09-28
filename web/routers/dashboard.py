@@ -34,7 +34,7 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
     mods = []
     for key in MODULE_TEMPLATES:
         mods.append({
-            **meta_para(key, uid),
+            **meta_para(key),
             "clave": key,
             "activo": key in activos,
             "href": f"/app/m/{key}",

@@ -140,9 +140,9 @@ def _ctx(
     categorias = obtener_categorias_dominio(dominio_form)
 
     return {
-        "title": meta_para("sandbox", int(user["id"]))["nombre"],
+        "title": meta_para("sandbox")["nombre"],
         "user": user,
-        "meta": meta_para("sandbox", int(user["id"])),
+        "meta": meta_para("sandbox"),
         "tab": tab,
         "ver_snippets": ver_snippets,
         "flash": flash,
@@ -192,9 +192,9 @@ def sandbox_page(request: Request, user: Annotated[dict, Depends(require_onboard
         return render(
             request,
             "paywall.html",
-            title=meta_para("sandbox", int(user["id"]))["nombre"],
+            title=meta_para("sandbox")["nombre"],
             user=user,
-            meta=meta_para("sandbox", int(user["id"])),
+            meta=meta_para("sandbox"),
             clave="sandbox",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

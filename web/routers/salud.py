@@ -149,9 +149,9 @@ def _ctx(
     }
 
     return {
-        "title": meta_para("salud", int(user["id"]))["nombre"],
+        "title": meta_para("salud")["nombre"],
         "user": user,
-        "meta": meta_para("salud", int(user["id"])),
+        "meta": meta_para("salud"),
         "tab": tab,
         "flash": flash,
         "error": error,
@@ -201,9 +201,9 @@ def salud_page(request: Request, user: Annotated[dict, Depends(require_onboarded
         return render(
             request,
             "paywall.html",
-            title=meta_para("salud", int(user["id"]))["nombre"],
+            title=meta_para("salud")["nombre"],
             user=user,
-            meta=meta_para("salud", int(user["id"])),
+            meta=meta_para("salud"),
             clave="salud",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

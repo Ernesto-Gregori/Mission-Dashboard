@@ -91,7 +91,7 @@ def _ctx(
 
     tipos = obtener_tipos_bloque() or ["Enfoque", "Estudio", "Código", "Otro"]
     color_labels = list(COLORES_DW.keys())
-    meta = meta_para("deep_work", int(user["id"]))
+    meta = meta_para("deep_work")
 
     return {
         "title": meta["nombre"],
@@ -141,7 +141,7 @@ def _redirect(tab: str = "dia", fecha: str | None = None) -> RedirectResponse:
 @router.get("/", response_class=HTMLResponse)
 def deep_work_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     if not modulo_activo("deep_work", int(user["id"])):
-        meta = meta_para("deep_work", int(user["id"]))
+        meta = meta_para("deep_work")
         return render(
             request,
             "paywall.html",

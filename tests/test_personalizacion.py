@@ -191,7 +191,7 @@ def test_fallback_sin_areas_no_agrega_teologia(monkeypatch):
     assert "05:45" not in json.dumps(fb)
 
 
-def test_configuracion_renombra_y_apaga_sin_borrar(web_client):
+def test_configuracion_apaga_un_area_sin_borrar_sus_datos(web_client):
     _setup(web_client, "cfg")
     web_client.post(
         "/app/coach/activar",
@@ -215,8 +215,6 @@ def test_configuracion_renombra_y_apaga_sin_borrar(web_client):
         "/app/configuracion",
         data={
             "activo": ["finanzas", "ritual", "rueda", "alma"],
-            "alias_matrimonio": "",
-            "alias_finanzas": "Mi dinero",
             "snippets": "1",
             "ritual_a": "Gratitud",
             "ritual_b": "Intención",
@@ -233,7 +231,7 @@ def test_configuracion_renombra_y_apaga_sin_borrar(web_client):
     )
     assert r.status_code in (303, 307)
     lado = web_client.get("/app").text
-    assert "Mi dinero" in lado
+    assert "Dinero" in lado
     assert "Relaciones" not in lado
     queda = ejecutar("SELECT COUNT(*) AS n FROM matrimonio_citas", fetchall=True)
     assert int(queda[0]["n"]) == 1
@@ -247,7 +245,6 @@ def test_snippets_se_ocultan_dentro_de_ideas(web_client):
         "/app/configuracion",
         data={
             "activo": ["sandbox"],
-            "alias_sandbox": "",
             "ritual_a": "Gratitud",
             "ritual_b": "Intención",
             "hora_desde": "6",
