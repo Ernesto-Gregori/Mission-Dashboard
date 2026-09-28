@@ -10,6 +10,15 @@
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
 <form method="post" action="/app/configuracion">
+  <section class="card" aria-labelledby="idioma-title">
+    <h2 id="idioma-title">Idioma</h2>
+    <label for="idioma">Idioma de la interfaz</label>
+    <select id="idioma" name="idioma">
+      <option value="es" {% if lang != 'en' %}selected{% endif %}>Español</option>
+      <option value="en" {% if lang == 'en' %}selected{% endif %}>English</option>
+    </select>
+  </section>
+
   <section class="card" aria-labelledby="areas-title">
     <h2 id="areas-title">Áreas</h2>
     {% if modulos %}

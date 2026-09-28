@@ -16,6 +16,7 @@ venv/
 # Credenciales Google — NUNCA al repo
 credentials_fit.json
 token_fit.json
+token_fit_u*.json
 app/.ai_state.json
 
 # Base de datos local
