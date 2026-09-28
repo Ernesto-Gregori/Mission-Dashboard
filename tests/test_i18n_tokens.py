@@ -33,6 +33,101 @@ def test_json_legado_sigue_abriendo_y_un_sobre_alterado_falla(monkeypatch):
         abrir(cerrado[:-8] + "xxxxxxxx")
 
 
+def test_meses_y_avisos_sueltos_pasan_a_ingles():
+    meses = "<option>Ene</option><option>Mar</option><option>Abr</option><option>Ago</option><option>Dic</option>"
+    out = traducir_html(meses)
+    assert ">Jan</option>" in out
+    assert ">Mar</option>" in out
+    assert ">Apr</option>" in out
+    assert ">Aug</option>" in out
+    assert ">Dec</option>" in out
+    assert "Wheel updated." in traducir_html("<p>Rueda actualizada.</p>")
+    assert "Log saved." in traducir_html("<p>Bitácora guardada.</p>")
+    assert "Settings saved." in traducir_html("<p>Configuración guardada.</p>")
+    sugerido = "<p>Sugerido desde tus vencimientos de ingreso (Nómina). Guárdalo para usarlo este mes.</p>"
+    assert "Suggested from your income bills (Nómina)" in traducir_html(sugerido)
+    assert "Payment received. Active plan: Premium." in traducir_html(
+        "<p>Pago recibido. Plan activo: Premium.</p>"
+    )
+    assert "Checkout cancelled." in traducir_html(
+        "<p>Checkout cancelado. Puedes intentarlo cuando quieras.</p>"
+    )
+
+
+def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
+    ritual = (
+        '<textarea id="ritual-a" placeholder="Tres cosas por las que estoy agradecido">'
+        "ya escrito</textarea>"
+    )
+    out = traducir_html(ritual)
+    assert 'placeholder="Three things I am grateful for"' in out
+    assert ">ya escrito</textarea>" in out
+    assert "The one thing that makes the day count" in traducir_html(
+        '<textarea placeholder="Lo único que, si lo hago, el día ya valió"></textarea>'
+    )
+    assert "E.g. more legs, less shoulder, strength in 40 minutes" in traducir_html(
+        '<textarea placeholder="Ej. más piernas, menos hombro, fuerza en 40 minutos"></textarea>'
+    )
+    assert "Life wheel · 0.0 / 10" in traducir_html("<h2>Rueda de la vida · 0.0 / 10</h2>")
+    assert "💰 Finance — Income, expenses, bills, and a split if you want one." in traducir_html(
+        "<li>💰 Finanzas — Ingreso, gastos, vencimientos y un reparto si quieres usarlo.</li>"
+    )
+    assert "⏱️ Deep Work — Deep focus blocks and a daily log." in traducir_html(
+        "<li>⏱️ Deep Work — Bloques de enfoque profundo y registro diario.</li>"
+    )
+    alias = "<span>✝️ Teología / Devocional — Práctica espiritual, lectura y pedidos.</span>"
+    alias_en = traducir_html(alias)
+    assert "Teología / Devocional" in alias_en
+    assert "Spiritual practice, reading, and requests." in alias_en
+    assert "— Gratitude and intention on Today" in traducir_html(
+        "<span> — Gratitud e intención en Hoy</span>"
+    )
+    assert "💪 Health" in traducir_html("<label>💪 Salud</label>")
+    assert "💑 Connections" in traducir_html("<label>💑 Vínculos</label>")
+    assert "🎯 Purpose" in traducir_html("<label>🎯 Propósito</label>")
+    assert ">💑 Pareja</span>" in traducir_html("<span>💑 Pareja</span>")
+    assert "Recent habits" in traducir_html("<span>Hábitos recientes</span>")
+    assert ">Habits</span>" in traducir_html("<span>Hábitos</span>")
+    assert "Deep Work this week" in traducir_html("<span>Deep Work de la semana</span>")
+    assert 'aria-label="0-day streak"' in traducir_html('<p aria-label="0 días de racha">🔥 0</p>')
+    assert "✝️ 0 days" in traducir_html("<strong>✝️ 0 días</strong>")
+    cuota = "<p>\n    Una lectura de tus módulos juntos.\n    Cupo esta semana: 0/7.\n  </p>"
+    assert "A reading of your modules together. Quota this week: 0/7." in traducir_html(cuota)
+    assert "Maximum 100 MB." in traducir_html(
+        "<p>Máximo 100 MB. Lo ideal es un solo ejercicio de 60 s o menos (se rechaza si supera 90 s).</p>"
+    )
+    assert "No token for your user." in traducir_html(
+        "<p>Sin token para tu usuario. Conecta Google Fit o pega el JSON del token.</p>"
+    )
+    assert "Delete this expense?" in traducir_html(
+        """<form onsubmit="return confirm('¿Eliminar gasto?')"></form>"""
+    )
+    assert ">Hacer ejercicio</label>" in traducir_html("<label>Hacer ejercicio</label>")
+    assert ">Pasos mínimos</span>" in traducir_html("<span>Pasos mínimos</span>")
+    assert ">🕯️ Práctica</span>" in traducir_html("<span>🕯️ Práctica</span>")
+    assert ">Mar</option>" in traducir_html("<option>Mar</option>")
+    assert ">matrimonio</span>" in traducir_html("<span>matrimonio</span>")
+    assert ">Matrimonio</option>" in traducir_html('<option value="Matrimonio">Matrimonio</option>')
+    assert ">/gasto 35 super</code>" in traducir_html("<code>/gasto 35 super</code>")
+    assert "💾 Save day" in traducir_html("<button>💾 Guardar día</button>")
+    assert "Last scrape: ok" in traducir_html("<p>Último scrape: ok</p>")
+    assert "12 products" in traducir_html("<span>12 productos</span>")
+    assert "· sleep 7.5h · ⚡8" in traducir_html("<span> · sueño 7.5h · ⚡8</span>")
+    assert "Day 5 · 🏠 Alquiler · $100.00" in traducir_html("<span>Día 5 · 🏠 Alquiler · $100.00</span>")
+    assert 'aria-label="Delete expense super"' in traducir_html(
+        '<button aria-label="Eliminar gasto super">✕</button>'
+    )
+    assert "El quijote · p. 12/300" in traducir_html("<p>El quijote · pág. 12/300</p>")
+    assert "p. 0/— · 4%" in traducir_html("<span>pág. 0/— · 4%</span>")
+    assert ">Calisthenics</option>" in traducir_html('<option value="Calistenia">Calistenia</option>')
+    assert 'value="Calistenia"' in traducir_html('<option value="Calistenia">Calistenia</option>')
+    assert ">Chest</label>" in traducir_html("<label>Pecho</label>")
+    assert "At home</option>" in traducir_html('<option value="En_casa"> En casa</option>')
+    assert "🎊 Celebration" in traducir_html("<option>🎊 Celebracion</option>")
+    assert ">Matrimonio</option>" in traducir_html('<option value="Matrimonio">Matrimonio</option>')
+    assert ">Pasos mínimos</option>" in traducir_html('<option value="pasos">Pasos mínimos</option>')
+
+
 def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     html = (
         '<p>Hoy</p><p>3 módulos activos</p>'
@@ -189,6 +284,9 @@ def test_los_modulos_se_traducen_y_el_espanol_sigue_igual(web_client):
     assert dinero.status_code == 200
     assert "Add expense" in dinero.text
     assert "Agregar gasto" not in dinero.text
+    assert ">Jan</option>" in dinero.text
+    assert ">Dec</option>" in dinero.text
+    assert ">Mar</option>" in dinero.text
     plan = web_client.get("/app/planificador")
     assert "Draggable timeline, synced with Google Calendar." in plan.text
     assert "Línea de tiempo arrastrable" not in plan.text
