@@ -147,6 +147,7 @@ CATALOGO = {
     "Entre semana": "Weekdays",
     "Fin de semana": "Weekend",
     "Solo los lunes": "Mondays only",
+    "Días concretos": "Specific days",
     "Guardar": "Save",
     "Configuración guardada.": "Settings saved.",
     "Tus datos": "Your data",

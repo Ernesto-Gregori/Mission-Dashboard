@@ -17,6 +17,15 @@ FRECUENCIAS = (
     ("sab,dom", "Fin de semana"),
     ("lun", "Solo los lunes"),
 )
+DIAS_HABITO = (
+    ("lun", "Lun"),
+    ("mar", "Mar"),
+    ("mie", "Mié"),
+    ("jue", "Jue"),
+    ("vie", "Vie"),
+    ("sab", "Sáb"),
+    ("dom", "Dom"),
+)
 RITUAL_A = "Gratitud"
 RITUAL_B = "Intención"
 HORA_DESDE = 6
@@ -398,6 +407,31 @@ def guardar_categorias(user_id: int, categorias: list[tuple[str, str]]) -> None:
 def clave_categoria(nombre: str) -> str:
     base = re.sub(r"[^A-Za-z0-9]+", "_", (nombre or "").strip())
     return base.strip("_")[:32]
+
+
+def frecuencia_desde_eleccion(seleccion: str, dias: list[str] | None = None) -> str | None:
+    """Un preset, o los días marcados. None si «días concretos» queda vacío."""
+    sel = (seleccion or "").strip().lower()
+    presets = {k for k, _ in FRECUENCIAS}
+    if sel == "custom":
+        elegidos = [clave for clave, _ in DIAS_HABITO if clave in set(dias or [])]
+        if not elegidos:
+            return None
+        if len(elegidos) == len(DIAS_HABITO):
+            return "diaria"
+        return ",".join(elegidos)
+    if sel in presets:
+        return sel
+    return "diaria"
+
+
+def dias_de_frecuencia(frecuencia: str | None) -> set[str]:
+    freq = (frecuencia or "diaria").strip().lower()
+    if freq in ("", "diaria"):
+        return {clave for clave, _ in DIAS_HABITO}
+    if freq == "semanal":
+        return {"lun"}
+    return {p.strip() for p in freq.split(",") if p.strip() in {c for c, _ in DIAS_HABITO}}
 
 
 def habito_toca(frecuencia: str | None, dia: date) -> bool:

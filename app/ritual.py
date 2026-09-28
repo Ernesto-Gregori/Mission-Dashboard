@@ -96,11 +96,9 @@ def listar_habitos_config(user_id: int | None = None) -> list[dict]:
 
 
 def _frecuencia(valor: str | None) -> str:
-    from app.cuenta import FRECUENCIAS
+    from app.cuenta import frecuencia_desde_eleccion
 
-    permitidas = {k for k, _ in FRECUENCIAS}
-    freq = (valor or "diaria").strip().lower()
-    return freq if freq in permitidas else "diaria"
+    return frecuencia_desde_eleccion(valor or "diaria") or "diaria"
 
 
 def _clave_desde(label: str) -> str:
