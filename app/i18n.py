@@ -153,6 +153,8 @@ CATALOGO = {
     "Fin de semana": "Weekend",
     "Solo los lunes": "Mondays only",
     "Días concretos": "Specific days",
+    "Solo se guardan si eliges Días concretos.": "They are saved only if you choose Specific days.",
+    "Elige al menos un día.": "Choose at least one day.",
     "Guardar": "Save",
     "Configuración guardada.": "Settings saved.",
     "Tus datos": "Your data",

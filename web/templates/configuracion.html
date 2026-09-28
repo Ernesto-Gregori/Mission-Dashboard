@@ -156,14 +156,15 @@
       {% for h in habitos %}
       <li>
         <label for="freq-{{ h.clave }}">{{ h.emoji }} {{ h.label }}</label>
-        <select id="freq-{{ h.clave }}" name="freq_{{ h.clave }}">
+        <select id="freq-{{ h.clave }}" class="freq-select" name="freq_{{ h.clave }}" data-days="freq-days-{{ h.clave }}">
           {% for clave, label in frecuencias %}
           <option value="{{ clave }}" {% if not h.es_custom and (h.frecuencia or 'diaria') == clave %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
           <option value="custom" {% if h.es_custom %}selected{% endif %}>Días concretos</option>
         </select>
-        <fieldset class="freq-days">
+        <fieldset class="freq-days" id="freq-days-{{ h.clave }}" {% if not h.es_custom %}hidden{% endif %}>
           <legend class="sr-only">Días concretos</legend>
+          <p class="muted">Solo se guardan si eliges Días concretos.</p>
           {% for clave, label in dias_habito %}
           <label class="check-row" for="freqdia-{{ h.clave }}-{{ clave }}">
             <input id="freqdia-{{ h.clave }}-{{ clave }}" type="checkbox" name="freqdia_{{ h.clave }}" value="{{ clave }}" {% if clave in h.dias %}checked{% endif %} />
@@ -181,6 +182,13 @@
     <button class="btn" type="submit">Guardar</button>
   </div>
 </form>
+<script>
+document.querySelectorAll(".freq-select").forEach(function (sel) {
+  var box = document.getElementById(sel.getAttribute("data-days"));
+  function sync() { if (box) box.hidden = sel.value !== "custom"; }
+  sel.addEventListener("change", sync);
+});
+</script>
 
 <section class="card" aria-labelledby="datos-title">
   <h2 id="datos-title">Tus datos</h2>
