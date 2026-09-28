@@ -134,6 +134,10 @@ async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(
         hasta = int(form.get("hora_hasta") or 22)
     except ValueError:
         desde, hasta = 6, 22
+    from app.i18n import normalizar
+
+    raw_idioma = form.get("idioma")
+    idioma = normalizar(str(raw_idioma)) if raw_idioma else None
     guardar_prefs(
         uid,
         moneda=str(form.get("moneda") or "USD"),
@@ -144,6 +148,7 @@ async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(
         hora_hasta=hasta,
         rueda=rueda,
         salud=salud,
+        idioma=idioma,
     )
     categorias = []
     for clave in form.getlist("cat_clave"):
@@ -163,7 +168,12 @@ async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(
                 [freq, uid, hab["clave"]],
             )
     request.session["config_flash"] = "Configuración guardada."
-    return RedirectResponse("/app/configuracion", status_code=303)
+    response = RedirectResponse("/app/configuracion", status_code=303)
+    if idioma:
+        from app.i18n import aplicar_cookie_idioma
+
+        aplicar_cookie_idioma(response, idioma)
+    return response
 
 
 @router.get("/exportar")

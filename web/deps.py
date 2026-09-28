@@ -220,6 +220,7 @@ def logout_user(request: Request) -> None:
 
 
 def render(request: Request, name: str, status_code: int = 200, **ctx):
+    from app.i18n import idioma_efectivo, traducir_html
     from app.tema import tema_para_request
     from web.nav import attach_nav
 
@@ -229,9 +230,24 @@ def render(request: Request, name: str, status_code: int = 200, **ctx):
         (os.getenv("GOOGLE_SITE_VERIFICATION") or "").strip(),
     )
     attach_nav(request, ctx)
-    return TEMPLATES.TemplateResponse(
+    lang = idioma_efectivo(request, ctx.get("user"))
+    ctx["lang"] = lang
+    response = TEMPLATES.TemplateResponse(
         request,
         name,
         ctx,
         status_code=status_code,
     )
+    if lang != "en":
+        return response
+    try:
+        html = response.body.decode("utf-8")
+        traducido = traducir_html(html)
+    except Exception:
+        return response
+    if traducido == html:
+        return response
+    raw = traducido.encode("utf-8")
+    response.body = raw
+    response.headers["content-length"] = str(len(raw))
+    return response

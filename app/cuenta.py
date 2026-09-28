@@ -36,6 +36,7 @@ def asegurar_schema() -> None:
         "ALTER TABLE user_prefs ADD COLUMN hora_hasta INTEGER",
         "ALTER TABLE user_prefs ADD COLUMN rueda_json TEXT",
         "ALTER TABLE user_prefs ADD COLUMN salud_json TEXT",
+        "ALTER TABLE user_prefs ADD COLUMN idioma TEXT",
         "ALTER TABLE habitos_config ADD COLUMN frecuencia TEXT DEFAULT 'diaria'",
         """
         CREATE TABLE IF NOT EXISTS finanzas_categorias (
@@ -109,7 +110,30 @@ def leer_prefs(user_id: int | None = None) -> dict:
         "hora_hasta": hasta,
         "rueda": _json_dict(row.get("rueda_json")),
         "salud": _json_lista(row.get("salud_json")),
+        "idioma": idioma_guardado(uid_i),
     }
+
+
+def idioma_guardado(user_id: int | None = None) -> str:
+    raw = str(_fila_prefs(_uid(user_id)).get("idioma") or "").strip().lower()[:2]
+    return raw if raw in ("es", "en") else ""
+
+
+def guardar_idioma(user_id: int, idioma: str) -> None:
+    from app.db.core import ejecutar
+
+    asegurar_schema()
+    lang = idioma if idioma in ("es", "en") else "es"
+    ejecutar(
+        """
+        INSERT INTO user_prefs (user_id, week_start, idioma)
+        VALUES (?, 'lun', ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            idioma = excluded.idioma,
+            actualizado_en = CURRENT_TIMESTAMP
+        """,
+        [int(user_id), lang],
+    )
 
 
 def guardar_prefs(
@@ -123,6 +147,7 @@ def guardar_prefs(
     hora_hasta: int,
     rueda: dict[str, str],
     salud: list[str],
+    idioma: str | None = None,
 ) -> None:
     from app.db.core import ejecutar
 
@@ -135,13 +160,17 @@ def guardar_prefs(
         metodo = "sobres"
     hora_desde = min(22, max(0, int(hora_desde)))
     hora_hasta = min(24, max(hora_desde + 1, int(hora_hasta)))
+    if idioma:
+        lang = idioma if idioma in ("es", "en") else "es"
+    else:
+        lang = idioma_guardado(user_id) or "es"
     ejecutar(
         """
         INSERT INTO user_prefs (
             user_id, week_start, moneda, metodo, ritual_a, ritual_b,
-            hora_desde, hora_hasta, rueda_json, salud_json
+            hora_desde, hora_hasta, rueda_json, salud_json, idioma
         )
-        VALUES (?, 'lun', ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, 'lun', ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
             moneda = excluded.moneda,
             metodo = excluded.metodo,
@@ -151,6 +180,7 @@ def guardar_prefs(
             hora_hasta = excluded.hora_hasta,
             rueda_json = excluded.rueda_json,
             salud_json = excluded.salud_json,
+            idioma = excluded.idioma,
             actualizado_en = CURRENT_TIMESTAMP
         """,
         [
@@ -163,6 +193,7 @@ def guardar_prefs(
             hora_hasta,
             json.dumps(rueda, ensure_ascii=False),
             json.dumps(salud, ensure_ascii=False),
+            lang,
         ],
     )
 

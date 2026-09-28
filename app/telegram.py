@@ -149,11 +149,11 @@ def _command_parts(text: str) -> tuple[str, str]:
     raw = (text or "").strip()
     if raw in (BTN_BRIEFING, "Briefing"):
         return "/briefing", ""
-    if raw in (BTN_SALDO, "Saldo"):
+    if raw in (BTN_SALDO, "Saldo", "💸 Balance", "Balance"):
         return "/saldo", ""
-    if raw in (BTN_HABITOS, "Hábitos", "Habitos"):
+    if raw in (BTN_HABITOS, "Hábitos", "Habitos", "✅ Habits", "Habits"):
         return "/habitos", ""
-    if raw in (BTN_AYUDA, "Ayuda"):
+    if raw in (BTN_AYUDA, "Ayuda", "❓ Help", "Help"):
         return "/ayuda", ""
     if not raw.startswith("/"):
         return "", raw
@@ -582,13 +582,46 @@ def _api(method: str, payload: dict | None = None, *, timeout: int = 20) -> dict
         return json.loads(resp.read().decode("utf-8") or "{}")
 
 
+def _idioma_chat(user_id: int | None) -> str:
+    if not user_id:
+        return "es"
+    from app.cuenta import idioma_guardado
+    from app.i18n import normalizar
+
+    return normalizar(idioma_guardado(int(user_id)) or "es")
+
+
+def _markup_en(markup: dict | None) -> dict | None:
+    if not markup:
+        return markup
+    from app.i18n import traducir_fragmento
+
+    def filas(clave: str) -> list:
+        return [
+            [{**b, "text": traducir_fragmento(str(b.get("text") or ""))} if "text" in b else dict(b) for b in fila]
+            for fila in markup[clave]
+        ]
+
+    if "keyboard" in markup:
+        return {**markup, "keyboard": filas("keyboard")}
+    if "inline_keyboard" in markup:
+        return {**markup, "inline_keyboard": filas("inline_keyboard")}
+    return markup
+
+
 def send_text(
     chat_id: str,
     body: str,
     send_fn: Callable | None = None,
     *,
     reply_markup: dict | None = None,
+    user_id: int | None = None,
 ) -> bool:
+    if _idioma_chat(user_id) == "en":
+        from app.i18n import traducir_plano
+
+        body = traducir_plano(body, "en")
+        reply_markup = _markup_en(reply_markup)
     chunks = split_message(body)
     if not chunks:
         return False
@@ -677,7 +710,12 @@ def register_bot_commands(chat_id: str | None = None, user_id: int | None = None
     if not _secret("TELEGRAM_BOT_TOKEN"):
         return False
     try:
-        payload: dict = {"commands": comandos_para(user_id) if user_id else BOT_COMMANDS}
+        comandos = comandos_para(user_id) if user_id else BOT_COMMANDS
+        if user_id and _idioma_chat(int(user_id)) == "en":
+            from app.i18n import traducir_fragmento
+
+            comandos = [{**c, "description": traducir_fragmento(c["description"])} for c in comandos]
+        payload: dict = {"commands": comandos}
         if chat_id and str(chat_id).lstrip("-").isdigit():
             payload["scope"] = {"type": "chat", "chat_id": int(chat_id)}
         data = _api("setMyCommands", payload)
@@ -748,6 +786,8 @@ def handle_inbound(
     if update_id and not _mark_seen(update_id, chat_id):
         return ""
 
+    idioma_uid: dict[str, int | None] = {"id": None}
+
     def reply(body: str, *, keyboard: bool = False, botones: list | None = None) -> str:
         uid_kb = int(link["user_id"]) if keyboard and link and link.get("user_id") else None
         markup = reply_keyboard(uid_kb) if keyboard else None
@@ -757,7 +797,7 @@ def handle_inbound(
                 for i in range(0, len(botones), 2)
             ]
             markup = {"inline_keyboard": filas}
-        send_text(chat_id, body, send_fn=send_fn, reply_markup=markup)
+        send_text(chat_id, body, send_fn=send_fn, reply_markup=markup, user_id=idioma_uid["id"])
         return body
 
     link = find_link_by_chat(chat_id)
@@ -766,6 +806,8 @@ def handle_inbound(
         pending = _find_pending_by_code(code) if code else None
         if pending:
             ok, msg = _complete_link(pending, chat_id, username)
+            if ok:
+                idioma_uid["id"] = int(pending["user_id"])
             return reply(msg, keyboard=ok)
         cmd, _rest = _command_parts(text)
         if cmd in ("/start", "/ayuda", "/help") or not (text or "").strip():
@@ -776,6 +818,7 @@ def handle_inbound(
             "(o mandá el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot."
         )
 
+    idioma_uid["id"] = int(link["user_id"])
     user = _user_by_id(int(link["user_id"]))
     if not user:
         return reply("Tu cuenta está inactiva.")
@@ -786,8 +829,9 @@ def handle_inbound(
         return reply("Telegram requiere plan Premium o Familia. Activalo en /app/billing — no ejecuté ninguna acción.")
 
     set_current_user(user)
-    if chat_id not in _COMANDOS_CHAT:
-        _COMANDOS_CHAT.add(chat_id)
+    clave_comandos = f"{chat_id}:{_idioma_chat(int(user['id']))}"
+    if clave_comandos not in _COMANDOS_CHAT:
+        _COMANDOS_CHAT.add(clave_comandos)
         register_bot_commands(chat_id, int(user["id"]))
     started = time.monotonic()
     accion, ok = "", False
@@ -935,8 +979,8 @@ def _run(ctx: Contexto, acc: Accion, datos: dict, texto: str, *, confirmado: boo
     return resp
 
 
-YES_WORDS = frozenset({"si", "dale", "confirmo", "confirmar"})
-NO_WORDS = frozenset({"no", "cancelar", "cancela", "cancelo"})
+YES_WORDS = frozenset({"si", "dale", "confirmo", "confirmar", "yes"})
+NO_WORDS = frozenset({"no", "cancelar", "cancela", "cancelo", "cancel"})
 CALLBACK_RE = re.compile(r"^p:(\d{1,12}):(si|no)$")
 
 
@@ -1206,7 +1250,7 @@ def send_due_reminders(
     rows = (
         ejecutar(
             """
-            SELECT id, chat_id, titulo, hora, fire_at FROM telegram_reminders
+            SELECT id, user_id, chat_id, titulo, hora, fire_at FROM telegram_reminders
             WHERE sent_at IS NULL AND fire_at <= ?
             ORDER BY fire_at LIMIT 50
             """,
@@ -1223,6 +1267,7 @@ def send_due_reminders(
             + (f"{r['hora']} · " if r.get("hora") else "")
             + f"{r.get('titulo') or 'evento'}.",
             send_fn=send_fn,
+            user_id=int(r["user_id"]) if r.get("user_id") is not None else None,
         )
         if ok or send_fn is not None:
             ejecutar(
@@ -1266,7 +1311,7 @@ def send_morning_briefings(*, now: datetime | None = None, send_fn: Callable | N
             texto = build_briefing(int(user["id"]))
         finally:
             clear_current_user()
-        if send_text(str(link["chat_id"]), texto, send_fn=send_fn):
+        if send_text(str(link["chat_id"]), texto, send_fn=send_fn, user_id=int(user["id"])):
             marcar_briefing_enviado(int(user["id"]), dia)
             n += 1
     return n
