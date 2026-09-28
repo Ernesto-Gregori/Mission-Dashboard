@@ -569,7 +569,7 @@ FRASES = {
     "IA offline — configura GROQ_API_KEY.": "AI offline — set GROQ_API_KEY.",
     "Hola, soy Alma. Contame qué necesitás hoy. Si querés que mire tus hábitos, finanzas, salud, calendario o proyectos, marcá las casillas de la izquierda.": "Hi, I'm the assistant. Tell me what you need today. If you want me to look at your habits, money, health, calendar, or projects, check the boxes on the left.",
     "Ej: ¿Qué me conviene priorizar esta tarde?": "E.g. What should I prioritize this afternoon?",
-    "Apagado por defecto. Si lo activás, el cron te manda el foco del día a la hora local. Fe, pareja y salud no entran salvo que las marques.": "Off by default. If you turn it on, the cron sends the day's focus at your local time. Faith, partner, and health stay out unless you check them.",
+    "Apagado por defecto. Si lo activás, la app te manda el foco del día a esa hora (hora local, con hasta 15 min de demora). Fe, pareja y salud no entran salvo que las marques.": "Off by default. If you turn it on, the app sends the day's focus at that time (local time, up to 15 min late). Faith, partner, and health stay out unless you check them.",
     "Este módulo no está en tu cupo Free (máx.": "This module is outside your Free allowance (max.",
     "módulos). Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX.": "modules). Move to Premium to unlock it, or turn it on inside your allowance.",
     "Ver Premium / Familia": "See Premium / Family",
