@@ -123,6 +123,7 @@ def _ctx(
         "areas_base": AREAS,
         "tab": tab if tab in PESTANAS else "areas",
         "pestanas": PESTANAS,
+        "week_start": _week_start(uid),
         **_ctx_conexiones(user, tab),
     }
 
@@ -170,6 +171,12 @@ def _ctx_conexiones(user: dict, tab: str) -> dict:
         "tg_code": None,
         "tg_deep_link": "",
     }
+
+
+def _week_start(uid: int) -> str:
+    from app.asistente import obtener_week_start
+
+    return obtener_week_start(uid)
 
 
 def _tab_pedido(request: Request) -> str:
@@ -327,7 +334,27 @@ def _rueda_form(uid: int, form):
     return rueda_conservando_estructura(prev, etiquetas), None
 
 
-def _respuesta_guardada(request: Request, seccion: str, idioma: str | None):
+def _aplicar_tema(request: Request, response: RedirectResponse, form, uid: int) -> None:
+    raw = form.get("theme")
+    if raw in (None, ""):
+        return
+    from app.tema import aplicar_cookie, guardar_tema
+
+    tema = guardar_tema(str(raw), user_id=uid)
+    request.session["theme"] = tema
+    aplicar_cookie(response, tema)
+
+
+def _aplicar_semana(form, uid: int) -> None:
+    raw = form.get("week_start")
+    if raw in (None, ""):
+        return
+    from app.asistente import guardar_week_start
+
+    guardar_week_start(str(raw), user_id=uid)
+
+
+def _respuesta_guardada(request: Request, seccion: str, idioma: str | None, form=None, uid: int | None = None):
     request.session["config_flash"] = "Configuración guardada."
     destino = "/app/configuracion" if not seccion else f"/app/configuracion?tab={seccion}"
     response = RedirectResponse(destino, status_code=303)
@@ -335,6 +362,8 @@ def _respuesta_guardada(request: Request, seccion: str, idioma: str | None):
         from app.i18n import aplicar_cookie_idioma
 
         aplicar_cookie_idioma(response, idioma)
+    if form is not None and uid is not None:
+        _aplicar_tema(request, response, form, uid)
     return response
 
 
@@ -375,6 +404,7 @@ def _guardar_seccion(request: Request, user: dict, form, seccion: str):
             hora_hasta=hasta,
             salud=[str(v) for v in form.getlist("salud")],
         )
+        _aplicar_semana(form, uid)
     elif seccion == "dinero":
         _guardar_parcial(
             uid,
@@ -387,7 +417,7 @@ def _guardar_seccion(request: Request, user: dict, form, seccion: str):
         if error_rueda:
             return _error(request, user, seccion, error_rueda)
         _guardar_parcial(uid, rueda=rueda)
-    return _respuesta_guardada(request, seccion, idioma)
+    return _respuesta_guardada(request, seccion, idioma, form, uid)
 
 
 @router.post("")
@@ -482,12 +512,14 @@ async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(
             "UPDATE habitos_config SET frecuencia = ? WHERE user_id = ? AND clave = ?",
             [freq, uid, hab["clave"]],
         )
+    _aplicar_semana(form, uid)
     request.session["config_flash"] = "Configuración guardada."
     response = RedirectResponse("/app/configuracion", status_code=303)
     if idioma:
         from app.i18n import aplicar_cookie_idioma
 
         aplicar_cookie_idioma(response, idioma)
+    _aplicar_tema(request, response, form, uid)
     return response
 
 

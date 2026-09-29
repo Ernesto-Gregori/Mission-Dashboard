@@ -47,6 +47,7 @@ CATALOGO = {
     "Conexiones": "Connections",
     "Sistema": "System",
     "Configuración": "Settings",
+    "Tema": "Theme",
     "Tema oscuro": "Dark theme",
     "Tema claro": "Light theme",
     "Cerrar sesión": "Sign out",

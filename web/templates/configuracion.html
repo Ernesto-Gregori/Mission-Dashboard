@@ -28,6 +28,11 @@
       <option value="es" {% if lang != 'en' %}selected{% endif %}>Español</option>
       <option value="en" {% if lang == 'en' %}selected{% endif %}>English</option>
     </select>
+    <label for="tema">Tema</label>
+    <select id="tema" name="theme">
+      <option value="dark" {% if theme != 'light' %}selected{% endif %}>Tema oscuro</option>
+      <option value="light" {% if theme == 'light' %}selected{% endif %}>Tema claro</option>
+    </select>
   </section>
 
   <section class="card" aria-labelledby="areas-title">
@@ -141,6 +146,13 @@
       <div>
         <label for="hora-hasta">y termina a las</label>
         <input id="hora-hasta" name="hora_hasta" type="number" min="1" max="24" value="{{ prefs.hora_hasta }}" />
+      </div>
+      <div>
+        <label for="week-start">La semana empieza</label>
+        <select id="week-start" name="week_start">
+          <option value="lun" {% if week_start != 'dom' %}selected{% endif %}>Lunes</option>
+          <option value="dom" {% if week_start == 'dom' %}selected{% endif %}>Domingo</option>
+        </select>
       </div>
     </div>
   </section>

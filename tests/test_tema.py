@@ -58,18 +58,28 @@ def test_tema_default_oscuro(web_client):
     r = web_client.get("/app")
     assert r.status_code == 200
     assert b'data-theme="dark"' in r.content
-    assert b"Tema claro" in r.content or b"theme" in r.content.lower()
+    assert b'action="/app/tema"' not in r.content
+    cfg = web_client.get("/app/configuracion")
+    assert b'name="theme"' in cfg.content
+    assert b"Tema oscuro" in cfg.content
+    assert b"Tema claro" in cfg.content
 
 
 def test_tema_claro_persiste(web_client):
     _onboard(web_client)
     r = web_client.post(
-        "/app/tema",
-        data={"theme": "light", "next": "/app"},
+        "/app/configuracion",
+        data={
+            "seccion": "areas",
+            "theme": "light",
+            "idioma": "es",
+            "activo": ["agenda", "ritual", "rueda", "alma"],
+        },
         follow_redirects=True,
     )
     assert r.status_code == 200
     assert b'data-theme="light"' in r.content
+    assert b'value="light" selected' in r.content
     r = web_client.get("/app/ritual")
     assert r.status_code == 200
     assert b'data-theme="light"' in r.content

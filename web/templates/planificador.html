@@ -16,14 +16,6 @@
     <a class="btn secondary{% if vista == 'semana' %} is-current{% endif %}" href="/app/planificador/vista/semana"{% if vista == 'semana' %} aria-current="page"{% endif %}>Semana</a>
     <a class="btn secondary{% if vista == 'mes' %} is-current{% endif %}" href="/app/planificador/vista/mes"{% if vista == 'mes' %} aria-current="page"{% endif %}>Mes</a>
   </nav>
-  <form method="post" action="/app/planificador/inicio" class="planner-start">
-    <label for="week-start">La semana empieza</label>
-    <select id="week-start" name="week_start" onchange="this.form.submit()">
-      <option value="lun" {% if week_start == 'lun' %}selected{% endif %}>Lunes</option>
-      <option value="dom" {% if week_start == 'dom' %}selected{% endif %}>Domingo</option>
-    </select>
-    <noscript><button class="btn secondary" type="submit">Aplicar</button></noscript>
-  </form>
   <p class="planner-legend" aria-label="Leyenda">
     <span class="chip chip-google">📅 Google Calendar</span>
     <span class="chip chip-local">📌 Dashboard</span>

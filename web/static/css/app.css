@@ -1776,12 +1776,6 @@ textarea {
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
-.planner-start {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
 .planner-legend {
   display: flex;
   gap: 0.5rem;
