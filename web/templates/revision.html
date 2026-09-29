@@ -15,6 +15,7 @@
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
+{% macro semana_en_numeros() %}
 <section class="card" aria-labelledby="numeros-title">
   <h2 id="numeros-title">La semana en números</h2>
   <p class="muted compact-copy">Se calcula de tus registros; se corrige en su sección, no acá.</p>
@@ -57,76 +58,96 @@
   {% endif %}
   {% endif %}
 </section>
+{% endmacro %}
 
-<section class="card" aria-labelledby="bitacora-title">
-  <h2 id="bitacora-title">Bitácora</h2>
-  {% if not bitacora_activa %}
-  <p class="muted">Activa el área Revisión semanal desde el <a href="/app/coach">Coach</a> para escribir tu bitácora.</p>
-  {% else %}
-  <form method="post" action="/app/revision/bitacora">
-    <input type="hidden" name="semana_inicio" value="{{ semana.lunes.isoformat() }}" />
-    <section class="journal-section">
-      <h3>🏆 3 victorias</h3>
-      <div class="agenda-form-grid cols-3">
-        <div><label for="journal-victory-1">Victoria 1</label><textarea id="journal-victory-1" name="victoria_1" rows="3">{{ bit.victoria_1 }}</textarea></div>
-        <div><label for="journal-victory-2">Victoria 2</label><textarea id="journal-victory-2" name="victoria_2" rows="3">{{ bit.victoria_2 }}</textarea></div>
-        <div><label for="journal-victory-3">Victoria 3</label><textarea id="journal-victory-3" name="victoria_3" rows="3">{{ bit.victoria_3 }}</textarea></div>
-      </div>
-    </section>
-    <section class="journal-section">
-      <h3>🌙 Vaciado mental</h3>
-      <div class="agenda-form-grid cols-2">
-        <div><label for="journal-release">Pendientes a soltar</label><textarea id="journal-release" name="pendientes_soltar" rows="4">{{ bit.pendientes_soltar }}</textarea></div>
-        <div><label for="journal-reflection">Reflexión</label><textarea id="journal-reflection" name="reflexion_semana" rows="4">{{ bit.reflexion_semana }}</textarea></div>
-        <div class="field-wide"><label for="journal-quote">Frase de la semana</label><textarea id="journal-quote" name="frase_favorita" rows="2">{{ bit.frase_favorita }}</textarea></div>
-      </div>
-    </section>
-    <div class="form-actions">
-      <button class="btn" type="submit">Guardar bitácora</button>
+{% if bitacora_activa or ver_rueda %}
+<form method="post" action="/app/revision/bitacora">
+  <input type="hidden" name="semana_inicio" value="{{ semana.lunes.isoformat() }}" />
+  {% if ver_rueda %}
+  <section class="rueda-layout" id="rueda" aria-labelledby="rueda-svg-title">
+    <div class="card rueda-visual">
+      <h2 id="rueda-svg-title">Rueda de la vida · {{ geo.promedio }} / 10</h2>
+      <svg class="rueda-svg" viewBox="0 0 {{ geo.size }} {{ geo.size }}" role="img" aria-label="Rueda de la vida con {{ areas|length }} áreas">
+        <title>Rueda de la vida</title>
+        {% for anillo in geo.anillos %}
+        <polygon class="rueda-ring" points="{{ anillo }}"></polygon>
+        {% endfor %}
+        {% for e in geo.ejes %}
+        <line class="rueda-axis" x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}"></line>
+        {% endfor %}
+        <polygon class="rueda-fill" points="{{ geo.poligono }}"></polygon>
+        {% for lb in geo.labels %}
+        <text class="rueda-label" x="{{ lb.x }}" y="{{ lb.y }}" text-anchor="middle" dominant-baseline="middle">{{ lb.emoji }}</text>
+        {% endfor %}
+      </svg>
     </div>
-  </form>
-  {% if historial %}
+    <div class="card rueda-form">
+      <h2>Puntuación (0–10)</h2>
+      {% for key, nombre, emoji in areas %}
+      <div class="rueda-field">
+        <label for="rueda-{{ key }}">{{ emoji }} {{ nombre }}</label>
+        <input id="rueda-{{ key }}" name="{{ key }}" type="number" min="0" max="10" step="1" value="{{ scores[key] }}" required />
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% if bitacora_activa %}
+  <section class="card" aria-labelledby="bitacora-title">
+    <h2 id="bitacora-title">Bitácora</h2>
+    <section class="journal-section">
+      <div class="agenda-form-grid cols-2">
+        <div>
+          <label for="journal-victory-1">Victoria 1</label>
+          <textarea id="journal-victory-1" name="victoria_1" rows="3" required>{{ bit.victoria_1 }}</textarea>
+        </div>
+        <div>
+          <label for="journal-reflection">Reflexión</label>
+          <textarea id="journal-reflection" name="reflexion_semana" rows="3" required>{{ bit.reflexion_semana }}</textarea>
+        </div>
+      </div>
+    </section>
+    <details>
+      <summary>Más</summary>
+      <section class="journal-section">
+        <h3>🏆 3 victorias</h3>
+        <div class="agenda-form-grid cols-2">
+          <div><label for="journal-victory-2">Victoria 2</label><textarea id="journal-victory-2" name="victoria_2" rows="3">{{ bit.victoria_2 }}</textarea></div>
+          <div><label for="journal-victory-3">Victoria 3</label><textarea id="journal-victory-3" name="victoria_3" rows="3">{{ bit.victoria_3 }}</textarea></div>
+        </div>
+      </section>
+      <section class="journal-section">
+        <h3>🌙 Vaciado mental</h3>
+        <div class="agenda-form-grid cols-2">
+          <div><label for="journal-release">Pendientes a soltar</label><textarea id="journal-release" name="pendientes_soltar" rows="4">{{ bit.pendientes_soltar }}</textarea></div>
+          <div class="field-wide"><label for="journal-quote">Frase de la semana</label><textarea id="journal-quote" name="frase_favorita" rows="2">{{ bit.frase_favorita }}</textarea></div>
+        </div>
+      </section>
+      {{ semana_en_numeros() }}
+    </details>
+  </section>
+  {% else %}
+  <details>
+    <summary>Más</summary>
+    {{ semana_en_numeros() }}
+  </details>
+  {% endif %}
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar revisión</button>
+  </div>
+</form>
+{% if bitacora_activa and historial %}
+<section class="card">
   <h3>Semanas anteriores</h3>
   <ul class="agenda-ev-list">
     {% for b in historial %}
     <li><a href="/app/revision?semana={{ b.semana_inicio }}">{{ b.semana_inicio }}</a>{% if b.victoria_1 %} · {{ b.victoria_1[:60] }}{% endif %}</li>
     {% endfor %}
   </ul>
-  {% endif %}
-  {% endif %}
 </section>
-
-{% if ver_rueda %}
-<section class="rueda-layout" id="rueda" aria-labelledby="rueda-svg-title">
-  <div class="card rueda-visual">
-    <h2 id="rueda-svg-title">Rueda de la vida · {{ geo.promedio }} / 10</h2>
-    <svg class="rueda-svg" viewBox="0 0 {{ geo.size }} {{ geo.size }}" role="img" aria-label="Rueda de la vida con {{ areas|length }} áreas">
-      <title>Rueda de la vida</title>
-      {% for anillo in geo.anillos %}
-      <polygon class="rueda-ring" points="{{ anillo }}"></polygon>
-      {% endfor %}
-      {% for e in geo.ejes %}
-      <line class="rueda-axis" x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}"></line>
-      {% endfor %}
-      <polygon class="rueda-fill" points="{{ geo.poligono }}"></polygon>
-      {% for lb in geo.labels %}
-      <text class="rueda-label" x="{{ lb.x }}" y="{{ lb.y }}" text-anchor="middle" dominant-baseline="middle">{{ lb.emoji }}</text>
-      {% endfor %}
-    </svg>
-  </div>
-  <form class="card rueda-form" method="post" action="/app/rueda">
-    <h2>Puntuación (0–10)</h2>
-    {% for key, nombre, emoji in areas %}
-    <div class="rueda-field">
-      <label for="rueda-{{ key }}">{{ emoji }} {{ nombre }}</label>
-      <input id="rueda-{{ key }}" name="{{ key }}" type="number" min="0" max="10" step="1" value="{{ scores[key] }}" required />
-    </div>
-    {% endfor %}
-    <div class="form-actions">
-      <button class="btn" type="submit">Guardar rueda</button>
-    </div>
-  </form>
-</section>
+{% endif %}
+{% else %}
+{{ semana_en_numeros() }}
 {% endif %}
 
 <section class="briefing-block" id="briefing" aria-labelledby="briefing-title">
