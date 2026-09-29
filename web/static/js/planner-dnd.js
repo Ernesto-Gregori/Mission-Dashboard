@@ -89,7 +89,6 @@
       if (!block || ev.button !== 0) return;
       const id = block.getAttribute("data-event-id");
       if (!id) return;
-      ev.preventDefault();
       const allday = block.getAttribute("data-allday") === "1";
       const start0 = parseHm(block.getAttribute("data-start"));
       const end0 = parseHm(block.getAttribute("data-end"));
