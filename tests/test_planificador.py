@@ -296,6 +296,41 @@ def _rango(html: str) -> str:
     return encontrado.group(1)
 
 
+def test_el_bloque_arrastrable_se_mueve_con_el_teclado(web_client):
+    """El bloque enfocado anuncia las flechas y el script las usa sin pasar por UTC."""
+    _onboard(web_client)
+    from app.timezone_config import hoy as _hoy
+
+    creado = web_client.post(
+        "/app/planificador/bloque",
+        data={
+            "fecha": str(_hoy()),
+            "titulo": "TeclaTest",
+            "tipo": "Personal",
+            "hora_inicio": "09:00",
+            "hora_fin": "10:00",
+            "solo_local": "1",
+        },
+        follow_redirects=True,
+    )
+    assert creado.status_code == 200
+    pagina = web_client.get("/app/planificador?vista=semana&w=0")
+    assert pagina.status_code == 200
+    assert "Flechas: mueve el bloque 15 minutos o un día." in pagina.text
+    boton = re.search(
+        r"<button\b[^>]*data-event-id=\"\d+\"[^>]*>[\s\S]*?TeclaTest",
+        pagina.text,
+    )
+    assert boton, "falta el bloque arrastrable"
+    assert 'aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"' in boton.group(0)
+    assert pagina.text.count("aria-keyshortcuts=") == pagina.text.count("data-event-id=")
+    js = Path("web/static/js/planner-dnd.js").read_text(encoding="utf-8")
+    assert "ArrowUp" in js and "ArrowDown" in js
+    assert "ArrowLeft" in js and "ArrowRight" in js
+    assert "toISOString" not in js
+    assert "new Date(" in js
+
+
 def test_la_semana_vive_en_la_url(web_client):
     """Anterior y Siguiente son enlaces. Volver a w=0 no usa la semana que quedó en la sesión."""
     _onboard(web_client)

@@ -35,6 +35,50 @@
     return h * 60 + (Number.isNaN(m) ? 0 : m);
   }
 
+  function shiftIso(iso, days) {
+    const parts = String(iso || "").split("-");
+    if (parts.length < 3) return "";
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);
+    const d = Number(parts[2]);
+    if (!y || !m || !d) return "";
+    const next = new Date(y, m - 1, d + days);
+    return next.getFullYear() + "-" + pad(next.getMonth() + 1) + "-" + pad(next.getDate());
+  }
+
+  document.addEventListener("keydown", function (ev) {
+    const block = ev.target && ev.target.closest ? ev.target.closest("button[data-event-id]") : null;
+    if (!block) return;
+    const key = ev.key;
+    const up = key === "ArrowUp";
+    const down = key === "ArrowDown";
+    const left = key === "ArrowLeft";
+    const right = key === "ArrowRight";
+    if (!up && !down && !left && !right) return;
+    const id = block.getAttribute("data-event-id");
+    if (!id) return;
+    const allday = block.getAttribute("data-allday") === "1" || !parseHm(block.getAttribute("data-start"));
+    if ((up || down) && allday) return;
+    ev.preventDefault();
+    const fecha0 = block.getAttribute("data-fecha") || "";
+    if (left || right) {
+      const fecha = shiftIso(fecha0, left ? -1 : 1);
+      if (!fecha || fecha === fecha0) return;
+      if (allday) submitMove(id, fecha, "", "");
+      else submitMove(id, fecha, block.getAttribute("data-start") || "", block.getAttribute("data-end") || "");
+      return;
+    }
+    const gridEl = block.closest("[data-planner-grid]");
+    const hourStart = Number((gridEl && gridEl.dataset.hourStart) || 6);
+    const hourEnd = Number((gridEl && gridEl.dataset.hourEnd) || 22);
+    const start0 = parseHm(block.getAttribute("data-start"));
+    const end0 = parseHm(block.getAttribute("data-end"));
+    const dur = start0 != null && end0 != null && end0 > start0 ? end0 - start0 : 60;
+    const mins = Math.max(hourStart * 60, Math.min(hourEnd * 60 - 15, start0 + (up ? -15 : 15)));
+    if (mins === start0) return;
+    submitMove(id, fecha0, minsToHm(mins), minsToHm(mins + dur));
+  });
+
   if (grid) {
     const hourStart = Number(grid.dataset.hourStart || 6);
     const hourEnd = Number(grid.dataset.hourEnd || 22);
@@ -45,7 +89,6 @@
       if (!block || ev.button !== 0) return;
       const id = block.getAttribute("data-event-id");
       if (!id) return;
-      ev.preventDefault();
       const allday = block.getAttribute("data-allday") === "1";
       const start0 = parseHm(block.getAttribute("data-start"));
       const end0 = parseHm(block.getAttribute("data-end"));
