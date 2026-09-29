@@ -139,7 +139,7 @@ def configuracion_page(request: Request, user: Annotated[dict, Depends(require_o
 
 def _volver_habitos(request: Request, ok: bool, msg: str) -> RedirectResponse:
     request.session["config_flash" if ok else "config_error"] = msg
-    return RedirectResponse("/app/configuracion?tab=dia#habitos", status_code=303)
+    return RedirectResponse("/app/configuracion?tab=dia", status_code=303)
 
 
 @router.post("/habitos")
