@@ -87,7 +87,6 @@ CATALOGO = {
     "Coach — tu sistema": "Coach — your system",
     "Política de privacidad": "Privacy policy",
     "Términos de servicio": "Terms of service",
-    "Módulo": "Module",
     "Tablero privado de hábitos, agenda, salud y finanzas.": "Private board for habits, schedule, health, and money.",
     "Para qué pide Google": "Why it asks for Google",
     "Volver al acceso": "Back to sign in",
@@ -197,7 +196,6 @@ CATALOGO = {
     "Nuevo hábito": "New habit",
     "Agregar": "Add",
     "Reactivar": "Reactivate",
-    "Módulos": "Modules",
     "Ninguna área activa.": "No active area.",
     "Abrir configuración": "Open settings",
     "para renombrar, apagar o cambiar el ritual sin pasar por el coach.": "to rename, turn off, or change the ritual without the coach.",
@@ -352,29 +350,20 @@ _PATRONES = (
 
 _PATRONES_TG = tuple((re.compile(patron), reemplazo) for patron, reemplazo in _PATRONES_TG_SRC)
 
-_MODULO_EN = {
-    "finanzas": "Finance",
-    "agenda": "Calendar",
-    "salud": "Health",
-    "deep_work": "Focus",
-    "biblioteca": "Reading",
-    "teologia": "Spirituality",
-    "matrimonio": "Relationships",
-}
 _ESTADO_EN = {"Completado": "Done", "Parcial": "Partial", "Postergado": "Postponed"}
 _MOMENTO_EN = {"manana": "morning", "tarde": "afternoon", "noche": "evening"}
 _RE_GASTO = re.compile(r"^Anoté \$([0-9.]+) en «(.+)» → (.+) \((.+)\)\.$")
 _RE_LISTO = re.compile(r"^Listo: ahora está en (.+) \((.+)\)\.$")
 _RE_SOBRE = re.compile(r"^Sobre más justo: (🟢|🟡|🔴) (.+) \$(\d+)$")
 _RE_LUZ = re.compile(r"^(🟢|🟡|🔴) (.+): \$(\d+) de \$(\d+)$")
-_RE_SALUD = re.compile(r"^Salud: (.+)$")
+_RE_CUERPO = re.compile(r"^Cuerpo: (.+)$")
 _RE_ROJOS = re.compile(r"^Sobres en rojo: (.+)$")
-_RE_MODULO_AYUDA = re.compile(
-    r"^El módulo «([a-z0-9_]+)» está apagado\. Se prende en la app, en Coach\. No listo comandos\.$"
+_RE_AREA_AYUDA = re.compile(
+    r"^El área «(.+)» está apagada\. Se prende en la app, en Cuenta → Configuración\. No listo comandos\.$"
 )
-_RE_MODULO_OFF = re.compile(
-    r"^El módulo «([a-z0-9_]+)» está apagado, así que no guardé nada\. "
-    r"Activalo en la app → Coach → Módulos\.$"
+_RE_AREA_OFF = re.compile(
+    r"^El área «(.+)» está apagada, así que no guardé nada\. "
+    r"Activala en la app, en Cuenta → Configuración\.$"
 )
 _RE_ENERGIA = re.compile(r"^Anoté energía de (manana|tarde|noche) en (\d)/5\.$")
 _RE_BLOQUE = re.compile(r"^(\d{2}:\d{2}) (.+) · (Completado|Parcial|Postergado)$")
@@ -470,27 +459,27 @@ def _caso_telegram(nucleo: str) -> str | None:
     if rojos:
         nombres = ", ".join(_nucleo(p.strip()) for p in rojos.group(1).split(","))
         return f"Envelopes in the red: {nombres}"
-    salud = _RE_SALUD.fullmatch(nucleo)
-    if salud:
-        resto = re.sub(r"sueño ([\d.]+) h", r"sleep \1 h", salud.group(1))
+    cuerpo = _RE_CUERPO.fullmatch(nucleo)
+    if cuerpo:
+        resto = re.sub(r"sueño ([\d.]+) h", r"sleep \1 h", cuerpo.group(1))
         resto = re.sub(r"rutina (.+) días", r"routine \1 days", resto)
-        return f"Health: {resto}"
-    ayuda = _RE_MODULO_AYUDA.fullmatch(nucleo)
+        return f"Body: {resto}"
+    ayuda = _RE_AREA_AYUDA.fullmatch(nucleo)
     if ayuda:
         return (
-            f"The «{_MODULO_EN.get(ayuda.group(1), ayuda.group(1))}» module is off. "
-            "Turn it on in the app, under Coach. I won't list commands."
+            f"The «{_nucleo(ayuda.group(1))}» area is off. "
+            "Turn it on in the app, under Account → Settings. I won't list commands."
         )
-    apagado = _RE_MODULO_OFF.fullmatch(nucleo)
+    apagado = _RE_AREA_OFF.fullmatch(nucleo)
     if apagado:
         return (
-            f"The «{_MODULO_EN.get(apagado.group(1), apagado.group(1))}» module is off, so I saved nothing. "
-            "Turn it on in the app → Coach → Modules."
+            f"The «{_nucleo(apagado.group(1))}» area is off, so I saved nothing. "
+            "Turn it on in the app, under Account → Settings."
         )
-    mods = re.fullmatch(r"Módulos: (.+)", nucleo)
-    if mods and mods.group(1) != "ninguno":
-        nombres = ", ".join(_MODULO_EN.get(p.strip(), p.strip()) for p in mods.group(1).split(","))
-        return f"Modules: {nombres}"
+    areas = re.fullmatch(r"Áreas: (.+)", nucleo)
+    if areas and areas.group(1) != "ninguna":
+        nombres = ", ".join(_nucleo(p.strip()) for p in areas.group(1).split(","))
+        return f"Areas: {nombres}"
     energia = _RE_ENERGIA.fullmatch(nucleo)
     if energia:
         momento = _MOMENTO_EN.get(energia.group(1), energia.group(1))

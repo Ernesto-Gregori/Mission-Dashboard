@@ -10,19 +10,19 @@ FRASES = {
     "• /briefing — foco del día": "• /briefing — focus for the day",
     "• /gasto 35 super — anotar un gasto": "• /gasto 35 super — log an expense",
     "• /deshacer — lo último que guardé": "• /deshacer — the last thing I saved",
-    "• /ayuda finanzas — también agenda, salud, enfoque, lectura, fe, pareja, habitos, alma": (
-        "• /ayuda finanzas — also agenda, salud, enfoque, lectura, fe, pareja, habitos, alma"
+    "• /ayuda dinero — también cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos, alma": (
+        "• /ayuda dinero — also cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos, alma"
     ),
     "Texto suelto («35 en super») o una nota de voz también sirven.": (
         "Free text («35 en super») or a voice note also works."
     ),
-    "Desvincular: en la app → Usuarios → Telegram.": "Unlink: in the app → Users → Telegram.",
+    "Desvincular: en la app, en Cuenta → Telegram y usuarios.": "Unlink: in the app, under Account → Telegram and users.",
     "Este chat no está vinculado a Mission Dashboard.": "This chat is not linked to Mission Dashboard.",
-    "Entrá a la app → Usuarios → Telegram, generá un código y pulsá Start (o mandá el código de 6 dígitos).": (
-        "Open the app → Users → Telegram, generate a code and tap Start (or send the 6-digit code)."
+    "Entrá a la app → Cuenta → Telegram y usuarios, generá un código y pulsá Start (o mandá el código de 6 dígitos).": (
+        "Open the app → Account → Telegram and users, generate a code and tap Start (or send the 6-digit code)."
     ),
-    "Este Telegram no está vinculado a Mission Dashboard. Entrá a la app → Usuarios → Telegram, generá un código y pulsá Start en el bot (o mandá el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot.": (
-        "This Telegram is not linked to Mission Dashboard. Open the app → Users → Telegram, generate a code and tap Start on the bot (or send the 6-digit code). /ayuda lists what the bot can do."
+    "Este Telegram no está vinculado a Mission Dashboard. Entrá a la app → Cuenta → Telegram y usuarios, generá un código y pulsá Start en el bot (o mandá el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot.": (
+        "This Telegram is not linked to Mission Dashboard. Open the app → Account → Telegram and users, generate a code and tap Start on the bot (or send the 6-digit code). /ayuda lists what the bot can do."
     ),
     "Tu cuenta está inactiva.": "Your account is inactive.",
     "Telegram requiere plan Premium. Activalo en /app/billing — no ejecuté ninguna acción.": (
@@ -37,10 +37,10 @@ FRASES = {
     "/ayuda muestra todos los comandos.": "/ayuda lists every command.",
     "Ya estás vinculado.": "You are already linked.",
     "Ese tema no tiene comandos.": "That topic has no commands.",
-    "No conozco ese tema. Probá /ayuda finanzas, agenda, salud, enfoque, lectura, fe, pareja, habitos o alma.": (
-        "I don't know that topic. Try /ayuda finanzas, agenda, salud, enfoque, lectura, fe, pareja, habitos or alma."
+    "No conozco ese tema. Probá /ayuda dinero, cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos o alma.": (
+        "I don't know that topic. Try /ayuda dinero, cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos or alma."
     ),
-    "Ese módulo no tiene comandos.": "That module has no commands.",
+    "Esa área no tiene comandos.": "That area has no commands.",
     "Chat inválido.": "Invalid chat.",
     "Ese Telegram ya está vinculado a otra cuenta.": "That Telegram is already linked to another account.",
     "Listo, Telegram vinculado.": "Done, Telegram is linked.",
@@ -60,7 +60,7 @@ FRASES = {
     "Agenda de hoy, mañana o la semana": "Calendar for today, tomorrow or the week",
     "Crear una tarea": "Create a task",
     "Deshacer lo último que guardé": "Undo the last thing I saved",
-    "Menú, o /ayuda y un módulo": "Menu, or /ayuda plus a module",
+    "Menú, o /ayuda y un área": "Menu, or /ayuda plus an area",
     # Botones
     "💸 Saldo": "💸 Balance",
     "✅ Hábitos": "✅ Habits",
@@ -102,10 +102,10 @@ FRASES = {
     "Enfoque: sin bloques hoy.": "Focus: no blocks today.",
     "Vencimientos: ninguno en 3 días.": "Due dates: none in the next 3 days.",
     "Oración: nada para hoy.": "Prayer: nothing for today.",
-    "Pareja: sin cita hoy.": "Pareja: no date today.",
-    "Salud: sin registro hoy.": "Health: no log today.",
+    "Relaciones: sin cita hoy.": "Relationships: no date today.",
+    "Cuerpo: sin registro hoy.": "Body: no log today.",
     "Listo: el briefing de la mañana vuelve cuando le toque.": "Done: the morning briefing returns on its next slot.",
-    "No tenés hábitos activos. Se crean en la app, en Coach.": "You have no active habits. They are created in the app, under Coach.",
+    "No tenés hábitos activos. Se crean en la app, en Cuenta → Mi sistema.": "You have no active habits. They are created in the app, under Account → My system.",
     "Hábitos de hoy": "Today's habits",
     "Para marcar: /hecho leer  (o «ya leí»).": "To check one off: /hecho leer  (or «ya leí»).",
     "Ese hábito ya no está. No marqué nada.": "That habit is gone. I checked nothing off.",
@@ -134,8 +134,8 @@ FRASES = {
     ),
     "No pude actualizar el pedido. No cambié nada.": "I couldn't update the request. I changed nothing.",
     "No pude guardar el pedido. No escribí nada.": "I couldn't save the request. I wrote nothing.",
-    "Hoy no tenés bloques de enfoque. Se arman en la app → Enfoque.": (
-        "You have no focus blocks today. They are set up in the app → Focus."
+    "Hoy no tenés bloques de enfoque. Se arman en la app, en Semana → Enfoque.": (
+        "You have no focus blocks today. They are set up in the app, under Week → Focus."
     ),
     "Enfoque de hoy": "Focus today",
     "✓ Completado · ~ Parcial · → Postergado": "✓ Done · ~ Partial · → Postponed",
@@ -145,11 +145,11 @@ FRASES = {
     "No pude anotar la energía.": "I couldn't log energy.",
     "No pude anotar el ejercicio.": "I couldn't log the workout.",
     "Todavía no hay registros de salud en los últimos 7 días.": "There are no health logs in the last 7 days yet.",
-    "No tenés una rutina guardada. Se arma en la app, en Salud.": (
-        "You have no saved routine. It is set up in the app, under Health."
+    "No tenés una rutina guardada. Se arma en la app, en Cuerpo → Rutina.": (
+        "You have no saved routine. It is set up in the app, under Body → Routine."
     ),
-    "No estás leyendo ningún libro. Se marcan en la app, en Biblioteca.": (
-        "You are not reading any book. They are marked in the app, under Library."
+    "No estás leyendo ningún libro. Se marcan en la app, en Lectura.": (
+        "You are not reading any book. They are marked in the app, under Reading."
     ),
     "Leyendo": "Reading",
     "Para avanzar: /leer el título y la página.": "To update progress: /leer plus the title and the page.",
@@ -162,12 +162,12 @@ FRASES = {
     "No pude bajar la foto. No leí nada.": "I couldn't download the photo. I read nothing.",
     "Se agotó el cupo de IA de este mes. No leí el recibo.": "This month's AI allowance is used up. I didn't read the receipt.",
     "No pude guardar la foto. No leí nada.": "I couldn't save the photo. I read nothing.",
-    "No hay categorías autorizadas. Se activan en la app, en Alma. El bot no puede prenderlas.": (
-        "No categories are authorized. They are turned on in the app, under Assistant. The bot cannot turn them on."
+    "No hay categorías autorizadas. Se activan en la app, en Cuenta → Configuración. El bot no puede prenderlas.": (
+        "No categories are authorized. They are turned on in the app, under Account → Settings. The bot cannot turn them on."
     ),
     "Google: vinculado": "Google: linked",
     "Google: sin vincular": "Google: not linked",
-    "Módulos: ninguno": "Modules: none",
+    "Áreas: ninguna": "Areas: none",
 }
 
 # Patrones de una línea. Lo que está entre paréntesis es dato del usuario y se conserva.
@@ -186,7 +186,7 @@ PATRONES = [
     (r"^Vencimientos: (.+)$", r"Due dates: \1"),
     (r"^Agenda: (.+)$", r"Calendar: \1"),
     (r"^Oración: (.+)$", r"Prayer: \1"),
-    (r"^Pareja: (.+)$", r"Pareja: \1"),
+    (r"^Relaciones: (.+)$", r"Relationships: \1"),
     (r"^Saldo (\d{2}/\d{4})$", r"Balance \1"),
     (r"^Ingreso de (\d{2}/\d{4}): \$(\d+)\.$", r"Income for \1: $\2."),
     (r"^Ingreso \$(\d+)$", r"Income $\1"),
@@ -259,7 +259,7 @@ PATRONES = [
     (r"^¿Marco el pedido (\d+) como respondido\?$", r"Mark request \1 as answered?"),
     (r"^Marqué «(.+)» como respondido\.$", r"Marked «\1» as answered."),
     (r"^No conozco el dominio «(.+)»\. No guardé nada\. Usá: (.+)\.$", r"I don't know the area «\1». I saved nothing. Use: \2."),
-    (r"^Salud, últimos (\d+) días con registro$", r"Health, last \1 days with a log"),
+    (r"^Cuerpo, últimos (\d+) días con registro$", r"Body, last \1 days with a log"),
     (r"^Sueño ([0-9.]+) h · calidad ([0-9.]+)$", r"Sleep \1 h · quality \2"),
     (r"^Energía mañana ([0-9.]+)/5$", r"Morning energy \1/5"),
     (r"^Ejercicio (\d+) días$", r"Exercise \1 days"),

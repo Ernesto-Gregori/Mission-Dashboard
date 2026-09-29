@@ -15,7 +15,7 @@ def _alma(ctx: Contexto, datos: dict) -> Respuesta:
     except ValueError:
         return Respuesta("Escribí el mensaje. Ejemplo: /alma cómo viene mi semana")
     if not any(flags.values()):
-        texto += "\n\nNo hay categorías autorizadas. Se activan en la app, en Alma. El bot no puede prenderlas."
+        texto += "\n\nNo hay categorías autorizadas. Se activan en la app, en Cuenta → Configuración. El bot no puede prenderlas."
     return Respuesta(texto[:1500])
 
 

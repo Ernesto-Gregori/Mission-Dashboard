@@ -48,10 +48,10 @@ def desde_foto(ctx: Contexto, raw: bytes, size: int = 0) -> Respuesta:
     from app.billing import cuota_ia_ok
     from app.onboarding import modulo_activo
     from app.receipt_service import ScanError, armar_borrador
-    from app.telegram import _modulo_apagado, _run
+    from app.telegram import _area_apagada, _run
 
     if not modulo_activo("finanzas", ctx.user_id):
-        return _modulo_apagado(RECIBO)
+        return _area_apagada(RECIBO)
     peso = size or len(raw or b"")
     if peso > TELEGRAM_MAX_PHOTO_BYTES:
         return Respuesta("La foto supera 5 MB. No leí nada.", accion="recibo")

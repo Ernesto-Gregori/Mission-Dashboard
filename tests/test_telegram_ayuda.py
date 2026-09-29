@@ -23,7 +23,7 @@ def test_ayuda_modulo_activo_sale_del_registro(web_client):
     _link_admin("42")
     out = _say("/ayuda finanzas", "a1")
     assert "/gasto" in out and "/precio" in out
-    assert "apagado" not in out
+    assert "apagad" not in out
 
 
 def test_ayuda_modulo_apagado_no_lista(web_client):
@@ -31,7 +31,7 @@ def test_ayuda_modulo_apagado_no_lista(web_client):
     web_client.post("/app/coach/activar", data={"modulos": ["agenda"]})
     _link_admin("42")
     out = _say("/ayuda finanzas", "a2")
-    assert "apagado" in out and "/gasto" not in out
+    assert "apagad" in out and "/gasto" not in out
 
 
 def test_ayuda_tema_desconocido(web_client):

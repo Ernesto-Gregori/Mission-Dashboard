@@ -24,6 +24,7 @@ from app.db import telegram_state as state
 from app.logging_config import get_logger
 from app.telegram_actions import Accion, Contexto, Respuesta
 from app.telegram_actions.briefing import normalize
+from app.templates import MODULE_TEMPLATES
 from app.timezone_config import hoy as _hoy, iso_ahora
 
 log = get_logger("telegram")
@@ -68,7 +69,7 @@ BOT_COMMANDS = [
     {"command": "agenda", "description": "Agenda de hoy, mañana o la semana"},
     {"command": "tarea", "description": "Crear una tarea"},
     {"command": "deshacer", "description": "Deshacer lo último que guardé"},
-    {"command": "ayuda", "description": "Menú, o /ayuda y un módulo"},
+    {"command": "ayuda", "description": "Menú, o /ayuda y un área"},
 ]
 
 
@@ -81,6 +82,15 @@ _TEMAS_AYUDA = {
     "fe": "teologia",
     "pareja": "matrimonio",
 }
+# El nombre que el usuario ve en la app también vale como tema: quien lee
+# «Cuerpo» en el menú escribe /ayuda cuerpo. Los temas viejos siguen valiendo.
+_TEMAS_AYUDA.update(
+    {
+        normalize(meta["nombre"]): clave
+        for clave, meta in MODULE_TEMPLATES.items()
+        if normalize(meta["nombre"]) not in _TEMAS_AYUDA
+    }
+)
 _CLAVES_AYUDA = {
     "habitos": ("habitos", "habito"),
     "hábitos": ("habitos", "habito"),
@@ -99,7 +109,8 @@ def _lineas_acciones(acciones) -> str:
 
 
 def ayuda_texto(user_id: int | None, tema: str = "") -> str:
-    """Ayuda general, o la de un módulo, armada desde el registro y solo si está activo."""
+    """Ayuda general, o la de un área, armada desde el registro y solo si está activa."""
+    from app.onboarding import nombre_visible
     from app.telegram_actions import REGISTRO, disponible
     from app.telegram_actions.briefing import normalize
 
@@ -113,14 +124,17 @@ def ayuda_texto(user_id: int | None, tema: str = "") -> str:
     modulo = _TEMAS_AYUDA.get(pedido)
     if modulo is None:
         return (
-            "No conozco ese tema. Probá /ayuda finanzas, agenda, salud, enfoque, "
-            "lectura, fe, pareja, habitos o alma."
+            "No conozco ese tema. Probá /ayuda dinero, cuerpo, enfoque, "
+            "lectura, espiritualidad, relaciones, agenda, habitos o alma."
         )
     muestra = next((a for a in REGISTRO if a.modulo == modulo), None)
     if muestra is None or not disponible(muestra, user_id):
-        return f"El módulo «{modulo}» está apagado. Se prende en la app, en Coach. No listo comandos."
+        return (
+            f"El área «{nombre_visible(modulo)}» está apagada. "
+            "Se prende en la app, en Cuenta → Configuración. No listo comandos."
+        )
     acciones = [a for a in REGISTRO if a.modulo == modulo and disponible(a, user_id)]
-    return _lineas_acciones(acciones) or "Ese módulo no tiene comandos."
+    return _lineas_acciones(acciones) or "Esa área no tiene comandos."
 
 
 def help_text(*, linked: bool = True) -> str:
@@ -130,15 +144,15 @@ def help_text(*, linked: bool = True) -> str:
         "• /gasto 35 super — anotar un gasto\n"
         "• /saldo · /habitos · /agenda · /tarea\n"
         "• /deshacer — lo último que guardé\n"
-        "• /ayuda finanzas — también agenda, salud, enfoque, lectura, fe, pareja, habitos, alma\n\n"
+        "• /ayuda dinero — también cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos, alma\n\n"
         "Texto suelto («35 en super») o una nota de voz también sirven.\n"
-        "Desvincular: en la app → Usuarios → Telegram."
+        "Desvincular: en la app, en Cuenta → Telegram y usuarios."
     )
     if linked:
         return body
     return (
         "Este chat no está vinculado a Mission Dashboard.\n"
-        "Entrá a la app → Usuarios → Telegram, generá un código y pulsá Start "
+        "Entrá a la app → Cuenta → Telegram y usuarios, generá un código y pulsá Start "
         "(o mandá el código de 6 dígitos).\n\n"
         + body
     )
@@ -813,7 +827,7 @@ def handle_inbound(
             return reply(help_text(linked=False), keyboard=False)
         return reply(
             "Este Telegram no está vinculado a Mission Dashboard. "
-            "Entrá a la app → Usuarios → Telegram, generá un código y pulsá Start en el bot "
+            "Entrá a la app → Cuenta → Telegram y usuarios, generá un código y pulsá Start en el bot "
             "(o mandá el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot."
         )
 
@@ -942,7 +956,7 @@ def _route(ctx: Contexto, body: str) -> Respuesta:
 
 def _run_command(ctx: Contexto, acc: Accion, rest: str) -> Respuesta:
     if not acciones.disponible(acc, ctx.user_id):
-        return _modulo_apagado(acc)
+        return _area_apagada(acc)
     datos = None
     if rest and acc.llm_campos:
         datos = acc.validar(_parse(ctx, rest))
@@ -957,7 +971,7 @@ def _run(ctx: Contexto, acc: Accion, datos: dict, texto: str, *, confirmado: boo
     from app.audit import registrar
 
     if not acciones.disponible(acc, ctx.user_id):
-        return _modulo_apagado(acc)
+        return _area_apagada(acc)
     datos = {**datos, "_texto": texto}
     pregunta = acc.confirmar(ctx, datos) if acc.confirmar and not confirmado else None
     if pregunta:
@@ -998,7 +1012,7 @@ def _route_callback(ctx: Contexto, data: str) -> Respuesta:
         from app.telegram_actions.enfoque import marcar_bloque
 
         if not acciones.disponible(acciones.por_clave("enfoque"), ctx.user_id):
-            return _modulo_apagado(acciones.por_clave("enfoque"))
+            return _area_apagada(acciones.por_clave("enfoque"))
         return marcar_bloque(int(enfoque.group(1)), enfoque.group(2))
     libro = re.match(r"^b:(\d{1,3}):(\d{1,5})$", data or "")
     if libro:
@@ -1006,7 +1020,7 @@ def _route_callback(ctx: Contexto, data: str) -> Respuesta:
         from app.telegram_actions.lectura import leer_desde_boton
 
         if not acciones.disponible(acciones.por_clave("leer"), ctx.user_id):
-            return _modulo_apagado(acciones.por_clave("leer"))
+            return _area_apagada(acciones.por_clave("leer"))
         resp = leer_desde_boton(ctx, int(libro.group(1)), int(libro.group(2)))
         if resp.entidad_id is not None:
             registrar("telegram_leer", "leer", resp.entidad_id, {"chat": ctx.chat_id[-4:]})
@@ -1068,10 +1082,12 @@ def _deshacer(ctx: Contexto) -> Respuesta:
     return Respuesta(f"Deshice: {last['resumen']}.", accion="deshacer")
 
 
-def _modulo_apagado(acc: Accion) -> Respuesta:
+def _area_apagada(acc: Accion) -> Respuesta:
+    from app.onboarding import nombre_visible
+
     return Respuesta(
-        f"El módulo «{acc.modulo}» está apagado, así que no guardé nada. "
-        "Activalo en la app → Coach → Módulos.",
+        f"El área «{nombre_visible(acc.modulo)}» está apagada, así que no guardé nada. "
+        "Activala en la app, en Cuenta → Configuración.",
         accion=acc.clave,
     )
 

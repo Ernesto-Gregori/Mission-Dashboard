@@ -55,7 +55,7 @@ def test_precio_sin_producto(web_client):
 def test_modulo_finanzas_apagado(web_client):
     _setup(web_client)
     web_client.post("/app/coach/activar", data={"modulos": ["agenda"]})
-    assert "apagado" in _say("/precio leche", "c4")
+    assert "apagad" in _say("/precio leche", "c4")
 
 
 def test_estado_resume(web_client, monkeypatch):

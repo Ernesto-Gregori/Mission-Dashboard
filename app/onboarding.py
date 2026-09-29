@@ -264,7 +264,7 @@ Objetivos: {perfil.get('objetivos', '')}
 Tiempo disponible al día (aprox): {perfil.get('tiempo', '')}
 Notas: {perfil.get('notas', '')}
 
-Módulos permitidos:
+Áreas permitidas:
 {catalogo_para_prompt()}
 
 Elige el set mínimo útil. JSON únicamente.

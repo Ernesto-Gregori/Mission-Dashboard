@@ -26,16 +26,17 @@ def _precio(_ctx: Contexto, datos: dict) -> Respuesta:
 def _estado(ctx: Contexto, _datos: dict) -> Respuesta:
     from app.billing import llamadas_ia_mes, plan_vigente
     from app.google_calendar import calendar_disponible
-    from app.onboarding import modulos_activos
+    from app.onboarding import modulos_activos, nombre_visible
 
     plan = plan_vigente(ctx.user)
-    mods = ", ".join(sorted(modulos_activos(ctx.user_id))) or "ninguno"
+    activas = sorted(nombre_visible(clave) for clave in modulos_activos(ctx.user_id))
+    mods = ", ".join(activas) or "ninguna"
     google = "vinculado" if calendar_disponible() else "sin vincular"
     return Respuesta(
         "\n".join(
             [
                 f"Plan: {plan}",
-                f"Módulos: {mods}",
+                f"Áreas: {mods}",
                 f"Google: {google}",
                 f"Llamadas de IA este mes: {llamadas_ia_mes(ctx.user_id)}",
             ]

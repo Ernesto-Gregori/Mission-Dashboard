@@ -83,4 +83,4 @@ def test_agenda_apagada_no_escribe(web_client, monkeypatch):
     _setup(web_client, monkeypatch)
     web_client.post("/app/coach/activar", data={"modulos": ["finanzas"]})
     out = _say("/tarea mañana 5pm banco", "a16")
-    assert "apagado" in out and _rows() == []
+    assert "apagad" in out and _rows() == []

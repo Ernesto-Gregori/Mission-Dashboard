@@ -1,4 +1,4 @@
-"""Sueño, energía y ejercicio por Telegram. Requiere el módulo salud."""
+"""Sueño, energía y ejercicio por Telegram. Requiere el área Cuerpo (salud)."""
 from __future__ import annotations
 
 import re
@@ -124,7 +124,7 @@ def _ejecutar_resumen(_ctx: Contexto, _datos: dict) -> Respuesta:
     return Respuesta(
         "\n".join(
             [
-                f"Salud, últimos {prom['total_dias']} días con registro",
+                f"Cuerpo, últimos {prom['total_dias']} días con registro",
                 f"Sueño {prom['avg_sueno']:.1f} h · calidad {prom['avg_calidad_sueno']:.1f}",
                 f"Energía mañana {prom['avg_energia_manana']:.1f}/5",
                 f"Ejercicio {prom['dias_ejercicio']} días",
@@ -140,7 +140,7 @@ def _rutina(ctx: Contexto, _datos: dict) -> Respuesta:
 
     rutina = obtener_routine(ctx.user_id)
     if not rutina:
-        return Respuesta("No tenés una rutina guardada. Se arma en la app, en Salud.")
+        return Respuesta("No tenés una rutina guardada. Se arma en la app, en Cuerpo → Rutina.")
     dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     hoy_nombre = dias[hoy().weekday()]
     plan = rutina.get("plan") or {}

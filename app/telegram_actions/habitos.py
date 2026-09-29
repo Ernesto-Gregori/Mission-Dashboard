@@ -48,7 +48,7 @@ def _listar(_ctx: Contexto, _datos: dict) -> Respuesta:
     hechos = habitos_hoy()
     habitos = listar_habitos()
     if not habitos:
-        return Respuesta("No tenés hábitos activos. Se crean en la app, en Coach.")
+        return Respuesta("No tenés hábitos activos. Se crean en la app, en Cuenta → Mi sistema.")
     lineas = ["Hábitos de hoy"]
     for h in habitos:
         mark = "✓" if hechos.get(h["clave"]) else "·"

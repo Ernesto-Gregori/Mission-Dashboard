@@ -17,7 +17,7 @@ def test_el_texto_plano_traduce_linea_a_linea_y_deja_el_dato():
     assert traducir_plano(gasto, "es") == gasto
     assert traducir_plano(gasto, "") == gasto
     assert traducir_plano("Pareja", "en") == "Pareja"
-    assert traducir_plano("Pareja: sin cita hoy.", "en") == "Pareja: no date today."
+    assert traducir_plano("Relaciones: sin cita hoy.", "en") == "Relationships: no date today."
     assert traducir_plano("⏰ Recordatorio: 10:00 · Dentista.", "en") == "⏰ Reminder: 10:00 · Dentista."
     menu = "Menú:\n• /briefing — foco del día"
     en = traducir_plano(menu, "en")

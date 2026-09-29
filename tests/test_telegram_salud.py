@@ -94,7 +94,7 @@ def test_modulo_apagado_no_escribe(web_client):
     _setup(web_client)
     web_client.post("/app/coach/activar", data={"modulos": ["agenda"]})
     out = _say("/sueno 8", "s8")
-    assert "apagado" in out
+    assert "apagad" in out
     from app.db.salud import obtener_registro_salud
     from app.timezone_config import hoy
 

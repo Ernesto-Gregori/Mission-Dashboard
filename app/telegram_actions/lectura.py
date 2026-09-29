@@ -105,7 +105,9 @@ def _leyendo(_ctx: Contexto, _datos: dict) -> Respuesta:
 
     libros, _total = obtener_libros_por_estado(estado="leyendo", por_pagina=8)
     if not libros:
-        return Respuesta("No estás leyendo ningún libro. Se marcan en la app, en Biblioteca.")
+        return Respuesta(
+            "No estás leyendo ningún libro. Se marcan en la app, en Lectura."
+        )
     lineas = ["Leyendo"]
     for libro in libros:
         pag = int(libro.get("pagina_actual") or 0)

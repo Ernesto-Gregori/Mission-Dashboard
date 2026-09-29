@@ -54,8 +54,8 @@ def test_parcial_y_postergado(web_client):
 def test_modulo_apagado_no_escribe(web_client):
     bid = _setup(web_client)
     web_client.post("/app/coach/activar", data={"modulos": ["agenda"]})
-    assert "apagado" in _say("/enfoque", "e5")
-    assert "apagado" in _say("", "e6", callback_id="cb", callback_data=f"e:{bid}:c", answer_fn=lambda _i: None)
+    assert "apagad" in _say("/enfoque", "e5")
+    assert "apagad" in _say("", "e6", callback_id="cb", callback_data=f"e:{bid}:c", answer_fn=lambda _i: None)
     assert _estado(bid) == "Pendiente"
 
 

@@ -24,7 +24,6 @@ FRASES = {
     # Coach
     "🤖 Coach Mission Dashboard": "🤖 Mission Dashboard coach",
     "· Free: máx.": "· Free: max.",
-    "módulos": "modules",
     "Ej: recién casado, estudiante…": "E.g. newly married, student…",
     "Ej: finanzas, relación, hábitos…": "E.g. money, relationships, habits…",
     "5-10 min": "5-10 min",
@@ -40,11 +39,9 @@ FRASES = {
     "El Coach IA está desactivado en esta instalación, así que esta propuesta sale de reglas simples.": "The AI coach is off in this installation, so this proposal comes from simple rules.",
     "desde el entorno o en": "from the environment or from",
     "¿Necesitas más de": "Need more than",
-    "módulos? Premium desbloquea todos.": "modules? Premium unlocks all of them.",
     "Qué áreas usas y qué hábitos marcas cada día en Hoy.": "Which areas you use and which habits you check each day on Today.",
     "Ej: Leer 20 minutos": "E.g. Read for 20 minutes",
     "También te pueden servir (Premium)": "These may also help (Premium)",
-    "Módulo «": "Module “",
     "salud": "health",
     # Comparativa de miembros y plan
     "Comparativa": "Comparison",
