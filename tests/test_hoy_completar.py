@@ -55,7 +55,7 @@ def _onboard(client: TestClient, username: str = "hoy_user") -> None:
 
 def _crear(client: TestClient, label: str) -> str:
     client.post(
-        "/app/coach/habitos",
+        "/app/configuracion/habitos",
         data={"label": label, "emoji": "⭐", "hora": "07:00"},
         follow_redirects=False,
     )
