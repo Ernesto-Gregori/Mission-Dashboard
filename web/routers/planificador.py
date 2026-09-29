@@ -243,6 +243,9 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
     month_cells = _month_cells(inicio.year, inicio.month, week_start, por_dia) if vista == "mes" else []
     horas = list(range(hour_start, hour_end))
     locales = [e for e in eventos if _origen(e) == "local" and e.get("id")]
+    nav_key = {"dia": "d", "mes": "m"}.get(vista, "w")
+    nav_offset = {"dia": off_d, "mes": off_m}.get(vista, off_w)
+    nav_cap = {"d": 366, "m": 24}.get(nav_key, 52)
     return {
         "title": "Planificador",
         "user": user,
@@ -250,6 +253,9 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "error": error,
         "vista": vista,
         "offset": off_w,
+        "nav_key": nav_key,
+        "nav_prev": max(-nav_cap, nav_offset - 1),
+        "nav_next": min(nav_cap, nav_offset + 1),
         "week_start": week_start,
         "inicio": inicio,
         "fin": fin,
@@ -273,6 +279,15 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
     }
 
 
+def _url_incompleta(request: Request) -> bool:
+    """Sin vista o sin el número del período, la sesión solo sirve para arrancar."""
+    vista = str(request.query_params.get("vista") or request.session.get("plan_vista") or "semana")
+    if vista not in VISTAS:
+        vista = "semana"
+    clave = {"dia": "d", "mes": "m"}.get(vista, "w")
+    return "vista" not in request.query_params or clave not in request.query_params
+
+
 def _redirect(request: Request, w: int | None = None) -> RedirectResponse:
     vista = _vista(request)
     q = [f"vista={vista}"]
@@ -288,6 +303,8 @@ def _redirect(request: Request, w: int | None = None) -> RedirectResponse:
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def planificador_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    if _url_incompleta(request):
+        return _redirect(request)
     return render(request, "planificador.html", **_ctx(request, user))
 
 

@@ -12,9 +12,9 @@
 
 <div class="planner-toolbar">
   <nav class="planner-views" aria-label="Vista del planificador">
-    <a class="btn secondary{% if vista == 'dia' %} is-current{% endif %}" href="/app/planificador/vista/dia"{% if vista == 'dia' %} aria-current="page"{% endif %}>Día</a>
-    <a class="btn secondary{% if vista == 'semana' %} is-current{% endif %}" href="/app/planificador/vista/semana"{% if vista == 'semana' %} aria-current="page"{% endif %}>Semana</a>
-    <a class="btn secondary{% if vista == 'mes' %} is-current{% endif %}" href="/app/planificador/vista/mes"{% if vista == 'mes' %} aria-current="page"{% endif %}>Mes</a>
+    <a class="btn secondary{% if vista == 'dia' %} is-current{% endif %}" href="/app/planificador?vista=dia"{% if vista == 'dia' %} aria-current="page"{% endif %}>Día</a>
+    <a class="btn secondary{% if vista == 'semana' %} is-current{% endif %}" href="/app/planificador?vista=semana"{% if vista == 'semana' %} aria-current="page"{% endif %}>Semana</a>
+    <a class="btn secondary{% if vista == 'mes' %} is-current{% endif %}" href="/app/planificador?vista=mes"{% if vista == 'mes' %} aria-current="page"{% endif %}>Mes</a>
   </nav>
   <p class="planner-legend" aria-label="Leyenda">
     <span class="chip chip-google">📅 Google Calendar</span>
@@ -42,12 +42,12 @@
 {% endif %}
 
 <div class="agenda-week-nav">
-  <form method="post" action="/app/planificador/semana"><button class="btn secondary" name="action" value="prev" type="submit">◀ Anterior</button></form>
+  <a class="btn secondary" href="/app/planificador?vista={{ vista }}&{{ nav_key }}={{ nav_prev }}">◀ Anterior</a>
   <h2>{{ titulo_rango }}</h2>
-  <form class="button-group" method="post" action="/app/planificador/semana">
-    <button class="btn secondary" name="action" value="hoy" type="submit">Hoy</button>
-    <button class="btn secondary" name="action" value="next" type="submit">Siguiente ▶</button>
-  </form>
+  <div class="button-group">
+    <a class="btn secondary" href="/app/planificador?vista={{ vista }}&{{ nav_key }}=0">Hoy</a>
+    <a class="btn secondary" href="/app/planificador?vista={{ vista }}&{{ nav_key }}={{ nav_next }}">Siguiente ▶</a>
+  </div>
 </div>
 
 {% if vista == 'mes' %}

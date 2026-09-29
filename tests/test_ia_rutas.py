@@ -27,7 +27,7 @@ RUTAS_CON_SESION: dict[str, int] = {
     "/login": 303,
     "/setup": 303,
     "/app": 200,
-    "/app/planificador": 200,
+    "/app/planificador": 303,
     "/app/revision": 200,
     "/app/m/finanzas": 200,
     "/app/m/finanzas/vencimientos": 200,
