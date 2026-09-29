@@ -208,6 +208,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   padding: 1rem 0;
   border-top: 1px solid var(--border);
 }
+.hoy-panel .section-heading { justify-content: flex-start; flex-wrap: wrap; }
 .hoy-foco-list { margin: 0; padding: 0; list-style: none; }
 .ritual-compact { display: grid; gap: var(--space-3); }
 .rueda-hoy { margin-bottom: 1.5rem; }
