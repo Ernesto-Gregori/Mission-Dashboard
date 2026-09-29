@@ -290,7 +290,10 @@ def test_los_modulos_se_traducen_y_el_espanol_sigue_igual(web_client):
     revision = web_client.get("/app/revision")
     assert "The week in numbers" in revision.text
     assert "Generate briefing" in revision.text
+    assert "Save review" in revision.text
+    assert ">More</summary>" in revision.text
     assert "La semana en números" not in revision.text
+    assert "Guardar revisión" not in revision.text
     assert "Generar briefing" not in revision.text
     salud = web_client.get("/app/m/salud")
     assert "Save day" in salud.text or "Today's log" in salud.text

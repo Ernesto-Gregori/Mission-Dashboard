@@ -83,6 +83,38 @@ def test_rueda_pagina_y_guarda(web_client):
     assert "rueda-fill" in body
 
 
+def test_revision_guarda_rueda_y_bitacora_juntas(web_client):
+    _onboard(web_client)
+    pagina = web_client.get("/app/revision")
+    assert pagina.status_code == 200
+    assert b'action="/app/revision/bitacora"' in pagina.content
+    assert b'action="/app/rueda"' not in pagina.content
+    assert ">Más</summary>".encode() in pagina.content
+    assert b'name="victoria_1"' in pagina.content
+    assert b"required" in pagina.content
+    r = web_client.post(
+        "/app/revision/bitacora",
+        data={
+            "semana_inicio": "2026-09-28",
+            "fe": "8",
+            "matrimonio": "7",
+            "salud": "6",
+            "finanzas": "5",
+            "trabajo": "7",
+            "relaciones": "6",
+            "descanso": "4",
+            "proposito": "9",
+            "victoria_1": "Orar",
+            "reflexion_semana": "Seguí",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert "Revisión guardada.".encode() in r.content
+    assert b'value="8"' in r.content
+    assert b"Orar" in r.content
+
+
 def test_rueda_rechaza_fuera_de_rango(web_client):
     _onboard(web_client)
     r = web_client.post(

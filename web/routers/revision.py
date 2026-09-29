@@ -18,7 +18,7 @@ from app.db.agenda import (
 from app.cuenta import areas_rueda
 from app.onboarding import modulo_activo
 from app.revision import CAMPOS_BITACORA, resumen_semana
-from app.rueda import geometria, obtener_scores
+from app.rueda import geometria, guardar_scores, obtener_scores
 from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/revision", tags=["revision"])
@@ -97,20 +97,38 @@ async def set_semana(request: Request, user: Annotated[dict, Depends(require_onb
 
 @router.post("/bitacora")
 async def save_bitacora(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    if not modulo_activo("agenda", int(user["id"])):
-        return RedirectResponse("/app/revision", status_code=303)
     form = await request.form()
+    uid = int(user["id"])
     semana = str(form.get("semana_inicio") or _lunes(request).isoformat())
-    # Conserva las columnas que ya no se piden (ingreso, semáforos, cita…) en el historial.
-    datos = dict(obtener_bitacora(semana) or {})
-    datos.update({k: str(form.get(k) or "") for k in CAMPOS_BITACORA})
-    datos["semana_inicio"] = semana
-    if not guardar_bitacora(datos):
-        return render(
-            request,
-            "revision.html",
-            status_code=400,
-            **revision_ctx(request, user, error="No se pudo guardar la bitácora."),
-        )
-    request.session["revision_flash"] = "Bitácora guardada."
+    guardo = False
+    if modulo_activo("rueda", uid):
+        claves = [clave for clave, _nombre, _emoji in areas_rueda(uid)]
+        if any(clave in form for clave in claves):
+            raw = {clave: form.get(clave) for clave in claves}
+            ok, msg, clean = guardar_scores(raw, user_id=uid, claves=claves)
+            if not ok:
+                return render(
+                    request,
+                    "revision.html",
+                    status_code=400,
+                    **revision_ctx(request, user, error=msg, rueda_scores=clean),
+                )
+            guardo = True
+    if modulo_activo("agenda", uid):
+        # Solo pisa lo que viene en el formulario. El resto del historial se queda.
+        enviados = {k: str(form.get(k) or "") for k in CAMPOS_BITACORA if k in form}
+        if enviados:
+            datos = dict(obtener_bitacora(semana) or {})
+            datos.update(enviados)
+            datos["semana_inicio"] = semana
+            if not guardar_bitacora(datos):
+                return render(
+                    request,
+                    "revision.html",
+                    status_code=400,
+                    **revision_ctx(request, user, error="No se pudo guardar la bitácora."),
+                )
+            guardo = True
+    if guardo:
+        request.session["revision_flash"] = "Revisión guardada."
     return RedirectResponse(f"/app/revision?semana={semana}", status_code=303)

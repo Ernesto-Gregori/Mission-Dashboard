@@ -800,7 +800,7 @@ def test_revision_semanal_bitacora(web_client):
     )
     assert r.status_code == 200
     assert b"Orar diario" in r.content
-    assert b"Bit\xc3\xa1cora guardada" in r.content
+    assert "Revisión guardada.".encode() in r.content
     assert f"/app/revision?semana={lun}".encode() in r.content
 
 
