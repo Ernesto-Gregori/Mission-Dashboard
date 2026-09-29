@@ -508,7 +508,7 @@ FRASES = {
     "Alma está desactivada en esta instalación.": "The assistant is off in this installation.",
     "Hola, soy Alma. Cuéntame qué necesitas hoy. Si quieres que mire tus hábitos, finanzas, salud, calendario o proyectos, marca las casillas de la izquierda.": "Hi, I'm the assistant. Tell me what you need today. If you want me to look at your habits, money, health, calendar, or projects, check the boxes on the left.",
     "Ej: ¿Qué me conviene priorizar esta tarde?": "E.g. What should I prioritize this afternoon?",
-    "Apagado por defecto. Si lo activas, el cron te manda el foco del día a la hora local. Fe, pareja y salud no entran salvo que las marques.": "Off by default. If you turn it on, the cron sends the day's focus at your local time. Faith, partner, and health stay out unless you check them.",
+    "Apagado por defecto. Si lo activas, la app te manda el foco del día a esa hora (hora local, con hasta 15 min de demora). Fe, pareja y salud no entran salvo que las marques.": "Off by default. If you turn it on, the app sends the day's focus at that time (local time, up to 15 min late). Faith, partner, and health stay out unless you check them.",
     "Elegir mis áreas": "Choose my areas",
     "Encenderla en Configuración": "Turn it on in Settings",
     "Esta área está apagada, así que no se muestra en tu sistema. Tus registros siguen guardados.": "This area is off, so it is not shown in your system. Your records are still saved.",

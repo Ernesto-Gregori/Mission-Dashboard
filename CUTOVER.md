@@ -29,7 +29,7 @@ TELEGRAM_WEBHOOK_SECRET=…
 3. Health: `GET /health` → ok.
 4. Webhooks Lemon/Stripe/Telegram al dominio FastAPI (`/lemon/webhook`, `/stripe/webhook`, `/telegram/webhook`).
 5. Google Cloud → redirect URI exacto al callback FastAPI.
-6. BotFather → token. `APP_URL=https://TU-DOMINIO` registra el webhook al arrancar. Cron opcional: `python scripts/run_telegram_reminders.py` y `python scripts/run_telegram_briefings.py` (apagado por defecto; cada usuario lo activa en Usuarios → Telegram).
+6. BotFather → token. `APP_URL=https://TU-DOMINIO` registra el webhook al arrancar. El proceso web manda recordatorios y el briefing de la mañana (apagado hasta activarlo en Usuarios → Telegram). Los scripts `run_telegram_reminders.py` y `run_telegram_briefings.py` son el mismo trabajo si preferís un cron aparte.
 
 ## 2. Dominio
 

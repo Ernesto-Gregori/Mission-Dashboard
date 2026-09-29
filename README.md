@@ -45,8 +45,9 @@ En la app: **Salud** → Conectar con Google.
 - Salud: `/sueno`, `/energia`, `/ejercicio`, `/salud`. Guardar un dato no borra el resto del día
 - `/enfoque` muestra los bloques de hoy y los marca Completado, Parcial o Postergado
 - `/briefing` arma secciones según los módulos activos. Fe, pareja y salud no salen salvo opt-in (`briefing_extra`)
-- Briefing de la mañana, apagado por defecto: `python scripts/run_telegram_briefings.py` (cron, hora local).
-  Se activa en Usuarios → Telegram. `/silencio` lo pausa. Una vez por usuario y día
+- Briefing de la mañana, apagado por defecto. Se activa en Usuarios → Telegram.
+  El proceso web lo manda cada 15 min cuando llega la hora local (`app/telegram_jobs.py`).
+  `/silencio` lo pausa. Una vez por usuario y día. El script `scripts/run_telegram_briefings.py` sigue sirviendo si hay un cron aparte.
 - Teclado: Briefing, Saldo (si Finanzas está activo), Hábitos, Ayuda
 - `/alma` usa el mismo historial que la web y no prende categorías. `/coach` respeta el cupo. `/semana` resume.
 - `/leyendo` y `/leer` actualizan la página del libro.
