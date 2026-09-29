@@ -143,7 +143,8 @@ def test_dashboard_joins_daily_surfaces(web_client):
     assert b"Foco" in body or b"Hoy" in body
     assert b"rueda-hoy" not in body
     assert b"hub-tabs" in body or b"data-hub=\"hoy\"" in body
-    assert b"class=\"module-card" in body
+    assert b"hub-card" not in body
+    assert b">Anotar</button>" in body
     assert b"Dinero" in body
     assert b"Semana" in body
 

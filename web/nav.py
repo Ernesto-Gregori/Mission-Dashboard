@@ -92,9 +92,6 @@ _HUB_HREF = {
     "cuenta": "/app/coach",
 }
 
-# Hubs con tarjeta propia en Hoy.
-_HUB_CARDS = ("semana", "dinero", "cuerpo", "espiritualidad", "lectura", "relaciones")
-
 GROUP_ORDER = ("Día", "Áreas", "Sistema")
 
 
@@ -120,11 +117,6 @@ def _area(hub: dict[str, Any]) -> dict | None:
 def _hub_label(hub: dict[str, Any]) -> str:
     area = _area(hub)
     return str(area["nombre"]) if area else hub["label"]
-
-
-def _hub_blurb(hub: dict[str, Any]) -> str:
-    area = _area(hub)
-    return str(area["blurb"]) if area else str(hub.get("blurb") or "")
 
 
 def _norm_path(path: str) -> str:
@@ -232,45 +224,6 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
         if _is_admin(user):
             tabs.append(_tab("/app/familia", "Comparativa", path.startswith("/app/familia")))
     return tabs if len(tabs) >= 2 else []
-
-
-def dashboard_hubs(user: dict) -> list[dict]:
-    """Cards on Hoy: Semana plus each active life area, with child links."""
-    uid = int(user["id"])
-    activos = _activos(uid)
-    if not usuario_onboarding_completo(uid):
-        return []
-    children: dict[str, list[dict]] = {
-        "semana": [
-            {"label": "Planificador", "href": "/app/planificador"},
-            *(
-                [{"label": MODULE_TEMPLATES["deep_work"]["nombre"], "href": "/app/m/deep_work"}]
-                if "deep_work" in activos
-                else []
-            ),
-            {"label": "Revisión", "href": "/app/revision"},
-        ],
-        "dinero": [
-            {"label": "Mes", "href": "/app/m/finanzas"},
-            {"label": "Vencimientos", "href": "/app/m/finanzas/vencimientos"},
-            {"label": "Precios", "href": "/app/m/finanzas/precios"},
-        ],
-    }
-    out = []
-    for hub in _HUB_SPECS:
-        if hub["id"] not in _HUB_CARDS or not _visible(hub, activos, True):
-            continue
-        out.append(
-            {
-                "id": hub["id"],
-                "label": _hub_label(hub),
-                "href": _HUB_HREF[hub["id"]],
-                "descripcion": _hub_blurb(hub),
-                "children": children.get(hub["id"], []),
-                "activo": True,
-            }
-        )
-    return out
 
 
 def attach_nav(request: Request, ctx: dict) -> dict:

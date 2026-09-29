@@ -148,7 +148,9 @@ def test_en_blanco_no_siembra_habitos_ni_areas(web_client):
     assert [r["modulo"] for r in activos] == []
     hoy = web_client.get("/app")
     assert hoy.status_code == 200
-    assert "Todavía no activaste áreas" in hoy.text
+    assert b"hub-card" not in hoy.content
+    assert "Dinero" not in hoy.text
+    assert ">Anotar</button>" in hoy.text
     cfg = web_client.get("/app/configuracion?tab=rueda").text
     assert cfg.count('value="Relaciones"') == 1
     assert 'value="Vínculos"' in cfg

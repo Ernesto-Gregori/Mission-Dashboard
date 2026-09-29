@@ -177,11 +177,12 @@ def test_coach_flow_activa_modulos(web_client):
     r = web_client.get("/app")
     assert r.status_code == 200
     assert "<title>Hoy · Mission</title>" in r.text
-    assert "áreas activas" in r.text
+    assert "áreas activas" not in r.text
+    assert b"hub-card" not in r.content
+    assert b">Anotar</button>" in r.content
     assert b"badge stub" not in r.content and b">stub<" not in r.content
     assert b'class="skip-link"' in r.content
     assert b'id="main-content"' in r.content
-    assert b'class="module-card' in r.content
     assert b'aria-current="page"' in r.content
 
     r = web_client.get("/app/m/finanzas")

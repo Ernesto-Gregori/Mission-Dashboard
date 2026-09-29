@@ -244,7 +244,8 @@ def test_la_preferencia_guardada_gana_a_la_cookie(web_client):
     assert ">Today</a>" in hoy.text
     assert ">Sign out</button>" in hoy.text
     assert ">Hoy</a>" not in hoy.text
-    assert "0 active areas" in hoy.text
+    assert ">Log</button>" in hoy.text
+    assert "0 active areas" not in hoy.text
     cfg = web_client.get("/app/configuracion")
     assert ">Settings</a>" in cfg.text
     assert ">Configuración</a>" not in cfg.text
