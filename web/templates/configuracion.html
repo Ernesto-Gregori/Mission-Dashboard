@@ -14,6 +14,7 @@
   <a href="/app/configuracion?tab=dia" class="{% if tab == 'dia' %}active{% endif %}"{% if tab == 'dia' %} aria-current="page"{% endif %}>Día</a>
   <a href="/app/configuracion?tab=dinero" class="{% if tab == 'dinero' %}active{% endif %}"{% if tab == 'dinero' %} aria-current="page"{% endif %}>Dinero</a>
   <a href="/app/configuracion?tab=rueda" class="{% if tab == 'rueda' %}active{% endif %}"{% if tab == 'rueda' %} aria-current="page"{% endif %}>Rueda</a>
+  <a href="/app/configuracion?tab=conexiones" class="{% if tab == 'conexiones' %}active{% endif %}"{% if tab == 'conexiones' %} aria-current="page"{% endif %}>Conexiones</a>
   <a href="/app/configuracion?tab=datos" class="{% if tab == 'datos' %}active{% endif %}"{% if tab == 'datos' %} aria-current="page"{% endif %}>Datos</a>
 </nav>
 
@@ -267,6 +268,85 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
     <button class="btn" type="submit">Guardar</button>
   </div>
 </form>
+{% elif tab == 'conexiones' %}
+<section class="card" aria-labelledby="google-title">
+  <h2 id="google-title">Google Fit y Calendar</h2>
+  {% if not puede_google %}
+  <div class="flash-warn">Google Fit/Calendar requiere plan Premium.
+    <a href="/app/billing">Ver planes</a>
+  </div>
+  {% else %}
+    {% if fit.autenticado %}
+    <p><span class="badge ok">Vinculado</span></p>
+    <form method="post" action="/app/m/salud/fit/importar">
+      <button class="btn" type="submit">Importar datos de hoy (Fit)</button>
+    </form>
+    {% else %}
+    <p class="muted">No vinculado. Calendar y Fit usan la misma cuenta de Google.</p>
+    <div class="form-actions">
+      <a class="btn" href="/app/m/salud/oauth/start">Conectar con Google</a>
+    </div>
+    <details class="token-fallback">
+      <summary>Pegar token JSON (respaldo)</summary>
+      <form method="post" action="/app/m/salud/token/paste">
+        <label for="fit-token">Token JSON</label>
+        <textarea id="fit-token" name="token_json" rows="4" placeholder='{"token":"...","refresh_token":"..."}'></textarea>
+        <button class="btn secondary" type="submit">Guardar token</button>
+      </form>
+    </details>
+    {% endif %}
+    {% if fit.error %}<p class="muted">{{ fit.error }}</p>{% endif %}
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="tg-title">
+  <h2 id="tg-title">Telegram</h2>
+  <p class="muted">Vincula tu cuenta con el bot. Un chat no vinculado solo recibe instrucciones; nunca crea gastos ni tareas. El bot no escribe a quien no le habló primero.</p>
+  <p class="muted">En el bot: <code>/briefing</code> foco del día · <code>/gasto 35 super</code> · <code>/tarea mañana 5pm banco</code> · <code>/deshacer</code> · <code>/ayuda</code>.</p>
+  {% if puede_telegram %}
+  <form method="post" action="/app/usuarios/telegram/recordatorios" class="users-form-grid">
+    <label for="tg-recordatorio">Avisarme antes de cada evento
+      <select id="tg-recordatorio" name="recordatorio_min">
+        {% for m in tg_recordatorio_opciones %}
+        <option value="{{ m }}" {% if m == tg_recordatorio_min %}selected{% endif %}>
+          {{ 'Apagado' if m == 0 else m ~ ' min' }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="form-actions">
+      <button class="btn secondary" type="submit">Guardar</button>
+    </div>
+  </form>
+  {% endif %}
+  {% include "telegram_briefing.html" %}
+  {% if not puede_telegram %}
+  <div class="flash-warn">Telegram requiere plan Premium. <a href="/app/billing">Ver planes</a></div>
+  {% endif %}
+  {% if tg_link and tg_link.verified %}
+  <p>Cuenta vinculada{% if tg_link.tg_username %} <strong>@{{ tg_link.tg_username }}</strong>{% endif %}
+     {% if tg_link.linked_at %}<span class="muted">desde {{ tg_link.linked_at }}</span>{% endif %}
+  </p>
+  <form method="post" action="/app/usuarios/telegram/desvincular" onsubmit="return confirm('¿Desvincular Telegram?')">
+    <button class="btn secondary" type="submit">Desvincular</button>
+  </form>
+  {% else %}
+  <form method="post" action="/app/usuarios/telegram/vincular" class="users-form-grid">
+    <div class="form-actions">
+      <button class="btn" type="submit">Generar código</button>
+    </div>
+  </form>
+  {% if tg_code %}
+  <p class="flash-ok" role="status">Código <strong id="tg-code">{{ tg_code }}</strong>. Vence en 10 minutos.</p>
+  {% if tg_deep_link %}
+  <p><a id="tg-link" class="btn" href="{{ tg_deep_link }}" target="_blank" rel="noopener">Abrir bot en Telegram</a></p>
+  <p class="muted">O mándale al bot <code>/start {{ tg_code }}</code>. Después recarga esta página.</p>
+  {% else %}
+  <p class="muted">Mándale al bot el código o <code>/start {{ tg_code }}</code> y recarga esta página.</p>
+  {% endif %}
+  {% endif %}
+  {% endif %}
+</section>
 {% else %}
 <section class="card" aria-labelledby="datos-title">
   <h2 id="datos-title">Tus datos</h2>

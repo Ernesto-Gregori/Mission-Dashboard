@@ -39,7 +39,7 @@
 {% elif not google_ok %}
 <div class="flash-warn" role="alert">
   {{ google_error or 'Sin Google Calendar vinculado.' }}
-  <a href="/app/m/salud">Conectar en Salud</a>
+  <a href="/app/configuracion?tab=conexiones">Conectar en Configuración</a>
 </div>
 {% else %}
 <p class="muted">📅 Calendar vinculado. Crear, mover o borrar un bloque con horario lo sincroniza. Puedes marcar “solo dashboard” para no subirlo.</p>

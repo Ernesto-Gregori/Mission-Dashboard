@@ -96,6 +96,25 @@ def _redirect(tab: str = "telegram") -> RedirectResponse:
     return RedirectResponse(f"/app/usuarios?tab={tab}", status_code=303)
 
 
+def _conexiones(request: Request, user: dict, *, flash: str | None = None, error: str | None = None, status_code: int = 200, fragment: bool = False):
+    from web.routers.configuracion import _ctx
+
+    if fragment:
+        return render(request, "telegram_briefing.html", **_ctx(request, user, flash=flash, error=error, tab="conexiones"))
+    if status_code == 200:
+        if flash:
+            request.session["config_flash"] = flash
+        if error:
+            request.session["config_error"] = error
+        return RedirectResponse("/app/configuracion?tab=conexiones", status_code=303)
+    return render(
+        request,
+        "configuracion.html",
+        status_code=status_code,
+        **_ctx(request, user, flash=flash, error=error, tab="conexiones"),
+    )
+
+
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def usuarios_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
@@ -232,18 +251,9 @@ def tg_vincular(request: Request, user: Annotated[dict, Depends(require_onboarde
     request.session["usr_tab"] = "telegram"
     ok, msg, code = start_link(int(user["id"]))
     if not ok:
-        return render(
-            request,
-            "usuarios.html",
-            status_code=400,
-            **_ctx(request, user, error=msg),
-        )
+        return _conexiones(request, user, error=msg, status_code=400)
     request.session["tg_code"] = code
-    return render(
-        request,
-        "usuarios.html",
-        **_ctx(request, user, flash=f"{msg} Código: {code}"),
-    )
+    return _conexiones(request, user, flash=f"{msg} Código: {code}")
 
 
 @router.post("/telegram/desvincular")
@@ -251,19 +261,14 @@ def tg_desvincular(request: Request, user: Annotated[dict, Depends(require_onboa
     request.session["usr_tab"] = "telegram"
     unlink(int(user["id"]))
     request.session.pop("tg_code", None)
-    return render(request, "usuarios.html", **_ctx(request, user, flash="Telegram desvinculado."))
+    return _conexiones(request, user, flash="Telegram desvinculado.")
 
 
 @router.post("/telegram/recordatorios")
 async def tg_recordatorios(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     request.session["usr_tab"] = "telegram"
     if not puede_telegram(plan_vigente(user)):
-        return render(
-            request,
-            "usuarios.html",
-            status_code=403,
-            **_ctx(request, user, error="Telegram requiere plan Premium."),
-        )
+        return _conexiones(request, user, error="Telegram requiere plan Premium.", status_code=403)
     form = await request.form()
     ensure_telegram_schema()
     try:
@@ -271,26 +276,16 @@ async def tg_recordatorios(request: Request, user: Annotated[dict, Depends(requi
     except ValueError:
         minutos = -1
     if not guardar_recordatorio_min(int(user["id"]), minutos):
-        return render(
-            request,
-            "usuarios.html",
-            status_code=400,
-            **_ctx(request, user, error="Elige una anticipación de la lista."),
-        )
+        return _conexiones(request, user, error="Elige una anticipación de la lista.", status_code=400)
     aviso = "Recordatorios apagados." if minutos == 0 else f"Te aviso {minutos} min antes de cada evento."
-    return render(request, "usuarios.html", **_ctx(request, user, flash=aviso))
+    return _conexiones(request, user, flash=aviso)
 
 
 @router.post("/telegram/briefing")
 async def tg_briefing(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     request.session["usr_tab"] = "telegram"
     if not puede_telegram(plan_vigente(user)):
-        return render(
-            request,
-            "usuarios.html",
-            status_code=403,
-            **_ctx(request, user, error="Telegram requiere plan Premium."),
-        )
+        return _conexiones(request, user, error="Telegram requiere plan Premium.", status_code=403)
     form = await request.form()
     ensure_telegram_schema()
     extra = [str(v) for v in form.getlist("extra")]
@@ -301,13 +296,7 @@ async def tg_briefing(request: Request, user: Annotated[dict, Depends(require_on
         extra=extra,
     )
     if not ok:
-        return render(
-            request,
-            "usuarios.html",
-            status_code=400,
-            **_ctx(request, user, error="Revisa la hora (HH:MM) y las secciones."),
-        )
-    ctx = _ctx(request, user, flash="Briefing de la mañana guardado.")
+        return _conexiones(request, user, error="Revisa la hora (HH:MM) y las secciones.", status_code=400)
     if request.headers.get("hx-request"):
-        return render(request, "telegram_briefing.html", **ctx)
-    return render(request, "usuarios.html", **ctx)
+        return _conexiones(request, user, flash="Briefing de la mañana guardado.", fragment=True)
+    return _conexiones(request, user, flash="Briefing de la mañana guardado.")

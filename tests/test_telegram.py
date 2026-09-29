@@ -254,10 +254,13 @@ def test_reminders_fire(web_client):
 
 def test_usuarios_telegram_tab(web_client):
     _onboard(web_client)
-    r = web_client.get("/app/usuarios?tab=telegram")
+    r = web_client.get("/app/configuracion?tab=conexiones")
     assert r.status_code == 200
-    assert b"Telegram" in r.content
-    assert b"tg-link" in r.content or b"Generar c" in r.content
+    assert b"Generar c" in r.content
+    assert b"Conectar con Google" in r.content
+    viejo = web_client.get("/app/usuarios?tab=telegram")
+    assert b"/app/usuarios/telegram/vincular" not in viejo.content
+    assert b"/app/m/salud/oauth/start" not in web_client.get("/app/m/salud").content
     r = web_client.post(
         "/app/usuarios/telegram/vincular",
         data={},

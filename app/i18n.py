@@ -44,6 +44,7 @@ CATALOGO = {
     "Áreas": "Areas",
     "Rueda": "Wheel",
     "Datos": "Data",
+    "Conexiones": "Connections",
     "Sistema": "System",
     "Configuración": "Settings",
     "Tema oscuro": "Dark theme",
@@ -238,7 +239,8 @@ CATALOGO = {
     "Todo el día": "All day",
     "Siguiente ▶": "Next ▶",
     "◀ Anterior": "◀ Previous",
-    "Conectar en Salud": "Connect in Health",
+    "Conectar en Configuración": "Connect in Settings",
+    "Conectar Google y Telegram": "Connect Google and Telegram",
     "Sincronizar ahora": "Sync now",
     "Ver planes": "See plans",
     # Asistente

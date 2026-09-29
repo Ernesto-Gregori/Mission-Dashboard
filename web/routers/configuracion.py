@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from app.billing import modulos_max, plan_vigente, puede_exportar
+from app.billing import modulos_max, plan_vigente, puede_exportar, puede_google, puede_telegram
 from app.cuenta import (
     DIAS_HABITO,
     FRECUENCIAS,
@@ -36,7 +36,7 @@ from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/configuracion", tags=["configuracion"])
 
-PESTANAS = ("areas", "dia", "dinero", "rueda", "datos")
+PESTANAS = ("areas", "dia", "dinero", "rueda", "conexiones", "datos")
 _SECCIONES = ("areas", "dia", "dinero", "rueda")
 
 
@@ -123,6 +123,52 @@ def _ctx(
         "areas_base": AREAS,
         "tab": tab if tab in PESTANAS else "areas",
         "pestanas": PESTANAS,
+        **_ctx_conexiones(user, tab),
+    }
+
+
+def _estado_google() -> dict:
+    estado = {"autenticado": False, "error": ""}
+    try:
+        from app.google_fit import estado_google_fit
+
+        estado = estado_google_fit() or estado
+    except Exception as e:
+        estado["error"] = str(e)
+    return estado
+
+
+def _ctx_conexiones(user: dict, tab: str) -> dict:
+    vacio = {
+        "puede_google": False,
+        "fit": {},
+        "puede_telegram": False,
+        "tg_link": None,
+        "tg_code": None,
+        "tg_deep_link": "",
+        "tg_recordatorio_min": 0,
+        "tg_recordatorio_opciones": (),
+        "tg_briefing": None,
+        "tg_briefing_extras": (),
+    }
+    if tab != "conexiones":
+        return vacio
+    from app.db.telegram_state import BRIEFING_EXTRAS, RECORDATORIO_OPCIONES, prefs_briefing, recordatorio_min
+    from app.telegram import deep_link, link_status
+
+    plan = plan_vigente(user)
+    uid = int(user["id"])
+    return {
+        "puede_google": puede_google(plan),
+        "fit": _estado_google(),
+        "puede_telegram": puede_telegram(plan),
+        "tg_link": link_status(uid),
+        "tg_recordatorio_min": recordatorio_min(uid),
+        "tg_recordatorio_opciones": RECORDATORIO_OPCIONES,
+        "tg_briefing": prefs_briefing(uid),
+        "tg_briefing_extras": BRIEFING_EXTRAS,
+        "tg_code": None,
+        "tg_deep_link": "",
     }
 
 
@@ -134,7 +180,25 @@ def _tab_pedido(request: Request) -> str:
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def configuracion_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    return render(request, "configuracion.html", **_ctx(request, user, tab=_tab_pedido(request)))
+    tab = _tab_pedido(request)
+    flash = None
+    error = None
+    if tab == "conexiones":
+        g = request.query_params.get("google")
+        if g == "ok":
+            flash = "Google Fit/Calendar vinculados."
+        elif g == "denied":
+            error = "Google denegó el acceso."
+        elif g == "err":
+            error = request.query_params.get("msg") or "No se pudo vincular Google."
+    ctx = _ctx(request, user, tab=tab, flash=flash, error=error)
+    if tab == "conexiones":
+        code = request.session.get("tg_code")
+        from app.telegram import deep_link
+
+        ctx["tg_code"] = code
+        ctx["tg_deep_link"] = deep_link(code or "")
+    return render(request, "configuracion.html", **ctx)
 
 
 def _volver_habitos(request: Request, ok: bool, msg: str) -> RedirectResponse:

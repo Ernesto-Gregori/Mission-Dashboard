@@ -16,13 +16,13 @@ FRASES = {
     "Texto suelto («35 en super») o una nota de voz también sirven.": (
         "Free text («35 en super») or a voice note also works."
     ),
-    "Desvincular: en la app, en Cuenta → Telegram y usuarios.": "Unlink: in the app, under Account → Telegram and users.",
+    "Desvincular: en la app, en Cuenta → Configuración → Conexiones.": "Unlink: in the app, under Account → Settings → Connections.",
     "Este chat no está vinculado a Mission Dashboard.": "This chat is not linked to Mission Dashboard.",
-    "Entra a la app → Cuenta → Telegram y usuarios, genera un código y pulsa Start (o manda el código de 6 dígitos).": (
-        "Open the app → Account → Telegram and users, generate a code and tap Start (or send the 6-digit code)."
+    "Entra a la app → Cuenta → Configuración → Conexiones, genera un código y pulsa Start (o manda el código de 6 dígitos).": (
+        "Open the app → Account → Settings → Connections, generate a code and tap Start (or send the 6-digit code)."
     ),
-    "Este Telegram no está vinculado a Mission Dashboard. Entra a la app → Cuenta → Telegram y usuarios, genera un código y pulsa Start en el bot (o manda el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot.": (
-        "This Telegram is not linked to Mission Dashboard. Open the app → Account → Telegram and users, generate a code and tap Start on the bot (or send the 6-digit code). /ayuda lists what the bot can do."
+    "Este Telegram no está vinculado a Mission Dashboard. Entra a la app → Cuenta → Configuración → Conexiones, genera un código y pulsa Start en el bot (o manda el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot.": (
+        "This Telegram is not linked to Mission Dashboard. Open the app → Account → Settings → Connections, generate a code and tap Start on the bot (or send the 6-digit code). /ayuda lists what the bot can do."
     ),
     "Tu cuenta está inactiva.": "Your account is inactive.",
     "Telegram requiere plan Premium. Actívalo en /app/billing — no ejecuté ninguna acción.": (

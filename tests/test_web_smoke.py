@@ -293,7 +293,9 @@ def test_admin_setup_tiene_google_premium(web_client):
     assert r.status_code == 200
     # No debe exigir upgrade para Google si es admin/premium
     assert b"requiere plan Premium" not in r.content
-    assert b"Conectar con Google" in r.content or b"Vinculado" in r.content or b"Google Fit" in r.content
+    assert b"/app/m/salud/oauth/start" not in r.content
+    c = web_client.get("/app/configuracion?tab=conexiones")
+    assert b"Conectar con Google" in c.content or b"Vinculado" in c.content
 
 
 def test_checkout_success_banner_y_refresh(web_client):
@@ -888,7 +890,7 @@ def test_salud_registro_y_oauth_callback(web_client, monkeypatch):
     # Callback sin code/state → redirect error
     r = web_client.get("/oauth/google/callback", follow_redirects=False)
     assert r.status_code in (303, 307)
-    assert "salud" in r.headers.get("location", "")
+    assert "configuracion" in r.headers.get("location", "")
 
     # Callback con state inválido
     r = web_client.get(
