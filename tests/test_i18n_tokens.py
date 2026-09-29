@@ -93,9 +93,6 @@ def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
     assert "✝️ 0 days" in traducir_html("<strong>✝️ 0 días</strong>")
     cuota = "<p>\n    Una lectura de tus áreas juntas.\n    Cupo esta semana: 0/7.\n  </p>"
     assert "A reading of your areas together. Quota this week: 0/7." in traducir_html(cuota)
-    assert "Maximum 100 MB." in traducir_html(
-        "<p>Máximo 100 MB. Lo ideal es un solo ejercicio de 60 s o menos (se rechaza si supera 90 s).</p>"
-    )
     assert "No token for your user." in traducir_html(
         "<p>Sin token para tu usuario. Conecta Google Fit o pega el JSON del token.</p>"
     )

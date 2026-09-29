@@ -948,8 +948,8 @@ def init_database():
     init_fase4_tables(cursor)
     init_fase5_tables(cursor)
     init_sobres(cursor)
-    from app.db.exercises import init_exercise_library
-    init_exercise_library(cursor)
+    from app.db.exercises import init_exercise_tables
+    init_exercise_tables(cursor)
     conn.commit()
     conn.close()
     # Si Turso está activo, asegurar tablas críticas también allá

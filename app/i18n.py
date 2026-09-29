@@ -313,13 +313,6 @@ _PATRONES = (
         re.compile(r"^Una lectura de tus áreas juntas\. Cupo esta semana: ilimitado\.$"),
         r"A reading of your areas together. Quota this week: unlimited.",
     ),
-    (
-        re.compile(
-            r"^Máximo (\d+) MB\. Lo ideal es un solo ejercicio de (\d+) s o menos "
-            r"\(se rechaza si supera (\d+) s\)\.$"
-        ),
-        r"Maximum \1 MB. A single exercise of \2 s or less is ideal (it is rejected if it runs over \3 s).",
-    ),
     (re.compile(r"^Generado (.+) · ventana (\d+) días$"), r"Generated \1 · \2-day window"),
     (re.compile(r"^(\d+) días · (\d+) min$"), r"\1 days · \2 min"),
     (re.compile(r"^JSON inválido: (.+)$"), r"Invalid JSON: \1"),

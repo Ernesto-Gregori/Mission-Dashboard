@@ -29,11 +29,11 @@ from app.cuenta import metricas_salud
 from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
-from web.routers.ejercicios import ejercicios_page_extras
+from web.routers.rutina import rutina_page_extras
 
 router = APIRouter(prefix="/app/m/salud", tags=["salud"])
 
-TABS = ("hoy", "ejercicios", "rutina", "historial")
+TABS = ("hoy", "rutina", "historial")
 
 
 def _tab(request: Request) -> str:
@@ -180,7 +180,7 @@ def _ctx(
         "objetivo_labels": OBJETIVO_LABELS,
         "metricas": metricas_salud(int(user["id"])),
         "warn": warn,
-        **ejercicios_page_extras(int(user["id"])),
+        **rutina_page_extras(int(user["id"])),
     }
 
 

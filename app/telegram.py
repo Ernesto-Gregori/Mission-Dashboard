@@ -886,7 +886,7 @@ def _transcribe_inbound(
         fh.write(data)
         path = Path(fh.name)
     try:
-        from app.exercise_ai import transcribe_audio
+        from app.stt import transcribe_audio
 
         return (transcribe_audio(path) or "").strip()
     except Exception as e:

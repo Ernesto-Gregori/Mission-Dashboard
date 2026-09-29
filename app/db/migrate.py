@@ -57,7 +57,7 @@ def migrar_local_a_turso():
         'presupuesto_config', 'presupuesto_recurrentes',
         'ritual_diario', 'rueda_vida', 'calendar_sync_state',
         'telegram_links', 'telegram_reminders',
-        'exercises', 'user_equipment',
+        'user_equipment',
         'usuarios', 'oauth_tokens',
     ]
 

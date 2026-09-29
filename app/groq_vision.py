@@ -1,7 +1,7 @@
 """Groq visión vs chat.
 
 Chat (asistente, WhatsApp, coach) usa GROQ_MODEL (texto).
-Visión (recibos + fotogramas de ejercicio) usa GROQ_VISION_MODEL.
+Visión (recibos) usa GROQ_VISION_MODEL.
 Llama 4 Scout/Maverick ya no están en el plan free/dev de Groq.
 """
 from __future__ import annotations

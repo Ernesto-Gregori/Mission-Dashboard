@@ -1,26 +1,44 @@
-"""Groq: visión (ejercicios/recibos) vs chat (GROQ_MODEL)."""
+"""Groq: visión (recibos) vs chat (GROQ_MODEL)."""
 from __future__ import annotations
 
-from io import BytesIO
-from pathlib import Path
 from types import SimpleNamespace
-
-import pytest
-from PIL import Image
 
 from app.groq_vision import (
     MAX_VISION_IMAGES,
     VISION_MODEL_DEFAULT,
+    create_vision_completion,
     resolve_vision_model,
     vision_model,
     vision_models_to_try,
 )
 
 
-def _jpeg_bytes(size: int = 32) -> bytes:
-    buf = BytesIO()
-    Image.new("RGB", (size, size), color=(20, 80, 40)).save(buf, format="JPEG")
-    return buf.getvalue()
+def _mensajes() -> list[dict]:
+    return [
+        {"role": "system", "content": "sys"},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "analiza"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/jpeg;base64,AAAA"},
+                },
+            ],
+        },
+    ]
+
+
+def _cliente_falso(monkeypatch, completions) -> None:
+    class _FakeClient:
+        chat = SimpleNamespace(completions=completions)
+
+    monkeypatch.setattr("app.ai_client._get_api_key", lambda: "gsk_" + "x" * 40)
+    monkeypatch.setattr("app.ai_client._hay_cuota", lambda: True)
+    monkeypatch.setattr("app.ai_client._get_client", lambda: _FakeClient())
+    monkeypatch.setattr("app.ai_client._registrar_llamada", lambda: None)
+    monkeypatch.setattr("app.billing.cuota_ia_ok", lambda *a, **k: True)
+    monkeypatch.setattr("app.billing.registrar_llamada_ia", lambda *a, **k: 1)
 
 
 def test_vision_default_is_qwen_not_scout():
@@ -54,89 +72,47 @@ def test_vision_models_to_try_includes_qwen_fallback(monkeypatch):
     assert all("llama-4-scout" not in m for m in models)
 
 
-def test_exercise_ai_model_defaults_to_shared_vision(monkeypatch):
-    monkeypatch.delenv("EXERCISE_AI_MODEL", raising=False)
+def test_vision_pide_json_al_modelo_de_vision(monkeypatch):
     monkeypatch.delenv("GROQ_VISION_MODEL", raising=False)
     monkeypatch.setattr("app.secrets.get_secret", lambda name, default="": "")
-    from app.exercise_ai import ai_model
-
-    assert ai_model() == VISION_MODEL_DEFAULT
-
-
-def test_complete_groq_sends_at_most_three_compressed_frames(tmp_path, monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "gsk_" + "x" * 40)
-    monkeypatch.delenv("EXERCISE_AI_MODEL", raising=False)
-    monkeypatch.delenv("GROQ_VISION_MODEL", raising=False)
-    monkeypatch.setattr("app.secrets.get_secret", lambda name, default="": "")
-
     captured: dict = {}
 
     class _Msg:
-        content = '{"nombre_ejercicio":"Plancha"}'
+        content = '{"total":"12.50"}'
 
     class _FakeCompletions:
         def create(self, **kwargs):
             captured["kwargs"] = kwargs
             return SimpleNamespace(choices=[SimpleNamespace(message=_Msg())])
 
-    class _FakeClient:
-        chat = SimpleNamespace(completions=_FakeCompletions())
+    _cliente_falso(monkeypatch, _FakeCompletions())
 
-    monkeypatch.setattr("app.ai_client._get_api_key", lambda: "gsk_" + "x" * 40)
-    monkeypatch.setattr("app.ai_client._hay_cuota", lambda: True)
-    monkeypatch.setattr("app.ai_client._get_client", lambda: _FakeClient())
-    monkeypatch.setattr("app.ai_client._registrar_llamada", lambda: None)
-    monkeypatch.setattr("app.billing.cuota_ia_ok", lambda *a, **k: True)
-    monkeypatch.setattr("app.billing.registrar_llamada_ia", lambda *a, **k: 1)
-
-    frames = []
-    for i in range(8):
-        p = tmp_path / f"frame_{i:03d}.jpg"
-        p.write_bytes(_jpeg_bytes(120))
-        frames.append(p)
-
-    from app.exercise_ai import complete_multimodal
-
-    text = complete_multimodal("sys", "analiza", frames)
-    assert "Plancha" in text
+    text, err = create_vision_completion(_mensajes())
+    assert err is None
+    assert "12.50" in text
     assert captured["kwargs"]["model"] == VISION_MODEL_DEFAULT
-    content = captured["kwargs"]["messages"][1]["content"]
-    images = [c for c in content if c.get("type") == "image_url"]
-    assert len(images) == MAX_VISION_IMAGES
     assert captured["kwargs"].get("response_format") == {"type": "json_object"}
+    assert MAX_VISION_IMAGES == 3
 
 
-def test_complete_groq_maps_missing_model_error(tmp_path, monkeypatch):
-    p = tmp_path / "frame_001.jpg"
-    p.write_bytes(_jpeg_bytes())
-
+def test_vision_maps_missing_model_error(monkeypatch):
     class _Boom:
         def create(self, **kwargs):
             raise RuntimeError("Error code: 404 - model_not_found does not exist")
 
-    class _FakeClient:
-        chat = SimpleNamespace(completions=_Boom())
+    _cliente_falso(monkeypatch, _Boom())
 
-    monkeypatch.setattr("app.ai_client._get_api_key", lambda: "gsk_" + "x" * 40)
-    monkeypatch.setattr("app.ai_client._hay_cuota", lambda: True)
-    monkeypatch.setattr("app.ai_client._get_client", lambda: _FakeClient())
-    monkeypatch.setattr("app.billing.cuota_ia_ok", lambda *a, **k: True)
-    monkeypatch.delenv("EXERCISE_AI_MODEL", raising=False)
-
-    from app.exercise_ai import ExerciseAIError, complete_multimodal
-
-    with pytest.raises(ExerciseAIError, match="visión"):
-        complete_multimodal("sys", "analiza", [p])
+    text, err = create_vision_completion(_mensajes())
+    assert text is None
+    assert "visión" in err
 
 
-def test_vision_retries_after_429(tmp_path, monkeypatch):
-    p = tmp_path / "frame_001.jpg"
-    p.write_bytes(_jpeg_bytes())
+def test_vision_retries_after_429(monkeypatch):
     calls = {"n": 0}
     sleeps: list[float] = []
 
     class _Msg:
-        content = '{"nombre_ejercicio":"Sentadilla"}'
+        content = '{"total":"9.00"}'
 
     class _Flaky:
         def create(self, **kwargs):
@@ -145,20 +121,11 @@ def test_vision_retries_after_429(tmp_path, monkeypatch):
                 raise RuntimeError("Error code: 429 - rate_limit_exceeded")
             return SimpleNamespace(choices=[SimpleNamespace(message=_Msg())])
 
-    class _FakeClient:
-        chat = SimpleNamespace(completions=_Flaky())
-
     monkeypatch.setattr("app.groq_vision.time.sleep", lambda s: sleeps.append(s))
-    monkeypatch.setattr("app.ai_client._get_api_key", lambda: "gsk_" + "x" * 40)
-    monkeypatch.setattr("app.ai_client._hay_cuota", lambda: True)
-    monkeypatch.setattr("app.ai_client._get_client", lambda: _FakeClient())
-    monkeypatch.setattr("app.ai_client._registrar_llamada", lambda: None)
-    monkeypatch.setattr("app.billing.cuota_ia_ok", lambda *a, **k: True)
-    monkeypatch.setattr("app.billing.registrar_llamada_ia", lambda *a, **k: 1)
+    _cliente_falso(monkeypatch, _Flaky())
 
-    from app.exercise_ai import complete_multimodal
-
-    text = complete_multimodal("sys", "analiza", [p])
-    assert "Sentadilla" in text
+    text, err = create_vision_completion(_mensajes())
+    assert err is None
+    assert "9.00" in text
     assert calls["n"] == 3
     assert sleeps
