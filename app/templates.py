@@ -1,5 +1,5 @@
 """
-templates.py — Plantillas de módulos Mission Dashboard
+templates.py — Plantillas de áreas de Mission Dashboard
 
 La IA del coach elige entre estas plantillas según el perfil del usuario.
 """
@@ -12,7 +12,6 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Revisión semanal",
         "blurb": "Planificar la semana, bloques de enfoque y revisión del domingo.",
         "emoji": "📋",
-        "page": "pages/01_Agenda.py",
         "descripcion": "Bitácora de la semana (victorias y reflexión) con tus datos ya calculados.",
         "para_quien": "Quien quiere ordenar la semana y revisar avances.",
         "prioridad": 1,
@@ -21,7 +20,6 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Dinero",
         "blurb": "Ingreso, gastos y vencimientos.",
         "emoji": "💰",
-        "page": "pages/02_Finanzas.py",
         "descripcion": "Ingreso, gastos, vencimientos y un reparto si quieres usarlo.",
         "para_quien": "Controlar dinero, deudas o ahorro.",
         "prioridad": 2,
@@ -30,7 +28,6 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Enfoque",
         "blurb": "Bloques de trabajo concentrado.",
         "emoji": "⏱️",
-        "page": "pages/03_Deep_Work.py",
         "descripcion": "Bloques de enfoque profundo y registro diario.",
         "para_quien": "Estudiar, trabajar o proyectos con horarios fijos.",
         "prioridad": 3,
@@ -39,7 +36,6 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Espiritualidad",
         "blurb": "Una práctica para cuidar lo que te sostiene.",
         "emoji": "✝️",
-        "page": "pages/04_Teologia.py",
         "descripcion": "Práctica espiritual, lectura y pedidos.",
         "para_quien": "Quien quiere un espacio de fe o crecimiento interior.",
         "prioridad": 2,
@@ -48,7 +44,6 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Lectura",
         "blurb": "Libros, progreso y resaltados.",
         "emoji": "📚",
-        "page": "pages/05_Biblioteca.py",
         "descripcion": "Catálogo de libros, progreso y resaltados.",
         "para_quien": "Lectura constante o biblioteca personal.",
         "prioridad": 4,
@@ -57,7 +52,6 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Cuerpo",
         "blurb": "Sueño, ejercicio y energía.",
         "emoji": "💪",
-        "page": "pages/06_Salud.py",
         "descripcion": "Sueño, ejercicio, energía y Google Fit si quieres conectarlo.",
         "para_quien": "Quien quiere registrar el cuerpo sin obligación de entrenar.",
         "prioridad": 3,
@@ -66,7 +60,6 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "nombre": "Relaciones",
         "blurb": "Personas que quieres cuidar: pareja, familia o amigos.",
         "emoji": "💑",
-        "page": "pages/08_Matrimonio.py",
         "descripcion": "Citas, notas y hábitos de conexión, sin asumir un estado civil.",
         "para_quien": "Cuidar una relación de pareja, familia o amistad.",
         "prioridad": 2,

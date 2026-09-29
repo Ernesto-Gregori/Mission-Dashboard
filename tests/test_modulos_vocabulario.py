@@ -72,6 +72,17 @@ def _etiqueta_menu(sidebar: str, hub_id: str) -> str:
 TODAS = ["teologia", "matrimonio", "biblioteca", "deep_work", "finanzas", "salud", "agenda"]
 
 
+def test_el_catalogo_no_apunta_a_paginas_de_streamlit():
+    """page: era la ruta de la app vieja. Nada la lee."""
+    from app.templates import MODULE_TEMPLATES
+
+    assert MODULE_TEMPLATES
+    for clave, meta in MODULE_TEMPLATES.items():
+        assert "page" not in meta, clave
+
+
+
+
 def test_el_menu_y_el_titulo_dicen_lo_mismo(web_client):
     """Un área tiene un solo nombre: el del menú es el del encabezado de su página."""
     from web.nav import _HUB_HREF, _HUB_SPECS
