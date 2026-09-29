@@ -149,7 +149,7 @@ def test_en_blanco_no_siembra_habitos_ni_areas(web_client):
     hoy = web_client.get("/app")
     assert hoy.status_code == 200
     assert "Todavía no activaste áreas" in hoy.text
-    cfg = web_client.get("/app/configuracion").text
+    cfg = web_client.get("/app/configuracion?tab=rueda").text
     assert cfg.count('value="Relaciones"') == 1
     assert 'value="Vínculos"' in cfg
 
@@ -244,7 +244,7 @@ def test_habito_en_dias_concretos_solo_sale_esos_dias(web_client):
     ok, _ = crear_habito("Piano", user_id=1)
     assert ok
     clave = listar_habitos_config(1)[0]["clave"]
-    inicial = web_client.get("/app/configuracion").text
+    inicial = web_client.get("/app/configuracion?tab=dia").text
     assert f'id="freq-days-{clave}" hidden' in inicial
     vacio = web_client.post(
         "/app/configuracion",
@@ -287,7 +287,7 @@ def test_habito_en_dias_concretos_solo_sale_esos_dias(web_client):
     )
     assert listar_habitos(1, fecha="2026-09-29") == []
     assert listar_habitos(1, fecha="2026-09-28")
-    pagina = web_client.get("/app/configuracion").text
+    pagina = web_client.get("/app/configuracion?tab=dia").text
     assert 'value="custom" selected' in pagina or "selected>Días concretos" in pagina
     assert f'id="freq-days-{clave}" hidden' not in pagina
     assert "Solo se guardan si eliges Días concretos." in pagina
@@ -365,3 +365,42 @@ def test_exportar_y_borrar_la_propia_cuenta(web_client):
 
     queda = ejecutar("SELECT COUNT(*) AS n FROM usuarios WHERE username = 'borrar'", fetchall=True)
     assert int(queda[0]["n"]) == 0
+
+
+def test_cada_pestana_guarda_solo_lo_suyo(web_client):
+    _setup(web_client, "pestanas")
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["finanzas", "salud"]},
+        follow_redirects=False,
+    )
+    areas = web_client.get("/app/configuracion")
+    assert areas.status_code == 200
+    assert 'name="seccion" value="areas"' in areas.text
+    assert 'name="moneda"' not in areas.text
+    assert 'href="/app/configuracion?tab=dinero"' in areas.text
+    for tab, marca in (
+        ("dia", 'name="seccion" value="dia"'),
+        ("dinero", 'name="moneda"'),
+        ("rueda", 'name="seccion" value="rueda"'),
+        ("datos", 'id="borrar"'),
+    ):
+        cuerpo = web_client.get(f"/app/configuracion?tab={tab}").text
+        assert marca in cuerpo
+    web_client.post(
+        "/app/configuracion",
+        data={"seccion": "dinero", "moneda": "EUR", "metodo": "sobres"},
+        follow_redirects=False,
+    )
+    from app.cuenta import leer_prefs
+    from app.onboarding import modulos_activos
+
+    assert leer_prefs(1)["moneda"] == "EUR"
+    assert "finanzas" in modulos_activos(1)
+    web_client.post(
+        "/app/configuracion",
+        data={"seccion": "areas", "activo": ["salud", "ritual", "rueda", "alma"], "idioma": "es"},
+        follow_redirects=False,
+    )
+    assert leer_prefs(1)["moneda"] == "EUR"
+    assert modulos_activos(1) == {"salud"}

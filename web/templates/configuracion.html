@@ -9,7 +9,17 @@
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
+<nav class="agenda-tabs" aria-label="Partes de la configuración">
+  <a href="/app/configuracion?tab=areas" class="{% if tab == 'areas' %}active{% endif %}"{% if tab == 'areas' %} aria-current="page"{% endif %}>Áreas</a>
+  <a href="/app/configuracion?tab=dia" class="{% if tab == 'dia' %}active{% endif %}"{% if tab == 'dia' %} aria-current="page"{% endif %}>Día</a>
+  <a href="/app/configuracion?tab=dinero" class="{% if tab == 'dinero' %}active{% endif %}"{% if tab == 'dinero' %} aria-current="page"{% endif %}>Dinero</a>
+  <a href="/app/configuracion?tab=rueda" class="{% if tab == 'rueda' %}active{% endif %}"{% if tab == 'rueda' %} aria-current="page"{% endif %}>Rueda</a>
+  <a href="/app/configuracion?tab=datos" class="{% if tab == 'datos' %}active{% endif %}"{% if tab == 'datos' %} aria-current="page"{% endif %}>Datos</a>
+</nav>
+
+{% if tab == 'areas' %}
 <form method="post" action="/app/configuracion">
+  <input type="hidden" name="seccion" value="areas" />
   <section class="card" aria-labelledby="idioma-title">
     <h2 id="idioma-title">Idioma</h2>
     <label for="idioma">Idioma de la interfaz</label>
@@ -49,6 +59,16 @@
       </li>
       {% endfor %}
     </ul>
+  </section>
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar</button>
+  </div>
+</form>
+{% elif tab == 'dia' %}
+<form method="post" action="/app/configuracion">
+  <input type="hidden" name="seccion" value="dia" />
+  <section class="card" aria-labelledby="dia-title">
+    <h2 id="dia-title">Día</h2>
     <div class="finance-form-grid">
       <div>
         <label for="ritual-a">Primera pregunta del ritual</label>
@@ -65,68 +85,6 @@
       <div>
         <label for="hora-hasta">y termina a las</label>
         <input id="hora-hasta" name="hora_hasta" type="number" min="1" max="24" value="{{ prefs.hora_hasta }}" />
-      </div>
-    </div>
-  </section>
-
-  <section class="card" aria-labelledby="dinero-title">
-    <h2 id="dinero-title">Dinero</h2>
-    <div class="finance-form-grid">
-      <div>
-        <label for="moneda">Moneda</label>
-        <select id="moneda" name="moneda">
-          {% for codigo, simbolo in monedas %}
-          <option value="{{ codigo }}" {% if prefs.moneda == codigo %}selected{% endif %}>{{ codigo }} ({{ simbolo }})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label for="metodo">Método</label>
-        <select id="metodo" name="metodo">
-          {% for clave, label in metodos %}
-          <option value="{{ clave }}" {% if prefs.metodo == clave %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
-    <h3>Categorías</h3>
-    <ul class="habit-list">
-      {% for c in categorias %}
-      <li>
-        <input type="hidden" name="cat_clave" value="{{ c.clave }}" />
-        <label for="cat-{{ c.clave }}">{{ c.clave }}</label>
-        <input id="cat-{{ c.clave }}" name="cat_nombre_{{ c.clave }}" value="{{ c.nombre }}" maxlength="40" />
-      </li>
-      {% endfor %}
-    </ul>
-    <label for="cat-nueva">Nueva categoría</label>
-    <input id="cat-nueva" name="cat_nueva" maxlength="40" placeholder="Ej: Mascotas" />
-  </section>
-
-  <section class="card" aria-labelledby="rueda-title">
-    <h2 id="rueda-title">Rueda de la vida</h2>
-    <p class="muted">Marca las que entran en la revisión. Mínimo 3.</p>
-    <input type="hidden" name="rueda_areas" value="1" />
-    <ul class="habit-list">
-      {% for a in areas_cfg %}
-      <li class="rueda-config-row">
-        <label class="check-row" for="rueda-on-{{ a.clave }}">
-          <input id="rueda-on-{{ a.clave }}" type="checkbox" name="rueda_on" value="{{ a.clave }}" {% if a.activo %}checked{% endif %} />
-          <span class="sr-only">Mostrar {{ a.nombre }}</span>
-        </label>
-        <span aria-hidden="true">{{ a.emoji }}</span>
-        <input id="rueda-{{ a.clave }}" name="rueda_{{ a.clave }}" value="{{ a.nombre }}" maxlength="40" aria-label="{{ a.nombre }}" />
-      </li>
-      {% endfor %}
-    </ul>
-    <div class="rueda-nueva">
-      <div>
-        <label for="rueda-nueva">Nueva área</label>
-        <input id="rueda-nueva" name="rueda_nueva" maxlength="40" />
-      </div>
-      <div>
-        <label for="rueda-nueva-emoji">Emoji</label>
-        <input id="rueda-nueva-emoji" name="rueda_nueva_emoji" maxlength="4" />
       </div>
     </div>
   </section>
@@ -169,7 +127,6 @@
     </ul>
   </section>
   {% endif %}
-
   <div class="form-actions">
     <button class="btn" type="submit">Guardar</button>
   </div>
@@ -181,7 +138,81 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
   sel.addEventListener("change", sync);
 });
 </script>
-
+{% elif tab == 'dinero' %}
+<form method="post" action="/app/configuracion">
+  <input type="hidden" name="seccion" value="dinero" />
+  <section class="card" aria-labelledby="dinero-title">
+    <h2 id="dinero-title">Dinero</h2>
+    <div class="finance-form-grid">
+      <div>
+        <label for="moneda">Moneda</label>
+        <select id="moneda" name="moneda">
+          {% for codigo, simbolo in monedas %}
+          <option value="{{ codigo }}" {% if prefs.moneda == codigo %}selected{% endif %}>{{ codigo }} ({{ simbolo }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="metodo">Método</label>
+        <select id="metodo" name="metodo">
+          {% for clave, label in metodos %}
+          <option value="{{ clave }}" {% if prefs.metodo == clave %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <h3>Categorías</h3>
+    <ul class="habit-list">
+      {% for c in categorias %}
+      <li>
+        <input type="hidden" name="cat_clave" value="{{ c.clave }}" />
+        <label for="cat-{{ c.clave }}">{{ c.clave }}</label>
+        <input id="cat-{{ c.clave }}" name="cat_nombre_{{ c.clave }}" value="{{ c.nombre }}" maxlength="40" />
+      </li>
+      {% endfor %}
+    </ul>
+    <label for="cat-nueva">Nueva categoría</label>
+    <input id="cat-nueva" name="cat_nueva" maxlength="40" placeholder="Ej: Mascotas" />
+  </section>
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar</button>
+  </div>
+</form>
+{% elif tab == 'rueda' %}
+<form method="post" action="/app/configuracion">
+  <input type="hidden" name="seccion" value="rueda" />
+  <section class="card" aria-labelledby="rueda-title">
+    <h2 id="rueda-title">Rueda de la vida</h2>
+    <p class="muted">Marca las que entran en la revisión. Mínimo 3.</p>
+    <input type="hidden" name="rueda_areas" value="1" />
+    <ul class="habit-list">
+      {% for a in areas_cfg %}
+      <li class="rueda-config-row">
+        <label class="check-row" for="rueda-on-{{ a.clave }}">
+          <input id="rueda-on-{{ a.clave }}" type="checkbox" name="rueda_on" value="{{ a.clave }}" {% if a.activo %}checked{% endif %} />
+          <span class="sr-only">Mostrar {{ a.nombre }}</span>
+        </label>
+        <span aria-hidden="true">{{ a.emoji }}</span>
+        <input id="rueda-{{ a.clave }}" name="rueda_{{ a.clave }}" value="{{ a.nombre }}" maxlength="40" aria-label="{{ a.nombre }}" />
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="rueda-nueva">
+      <div>
+        <label for="rueda-nueva">Nueva área</label>
+        <input id="rueda-nueva" name="rueda_nueva" maxlength="40" />
+      </div>
+      <div>
+        <label for="rueda-nueva-emoji">Emoji</label>
+        <input id="rueda-nueva-emoji" name="rueda_nueva_emoji" maxlength="4" />
+      </div>
+    </div>
+  </section>
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar</button>
+  </div>
+</form>
+{% else %}
 <section class="card" aria-labelledby="datos-title">
   <h2 id="datos-title">Tus datos</h2>
   {% if puede_exportar %}
@@ -200,4 +231,5 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
   </form>
 </section>
 <p class="muted"><a href="/app/coach">El coach sigue disponible para rearmar el sistema.</a></p>
+{% endif %}
 {% endblock %}

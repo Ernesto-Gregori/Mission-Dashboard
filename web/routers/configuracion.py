@@ -36,6 +36,9 @@ from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/configuracion", tags=["configuracion"])
 
+PESTANAS = ("areas", "dia", "dinero", "rueda", "datos")
+_SECCIONES = ("areas", "dia", "dinero", "rueda")
+
 
 def _habitos_con_dias(uid: int) -> list[dict]:
     presets = {clave for clave, _ in FRECUENCIAS}
@@ -61,7 +64,14 @@ _SALUD = (
 )
 
 
-def _ctx(request: Request, user: dict, *, error: str | None = None, flash: str | None = None) -> dict:
+def _ctx(
+    request: Request,
+    user: dict,
+    *,
+    error: str | None = None,
+    flash: str | None = None,
+    tab: str = "areas",
+) -> dict:
     uid = int(user["id"])
     filas = {r["modulo"]: r for r in listar_modulos_usuario(uid)}
     prefs = leer_prefs(uid)
@@ -108,19 +118,172 @@ def _ctx(request: Request, user: dict, *, error: str | None = None, flash: str |
         "salud_on": set(prefs["salud"]) or {k for k, _ in _SALUD},
         "puede_exportar": puede_exportar(plan_vigente(user)),
         "areas_base": AREAS,
+        "tab": tab if tab in PESTANAS else "areas",
+        "pestanas": PESTANAS,
     }
+
+
+def _tab_pedido(request: Request) -> str:
+    tab = str(request.query_params.get("tab") or "areas")
+    return tab if tab in PESTANAS else "areas"
 
 
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def configuracion_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    return render(request, "configuracion.html", **_ctx(request, user))
+    return render(request, "configuracion.html", **_ctx(request, user, tab=_tab_pedido(request)))
+
+
+def _guardar_parcial(uid: int, **cambios) -> None:
+    """Escribe solo los campos que vienen; el resto queda como está."""
+    prefs = leer_prefs(uid)
+    prefs.update(cambios)
+    guardar_prefs(
+        uid,
+        moneda=str(prefs["moneda"]),
+        metodo=str(prefs["metodo"]),
+        ritual_a=str(prefs["ritual_a"]),
+        ritual_b=str(prefs["ritual_b"]),
+        hora_desde=int(prefs["hora_desde"]),
+        hora_hasta=int(prefs["hora_hasta"]),
+        rueda=prefs["rueda"],
+        salud=list(prefs["salud"]),
+        idioma=prefs.get("idioma") or None,
+    )
+
+
+def _guardar_habitos(uid: int, form) -> str | None:
+    from app.db.core import ejecutar
+
+    for hab in listar_habitos_config(uid):
+        freq_sel = str(form.get(f"freq_{hab['clave']}") or "")
+        if not freq_sel:
+            continue
+        freq = frecuencia_desde_eleccion(
+            freq_sel, [str(d) for d in form.getlist(f"freqdia_{hab['clave']}")]
+        )
+        if freq is None:
+            return "Elige al menos un día."
+        ejecutar(
+            "UPDATE habitos_config SET frecuencia = ? WHERE user_id = ? AND clave = ?",
+            [freq, uid, hab["clave"]],
+        )
+    return None
+
+
+def _guardar_categorias_form(uid: int, form) -> None:
+    categorias = []
+    for clave in form.getlist("cat_clave"):
+        categorias.append((str(clave), str(form.get(f"cat_nombre_{clave}") or "")))
+    nueva = str(form.get("cat_nueva") or "").strip()
+    if nueva:
+        categorias.append((clave_categoria(nueva), nueva))
+    if categorias:
+        guardar_categorias(uid, categorias)
+
+
+def _idioma_form(form):
+    from app.i18n import normalizar
+
+    raw = form.get("idioma")
+    return normalizar(str(raw)) if raw else None
+
+
+def _horas_form(form, prefs: dict) -> tuple[int, int]:
+    try:
+        desde = int(form.get("hora_desde") if form.get("hora_desde") not in (None, "") else prefs["hora_desde"])
+        hasta = int(form.get("hora_hasta") if form.get("hora_hasta") not in (None, "") else prefs["hora_hasta"])
+    except ValueError:
+        desde, hasta = int(prefs["hora_desde"]), int(prefs["hora_hasta"])
+    return desde, hasta
+
+
+def _rueda_form(uid: int, form):
+    prev = leer_prefs(uid)["rueda"]
+    etiquetas = {clave: str(form.get(f"rueda_{clave}") or "") for clave, _nombre, _emoji in AREAS}
+    for fila in catalogo_areas_rueda(uid):
+        etiquetas.setdefault(fila["clave"], str(form.get(f"rueda_{fila['clave']}") or ""))
+    if str(form.get("rueda_areas") or "") == "1":
+        return rueda_desde_eleccion(
+            prev,
+            activas=[str(v) for v in form.getlist("rueda_on")],
+            nueva=str(form.get("rueda_nueva") or ""),
+            nueva_emoji=str(form.get("rueda_nueva_emoji") or ""),
+            etiquetas=etiquetas,
+        )
+    return rueda_conservando_estructura(prev, etiquetas), None
+
+
+def _respuesta_guardada(request: Request, seccion: str, idioma: str | None):
+    request.session["config_flash"] = "Configuración guardada."
+    destino = "/app/configuracion" if not seccion else f"/app/configuracion?tab={seccion}"
+    response = RedirectResponse(destino, status_code=303)
+    if idioma:
+        from app.i18n import aplicar_cookie_idioma
+
+        aplicar_cookie_idioma(response, idioma)
+    return response
+
+
+def _error(request: Request, user: dict, seccion: str, mensaje: str):
+    return render(
+        request,
+        "configuracion.html",
+        status_code=400,
+        **_ctx(request, user, error=mensaje, tab=seccion or "areas"),
+    )
+
+
+def _guardar_seccion(request: Request, user: dict, form, seccion: str):
+    uid = int(user["id"])
+    prefs = leer_prefs(uid)
+    idioma = None
+    if seccion == "areas":
+        error = guardar_modulos(
+            uid,
+            activos={str(v) for v in form.getlist("activo")},
+            tope=modulos_max(plan_vigente(user)),
+        )
+        if error:
+            return _error(request, user, seccion, error)
+        idioma = _idioma_form(form)
+        if idioma:
+            _guardar_parcial(uid, idioma=idioma)
+    elif seccion == "dia":
+        desde, hasta = _horas_form(form, prefs)
+        error = _guardar_habitos(uid, form)
+        if error:
+            return _error(request, user, seccion, error)
+        _guardar_parcial(
+            uid,
+            ritual_a=str(form.get("ritual_a") or ""),
+            ritual_b=str(form.get("ritual_b") or ""),
+            hora_desde=desde,
+            hora_hasta=hasta,
+            salud=[str(v) for v in form.getlist("salud")],
+        )
+    elif seccion == "dinero":
+        _guardar_parcial(
+            uid,
+            moneda=str(form.get("moneda") or prefs["moneda"]),
+            metodo=str(form.get("metodo") or prefs["metodo"]),
+        )
+        _guardar_categorias_form(uid, form)
+    elif seccion == "rueda":
+        rueda, error_rueda = _rueda_form(uid, form)
+        if error_rueda:
+            return _error(request, user, seccion, error_rueda)
+        _guardar_parcial(uid, rueda=rueda)
+    return _respuesta_guardada(request, seccion, idioma)
 
 
 @router.post("")
 async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     uid = int(user["id"])
     form = await request.form()
+    seccion = str(form.get("seccion") or "")
+    if seccion in _SECCIONES:
+        return _guardar_seccion(request, user, form, seccion)
     prev_rueda = leer_prefs(uid)["rueda"]
     etiquetas = {
         clave: str(form.get(f"rueda_{clave}") or "")
@@ -234,6 +397,6 @@ async def configuracion_borrar(request: Request, user: Annotated[dict, Depends(r
     ok, msg = borrar_cuenta(int(user["id"]), str(form.get("password") or ""))
     if not ok:
         request.session["config_error"] = msg
-        return RedirectResponse("/app/configuracion#borrar", status_code=303)
+        return RedirectResponse("/app/configuracion?tab=datos#borrar", status_code=303)
     request.session.clear()
     return RedirectResponse("/login", status_code=303)

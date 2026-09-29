@@ -42,6 +42,8 @@ CATALOGO = {
     "Cuerpo": "Body",
     "Día": "Day",
     "Áreas": "Areas",
+    "Rueda": "Wheel",
+    "Datos": "Data",
     "Sistema": "System",
     "Configuración": "Settings",
     "Tema oscuro": "Dark theme",
