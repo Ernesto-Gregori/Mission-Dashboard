@@ -4,6 +4,7 @@
   <div>
     <h1>Planificador</h1>
     <p class="muted">Línea de tiempo arrastrable, sincronizada con Google Calendar.</p>
+    <p class="muted">Flechas: mueve el bloque 15 minutos o un día.</p>
   </div>
 </header>
 
@@ -61,7 +62,7 @@
     {% if c.fecha %}<span class="tl-month-num">{{ c.fecha.day }}</span>{% endif %}
     {% for e in c.eventos[:4] %}
     <button type="button" class="tl-block tl-month-block origen-{{ e.origen }}"
-            {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="{{ e.hora_inicio or '' }}" data-end="{{ e.hora_fin or '' }}"{% endif %}
+            {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="{{ e.hora_inicio or '' }}" data-end="{{ e.hora_fin or '' }}" aria-keyshortcuts="{% if e.hora_inicio %}ArrowUp ArrowDown ArrowLeft ArrowRight{% else %}ArrowLeft ArrowRight{% endif %}"{% endif %}
             {% if e.color %}style="--event-color:{{ e.color }}"{% endif %}>
       {{ iconos.get(e.origen, '📌') }}
       {{ (e.titulo or '')[:18] }}
@@ -93,7 +94,7 @@
       <div class="tl-allday">
         {% for e in d.allday %}
         <button type="button" class="tl-block origen-{{ e.origen }}"
-                {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="" data-end="" data-allday="1"{% endif %}
+                {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="" data-end="" data-allday="1" aria-keyshortcuts="ArrowLeft ArrowRight"{% endif %}
                 {% if e.color %}style="--event-color:{{ e.color }}"{% endif %}>
           {{ iconos.get(e.origen, '📌') }}
           {{ (e.titulo or '')[:22] }}
@@ -106,7 +107,7 @@
         {% endfor %}
         {% for e in d.timed %}
         <button type="button" class="tl-block is-timed origen-{{ e.origen }}"
-                {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="{{ e.hora_inicio }}" data-end="{{ e.hora_fin }}"{% endif %}
+                {% if e.draggable %}data-event-id="{{ e.id }}" data-fecha="{{ e.fecha }}" data-start="{{ e.hora_inicio }}" data-end="{{ e.hora_fin }}" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"{% endif %}
                 style="{{ e.style }}{% if e.color %}--event-color:{{ e.color }};{% endif %}">
           <span class="tl-block-time">{{ (e.hora_inicio or '')[:5] }}</span>
           <span class="tl-block-title">{{ iconos.get(e.origen, '📌') }} {{ e.titulo }}</span>

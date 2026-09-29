@@ -287,6 +287,8 @@ def test_los_modulos_se_traducen_y_el_espanol_sigue_igual(web_client):
     plan = web_client.get("/app/planificador")
     assert "Draggable timeline, synced with Google Calendar." in plan.text
     assert "Línea de tiempo arrastrable" not in plan.text
+    assert "Arrows: move the block 15 minutes or one day." in plan.text
+    assert "Flechas: mueve el bloque" not in plan.text
     revision = web_client.get("/app/revision")
     assert "The week in numbers" in revision.text
     assert "Generate briefing" in revision.text

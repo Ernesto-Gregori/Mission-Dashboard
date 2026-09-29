@@ -448,6 +448,7 @@ FRASES = {
     "No se pudo crear el pedido.": "Could not create the request.",
     # Planificador, revisión, Alma, cuenta
     "Línea de tiempo arrastrable, sincronizada con Google Calendar.": "Draggable timeline, synced with Google Calendar.",
+    "Flechas: mueve el bloque 15 minutos o un día.": "Arrows: move the block 15 minutes or one day.",
     "Vista del planificador": "Planner view",
     "Leyenda": "Legend",
     "📅 Google Calendar": "📅 Google Calendar",
