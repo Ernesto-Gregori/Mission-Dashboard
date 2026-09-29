@@ -1657,6 +1657,18 @@ textarea {
 .users-tabs a.active { box-shadow: inset 0 -2px 0 var(--accent); }
 .users-notice,
 .backup-result { margin-top: 1rem; }
+/* Una sola tarjeta de plan no debe quedar encajada en una columna angosta. */
+.plan-cards {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  max-width: 34rem;
+}
+.plan-cards ul {
+  margin: var(--space-2) 0 var(--space-4);
+  padding-left: var(--space-5);
+}
+
 .user-plan-form,
 .user-create-form { margin-top: 0.75rem; }
 .users-form-grid {
