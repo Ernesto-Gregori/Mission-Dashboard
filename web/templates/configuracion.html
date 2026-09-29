@@ -9,13 +9,32 @@
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
+<nav class="agenda-tabs" aria-label="Partes de la configuración">
+  <a href="/app/configuracion?tab=areas" class="{% if tab == 'areas' %}active{% endif %}"{% if tab == 'areas' %} aria-current="page"{% endif %}>Áreas</a>
+  <a href="/app/configuracion?tab=dia" class="{% if tab == 'dia' %}active{% endif %}"{% if tab == 'dia' %} aria-current="page"{% endif %}>Día</a>
+  <a href="/app/configuracion?tab=dinero" class="{% if tab == 'dinero' %}active{% endif %}"{% if tab == 'dinero' %} aria-current="page"{% endif %}>Dinero</a>
+  <a href="/app/configuracion?tab=rueda" class="{% if tab == 'rueda' %}active{% endif %}"{% if tab == 'rueda' %} aria-current="page"{% endif %}>Rueda</a>
+  <a href="/app/configuracion?tab=conexiones" class="{% if tab == 'conexiones' %}active{% endif %}"{% if tab == 'conexiones' %} aria-current="page"{% endif %}>Conexiones</a>
+  <a href="/app/configuracion?tab=datos" class="{% if tab == 'datos' %}active{% endif %}"{% if tab == 'datos' %} aria-current="page"{% endif %}>Datos</a>
+  {% if is_admin %}
+  <a href="/app/configuracion?tab=usuarios" class="{% if tab == 'usuarios' %}active{% endif %}"{% if tab == 'usuarios' %} aria-current="page"{% endif %}>Usuarios</a>
+  {% endif %}
+</nav>
+
+{% if tab == 'areas' %}
 <form method="post" action="/app/configuracion">
+  <input type="hidden" name="seccion" value="areas" />
   <section class="card" aria-labelledby="idioma-title">
     <h2 id="idioma-title">Idioma</h2>
     <label for="idioma">Idioma de la interfaz</label>
     <select id="idioma" name="idioma">
       <option value="es" {% if lang != 'en' %}selected{% endif %}>Español</option>
       <option value="en" {% if lang == 'en' %}selected{% endif %}>English</option>
+    </select>
+    <label for="tema">Tema</label>
+    <select id="tema" name="theme">
+      <option value="dark" {% if theme != 'light' %}selected{% endif %}>Tema oscuro</option>
+      <option value="light" {% if theme == 'light' %}selected{% endif %}>Tema claro</option>
     </select>
   </section>
 
@@ -49,6 +68,71 @@
       </li>
       {% endfor %}
     </ul>
+  </section>
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar</button>
+  </div>
+</form>
+{% elif tab == 'dia' %}
+<section class="card" id="habitos" aria-labelledby="habitos-title">
+  <h2 id="habitos-title">Hábitos diarios</h2>
+  <p class="muted compact-copy">Aparecen como checklist en Hoy. Archivar un hábito lo oculta sin borrar su historial.</p>
+  <p class="muted compact-copy">Más abajo eliges cada cuánto aparece. Eso se guarda con el botón Guardar de la página.</p>
+  {% if habitos_activos %}
+  <ul class="habit-list">
+    {% for h in habitos_activos %}
+    <li>
+      <form class="habit-row" method="post" action="/app/configuracion/habitos/{{ h.clave }}/editar">
+        <label class="sr-only" for="hab-emoji-{{ h.clave }}">Emoji</label>
+        <input id="hab-emoji-{{ h.clave }}" name="emoji" value="{{ h.emoji }}" maxlength="4" />
+        <label class="sr-only" for="hab-label-{{ h.clave }}">Nombre</label>
+        <input id="hab-label-{{ h.clave }}" name="label" value="{{ h.label }}" maxlength="40" required />
+        <label class="sr-only" for="hab-hora-{{ h.clave }}">Hora (opcional)</label>
+        <input id="hab-hora-{{ h.clave }}" name="hora" type="time" value="{{ h.hora if h.hora and h.hora != '—' else '' }}" />
+        <span class="habit-actions">
+          <button class="btn secondary" type="submit">Guardar</button>
+          <button class="btn secondary" type="submit" formaction="/app/configuracion/habitos/{{ h.clave }}/archivar" formnovalidate onclick="return confirm('¿Archivar este hábito? Deja de aparecer en Hoy.')">Archivar</button>
+        </span>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Todavía no tienes hábitos activos.</p>
+  {% endif %}
+
+  <h3>Nuevo hábito</h3>
+  <form class="habit-row" method="post" action="/app/configuracion/habitos">
+    <label class="sr-only" for="hab-new-emoji">Emoji</label>
+    <input id="hab-new-emoji" name="emoji" placeholder="⭐" maxlength="4" />
+    <label class="sr-only" for="hab-new-label">Nombre</label>
+    <input id="hab-new-label" name="label" placeholder="Ej: Leer 20 minutos" maxlength="40" required />
+    <label class="sr-only" for="hab-new-hora">Hora (opcional)</label>
+    <input id="hab-new-hora" name="hora" type="time" />
+    <span class="habit-actions"><button class="btn" type="submit">Agregar hábito</button></span>
+  </form>
+
+  {% if habitos_archivados %}
+  <details>
+    <summary>Archivados ({{ habitos_archivados|length }})</summary>
+    <ul class="habit-list">
+      {% for h in habitos_archivados %}
+      <li class="habit-archived">
+        <span>{{ h.emoji }} {{ h.label }}</span>
+        <form class="inline-form" method="post" action="/app/configuracion/habitos/{{ h.clave }}/reactivar">
+          <button class="btn secondary" type="submit">Reactivar</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>
+
+<form method="post" action="/app/configuracion">
+  <input type="hidden" name="seccion" value="dia" />
+  <section class="card" aria-labelledby="dia-title">
+    <h2 id="dia-title">Día</h2>
     <div class="finance-form-grid">
       <div>
         <label for="ritual-a">Primera pregunta del ritual</label>
@@ -66,67 +150,12 @@
         <label for="hora-hasta">y termina a las</label>
         <input id="hora-hasta" name="hora_hasta" type="number" min="1" max="24" value="{{ prefs.hora_hasta }}" />
       </div>
-    </div>
-  </section>
-
-  <section class="card" aria-labelledby="dinero-title">
-    <h2 id="dinero-title">Dinero</h2>
-    <div class="finance-form-grid">
       <div>
-        <label for="moneda">Moneda</label>
-        <select id="moneda" name="moneda">
-          {% for codigo, simbolo in monedas %}
-          <option value="{{ codigo }}" {% if prefs.moneda == codigo %}selected{% endif %}>{{ codigo }} ({{ simbolo }})</option>
-          {% endfor %}
+        <label for="week-start">La semana empieza</label>
+        <select id="week-start" name="week_start">
+          <option value="lun" {% if week_start != 'dom' %}selected{% endif %}>Lunes</option>
+          <option value="dom" {% if week_start == 'dom' %}selected{% endif %}>Domingo</option>
         </select>
-      </div>
-      <div>
-        <label for="metodo">Método</label>
-        <select id="metodo" name="metodo">
-          {% for clave, label in metodos %}
-          <option value="{{ clave }}" {% if prefs.metodo == clave %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
-    <h3>Categorías</h3>
-    <ul class="habit-list">
-      {% for c in categorias %}
-      <li>
-        <input type="hidden" name="cat_clave" value="{{ c.clave }}" />
-        <label for="cat-{{ c.clave }}">{{ c.clave }}</label>
-        <input id="cat-{{ c.clave }}" name="cat_nombre_{{ c.clave }}" value="{{ c.nombre }}" maxlength="40" />
-      </li>
-      {% endfor %}
-    </ul>
-    <label for="cat-nueva">Nueva categoría</label>
-    <input id="cat-nueva" name="cat_nueva" maxlength="40" placeholder="Ej: Mascotas" />
-  </section>
-
-  <section class="card" aria-labelledby="rueda-title">
-    <h2 id="rueda-title">Rueda de la vida</h2>
-    <p class="muted">Marca las que entran en la revisión. Mínimo 3.</p>
-    <input type="hidden" name="rueda_areas" value="1" />
-    <ul class="habit-list">
-      {% for a in areas_cfg %}
-      <li class="rueda-config-row">
-        <label class="check-row" for="rueda-on-{{ a.clave }}">
-          <input id="rueda-on-{{ a.clave }}" type="checkbox" name="rueda_on" value="{{ a.clave }}" {% if a.activo %}checked{% endif %} />
-          <span class="sr-only">Mostrar {{ a.nombre }}</span>
-        </label>
-        <span aria-hidden="true">{{ a.emoji }}</span>
-        <input id="rueda-{{ a.clave }}" name="rueda_{{ a.clave }}" value="{{ a.nombre }}" maxlength="40" aria-label="{{ a.nombre }}" />
-      </li>
-      {% endfor %}
-    </ul>
-    <div class="rueda-nueva">
-      <div>
-        <label for="rueda-nueva">Nueva área</label>
-        <input id="rueda-nueva" name="rueda_nueva" maxlength="40" />
-      </div>
-      <div>
-        <label for="rueda-nueva-emoji">Emoji</label>
-        <input id="rueda-nueva-emoji" name="rueda_nueva_emoji" maxlength="4" />
       </div>
     </div>
   </section>
@@ -169,7 +198,6 @@
     </ul>
   </section>
   {% endif %}
-
   <div class="form-actions">
     <button class="btn" type="submit">Guardar</button>
   </div>
@@ -181,7 +209,287 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
   sel.addEventListener("change", sync);
 });
 </script>
+{% elif tab == 'dinero' %}
+<form method="post" action="/app/configuracion">
+  <input type="hidden" name="seccion" value="dinero" />
+  <section class="card" aria-labelledby="dinero-title">
+    <h2 id="dinero-title">Dinero</h2>
+    <div class="finance-form-grid">
+      <div>
+        <label for="moneda">Moneda</label>
+        <select id="moneda" name="moneda">
+          {% for codigo, simbolo in monedas %}
+          <option value="{{ codigo }}" {% if prefs.moneda == codigo %}selected{% endif %}>{{ codigo }} ({{ simbolo }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="metodo">Método</label>
+        <select id="metodo" name="metodo">
+          {% for clave, label in metodos %}
+          <option value="{{ clave }}" {% if prefs.metodo == clave %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <h3>Categorías</h3>
+    <ul class="habit-list">
+      {% for c in categorias %}
+      <li>
+        <input type="hidden" name="cat_clave" value="{{ c.clave }}" />
+        <label for="cat-{{ c.clave }}">{{ c.clave }}</label>
+        <input id="cat-{{ c.clave }}" name="cat_nombre_{{ c.clave }}" value="{{ c.nombre }}" maxlength="40" />
+      </li>
+      {% endfor %}
+    </ul>
+    <label for="cat-nueva">Nueva categoría</label>
+    <input id="cat-nueva" name="cat_nueva" maxlength="40" placeholder="Ej: Mascotas" />
+  </section>
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar</button>
+  </div>
+</form>
+{% elif tab == 'rueda' %}
+<form method="post" action="/app/configuracion">
+  <input type="hidden" name="seccion" value="rueda" />
+  <section class="card" aria-labelledby="rueda-title">
+    <h2 id="rueda-title">Rueda de la vida</h2>
+    <p class="muted">Marca las que entran en la revisión. Mínimo 3.</p>
+    <input type="hidden" name="rueda_areas" value="1" />
+    <ul class="habit-list">
+      {% for a in areas_cfg %}
+      <li class="rueda-config-row">
+        <label class="check-row" for="rueda-on-{{ a.clave }}">
+          <input id="rueda-on-{{ a.clave }}" type="checkbox" name="rueda_on" value="{{ a.clave }}" {% if a.activo %}checked{% endif %} />
+          <span class="sr-only">Mostrar {{ a.nombre }}</span>
+        </label>
+        <span aria-hidden="true">{{ a.emoji }}</span>
+        <input id="rueda-{{ a.clave }}" name="rueda_{{ a.clave }}" value="{{ a.nombre }}" maxlength="40" aria-label="{{ a.nombre }}" />
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="rueda-nueva">
+      <div>
+        <label for="rueda-nueva">Nueva área</label>
+        <input id="rueda-nueva" name="rueda_nueva" maxlength="40" />
+      </div>
+      <div>
+        <label for="rueda-nueva-emoji">Emoji</label>
+        <input id="rueda-nueva-emoji" name="rueda_nueva_emoji" maxlength="4" />
+      </div>
+    </div>
+  </section>
+  <div class="form-actions">
+    <button class="btn" type="submit">Guardar</button>
+  </div>
+</form>
+{% elif tab == 'conexiones' %}
+<section class="card" aria-labelledby="google-title">
+  <h2 id="google-title">Google Fit y Calendar</h2>
+  {% if not puede_google %}
+  <div class="flash-warn">Google Fit/Calendar requiere plan Premium.
+    <a href="/app/billing">Ver planes</a>
+  </div>
+  {% else %}
+    {% if fit.autenticado %}
+    <p><span class="badge ok">Vinculado</span></p>
+    <form method="post" action="/app/m/salud/fit/importar">
+      <button class="btn" type="submit">Importar datos de hoy (Fit)</button>
+    </form>
+    {% else %}
+    <p class="muted">No vinculado. Calendar y Fit usan la misma cuenta de Google.</p>
+    <div class="form-actions">
+      <a class="btn" href="/app/m/salud/oauth/start">Conectar con Google</a>
+    </div>
+    <details class="token-fallback">
+      <summary>Pegar token JSON (respaldo)</summary>
+      <form method="post" action="/app/m/salud/token/paste">
+        <label for="fit-token">Token JSON</label>
+        <textarea id="fit-token" name="token_json" rows="4" placeholder='{"token":"...","refresh_token":"..."}'></textarea>
+        <button class="btn secondary" type="submit">Guardar token</button>
+      </form>
+    </details>
+    {% endif %}
+    {% if fit.error %}<p class="muted">{{ fit.error }}</p>{% endif %}
+  {% endif %}
+</section>
 
+<section class="card" aria-labelledby="tg-title">
+  <h2 id="tg-title">Telegram</h2>
+  <p class="muted">Vincula tu cuenta con el bot. Un chat no vinculado solo recibe instrucciones; nunca crea gastos ni tareas. El bot no escribe a quien no le habló primero.</p>
+  <p class="muted">En el bot: <code>/briefing</code> foco del día · <code>/gasto 35 super</code> · <code>/tarea mañana 5pm banco</code> · <code>/deshacer</code> · <code>/ayuda</code>.</p>
+  {% if puede_telegram %}
+  <form method="post" action="/app/usuarios/telegram/recordatorios" class="users-form-grid">
+    <label for="tg-recordatorio">Avisarme antes de cada evento
+      <select id="tg-recordatorio" name="recordatorio_min">
+        {% for m in tg_recordatorio_opciones %}
+        <option value="{{ m }}" {% if m == tg_recordatorio_min %}selected{% endif %}>
+          {{ 'Apagado' if m == 0 else m ~ ' min' }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="form-actions">
+      <button class="btn secondary" type="submit">Guardar</button>
+    </div>
+  </form>
+  {% endif %}
+  {% include "telegram_briefing.html" %}
+  {% if not puede_telegram %}
+  <div class="flash-warn">Telegram requiere plan Premium. <a href="/app/billing">Ver planes</a></div>
+  {% endif %}
+  {% if tg_link and tg_link.verified %}
+  <p>Cuenta vinculada{% if tg_link.tg_username %} <strong>@{{ tg_link.tg_username }}</strong>{% endif %}
+     {% if tg_link.linked_at %}<span class="muted">desde {{ tg_link.linked_at }}</span>{% endif %}
+  </p>
+  <form method="post" action="/app/usuarios/telegram/desvincular" onsubmit="return confirm('¿Desvincular Telegram?')">
+    <button class="btn secondary" type="submit">Desvincular</button>
+  </form>
+  {% else %}
+  <form method="post" action="/app/usuarios/telegram/vincular" class="users-form-grid">
+    <div class="form-actions">
+      <button class="btn" type="submit">Generar código</button>
+    </div>
+  </form>
+  {% if tg_code %}
+  <p class="flash-ok" role="status">Código <strong id="tg-code">{{ tg_code }}</strong>. Vence en 10 minutos.</p>
+  {% if tg_deep_link %}
+  <p><a id="tg-link" class="btn" href="{{ tg_deep_link }}" target="_blank" rel="noopener">Abrir bot en Telegram</a></p>
+  <p class="muted">O mándale al bot <code>/start {{ tg_code }}</code>. Después recarga esta página.</p>
+  {% else %}
+  <p class="muted">Mándale al bot el código o <code>/start {{ tg_code }}</code> y recarga esta página.</p>
+  {% endif %}
+  {% endif %}
+  {% endif %}
+</section>
+{% elif tab == 'usuarios' and is_admin %}
+<section>
+  <div class="card">
+    <h2>Usuarios registrados</h2>
+    {% if not usuarios %}
+    <p class="muted">No hay usuarios.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for u in usuarios %}
+      <li>
+        <span>
+          <strong>{{ u.username }}</strong>
+          · rol <code>{{ u.rol }}</code>
+          · plan <code>{{ u.plan or 'free' }}</code>
+          · {% if u.activo %}activo{% else %}inactivo{% endif %}
+          {% if u.plan_expira_en %}<br><span class="muted">expira {{ u.plan_expira_en }}</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Cambiar plan (manual)</h2>
+    <p class="muted">Útil si Stripe no está activo o para overrides.</p>
+    <form class="user-plan-form" method="post" action="/app/usuarios/plan">
+      <div class="users-form-grid plan-grid">
+        <div>
+          <label for="plan-user">Usuario</label>
+          <select id="plan-user" name="user_id" required>
+            {% for u in usuarios %}
+            <option value="{{ u.id }}">{{ u.username }} (id={{ u.id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="plan-name">Plan</label>
+          <select id="plan-name" name="plan">
+            {% for p in planes_validos %}
+            <option value="{{ p }}" {% if p == 'premium' %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="plan-expiry">Expira (YYYY-MM-DD)</label>
+          <input id="plan-expiry" name="expira" placeholder="Vacío = sin fecha" />
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn" type="submit">Actualizar plan</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Agregar usuario</h2>
+    <p class="muted">Usuario 3–32 (a-z, 0-9, _). Contraseña mín. 8. Empiezan en Free salvo que elijas otro plan; al entrar ven el Coach.</p>
+    <form class="user-create-form" method="post" action="/app/usuarios/crear">
+      <div class="users-form-grid cols-2">
+        <div>
+          <label for="new-user-username">Usuario *</label>
+          <input id="new-user-username" name="username" required placeholder="Ej: esposa" autocomplete="off" />
+        </div>
+        <div>
+          <label for="new-user-role">Rol</label>
+          <select id="new-user-role" name="rol">
+            <option value="usuario">usuario</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="users-form-grid cols-3">
+        <div>
+          <label for="new-user-password">Contraseña *</label>
+          <input id="new-user-password" name="password" type="password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div>
+          <label for="new-user-password-confirm">Repetir *</label>
+          <input id="new-user-password-confirm" name="password2" type="password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div>
+          <label for="new-user-plan">Plan inicial</label>
+          <select id="new-user-plan" name="plan">
+            {% for p in planes_validos %}
+            <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn" type="submit">Agregar usuario</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Exportar backup</h2>
+    <p class="muted">
+      JSON de tablas clave en <code>data/backups/</code>
+      (útil antes de migrar o tocar producción).
+    </p>
+    <form method="post" action="/app/usuarios/backup">
+      <button class="btn" type="submit">Exportar backup ahora</button>
+    </form>
+    {% if backup_path %}
+    <div class="flash-ok backup-result" role="status">Archivo: <code>{{ backup_path }}</code></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Auditoría reciente</h2>
+    <p class="muted">Últimas acciones sensibles (finanzas / usuarios).</p>
+    {% if not auditoria %}
+    <p class="muted">Sin eventos aún.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for r in auditoria %}
+      <li>
+        <span>
+          {{ r.creado_en or '—' }}
+          · {{ r.username or '—' }}{% if not r.username and r.user_id %} (user#{{ r.user_id }}){% endif %}
+          · <strong>{{ r.accion }}</strong>
+          · {{ r.entidad or '' }} {{ r.entidad_id or '' }}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% else %}
 <section class="card" aria-labelledby="datos-title">
   <h2 id="datos-title">Tus datos</h2>
   {% if puede_exportar %}
@@ -200,4 +508,5 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
   </form>
 </section>
 <p class="muted"><a href="/app/coach">El coach sigue disponible para rearmar el sistema.</a></p>
+{% endif %}
 {% endblock %}

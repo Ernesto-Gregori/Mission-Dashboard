@@ -18,7 +18,7 @@ def google_oauth_callback(request: Request):
     err = request.query_params.get("error")
     if err:
         return RedirectResponse(
-            f"/app/m/salud?tab=hoy&google=denied&msg={quote(str(err)[:80])}",
+            f"/app/configuracion?tab=conexiones&google=denied&msg={quote(str(err)[:80])}",
             status_code=303,
         )
 
@@ -26,7 +26,7 @@ def google_oauth_callback(request: Request):
     state = request.query_params.get("state")
     if not code or not state:
         return RedirectResponse(
-            "/app/m/salud?tab=hoy&google=err&msg=Falta%20code%20o%20state",
+            "/app/configuracion?tab=conexiones&google=err&msg=Falta%20code%20o%20state",
             status_code=303,
         )
 
@@ -46,8 +46,8 @@ def google_oauth_callback(request: Request):
                 "/login?google=ok",
                 status_code=303,
             )
-        return RedirectResponse("/app/m/salud?tab=hoy&google=ok", status_code=303)
+        return RedirectResponse("/app/configuracion?tab=conexiones&google=ok", status_code=303)
     return RedirectResponse(
-        f"/app/m/salud?tab=hoy&google=err&msg={quote((msg or 'error')[:120])}",
+        f"/app/configuracion?tab=conexiones&google=err&msg={quote((msg or 'error')[:120])}",
         status_code=303,
     )

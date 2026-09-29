@@ -62,7 +62,8 @@ def test_planificador_pagina(web_client):
     r = web_client.get("/app/planificador")
     assert r.status_code == 200
     assert b"Planificador" in r.content
-    assert b"week-start" in r.content
+    assert b"week-start" not in r.content
+    assert b'action="/app/planificador/inicio"' not in r.content
     assert b"chip-google" in r.content
     assert b"chip-local" in r.content
     assert b'for="plan-title"' in r.content
@@ -156,10 +157,13 @@ def test_planificador_mezcla_google(web_client, monkeypatch):
 def test_planificador_semana_domingo(web_client):
     _onboard(web_client)
     r = web_client.post(
-        "/app/planificador/inicio",
-        data={"week_start": "dom"},
-        follow_redirects=True,
+        "/app/configuracion",
+        data={"seccion": "dia", "week_start": "dom"},
+        follow_redirects=False,
     )
+    assert r.status_code in (303, 307)
+    assert "tab=dia" in r.headers.get("location", "")
+    r = web_client.get("/app/planificador")
     assert r.status_code == 200
     # El primer encabezado de d\u00eda debe ser domingo
     assert b"<strong>Dom</strong>" in r.content

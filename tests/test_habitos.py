@@ -1,4 +1,4 @@
-"""Editor de hábitos en Cuenta › Mi sistema."""
+"""Editor de hábitos en Cuenta › Configuración › Día."""
 from __future__ import annotations
 
 import tempfile
@@ -60,26 +60,40 @@ def _hoy_body(client) -> str:
 
 def test_crear_editar_archivar_reactivar(web_client):
     _onboard(web_client)
-    r = web_client.post(
+    dia = web_client.get("/app/configuracion?tab=dia").text
+    assert 'action="/app/configuracion/habitos"' in dia
+    assert "Nuevo hábito" in dia
+    coach = web_client.get("/app/coach").text
+    assert "/app/coach/habitos" not in coach
+    assert "Nuevo hábito" not in coach
+    viejo = web_client.post(
         "/app/coach/habitos",
+        data={"label": "Desde el coach"},
+        follow_redirects=False,
+    )
+    assert viejo.status_code == 404
+
+    r = web_client.post(
+        "/app/configuracion/habitos",
         data={"label": "Oración matutina", "emoji": "🙏", "hora": "05:45"},
         follow_redirects=True,
     )
     assert r.status_code == 200
     body = r.content.decode()
     assert "Oración matutina» agregado" in body
+    assert 'name="seccion" value="dia"' in body
     assert 'id="hab-label-oracion_matutina"' in body
     assert 'value="05:45"' in body
     assert 'id="hab-oracion_matutina"' in _hoy_body(web_client)
 
-    r = web_client.post("/app/coach/habitos", data={"label": "oración matutina"}, follow_redirects=True)
+    r = web_client.post("/app/configuracion/habitos", data={"label": "oración matutina"}, follow_redirects=True)
     assert "Ya tienes un hábito con ese nombre" in r.content.decode()
 
-    r = web_client.post("/app/coach/habitos", data={"label": "Correr", "hora": "25:00"}, follow_redirects=True)
+    r = web_client.post("/app/configuracion/habitos", data={"label": "Correr", "hora": "25:00"}, follow_redirects=True)
     assert "HH:MM" in r.content.decode()
 
     r = web_client.post(
-        "/app/coach/habitos/oracion_matutina/editar",
+        "/app/configuracion/habitos/oracion_matutina/editar",
         data={"label": "Oración y lectura", "emoji": "📖", "hora": ""},
         follow_redirects=True,
     )
@@ -92,7 +106,7 @@ def test_crear_editar_archivar_reactivar(web_client):
 
     uid = int(autenticar_usuario("ritual_user", "password1")["id"])
 
-    r = web_client.post("/app/coach/habitos/oracion_matutina/archivar", follow_redirects=True)
+    r = web_client.post("/app/configuracion/habitos/oracion_matutina/archivar", follow_redirects=True)
     body = r.content.decode()
     assert "historial se conserva" in body
     assert "Archivados (1)" in body
@@ -104,7 +118,7 @@ def test_crear_editar_archivar_reactivar(web_client):
     )
     assert rows and int(rows[0]["completado"]) == 1
 
-    web_client.post("/app/coach/habitos/oracion_matutina/reactivar")
+    web_client.post("/app/configuracion/habitos/oracion_matutina/reactivar")
     assert 'id="hab-oracion_matutina"' in _hoy_body(web_client)
 
 
@@ -117,7 +131,7 @@ def test_claves_unicas_y_aisladas_por_usuario():
 
 def test_no_edita_habitos_de_otro_usuario(web_client):
     _onboard(web_client)
-    web_client.post("/app/coach/habitos", data={"label": "Privado"})
+    web_client.post("/app/configuracion/habitos", data={"label": "Privado"})
     from app.ritual import actualizar_habito, listar_habitos_config
 
     ok, msg = actualizar_habito("privado", "Hackeado", user_id=999)

@@ -146,13 +146,13 @@ def help_text(*, linked: bool = True) -> str:
         "• /deshacer — lo último que guardé\n"
         "• /ayuda dinero — también cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos, alma\n\n"
         "Texto suelto («35 en super») o una nota de voz también sirven.\n"
-        "Desvincular: en la app, en Cuenta → Telegram y usuarios."
+        "Desvincular: en la app, en Cuenta → Configuración → Conexiones."
     )
     if linked:
         return body
     return (
         "Este chat no está vinculado a Mission Dashboard.\n"
-        "Entra a la app → Cuenta → Telegram y usuarios, genera un código y pulsa Start "
+        "Entra a la app → Cuenta → Configuración → Conexiones, genera un código y pulsa Start "
         "(o manda el código de 6 dígitos).\n\n"
         + body
     )
@@ -827,7 +827,7 @@ def handle_inbound(
             return reply(help_text(linked=False), keyboard=False)
         return reply(
             "Este Telegram no está vinculado a Mission Dashboard. "
-            "Entra a la app → Cuenta → Telegram y usuarios, genera un código y pulsa Start en el bot "
+            "Entra a la app → Cuenta → Configuración → Conexiones, genera un código y pulsa Start en el bot "
             "(o manda el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot."
         )
 
