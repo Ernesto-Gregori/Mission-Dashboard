@@ -59,7 +59,15 @@
       {% for e in foco_items %}
       <li class="foco-item origen-{{ e.origen }} kind-{{ e.kind }}">
         <time>{{ (e.hora_inicio or '—')[:5] }}{% if e.hora_fin %}–{{ e.hora_fin[:5] }}{% endif %}</time>
-        <span>{{ e.titulo }}{% if e.completado %} ✓{% endif %}</span>
+        <div>{{ e.titulo }}{% if e.completado %} ✓{% endif %}
+          {% if e.ref and not e.completado %}
+          <form method="post" action="/app/completar" class="inline-form">
+            <input type="hidden" name="kind" value="{{ e.kind }}" />
+            <input type="hidden" name="ref" value="{{ e.ref }}" />
+            <button class="btn secondary" type="submit">Hecho</button>
+          </form>
+          {% endif %}
+        </div>
         {% if e.origen == 'google' %}<span class="chip chip-google">📅</span>
         {% elif e.kind == 'entrenamiento' %}<span class="chip chip-salud">salud</span>
         {% elif e.origen == 'matrimonio' %}<span class="chip chip-mat">💑</span>
