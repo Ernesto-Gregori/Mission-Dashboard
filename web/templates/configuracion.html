@@ -16,6 +16,9 @@
   <a href="/app/configuracion?tab=rueda" class="{% if tab == 'rueda' %}active{% endif %}"{% if tab == 'rueda' %} aria-current="page"{% endif %}>Rueda</a>
   <a href="/app/configuracion?tab=conexiones" class="{% if tab == 'conexiones' %}active{% endif %}"{% if tab == 'conexiones' %} aria-current="page"{% endif %}>Conexiones</a>
   <a href="/app/configuracion?tab=datos" class="{% if tab == 'datos' %}active{% endif %}"{% if tab == 'datos' %} aria-current="page"{% endif %}>Datos</a>
+  {% if is_admin %}
+  <a href="/app/configuracion?tab=usuarios" class="{% if tab == 'usuarios' %}active{% endif %}"{% if tab == 'usuarios' %} aria-current="page"{% endif %}>Usuarios</a>
+  {% endif %}
 </nav>
 
 {% if tab == 'areas' %}
@@ -358,6 +361,133 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
   {% endif %}
   {% endif %}
   {% endif %}
+</section>
+{% elif tab == 'usuarios' and is_admin %}
+<section>
+  <div class="card">
+    <h2>Usuarios registrados</h2>
+    {% if not usuarios %}
+    <p class="muted">No hay usuarios.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for u in usuarios %}
+      <li>
+        <span>
+          <strong>{{ u.username }}</strong>
+          · rol <code>{{ u.rol }}</code>
+          · plan <code>{{ u.plan or 'free' }}</code>
+          · {% if u.activo %}activo{% else %}inactivo{% endif %}
+          {% if u.plan_expira_en %}<br><span class="muted">expira {{ u.plan_expira_en }}</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Cambiar plan (manual)</h2>
+    <p class="muted">Útil si Stripe no está activo o para overrides.</p>
+    <form class="user-plan-form" method="post" action="/app/usuarios/plan">
+      <div class="users-form-grid plan-grid">
+        <div>
+          <label for="plan-user">Usuario</label>
+          <select id="plan-user" name="user_id" required>
+            {% for u in usuarios %}
+            <option value="{{ u.id }}">{{ u.username }} (id={{ u.id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="plan-name">Plan</label>
+          <select id="plan-name" name="plan">
+            {% for p in planes_validos %}
+            <option value="{{ p }}" {% if p == 'premium' %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="plan-expiry">Expira (YYYY-MM-DD)</label>
+          <input id="plan-expiry" name="expira" placeholder="Vacío = sin fecha" />
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn" type="submit">Actualizar plan</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Agregar usuario</h2>
+    <p class="muted">Usuario 3–32 (a-z, 0-9, _). Contraseña mín. 8. Empiezan en Free salvo que elijas otro plan; al entrar ven el Coach.</p>
+    <form class="user-create-form" method="post" action="/app/usuarios/crear">
+      <div class="users-form-grid cols-2">
+        <div>
+          <label for="new-user-username">Usuario *</label>
+          <input id="new-user-username" name="username" required placeholder="Ej: esposa" autocomplete="off" />
+        </div>
+        <div>
+          <label for="new-user-role">Rol</label>
+          <select id="new-user-role" name="rol">
+            <option value="usuario">usuario</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="users-form-grid cols-3">
+        <div>
+          <label for="new-user-password">Contraseña *</label>
+          <input id="new-user-password" name="password" type="password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div>
+          <label for="new-user-password-confirm">Repetir *</label>
+          <input id="new-user-password-confirm" name="password2" type="password" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div>
+          <label for="new-user-plan">Plan inicial</label>
+          <select id="new-user-plan" name="plan">
+            {% for p in planes_validos %}
+            <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn" type="submit">Agregar usuario</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Exportar backup</h2>
+    <p class="muted">
+      JSON de tablas clave en <code>data/backups/</code>
+      (útil antes de migrar o tocar producción).
+    </p>
+    <form method="post" action="/app/usuarios/backup">
+      <button class="btn" type="submit">Exportar backup ahora</button>
+    </form>
+    {% if backup_path %}
+    <div class="flash-ok backup-result" role="status">Archivo: <code>{{ backup_path }}</code></div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Auditoría reciente</h2>
+    <p class="muted">Últimas acciones sensibles (finanzas / usuarios).</p>
+    {% if not auditoria %}
+    <p class="muted">Sin eventos aún.</p>
+    {% else %}
+    <ul class="agenda-ev-list">
+      {% for r in auditoria %}
+      <li>
+        <span>
+          {{ r.creado_en or '—' }}
+          · {{ r.username or '—' }}{% if not r.username and r.user_id %} (user#{{ r.user_id }}){% endif %}
+          · <strong>{{ r.accion }}</strong>
+          · {{ r.entidad or '' }} {{ r.entidad_id or '' }}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
 </section>
 {% else %}
 <section class="card" aria-labelledby="datos-title">

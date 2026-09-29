@@ -6,94 +6,52 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.audit import listar_auditoria
 from app.backup import exportar_backup_json
-from app.billing import (
-    PLAN_FREE,
-    PLANES_VALIDOS,
-    limites,
-    plan_vigente,
-    puede_telegram,
-    resumen_plan_ui,
-    payments_configured,
-    set_plan,
-)
+from app.billing import plan_vigente, puede_telegram, set_plan
 from app.database import crear_usuario, listar_usuarios
 from app.multiuser import provision_user_defaults
 from app.stability import invalidate_data_caches
-from app.db.telegram_state import (
-    BRIEFING_EXTRAS,
-    RECORDATORIO_OPCIONES,
-    guardar_prefs_briefing,
-    guardar_recordatorio_min,
-    prefs_briefing,
-    recordatorio_min,
-)
-from app.telegram import deep_link, ensure_telegram_schema, link_status, start_link, unlink
+from app.db.telegram_state import guardar_prefs_briefing, guardar_recordatorio_min
+from app.telegram import ensure_telegram_schema, start_link, unlink
 from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/usuarios", tags=["usuarios"])
-
-TABS = ("telegram", "gestion", "backup", "auditoria")
-
-
-def _tab(request: Request, user: dict) -> str:
-    t = (request.query_params.get("tab") or request.session.get("usr_tab") or "telegram").lower()
-    if t not in TABS:
-        t = "telegram"
-    if user.get("rol") != "admin" and t != "telegram":
-        t = "telegram"
-    request.session["usr_tab"] = t
-    return t
-
 
 def _is_admin(user: dict) -> bool:
     return str(user.get("rol") or "").lower() == "admin"
 
 
-def _ctx(
+def _pagina(
     request: Request,
     user: dict,
     *,
     flash: str | None = None,
     error: str | None = None,
+    status_code: int = 200,
     backup_path: str | None = None,
 ):
-    tab = _tab(request, user)
-    plan = plan_vigente(user)
-    usuarios = listar_usuarios() if _is_admin(user) else []
-    auditoria = listar_auditoria(limite=30) if _is_admin(user) and tab == "auditoria" else []
+    from web.routers.configuracion import _ctx
 
-    return {
-        "title": "Usuarios",
-        "user": user,
-        "tab": tab,
-        "flash": flash,
-        "error": error,
-        "backup_path": backup_path,
-        "is_admin": _is_admin(user),
-        "plan": plan,
-        "plan_label": limites(plan)["nombre"],
-        "plan_resumen": resumen_plan_ui(user),
-        "plan_free": PLAN_FREE,
-        "lim_free": limites(PLAN_FREE),
-        "stripe_ok": payments_configured(),
-        "usuarios": usuarios,
-        "planes_validos": list(PLANES_VALIDOS),
-        "auditoria": auditoria,
-        "tg_link": link_status(int(user["id"])),
-        "puede_telegram": puede_telegram(plan),
-        "tg_code": request.session.get("tg_code"),
-        "tg_deep_link": deep_link(request.session.get("tg_code") or ""),
-        "tg_recordatorio_min": recordatorio_min(int(user["id"])),
-        "tg_recordatorio_opciones": RECORDATORIO_OPCIONES,
-        "tg_briefing": prefs_briefing(int(user["id"])),
-        "tg_briefing_extras": BRIEFING_EXTRAS,
-    }
-
-
-def _redirect(tab: str = "telegram") -> RedirectResponse:
-    return RedirectResponse(f"/app/usuarios?tab={tab}", status_code=303)
+    if not _is_admin(user):
+        return render(
+            request,
+            "configuracion.html",
+            status_code=403,
+            **_ctx(request, user, error=error or "Solo administradores.", tab="areas"),
+        )
+    return render(
+        request,
+        "configuracion.html",
+        status_code=status_code,
+        **_ctx(
+            request,
+            user,
+            flash=flash,
+            error=error,
+            tab="usuarios",
+            backup_path=backup_path,
+        ),
+    )
 
 
 def _conexiones(request: Request, user: dict, *, flash: str | None = None, error: str | None = None, status_code: int = 200, fragment: bool = False):
@@ -118,19 +76,16 @@ def _conexiones(request: Request, user: dict, *, flash: str | None = None, error
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def usuarios_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
-    return render(request, "usuarios.html", **_ctx(request, user))
+    tab = str(request.query_params.get("tab") or "").lower()
+    if tab == "telegram" or not _is_admin(user):
+        return RedirectResponse("/app/configuracion?tab=conexiones", status_code=303)
+    return RedirectResponse("/app/configuracion?tab=usuarios", status_code=303)
 
 
 @router.post("/crear")
 async def crear(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     if not _is_admin(user):
-        return render(
-            request,
-            "usuarios.html",
-            status_code=403,
-            **_ctx(request, user, error="Solo administradores."),
-        )
-    request.session["usr_tab"] = "gestion"
+        return _pagina(request, user, error="Solo administradores.")
     form = await request.form()
     username = str(form.get("username") or "").strip()
     password = str(form.get("password") or "")
@@ -138,20 +93,10 @@ async def crear(request: Request, user: Annotated[dict, Depends(require_onboarde
     rol = str(form.get("rol") or "usuario")
     plan = str(form.get("plan") or "free")
     if password != password2:
-        return render(
-            request,
-            "usuarios.html",
-            status_code=400,
-            **_ctx(request, user, error="Las contraseñas no coinciden."),
-        )
+        return _pagina(request, user, error="Las contraseñas no coinciden.", status_code=400)
     ok, msg = crear_usuario(username, password, rol=rol, plan=plan)
     if not ok:
-        return render(
-            request,
-            "usuarios.html",
-            status_code=400,
-            **_ctx(request, user, error=msg),
-        )
+        return _pagina(request, user, error=msg, status_code=400)
     try:
         rows = listar_usuarios()
         nuevo = next(
@@ -163,43 +108,23 @@ async def crear(request: Request, user: Annotated[dict, Depends(require_onboarde
     except Exception:
         pass
     invalidate_data_caches()
-    return render(
-        request,
-        "usuarios.html",
-        **_ctx(request, user, flash=f"{msg}: {username.strip().lower()} (plan {plan})"),
-    )
+    return _pagina(request, user, flash=f"{msg}: {username.strip().lower()} (plan {plan})")
 
 
 @router.post("/plan")
 async def cambiar_plan(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     if not _is_admin(user):
-        return render(
-            request,
-            "usuarios.html",
-            status_code=403,
-            **_ctx(request, user, error="Solo administradores."),
-        )
-    request.session["usr_tab"] = "gestion"
+        return _pagina(request, user, error="Solo administradores.")
     form = await request.form()
     try:
         uid = int(form.get("user_id"))
     except Exception:
-        return render(
-            request,
-            "usuarios.html",
-            status_code=400,
-            **_ctx(request, user, error="Usuario inválido."),
-        )
+        return _pagina(request, user, error="Usuario inválido.", status_code=400)
     plan = str(form.get("plan") or "free")
     expira = str(form.get("expira") or "").strip() or None
     ok, msg = set_plan(uid, plan, expira)
     if not ok:
-        return render(
-            request,
-            "usuarios.html",
-            status_code=400,
-            **_ctx(request, user, error=msg),
-        )
+        return _pagina(request, user, error=msg, status_code=400)
     # Refrescar sesión si el admin se cambió el plan a sí mismo
     if int(user["id"]) == uid:
         from app.database import obtener_usuario_activo
@@ -209,41 +134,17 @@ async def cambiar_plan(request: Request, user: Annotated[dict, Depends(require_o
         if fresh:
             login_user(request, fresh)
             user = fresh
-    return render(
-        request,
-        "usuarios.html",
-        **_ctx(request, user, flash=msg),
-    )
+    return _pagina(request, user, flash=msg)
 
 
 @router.post("/backup")
 async def backup(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     if not _is_admin(user):
-        return render(
-            request,
-            "usuarios.html",
-            status_code=403,
-            **_ctx(request, user, error="Solo administradores."),
-        )
-    request.session["usr_tab"] = "backup"
+        return _pagina(request, user, error="Solo administradores.")
     path = exportar_backup_json(tag="manual")
     if not path:
-        return render(
-            request,
-            "usuarios.html",
-            status_code=500,
-            **_ctx(request, user, error="No se pudo crear el backup."),
-        )
-    return render(
-        request,
-        "usuarios.html",
-        **_ctx(
-            request,
-            user,
-            flash="Backup creado.",
-            backup_path=str(path),
-        ),
-    )
+        return _pagina(request, user, error="No se pudo crear el backup.", status_code=500)
+    return _pagina(request, user, flash="Backup creado.", backup_path=str(path))
 
 
 @router.post("/telegram/vincular")

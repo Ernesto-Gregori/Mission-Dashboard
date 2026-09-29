@@ -71,6 +71,7 @@ CATALOGO = {
     "Mi sistema": "My system",
     "Editar hábitos": "Edit habits",
     "Plan y cobros": "Plan and billing",
+    "Usuarios": "Users",
     "Telegram y usuarios": "Telegram and users",
     "Familia": "Family",
     # Auth

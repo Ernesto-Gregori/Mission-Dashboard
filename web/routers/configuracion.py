@@ -36,7 +36,7 @@ from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/configuracion", tags=["configuracion"])
 
-PESTANAS = ("areas", "dia", "dinero", "rueda", "conexiones", "datos")
+PESTANAS = ("areas", "dia", "dinero", "rueda", "conexiones", "datos", "usuarios")
 _SECCIONES = ("areas", "dia", "dinero", "rueda")
 
 
@@ -64,6 +64,33 @@ _SALUD = (
 )
 
 
+def _es_admin(user: dict) -> bool:
+    return str(user.get("rol") or "").lower() == "admin"
+
+
+def _ctx_admin(user: dict, tab: str, backup_path: str | None) -> dict:
+    vacio = {
+        "is_admin": _es_admin(user),
+        "usuarios": [],
+        "planes_validos": [],
+        "auditoria": [],
+        "backup_path": None,
+    }
+    if tab != "usuarios" or not vacio["is_admin"]:
+        return vacio
+    from app.audit import listar_auditoria
+    from app.billing import PLANES_VALIDOS
+    from app.database import listar_usuarios
+
+    return {
+        "is_admin": True,
+        "usuarios": listar_usuarios(),
+        "planes_validos": list(PLANES_VALIDOS),
+        "auditoria": listar_auditoria(limite=30),
+        "backup_path": backup_path,
+    }
+
+
 def _ctx(
     request: Request,
     user: dict,
@@ -71,6 +98,7 @@ def _ctx(
     error: str | None = None,
     flash: str | None = None,
     tab: str = "areas",
+    backup_path: str | None = None,
 ) -> dict:
     uid = int(user["id"])
     filas = {r["modulo"]: r for r in listar_modulos_usuario(uid)}
@@ -125,6 +153,7 @@ def _ctx(
         "pestanas": PESTANAS,
         "week_start": _week_start(uid),
         **_ctx_conexiones(user, tab),
+        **_ctx_admin(user, tab if tab in PESTANAS else "areas", backup_path),
     }
 
 
@@ -188,6 +217,8 @@ def _tab_pedido(request: Request) -> str:
 @router.get("/", response_class=HTMLResponse)
 def configuracion_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     tab = _tab_pedido(request)
+    if tab == "usuarios" and not _es_admin(user):
+        tab = "areas"
     flash = None
     error = None
     if tab == "conexiones":

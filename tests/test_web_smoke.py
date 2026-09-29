@@ -605,14 +605,21 @@ def test_usuarios_admin_crear_plan_backup(web_client):
         follow_redirects=False,
     )
 
-    r = web_client.get("/app/usuarios")
+    r = web_client.get("/app/usuarios", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/app/configuracion?tab=usuarios"
+    r = web_client.get("/app/configuracion?tab=usuarios")
     assert r.status_code == 200, r.text[:500]
-    assert b"Usuarios" in r.content or b"plan" in r.content.lower()
-    assert b"/app/usuarios" in r.content or b"Gesti" in r.content
-    assert b'class="users-page-header"' in r.content
+    assert b'class="user-create-form"' in r.content
+    assert b"Exportar backup" in r.content
+    assert b"Auditor" in r.content
+    areas = web_client.get("/app/configuracion")
+    assert b'href="/app/configuracion?tab=usuarios"' in areas.content
+    assert b'class="user-create-form"' not in areas.content
 
     r = web_client.get("/app/usuarios?tab=gestion")
     assert r.status_code == 200
+    assert "tab=usuarios" in str(r.url)
     assert b"usr_admin" in r.content
     assert b'class="user-plan-form"' in r.content
     assert b'class="user-create-form"' in r.content
@@ -652,6 +659,55 @@ def test_usuarios_admin_crear_plan_backup(web_client):
     r = web_client.post("/app/usuarios/backup", follow_redirects=True)
     assert r.status_code == 200
     assert b"Backup" in r.content or b"backup" in r.content
+    assert b"backup-result" in r.content
+
+
+def test_usuario_no_admin_no_ve_la_gestion(web_client):
+    _setup_user(web_client, "usr_owner")
+    web_client.post(
+        "/app/coach/activar",
+        data={"modulos": ["finanzas"]},
+        follow_redirects=False,
+    )
+    creado = web_client.post(
+        "/app/usuarios/crear",
+        data={
+            "username": "invitado",
+            "password": "password1",
+            "password2": "password1",
+            "rol": "usuario",
+            "plan": "free",
+        },
+        follow_redirects=False,
+    )
+    assert creado.status_code == 200
+    from app.db.core import ejecutar
+
+    ejecutar("UPDATE usuarios SET onboarding_completo = 1 WHERE username = 'invitado'")
+    web_client.post("/logout", follow_redirects=False)
+    login = web_client.post(
+        "/login",
+        data={"username": "invitado", "password": "password1"},
+        follow_redirects=False,
+    )
+    assert login.status_code in (303, 307)
+    pagina = web_client.get("/app/configuracion?tab=usuarios")
+    assert pagina.status_code == 200
+    assert b'class="user-create-form"' not in pagina.content
+    assert b'href="/app/configuracion?tab=usuarios"' not in pagina.content
+    prohibido = web_client.post(
+        "/app/usuarios/crear",
+        data={
+            "username": "otro",
+            "password": "password1",
+            "password2": "password1",
+            "rol": "admin",
+            "plan": "premium",
+        },
+        follow_redirects=False,
+    )
+    assert prohibido.status_code == 403
+    assert b'class="user-create-form"' not in prohibido.content
 
 
 def test_biblioteca_catalogo_y_progreso(web_client):
