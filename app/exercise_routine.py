@@ -10,7 +10,7 @@ log = get_logger("exercise_routine")
 
 SYSTEM_COACH_RUTINA = (
     "Eres un coach de fuerza y acondicionamiento. Hablas español, eres concreto "
-    "y armás rutinas que se pueden seguir como en una app de entrenamiento: "
+    "y armas rutinas que se pueden seguir como en una app de entrenamiento: "
     "días, ejercicios, series, repeticiones y descanso. "
     "No recetes suplementos ni dietas. No inventes máquinas que el usuario no tiene."
 )

@@ -46,7 +46,7 @@
       {% else %}
         {% for m in mensajes %}
         <article class="alma-bubble alma-{{ m.rol }}">
-          <p class="alma-meta">{% if m.rol == 'user' %}Vos{% else %}Alma{% endif %}{% if m.categorias %} · {% for c in m.categorias %}{{ categorias[c][1] }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</p>
+          <p class="alma-meta">{% if m.rol == 'user' %}Tú{% else %}Alma{% endif %}{% if m.categorias %} · {% for c in m.categorias %}{{ categorias[c][1] }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</p>
           <p class="alma-body">{{ m.contenido }}</p>
         </article>
         {% endfor %}

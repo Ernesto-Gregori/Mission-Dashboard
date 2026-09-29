@@ -183,7 +183,7 @@ SILENCIO = Accion(
     clave="silencio",
     comandos=("/silencio",),
     ejecutar=_ejecutar_silencio,
-    uso="Usá /silencio, /silencio 3 o /silencio 0 para reanudar.",
+    uso="Usa /silencio, /silencio 3 o /silencio 0 para reanudar.",
     parse=_parse_silencio,
 )
 

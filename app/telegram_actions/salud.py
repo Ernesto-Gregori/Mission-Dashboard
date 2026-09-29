@@ -48,7 +48,7 @@ SUENO = Accion(
     comandos=("/sueno", "/sueño"),
     modulo="salud",
     ejecutar=_ejecutar_sueno,
-    uso="Usá las horas. Ejemplo: /sueno 7.5 calidad 4",
+    uso="Usa las horas. Ejemplo: /sueno 7.5 calidad 4",
     parse=_parse_sueno,
 )
 
@@ -73,7 +73,7 @@ ENERGIA = Accion(
     comandos=("/energia",),
     modulo="salud",
     ejecutar=_ejecutar_energia,
-    uso="Usá un número del 1 al 5. Ejemplo: /energia 4  o  /energia tarde 3",
+    uso="Usa un número del 1 al 5. Ejemplo: /energia 4  o  /energia tarde 3",
     parse=_parse_energia,
 )
 
@@ -109,7 +109,7 @@ EJERCICIO = Accion(
     comandos=("/ejercicio",),
     modulo="salud",
     ejecutar=_ejecutar_ejercicio,
-    uso="Decime qué hiciste. Ejemplo: /ejercicio pierna 45 min",
+    uso="Dime qué hiciste. Ejemplo: /ejercicio pierna 45 min",
     parse=_parse_ejercicio,
 )
 
@@ -140,7 +140,7 @@ def _rutina(ctx: Contexto, _datos: dict) -> Respuesta:
 
     rutina = obtener_routine(ctx.user_id)
     if not rutina:
-        return Respuesta("No tenés una rutina guardada. Se arma en la app, en Cuerpo → Rutina.")
+        return Respuesta("No tienes una rutina guardada. Se arma en la app, en Cuerpo → Rutina.")
     dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     hoy_nombre = dias[hoy().weekday()]
     plan = rutina.get("plan") or {}

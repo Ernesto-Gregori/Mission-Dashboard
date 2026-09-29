@@ -18,26 +18,26 @@ FRASES = {
     ),
     "Desvincular: en la app, en Cuenta → Telegram y usuarios.": "Unlink: in the app, under Account → Telegram and users.",
     "Este chat no está vinculado a Mission Dashboard.": "This chat is not linked to Mission Dashboard.",
-    "Entrá a la app → Cuenta → Telegram y usuarios, generá un código y pulsá Start (o mandá el código de 6 dígitos).": (
+    "Entra a la app → Cuenta → Telegram y usuarios, genera un código y pulsa Start (o manda el código de 6 dígitos).": (
         "Open the app → Account → Telegram and users, generate a code and tap Start (or send the 6-digit code)."
     ),
-    "Este Telegram no está vinculado a Mission Dashboard. Entrá a la app → Cuenta → Telegram y usuarios, generá un código y pulsá Start en el bot (o mandá el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot.": (
+    "Este Telegram no está vinculado a Mission Dashboard. Entra a la app → Cuenta → Telegram y usuarios, genera un código y pulsa Start en el bot (o manda el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot.": (
         "This Telegram is not linked to Mission Dashboard. Open the app → Account → Telegram and users, generate a code and tap Start on the bot (or send the 6-digit code). /ayuda lists what the bot can do."
     ),
     "Tu cuenta está inactiva.": "Your account is inactive.",
-    "Telegram requiere plan Premium. Activalo en /app/billing — no ejecuté ninguna acción.": (
+    "Telegram requiere plan Premium. Actívalo en /app/billing — no ejecuté ninguna acción.": (
         "Telegram requires a Premium plan. Turn it on at /app/billing — I did not run anything."
     ),
-    "No pude transcribir el audio. Probá en texto o /ayuda.": "I couldn't transcribe the audio. Try text or /ayuda.",
+    "No pude transcribir el audio. Prueba en texto o /ayuda.": "I couldn't transcribe the audio. Try text or /ayuda.",
     "Hubo un error procesando el mensaje. No se guardó nada.": "There was an error processing the message. Nothing was saved.",
     "No entendí, así que no guardé nada.": "I didn't understand, so I saved nothing.",
-    "Probá: «35 en super», «/tarea mañana 5pm llamar al banco» o /briefing.": (
+    "Prueba: «35 en super», «/tarea mañana 5pm llamar al banco» o /briefing.": (
         "Try: «35 en super», «/tarea mañana 5pm llamar al banco» or /briefing."
     ),
     "/ayuda muestra todos los comandos.": "/ayuda lists every command.",
     "Ya estás vinculado.": "You are already linked.",
     "Ese tema no tiene comandos.": "That topic has no commands.",
-    "No conozco ese tema. Probá /ayuda dinero, cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos o alma.": (
+    "No conozco ese tema. Prueba /ayuda dinero, cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos o alma.": (
         "I don't know that topic. Try /ayuda dinero, cuerpo, enfoque, lectura, espiritualidad, relaciones, agenda, habitos or alma."
     ),
     "Esa área no tiene comandos.": "That area has no commands.",
@@ -68,34 +68,34 @@ FRASES = {
     "✅ Sí": "✅ Yes",
     "✖️ No": "✖️ No",
     # Ayuda por módulo (el uso, suelto o detrás de « — »)
-    "Usá /silencio, /silencio 3 o /silencio 0 para reanudar.": "Use /silencio, /silencio 3, or /silencio 0 to resume.",
-    "Decime cuál. Ejemplo: /hecho leer  (o «ya leí»).": "Tell me which one. Example: /hecho leer  (or «ya leí»).",
-    "Escribí el mensaje. Ejemplo: /alma cómo viene mi semana": "Write the message. Example: /alma cómo viene mi semana",
-    "Escribí la nota. Ejemplo: /nota le gusta el café de la esquina": (
+    "Usa /silencio, /silencio 3 o /silencio 0 para reanudar.": "Use /silencio, /silencio 3, or /silencio 0 to resume.",
+    "Dime cuál. Ejemplo: /hecho leer  (o «ya leí»).": "Tell me which one. Example: /hecho leer  (or «ya leí»).",
+    "Escribe el mensaje. Ejemplo: /alma cómo viene mi semana": "Write the message. Example: /alma cómo viene mi semana",
+    "Escribe la nota. Ejemplo: /nota le gusta el café de la esquina": (
         "Write the note. Example: /nota le gusta el café de la esquina"
     ),
-    "Decime los minutos. Ejemplo: /conexion 30": "Tell me the minutes. Example: /conexion 30",
-    "Usá un título y hora. Ejemplo: /tarea mañana 5pm llamar al banco.": (
+    "Dime los minutos. Ejemplo: /conexion 30": "Tell me the minutes. Example: /conexion 30",
+    "Usa un título y hora. Ejemplo: /tarea mañana 5pm llamar al banco.": (
         "Use a title and a time. Example: /tarea mañana 5pm llamar al banco."
     ),
     "Primero /agenda, después /mover 2 18:00.": "First /agenda, then /mover 2 18:00.",
     "Primero /agenda, después /cancelar 2.": "First /agenda, then /cancelar 2.",
-    "Usá un monto. Ejemplo: /gasto 35 super  (o «35 en supermercado»).": (
+    "Usa un monto. Ejemplo: /gasto 35 super  (o «35 en supermercado»).": (
         "Use an amount. Example: /gasto 35 super  (or «35 en supermercado»)."
     ),
-    "Usá un monto. Ejemplo: /ingreso 800": "Use an amount. Example: /ingreso 800",
+    "Usa un monto. Ejemplo: /ingreso 800": "Use an amount. Example: /ingreso 800",
     "Primero /gastos, después /borrar 2.": "First /gastos, then /borrar 2.",
-    "Decime el producto. Ejemplo: /precio leche": "Tell me the product. Example: /precio leche",
-    "Escribí el pedido. Ejemplo: /orar salud de mamá": "Write the request. Example: /orar salud de mamá",
+    "Dime el producto. Ejemplo: /precio leche": "Tell me the product. Example: /precio leche",
+    "Escribe el pedido. Ejemplo: /orar salud de mamá": "Write the request. Example: /orar salud de mamá",
     "Primero /oraciones, después /respondida 1.": "First /oraciones, then /respondida 1.",
-    "Decime el libro y la página. Ejemplo: /leer El Hobbit 40": (
+    "Dime el libro y la página. Ejemplo: /leer El Hobbit 40": (
         "Tell me the book and the page. Example: /leer El Hobbit 40"
     ),
-    "Usá las horas. Ejemplo: /sueno 7.5 calidad 4": "Use the hours. Example: /sueno 7.5 calidad 4",
-    "Usá un número del 1 al 5. Ejemplo: /energia 4  o  /energia tarde 3": (
+    "Usa las horas. Ejemplo: /sueno 7.5 calidad 4": "Use the hours. Example: /sueno 7.5 calidad 4",
+    "Usa un número del 1 al 5. Ejemplo: /energia 4  o  /energia tarde 3": (
         "Use a number from 1 to 5. Example: /energia 4  or  /energia tarde 3"
     ),
-    "Decime qué hiciste. Ejemplo: /ejercicio pierna 45 min": "Tell me what you did. Example: /ejercicio pierna 45 min",
+    "Dime qué hiciste. Ejemplo: /ejercicio pierna 45 min": "Tell me what you did. Example: /ejercicio pierna 45 min",
     # Briefing y hábitos
     "Agenda: sin eventos.": "Calendar: no events.",
     "Hábitos: al día.": "Habits: all done.",
@@ -105,12 +105,12 @@ FRASES = {
     "Relaciones: sin cita hoy.": "Relationships: no date today.",
     "Cuerpo: sin registro hoy.": "Body: no log today.",
     "Listo: el briefing de la mañana vuelve cuando le toque.": "Done: the morning briefing returns on its next slot.",
-    "No tenés hábitos activos. Se crean en la app, en Cuenta → Mi sistema.": "You have no active habits. They are created in the app, under Account → My system.",
+    "No tienes hábitos activos. Se crean en la app, en Cuenta → Mi sistema.": "You have no active habits. They are created in the app, under Account → My system.",
     "Hábitos de hoy": "Today's habits",
     "Para marcar: /hecho leer  (o «ya leí»).": "To check one off: /hecho leer  (or «ya leí»).",
     "Ese hábito ya no está. No marqué nada.": "That habit is gone. I checked nothing off.",
     # Finanzas, agenda, salud y el resto de las respuestas fijas
-    "No estaba claro el rubro; usé el de por defecto. Tocá para cambiarlo.": (
+    "No estaba claro el rubro; usé el de por defecto. Toca para cambiarlo.": (
         "The category was unclear; I used the default. Tap to change it."
     ),
     "Ese rubro no existe. No cambié nada.": "That category does not exist. I changed nothing.",
@@ -118,23 +118,23 @@ FRASES = {
     "No pude guardar el ingreso.": "I couldn't save the income.",
     "No hay gastos anotados.": "No expenses logged.",
     "Últimos gastos. /borrar <n>": "Latest expenses. /borrar <n>",
-    "No encuentro ese número. Mandá /gastos y usá el de la lista.": (
+    "No encuentro ese número. Manda /gastos y usa el de la lista.": (
         "I can't find that number. Send /gastos and use one from the list."
     ),
     "No pude borrar ese gasto.": "I couldn't delete that expense.",
-    "No encuentro ese número. Mandá /agenda primero.": "I can't find that number. Send /agenda first.",
+    "No encuentro ese número. Manda /agenda primero.": "I can't find that number. Send /agenda first.",
     "No pude mover ese evento.": "I couldn't move that event.",
     "No pude cancelar ese evento.": "I couldn't cancel that event.",
     "El catálogo de precios está vacío. No hay nada que comparar.": "The price catalog is empty. There is nothing to compare.",
     "No hay pedidos activos. Ejemplo: /orar salud de mamá": "No active requests. Example: /orar salud de mamá",
     "Oraciones": "Prayers",
     "Para cerrar uno: /respondida 1": "To close one: /respondida 1",
-    "Ese número no está en la lista. Mirá /oraciones. No cambié nada.": (
+    "Ese número no está en la lista. Mira /oraciones. No cambié nada.": (
         "That number is not on the list. See /oraciones. I changed nothing."
     ),
     "No pude actualizar el pedido. No cambié nada.": "I couldn't update the request. I changed nothing.",
     "No pude guardar el pedido. No escribí nada.": "I couldn't save the request. I wrote nothing.",
-    "Hoy no tenés bloques de enfoque. Se arman en la app, en Semana → Enfoque.": (
+    "Hoy no tienes bloques de enfoque. Se arman en la app, en Semana → Enfoque.": (
         "You have no focus blocks today. They are set up in the app, under Week → Focus."
     ),
     "Enfoque de hoy": "Focus today",
@@ -145,7 +145,7 @@ FRASES = {
     "No pude anotar la energía.": "I couldn't log energy.",
     "No pude anotar el ejercicio.": "I couldn't log the workout.",
     "Todavía no hay registros de salud en los últimos 7 días.": "There are no health logs in the last 7 days yet.",
-    "No tenés una rutina guardada. Se arma en la app, en Cuerpo → Rutina.": (
+    "No tienes una rutina guardada. Se arma en la app, en Cuerpo → Rutina.": (
         "You have no saved routine. It is set up in the app, under Body → Routine."
     ),
     "No estás leyendo ningún libro. Se marcan en la app, en Lectura.": (
@@ -153,7 +153,7 @@ FRASES = {
     ),
     "Leyendo": "Reading",
     "Para avanzar: /leer el título y la página.": "To update progress: /leer plus the title and the page.",
-    "Esa lista ya no está. Mandá /leer de nuevo. No cambié nada.": (
+    "Esa lista ya no está. Manda /leer de nuevo. No cambié nada.": (
         "That list is gone. Send /leer again. I changed nothing."
     ),
     "Ese libro ya no está. No cambié nada.": "That book is gone. I changed nothing.",
@@ -204,7 +204,7 @@ PATRONES = [
     (r"^Llamadas de IA este mes: (\d+)$", r"AI calls this month: \1"),
     (r"^Más baratos para «(.+)»$", r"Cheapest for «\1»"),
     (r"^No encontré «(.+)» en el catálogo\.$", r"I couldn't find «\1» in the catalog."),
-    (r"^No encontré un hábito para «(.+)»\. Mirá /habitos\. No marqué nada\.$", (
+    (r"^No encontré un hábito para «(.+)»\. Mira /habitos\. No marqué nada\.$", (
         r"I couldn't find a habit for «\1». See /habitos. I checked nothing off."
     )),
     (r"^«(.+)» coincide con varios\. ¿Cuál, en la página (\d+)\?$", r"«\1» matches several. Which one, on page \2?"),
@@ -230,16 +230,16 @@ PATRONES = [
     (r"^Silencio hasta el (\d{4}-\d{2}-\d{2}) inclusive\. /silencio 0 lo reanuda\.$", (
         r"Quiet until \1 inclusive. /silencio 0 resumes it."
     )),
-    (r"^¿Lo guardo\? Tocá un botón o respondé «sí» / «no» \(vence en (\d+) min\)\.$", (
+    (r"^¿Lo guardo\? Toca un botón o responde «sí» / «no» \(vence en (\d+) min\)\.$", (
         r"Save it? Tap a button or reply yes / no (expires in \1 min)."
     )),
-    (r"^Esa confirmación venció \((\d+) min\)\. No guardé nada; mandalo de nuevo\.$", (
+    (r"^Esa confirmación venció \((\d+) min\)\. No guardé nada; mándalo de nuevo\.$", (
         r"That confirmation expired (\1 min). I saved nothing; send it again."
     )),
     (r"^No hay nada para deshacer \(solo la última acción, hasta (\d+) min\)\.$", (
         r"There is nothing to undo (only the last action, within \1 min)."
     )),
-    (r"^No pude deshacer: (.+)\. Revisalo en la app\.$", r"I couldn't undo: \1. Check it in the app."),
+    (r"^No pude deshacer: (.+)\. Revísalo en la app\.$", r"I couldn't undo: \1. Check it in the app."),
     (r"^Deshice: (.+)\.$", r"Undid: \1."),
     (r"^⏰ Recordatorio: (\d{2}:\d{2}) · (.+)\.$", r"⏰ Reminder: \1 · \2."),
     (r"^⏰ Recordatorio: (.+)\.$", r"⏰ Reminder: \1."),
@@ -255,10 +255,10 @@ PATRONES = [
     (r"^Anoté ejercicio: (.+), (\d+) min\.$", r"Logged workout: \1, \2 min."),
     (r"^Anoté ejercicio: (.+)\.$", r"Logged workout: \1."),
     (r"^📖 (.+), página (\d+)\.$", r"📖 \1, page \2."),
-    (r"^No encontré «(.+)»\. Mirá /leyendo\. No cambié nada\.$", r"I couldn't find «\1». See /leyendo. I changed nothing."),
+    (r"^No encontré «(.+)»\. Mira /leyendo\. No cambié nada\.$", r"I couldn't find «\1». See /leyendo. I changed nothing."),
     (r"^¿Marco el pedido (\d+) como respondido\?$", r"Mark request \1 as answered?"),
     (r"^Marqué «(.+)» como respondido\.$", r"Marked «\1» as answered."),
-    (r"^No conozco el dominio «(.+)»\. No guardé nada\. Usá: (.+)\.$", r"I don't know the area «\1». I saved nothing. Use: \2."),
+    (r"^No conozco el dominio «(.+)»\. No guardé nada\. Usa: (.+)\.$", r"I don't know the area «\1». I saved nothing. Use: \2."),
     (r"^Cuerpo, últimos (\d+) días con registro$", r"Body, last \1 days with a log"),
     (r"^Sueño ([0-9.]+) h · calidad ([0-9.]+)$", r"Sleep \1 h · quality \2"),
     (r"^Energía mañana ([0-9.]+)/5$", r"Morning energy \1/5"),

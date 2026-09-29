@@ -74,7 +74,7 @@ def test_el_ingles_traduce_el_nombre_del_area():
 
     guardada = (
         "El área «Cuerpo» está apagada, así que no guardé nada. "
-        "Activala en la app, en Cuenta → Configuración."
+        "Actívala en la app, en Cuenta → Configuración."
     )
     assert "Body" in traducir_plano(guardada, "en")
     assert traducir_plano("Áreas: Dinero, Cuerpo", "en") == "Areas: Money, Body"

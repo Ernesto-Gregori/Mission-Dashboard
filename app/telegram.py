@@ -39,7 +39,7 @@ CODE_RE = re.compile(r"^\s*(\d{6})\s*$")
 START_RE = re.compile(r"^/start(?:\s+|_)(\d{6})\s*$", re.I)
 NO_ENTENDI = (
     "No entendí, así que no guardé nada.\n"
-    "Probá: «35 en super», «/tarea mañana 5pm llamar al banco» o /briefing.\n"
+    "Prueba: «35 en super», «/tarea mañana 5pm llamar al banco» o /briefing.\n"
     "/ayuda muestra todos los comandos."
 )
 API_BASE = "https://api.telegram.org"
@@ -124,7 +124,7 @@ def ayuda_texto(user_id: int | None, tema: str = "") -> str:
     modulo = _TEMAS_AYUDA.get(pedido)
     if modulo is None:
         return (
-            "No conozco ese tema. Probá /ayuda dinero, cuerpo, enfoque, "
+            "No conozco ese tema. Prueba /ayuda dinero, cuerpo, enfoque, "
             "lectura, espiritualidad, relaciones, agenda, habitos o alma."
         )
     muestra = next((a for a in REGISTRO if a.modulo == modulo), None)
@@ -152,8 +152,8 @@ def help_text(*, linked: bool = True) -> str:
         return body
     return (
         "Este chat no está vinculado a Mission Dashboard.\n"
-        "Entrá a la app → Cuenta → Telegram y usuarios, generá un código y pulsá Start "
-        "(o mandá el código de 6 dígitos).\n\n"
+        "Entra a la app → Cuenta → Telegram y usuarios, genera un código y pulsa Start "
+        "(o manda el código de 6 dígitos).\n\n"
         + body
     )
 
@@ -827,8 +827,8 @@ def handle_inbound(
             return reply(help_text(linked=False), keyboard=False)
         return reply(
             "Este Telegram no está vinculado a Mission Dashboard. "
-            "Entrá a la app → Cuenta → Telegram y usuarios, generá un código y pulsá Start en el bot "
-            "(o mandá el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot."
+            "Entra a la app → Cuenta → Telegram y usuarios, genera un código y pulsa Start en el bot "
+            "(o manda el código de 6 dígitos). /ayuda cuenta qué puede hacer el bot."
         )
 
     idioma_uid["id"] = int(link["user_id"])
@@ -839,7 +839,7 @@ def handle_inbound(
     from app.billing import plan_vigente, puede_telegram
 
     if not puede_telegram(plan_vigente(user)):
-        return reply("Telegram requiere plan Premium. Activalo en /app/billing — no ejecuté ninguna acción.")
+        return reply("Telegram requiere plan Premium. Actívalo en /app/billing — no ejecuté ninguna acción.")
 
     set_current_user(user)
     clave_comandos = f"{chat_id}:{_idioma_chat(int(user['id']))}"
@@ -854,7 +854,7 @@ def handle_inbound(
             accion = "voz"
             body = _transcribe_inbound(voice_id, transcribe_fn, download_fn)[:MAX_TEXT_CHARS]
             if not body:
-                return reply("No pude transcribir el audio. Probá en texto o /ayuda.")
+                return reply("No pude transcribir el audio. Prueba en texto o /ayuda.")
         ctx = Contexto(user=user, chat_id=chat_id, parse_fn=parse_fn)
         if (photo_id or photo_bytes is not None) and not body.startswith("/"):
             from app.receipt_service import TELEGRAM_MAX_PHOTO_BYTES
@@ -977,7 +977,7 @@ def _run(ctx: Contexto, acc: Accion, datos: dict, texto: str, *, confirmado: boo
     if pregunta:
         pid = state.crear_pendiente(ctx.user_id, ctx.chat_id, acc.clave, datos)
         return Respuesta(
-            f"{pregunta}\n¿Lo guardo? Tocá un botón o respondé «sí» / «no» "
+            f"{pregunta}\n¿Lo guardo? Toca un botón o responde «sí» / «no» "
             f"(vence en {state.PENDING_TTL_MIN} min).",
             accion=f"{acc.clave}:confirmar",
             botones=[("✅ Sí", f"p:{pid}:si"), ("✖️ No", f"p:{pid}:no")],
@@ -1057,7 +1057,7 @@ def _resolve_pending(ctx: Contexto, pending_id: int | None, si: bool) -> Respues
     _clave, payload = got
     if payload is None:
         return Respuesta(
-            f"Esa confirmación venció ({state.PENDING_TTL_MIN} min). No guardé nada; mandalo de nuevo.",
+            f"Esa confirmación venció ({state.PENDING_TTL_MIN} min). No guardé nada; mándalo de nuevo.",
             accion=f"{acc.clave}:vencido",
         )
     if not si:
@@ -1078,7 +1078,7 @@ def _deshacer(ctx: Contexto) -> Respuesta:
     ok = acc.deshacer(ctx, int(last["entidad_id"]), str(last.get("resumen") or ""))
     registrar("telegram_deshacer", acc.clave, last["entidad_id"], {"ok": ok, "chat": ctx.chat_id[-4:]})
     if not ok:
-        return Respuesta(f"No pude deshacer: {last['resumen']}. Revisalo en la app.", accion="deshacer")
+        return Respuesta(f"No pude deshacer: {last['resumen']}. Revísalo en la app.", accion="deshacer")
     return Respuesta(f"Deshice: {last['resumen']}.", accion="deshacer")
 
 
@@ -1087,7 +1087,7 @@ def _area_apagada(acc: Accion) -> Respuesta:
 
     return Respuesta(
         f"El área «{nombre_visible(acc.modulo)}» está apagada, así que no guardé nada. "
-        "Activala en la app, en Cuenta → Configuración.",
+        "Actívala en la app, en Cuenta → Configuración.",
         accion=acc.clave,
     )
 
@@ -1105,10 +1105,10 @@ def build_intent_prompt(text: str, disponibles: list[Accion]) -> str:
     lineas = [f"- {a.clave}: {a.llm_campos}" for a in disponibles if a.llm_campos]
     claves = "|".join([a.clave for a in disponibles if a.llm_campos] + ["unknown"])
     return (
-        "Clasificá el mensaje del usuario de un dashboard personal. "
-        f"Respondé SOLO un JSON con la clave intent ({claves}) y los campos de esa acción:\n"
+        "Clasifica el mensaje del usuario de un dashboard personal. "
+        f"Responde SOLO un JSON con la clave intent ({claves}) y los campos de esa acción:\n"
         + "\n".join(lineas)
-        + '\nSi no encaja claramente con ninguna, respondé {"intent": "unknown"}.\n'
+        + '\nSi no encaja claramente con ninguna, responde {"intent": "unknown"}.\n'
         f"Hoy es {DIAS_SEMANA[dia.weekday()]} {dia.isoformat()}. Mensaje: {text[:400]}"
     )
 
@@ -1122,7 +1122,7 @@ def parse_intent(text: str) -> dict:
     disponibles = acciones.activas()
     raw = ai_client.chat_simple(
         build_intent_prompt(text, disponibles),
-        contexto="Sos un parser. Solo JSON válido, sin markdown.",
+        contexto="Eres un parser. Solo JSON válido, sin markdown.",
         max_tokens=LLM_MAX_TOKENS,
     ) or ""
     return _extract_json(raw) or {"intent": "unknown"}

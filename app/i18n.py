@@ -363,7 +363,7 @@ _RE_AREA_AYUDA = re.compile(
 )
 _RE_AREA_OFF = re.compile(
     r"^El área «(.+)» está apagada, así que no guardé nada\. "
-    r"Activala en la app, en Cuenta → Configuración\.$"
+    r"Actívala en la app, en Cuenta → Configuración\.$"
 )
 _RE_ENERGIA = re.compile(r"^Anoté energía de (manana|tarde|noche) en (\d)/5\.$")
 _RE_BLOQUE = re.compile(r"^(\d{2}:\d{2}) (.+) · (Completado|Parcial|Postergado)$")

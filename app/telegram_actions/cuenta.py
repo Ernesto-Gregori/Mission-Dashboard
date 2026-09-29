@@ -49,7 +49,7 @@ PRECIO = Accion(
     comandos=("/precio",),
     modulo="finanzas",
     ejecutar=_precio,
-    uso="Decime el producto. Ejemplo: /precio leche",
+    uso="Dime el producto. Ejemplo: /precio leche",
     parse=lambda args: {"q": args.strip()[:80]} if args.strip() else None,
 )
 

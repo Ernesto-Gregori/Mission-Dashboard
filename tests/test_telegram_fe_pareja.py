@@ -81,7 +81,7 @@ def test_rutina_vacia_y_con_plan(web_client):
     from app.timezone_config import hoy
 
     _setup(web_client)
-    assert "no tenés" in _say("/rutina", "r1").lower()
+    assert "no tienes" in _say("/rutina", "r1").lower()
     set_current_user(autenticar_usuario("tg_admin", "password1"))
     dias = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
     guardar_routine(int(autenticar_usuario("tg_admin", "password1")["id"]), 3, 40, [], {dias[hoy().weekday()]: "pierna"})

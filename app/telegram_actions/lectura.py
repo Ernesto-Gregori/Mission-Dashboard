@@ -55,7 +55,7 @@ def leer_desde_boton(ctx: Contexto, n: int, pagina: int) -> Respuesta:
 
     libro_id = buscar_ref(ctx.user_id, ctx.chat_id, "libro", n)
     if libro_id is None:
-        return Respuesta("Esa lista ya no está. Mandá /leer de nuevo. No cambié nada.", accion="leer")
+        return Respuesta("Esa lista ya no está. Manda /leer de nuevo. No cambié nada.", accion="leer")
     libro = obtener_libro(libro_id)
     if libro is None:
         return Respuesta("Ese libro ya no está. No cambié nada.", accion="leer")
@@ -76,7 +76,7 @@ def _ejecutar(ctx: Contexto, datos: dict) -> Respuesta:
     pagina = int(datos.get("pagina") or 0)
     encontrados = candidatos(titulo)
     if not encontrados:
-        return Respuesta(f"No encontré «{titulo[:40]}». Mirá /leyendo. No cambié nada.")
+        return Respuesta(f"No encontré «{titulo[:40]}». Mira /leyendo. No cambié nada.")
     if len(encontrados) > 1:
         guardar_refs(ctx.user_id, ctx.chat_id, "libro", [int(b["id"]) for b in encontrados[:6]])
         return Respuesta(
@@ -132,6 +132,6 @@ LEER = Accion(
     modulo="biblioteca",
     ejecutar=_ejecutar,
     deshacer=_deshacer,
-    uso="Decime el libro y la página. Ejemplo: /leer El Hobbit 40",
+    uso="Dime el libro y la página. Ejemplo: /leer El Hobbit 40",
     parse=_parse,
 )

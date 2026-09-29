@@ -17,7 +17,7 @@ def _listar(_ctx: Contexto, _datos: dict) -> Respuesta:
     bloques = _bloques()
     if not bloques:
         return Respuesta(
-            "Hoy no tenés bloques de enfoque. Se arman en la app, en Semana → Enfoque."
+            "Hoy no tienes bloques de enfoque. Se arman en la app, en Semana → Enfoque."
         )
     lineas = ["Enfoque de hoy"]
     botones = []
