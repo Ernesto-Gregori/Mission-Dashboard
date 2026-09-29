@@ -119,9 +119,8 @@ def test_marcar_habito_desde_hoy_conserva_el_otro(web_client):
     assert "Listo." in despues.text
     assert f'name="ref" value="{pendiente}"' not in despues.text
     assert ">Hecho<" not in despues.text
-    assert "✓" in despues.text
+    assert f'id="hab-{pendiente}"' in despues.text and "checked" in despues.text.split(f'id="hab-{pendiente}"', 1)[1][:80]
     assert f'id="hab-{ya_hecho}"' in despues.text
-    assert f'id="hab-{pendiente}"' in despues.text
     assert _hecho(pendiente, uid) == 1
     assert _hecho(ya_hecho, uid) == 1
 

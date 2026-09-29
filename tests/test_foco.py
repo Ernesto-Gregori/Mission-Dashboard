@@ -91,8 +91,8 @@ def test_foco_vive_en_hoy_sin_duplicar_habitos(web_client):
     body = r.content
     assert b"Agenda de hoy" in body
     assert b"FocoBloqueLocal" in body
-    # Checklist y agenda: desde la agenda se marca con Hecho.
-    assert body.count(b"OracionFocoPagina") == 2
+    # El hábito aparece una sola vez, en la checklist, con Hecho.
+    assert body.count(b"OracionFocoPagina") == 1
     assert b'id="hab-oracion_foco_p"' in body
     assert b'name="ref" value="oracion_foco_p"' in body
     assert b">Hecho<" in body

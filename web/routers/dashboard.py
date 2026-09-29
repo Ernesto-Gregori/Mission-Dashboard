@@ -80,7 +80,7 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
             pass
     foco_falla = False
     try:
-        foco_items = items_foco(user_id=uid)
+        foco_items = [i for i in items_foco(user_id=uid) if i.get("kind") != "habito"]
     except Exception:
         # Sin esto, un fallo de agenda se veía igual que un día sin nada agendado.
         log.exception("items_foco falló para el usuario %s", uid)

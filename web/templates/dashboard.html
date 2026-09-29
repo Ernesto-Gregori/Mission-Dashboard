@@ -102,6 +102,7 @@
         <textarea id="ritual-intencion" name="intencion" rows="2" maxlength="800" placeholder="Lo único que, si lo hago, el día ya valió">{{ ritual.intencion }}</textarea>
       </div>
       {% if habitos %}
+      <input type="hidden" name="kind" value="habito" />
       <ul class="ritual-habits">
         {% for h in habitos %}
         <li>
@@ -109,6 +110,9 @@
             <input id="hab-{{ h.clave }}" type="checkbox" name="habito" value="{{ h.clave }}" {% if h.hecho %}checked{% endif %} />
             <span>{{ h.emoji }} {{ h.label }}</span>
           </label>
+          {% if not h.hecho %}
+          <button class="btn secondary" type="submit" formaction="/app/completar" formmethod="post" name="ref" value="{{ h.clave }}">Hecho</button>
+          {% endif %}
         </li>
         {% endfor %}
       </ul>
