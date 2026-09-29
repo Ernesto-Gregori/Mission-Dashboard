@@ -1,5 +1,5 @@
 """
-Coach insights — análisis cruzado entre módulos (briefing semanal).
+Coach insights — análisis cruzado entre áreas (briefing semanal).
 
 No es un chatbot por sección: agrega señales de finanzas, deep work,
 matrimonio, salud y hábitos, y genera 3–5 insights en una sola pasada
@@ -21,12 +21,12 @@ MAX_INSIGHTS = 5
 
 SYSTEM_BRIEFING = (
     "Eres el Coach de Mission Dashboard. Analizas la vida del usuario con datos "
-    "estructurados de los módulos que vienen en los datos. "
+    "estructurados de las áreas que vienen en los datos. "
     "Respondes SOLO JSON válido (sin markdown) con esta forma:\n"
     '{"insights":[{"titulo":"...","cuerpo":"...","modulos":["finanzas","deep_work"]}]}\n'
     "Reglas: español, tono cercano y respetuoso (sin alarmismo en pareja/finanzas), "
     "máximo 5 insights, cada cuerpo ≤ 2 oraciones, prioriza correlaciones cruzadas "
-    "entre módulos. Si hay pocos datos, di qué falta registrar en vez de inventar. "
+    "entre áreas. Si hay pocos datos, di qué falta registrar en vez de inventar. "
     "No hables de áreas que no estén en los datos ni cites versículos si no hay práctica espiritual."
 )
 
@@ -444,6 +444,8 @@ def _insights_heuristicos(signals: dict[str, Any]) -> list[dict[str, Any]]:
         )
 
     if not out:
+        from app.onboarding import nombre_visible
+
         faltan = [
             k
             for k, v in mods.items()
@@ -465,8 +467,8 @@ def _insights_heuristicos(signals: dict[str, Any]) -> list[dict[str, Any]]:
                     "titulo": "Aún faltan datos para cruzar",
                     "cuerpo": (
                         "El Coach necesita más registros recientes en: "
-                        + ", ".join(faltan)
-                        + ". Con 2–3 semanas de datos aparecen correlaciones reales entre módulos."
+                        + ", ".join(nombre_visible(k) for k in faltan)
+                        + ". Con 2–3 semanas de datos aparecen correlaciones reales entre áreas."
                     ),
                     "modulos": faltan[:4],
                 }
@@ -476,7 +478,7 @@ def _insights_heuristicos(signals: dict[str, Any]) -> list[dict[str, Any]]:
                 {
                     "titulo": "Periodo estable",
                     "cuerpo": (
-                        "No hay alertas fuertes entre módulos esta quincena. "
+                        "No hay alertas fuertes entre áreas esta quincena. "
                         "Mantén el ritmo y revisa el briefing la próxima semana."
                     ),
                     "modulos": ["agenda"],

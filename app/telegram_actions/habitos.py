@@ -48,7 +48,7 @@ def _listar(_ctx: Contexto, _datos: dict) -> Respuesta:
     hechos = habitos_hoy()
     habitos = listar_habitos()
     if not habitos:
-        return Respuesta("No tenés hábitos activos. Se crean en la app, en Coach.")
+        return Respuesta("No tienes hábitos activos. Se crean en la app, en Cuenta → Mi sistema.")
     lineas = ["Hábitos de hoy"]
     for h in habitos:
         mark = "✓" if hechos.get(h["clave"]) else "·"
@@ -62,7 +62,7 @@ def _aplicar(ctx: Contexto, texto: str) -> Respuesta:
 
     encontrados = candidatos(texto, listar_habitos())
     if not encontrados:
-        return Respuesta(f"No encontré un hábito para «{texto[:40]}». Mirá /habitos. No marqué nada.")
+        return Respuesta(f"No encontré un hábito para «{texto[:40]}». Mira /habitos. No marqué nada.")
     if len(encontrados) > 1:
         return Respuesta(
             f"«{texto[:40]}» coincide con varios. ¿Cuál?",
@@ -135,7 +135,7 @@ HECHO = Accion(
     comandos=("/hecho",),
     ejecutar=_ejecutar_hecho,
     deshacer=_deshacer,
-    uso="Decime cuál. Ejemplo: /hecho leer  (o «ya leí»).",
+    uso="Dime cuál. Ejemplo: /hecho leer  (o «ya leí»).",
     parse=lambda args: {"texto": args.strip()} if args.strip() else None,
     patron=_patron,
 )

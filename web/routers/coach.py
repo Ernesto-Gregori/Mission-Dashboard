@@ -44,8 +44,6 @@ AREA_OPTIONS = [
     "ejercicio",
     "pareja",
     "matrimonio",
-    "proyectos",
-    "ideas",
     "enfoque",
 ]
 
@@ -83,7 +81,7 @@ def coach_home(request: Request, user: Annotated[dict, Depends(require_user)]):
                 plan,
                 error=(
                     "Plan Free: el Coach IA de setup es una sola vez. "
-                    "Upgrade a Premium para reconfigurar."
+                    "Pasa a Premium para reconfigurar tu sistema."
                 ),
             )
         request.session["coach_reconfig"] = True
@@ -177,8 +175,8 @@ def _render_status(request: Request, user: dict, plan: str, *, error: str | None
         plan=plan,
         plan_label=limites(plan)["nombre"],
         plan_resumen=resumen_plan_ui(user),
-        activos=[{"clave": k, **meta_para(k, uid)} for k in activos],
-        bloqueados=[{"clave": k, **meta_para(k, uid)} for k in bloqueados[:8]],
+        activos=[{"clave": k, **meta_para(k)} for k in activos],
+        bloqueados=[{"clave": k, **meta_para(k)} for k in bloqueados[:8]],
         puede_reconfig=puede_reconfigurar_coach(plan),
         stripe_ok=payments_configured(),
         tope=modulos_max(plan),
@@ -256,7 +254,7 @@ def _render_sugerencia(request: Request, user: dict, sug: dict, plan: str):
     selected = set(sug.get("modulos") or [])
     razones = sug.get("razones") or {}
     for key in MODULE_TEMPLATES:
-        meta = meta_para(key, uid)
+        meta = meta_para(key)
         mods_ui.append({
             **meta,
             "clave": key,
@@ -313,7 +311,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
                 "razon": meta["descripcion"],
             }
             for key in MODULE_TEMPLATES
-            for meta in [meta_para(key, uid)]
+            for meta in [meta_para(key)]
         ]
         return render(
             request,
@@ -326,7 +324,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
             sug=sug,
             mods_ui=mods_ui,
             tope=modulos_max(plan),
-            error="Elige al menos un módulo.",
+            error="Elige al menos un área.",
             hide_nav=True,
             premium=PLAN_PREMIUM,
             free=PLAN_FREE,
@@ -351,7 +349,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
                 "razon": (sug.get("razones") or {}).get(key) or meta["descripcion"],
             }
             for key in MODULE_TEMPLATES
-            for meta in [meta_para(key, uid)]
+            for meta in [meta_para(key)]
         ]
         return render(
             request,
@@ -365,7 +363,7 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
             mods_ui=mods_ui,
             tope=tope,
             error=(
-                f"Tu plan permite máximo {tope} módulos. "
+                f"Tu plan permite máximo {tope} áreas. "
                 f"Desmarca {len(seleccion) - int(tope)} o pasa a Premium."
             ),
             hide_nav=True,
@@ -384,8 +382,8 @@ async def coach_activar(request: Request, user: Annotated[dict, Depends(require_
     request.session.pop("coach_perfil", None)
     request.session.pop("coach_reconfig", None)
 
-    # Upsell Free: módulos no elegidos
-    resto = [k for k in MODULE_TEMPLATES if k not in seleccion]
+    # Upsell Free: áreas no elegidas
+    resto = [meta_para(k)["nombre"] for k in MODULE_TEMPLATES if k not in seleccion]
     request.session["coach_just_finished"] = {
         "seleccion": seleccion,
         "resto": resto[:4] if plan == PLAN_FREE else [],

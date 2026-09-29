@@ -32,7 +32,6 @@ from app.database import (
     verificar_alerta_20_30,
 )
 from app.db.matrimonio import gastos_vigentes, registrar_gasto_cita
-from app.cuenta import usa_vocabulario_cuenta
 from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
@@ -71,19 +70,6 @@ def _enrich_notas(notas: list) -> list:
         item["emoji"] = EMOJIS_NOTA.get(cat, "📝")
         out.append(item)
     return out
-
-
-TIPOS_GENERICOS = ["Cena", "Salida", "En_casa", "Viaje", "Fecha_especial", "Celebracion", "Otra"]
-AMBITOS_GENERICOS = ["Cercanos", "Familia"]
-
-
-def _tipos_flat() -> list[str]:
-    seen: list[str] = []
-    for ambito in AMBITOS:
-        for t in TIPOS_CITA.get(ambito, []):
-            if t not in seen:
-                seen.append(t)
-    return seen
 
 
 def _ctx(
@@ -130,9 +116,9 @@ def _ctx(
             nota_edit = None
 
     return {
-        "title": meta_para("matrimonio", int(user["id"]))["nombre"],
+        "title": meta_para("matrimonio")["nombre"],
         "user": user,
-        "meta": meta_para("matrimonio", int(user["id"])),
+        "meta": meta_para("matrimonio"),
         "tab": tab,
         "flash": flash or request.session.pop("mat_flash", None),
         "error": error or request.session.pop("mat_error", None),
@@ -143,9 +129,8 @@ def _ctx(
         "citas": citas,
         "notas": notas,
         "habitos": habitos,
-        "ambitos": AMBITOS if usa_vocabulario_cuenta("matrimonio", int(user["id"])) else AMBITOS_GENERICOS,
+        "ambitos": AMBITOS,
         "tipos_cita": TIPOS_CITA,
-        "tipos_flat": _tipos_flat() if usa_vocabulario_cuenta("matrimonio", int(user["id"])) else TIPOS_GENERICOS,
         "estados_cita": ESTADOS_CITA,
         "categorias_nota": CATEGORIAS_NOTA,
         "tipos_conexion": TIPOS_CONEXION,
@@ -175,9 +160,9 @@ def matrimonio_page(request: Request, user: Annotated[dict, Depends(require_onbo
         return render(
             request,
             "paywall.html",
-            title=meta_para("matrimonio", int(user["id"]))["nombre"],
+            title=meta_para("matrimonio")["nombre"],
             user=user,
-            meta=meta_para("matrimonio", int(user["id"])),
+            meta=meta_para("matrimonio"),
             clave="matrimonio",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,

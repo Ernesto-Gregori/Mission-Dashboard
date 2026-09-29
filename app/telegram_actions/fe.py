@@ -63,7 +63,7 @@ def _respondida(ctx: Contexto, datos: dict) -> Respuesta:
     n = int(datos["n"])
     pedido_id = buscar_ref(ctx.user_id, ctx.chat_id, "pedido", n)
     if pedido_id is None:
-        return Respuesta("Ese número no está en la lista. Mirá /oraciones. No cambié nada.")
+        return Respuesta("Ese número no está en la lista. Mira /oraciones. No cambié nada.")
     titulo = next((p["titulo"] for p in obtener_pedidos() if int(p["id"]) == pedido_id), f"#{n}")
     if not actualizar_estado_pedido(pedido_id, "Respondido"):
         return Respuesta("No pude actualizar el pedido. No cambié nada.")
@@ -76,7 +76,7 @@ ORAR = Accion(
     modulo="teologia",
     ejecutar=_orar,
     deshacer=_deshacer_pedido,
-    uso="Escribí el pedido. Ejemplo: /orar salud de mamá",
+    uso="Escribe el pedido. Ejemplo: /orar salud de mamá",
     parse=lambda args: {"titulo": args.strip()[:200]} if args.strip() else None,
 )
 

@@ -36,7 +36,7 @@ def test_por_defecto_omite_fe_pareja_y_salud(web_client):
     out = _say()
     assert out.startswith("Foco ")
     assert "Agenda:" in out and "Hábitos" in out
-    assert "Oración" not in out and "Pareja" not in out and "Salud:" not in out
+    assert "Oración" not in out and "Relaciones" not in out and "Cuerpo:" not in out
 
 
 def test_opt_in_muestra_oracion_y_enfoque(web_client):
@@ -59,7 +59,7 @@ def test_opt_in_muestra_oracion_y_enfoque(web_client):
     out = _say()
     assert "Oración: Salud de mamá" in out
     assert "Enfoque: 09:00 Estudio" in out
-    assert "Salud:" not in out
+    assert "Cuerpo:" not in out
 
 
 def test_finanzas_muestra_sobre_y_vencimiento(web_client):

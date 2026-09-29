@@ -26,7 +26,7 @@
       </div>
     </form>
     {% if not ia_ok %}
-    <p class="flash-warn">IA offline — configura GROQ_API_KEY.</p>
+    <p class="flash-warn">Alma está desactivada en esta instalación.</p>
     {% endif %}
   </aside>
 
@@ -42,11 +42,11 @@
 
     <div class="alma-thread" role="log" aria-live="polite">
       {% if not mensajes %}
-      <p class="muted empty-state">Hola, soy Alma. Contame qué necesitás hoy. Si querés que mire tus hábitos, finanzas, salud, calendario o proyectos, marcá las casillas de la izquierda.</p>
+      <p class="muted empty-state">Hola, soy Alma. Cuéntame qué necesitas hoy. Si quieres que mire tus hábitos, finanzas, salud, calendario o proyectos, marca las casillas de la izquierda.</p>
       {% else %}
         {% for m in mensajes %}
         <article class="alma-bubble alma-{{ m.rol }}">
-          <p class="alma-meta">{% if m.rol == 'user' %}Vos{% else %}Alma{% endif %}{% if m.categorias %} · {% for c in m.categorias %}{{ categorias[c][1] }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</p>
+          <p class="alma-meta">{% if m.rol == 'user' %}Tú{% else %}Alma{% endif %}{% if m.categorias %} · {% for c in m.categorias %}{{ categorias[c][1] }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</p>
           <p class="alma-body">{{ m.contenido }}</p>
         </article>
         {% endfor %}

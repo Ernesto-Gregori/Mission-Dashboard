@@ -18,7 +18,7 @@ AMOUNT_DOLLAR_RE = re.compile(rf"\$\s*{_NUM}", re.I)
 AMOUNT_MAX_DESC_WORDS = 3
 NOT_A_DESC_RE = re.compile(r"^(?:pesos|mxn|am|pm|hs|h|horas?|min|minutos?)\b", re.I)
 MONTO_CONFIRMAR = 200.0
-USO = "Usá un monto. Ejemplo: /gasto 35 super  (o «35 en supermercado»)."
+USO = "Usa un monto. Ejemplo: /gasto 35 super  (o «35 en supermercado»)."
 
 
 def _match_amount(text: str) -> tuple[float, str] | None:
@@ -154,7 +154,7 @@ def _ejecutar(ctx: Contexto, datos: dict) -> Respuesta:
     texto = f"Anoté ${monto:.2f} en «{desc}» → {_label(sub)} ({sobre})."
     botones: list[tuple[str, str]] = []
     if not datos.get("seguro"):
-        texto += "\nNo estaba claro el rubro; usé el de por defecto. Tocá para cambiarlo."
+        texto += "\nNo estaba claro el rubro; usé el de por defecto. Toca para cambiarlo."
         botones = [
             (_label(s)[:20], f"c:{gid}:{i}")
             for i, (_sobre, s) in enumerate(catalogo())
@@ -260,7 +260,7 @@ INGRESO = Accion(
     modulo="finanzas",
     ejecutar=_ejecutar_ingreso,
     confirmar=_confirmar_ingreso,
-    uso="Usá un monto. Ejemplo: /ingreso 800",
+    uso="Usa un monto. Ejemplo: /ingreso 800",
     parse=lambda args: {"monto": m} if (m := _parse_monto(args)) else None,
 )
 
@@ -372,7 +372,7 @@ def _ejecutar_borrar(ctx: Contexto, datos: dict) -> Respuesta:
 
     gid = buscar_ref(ctx.user_id, ctx.chat_id, "gasto", int(datos["n"]))
     if gid is None:
-        return Respuesta("No encuentro ese número. Mandá /gastos y usá el de la lista.")
+        return Respuesta("No encuentro ese número. Manda /gastos y usa el de la lista.")
     if not eliminar_gasto_sobre(gid):
         return Respuesta("No pude borrar ese gasto.")
     return Respuesta(f"Borré el gasto {datos['n']}.")

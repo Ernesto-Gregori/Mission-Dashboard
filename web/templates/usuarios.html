@@ -21,7 +21,7 @@
 <section>
   <div class="card">
     <h2>Telegram</h2>
-    <p class="muted">Vinculá tu cuenta con el bot. Un chat no vinculado solo recibe instrucciones; nunca crea gastos ni tareas. El bot no escribe a quien no le habló primero.</p>
+    <p class="muted">Vincula tu cuenta con el bot. Un chat no vinculado solo recibe instrucciones; nunca crea gastos ni tareas. El bot no escribe a quien no le habló primero.</p>
     <p class="muted">En el bot: <code>/briefing</code> foco del día · <code>/gasto 35 super</code> · <code>/tarea mañana 5pm banco</code> · <code>/deshacer</code> · <code>/ayuda</code>.</p>
     {% if puede_telegram %}
     <form method="post" action="/app/usuarios/telegram/recordatorios" class="users-form-grid">
@@ -41,7 +41,7 @@
     {% endif %}
     {% include "telegram_briefing.html" %}
     {% if not puede_telegram %}
-    <div class="flash-warn">Telegram requiere plan Premium o Familia. <a href="/app/billing">Ver planes</a></div>
+    <div class="flash-warn">Telegram requiere plan Premium. <a href="/app/billing">Ver planes</a></div>
     {% endif %}
     {% if tg_link and tg_link.verified %}
     <p>Cuenta vinculada{% if tg_link.tg_username %} <strong>@{{ tg_link.tg_username }}</strong>{% endif %}
@@ -60,9 +60,9 @@
     <p class="flash-ok" role="status">Código <strong id="tg-code">{{ tg_code }}</strong>. Vence en 10 minutos.</p>
     {% if tg_deep_link %}
     <p><a id="tg-link" class="btn" href="{{ tg_deep_link }}" target="_blank" rel="noopener">Abrir bot en Telegram</a></p>
-    <p class="muted">O mandale al bot <code>/start {{ tg_code }}</code>. Después recargá esta página.</p>
+    <p class="muted">O mándale al bot <code>/start {{ tg_code }}</code>. Después recarga esta página.</p>
     {% else %}
-    <p class="muted">Mandale al bot el código o <code>/start {{ tg_code }}</code> y recargá esta página.</p>
+    <p class="muted">Mándale al bot el código o <code>/start {{ tg_code }}</code> y recarga esta página.</p>
     {% endif %}
     {% endif %}
     {% endif %}
@@ -124,7 +124,7 @@
   </div>
 
   <div class="card">
-    <h2>Crear usuario</h2>
+    <h2>Agregar usuario</h2>
     <p class="muted">Usuario 3–32 (a-z, 0-9, _). Contraseña mín. 8. Empiezan en Free salvo que elijas otro plan; al entrar ven el Coach.</p>
     <form class="user-create-form" method="post" action="/app/usuarios/crear">
       <div class="users-form-grid cols-2">
@@ -158,7 +158,7 @@
           </select>
         </div>
       </div>
-      <div class="form-actions"><button class="btn" type="submit">➕ Crear usuario</button></div>
+      <div class="form-actions"><button class="btn" type="submit">➕ Agregar usuario</button></div>
     </form>
   </div>
 </section>

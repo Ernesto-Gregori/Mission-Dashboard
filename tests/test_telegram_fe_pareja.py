@@ -44,7 +44,7 @@ def test_orar_listar_y_respondida_confirma(web_client):
 
 def test_orar_sin_texto_y_modulo_apagado(web_client):
     _setup(web_client, ["agenda"])
-    assert "apagado" in _say("/orar salud", "p7")
+    assert "apagad" in _say("/orar salud", "p7")
     assert _rows("pedidos_oracion") == []
 
 
@@ -70,7 +70,7 @@ def test_conexion_sin_minutos(web_client):
 
 def test_modulo_matrimonio_apagado(web_client):
     _setup(web_client, ["agenda"])
-    assert "apagado" in _say("/nota un secreto", "n5")
+    assert "apagad" in _say("/nota un secreto", "n5")
     assert _rows("matrimonio_notas") == []
 
 
@@ -81,7 +81,7 @@ def test_rutina_vacia_y_con_plan(web_client):
     from app.timezone_config import hoy
 
     _setup(web_client)
-    assert "no tenés" in _say("/rutina", "r1").lower()
+    assert "no tienes" in _say("/rutina", "r1").lower()
     set_current_user(autenticar_usuario("tg_admin", "password1"))
     dias = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
     guardar_routine(int(autenticar_usuario("tg_admin", "password1")["id"]), 3, 40, [], {dias[hoy().weekday()]: "pierna"})

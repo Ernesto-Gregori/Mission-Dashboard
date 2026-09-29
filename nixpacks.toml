@@ -1,3 +1,0 @@
-# Conserva los paquetes del provider Python e instala ffmpeg/ffprobe en PATH.
-[phases.setup]
-nixPkgs = ["...", "ffmpeg"]

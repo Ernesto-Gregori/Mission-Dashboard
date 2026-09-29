@@ -91,11 +91,8 @@ def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
     assert "Deep Work this week" in traducir_html("<span>Deep Work de la semana</span>")
     assert 'aria-label="0-day streak"' in traducir_html('<p aria-label="0 días de racha">🔥 0</p>')
     assert "✝️ 0 days" in traducir_html("<strong>✝️ 0 días</strong>")
-    cuota = "<p>\n    Una lectura de tus módulos juntos.\n    Cupo esta semana: 0/7.\n  </p>"
-    assert "A reading of your modules together. Quota this week: 0/7." in traducir_html(cuota)
-    assert "Maximum 100 MB." in traducir_html(
-        "<p>Máximo 100 MB. Lo ideal es un solo ejercicio de 60 s o menos (se rechaza si supera 90 s).</p>"
-    )
+    cuota = "<p>\n    Una lectura de tus áreas juntas.\n    Cupo esta semana: 0/7.\n  </p>"
+    assert "A reading of your areas together. Quota this week: 0/7." in traducir_html(cuota)
     assert "No token for your user." in traducir_html(
         "<p>Sin token para tu usuario. Conecta Google Fit o pega el JSON del token.</p>"
     )
@@ -110,7 +107,7 @@ def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
     assert ">Matrimonio</option>" in traducir_html('<option value="Matrimonio">Matrimonio</option>')
     assert ">/gasto 35 super</code>" in traducir_html("<code>/gasto 35 super</code>")
     assert "💾 Save day" in traducir_html("<button>💾 Guardar día</button>")
-    assert "Last scrape: ok" in traducir_html("<p>Último scrape: ok</p>")
+    assert "Last update: ok" in traducir_html("<p>Última actualización: ok</p>")
     assert "12 products" in traducir_html("<span>12 productos</span>")
     assert "· sleep 7.5h · ⚡8" in traducir_html("<span> · sueño 7.5h · ⚡8</span>")
     assert "Day 5 · 🏠 Alquiler · $100.00" in traducir_html("<span>Día 5 · 🏠 Alquiler · $100.00</span>")
@@ -130,7 +127,7 @@ def test_el_resto_visible_pasa_a_ingles_y_conserva_lo_propio():
 
 def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     html = (
-        '<p>Hoy</p><p>3 módulos activos</p>'
+        '<p>Hoy</p><p>3 áreas activas</p>'
         '<input value="Hoy" placeholder="Usuario">'
         '<span>Teología / Devocional</span>'
         '<span>Salud &amp; Energía</span>'
@@ -140,7 +137,7 @@ def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     )
     out = traducir_html(html)
     assert "<p>Today</p>" in out
-    assert "<p>3 active modules</p>" in out
+    assert "<p>3 active areas</p>" in out
     assert 'value="Hoy"' in out
     assert 'placeholder="Username"' in out
     assert "Teología / Devocional" in out
@@ -158,10 +155,10 @@ def test_html_ingles_traduce_nodos_y_deja_alias_y_values():
     assert "Quota this week: 1/3." in traducir_html("<p>Cupo esta semana: 1/3.</p>")
     assert "Week 28/09 — 04/10/2026" in traducir_html("<h2>Semana 28/09 — 04/10/2026</h2>")
     aviso = (
-        "<div>Este módulo no está en tu cupo Free (máx. 3 módulos).\n"
-        "  Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX.</div>"
+        "<div>Tu plan Free permite 3 áreas activas.\n"
+        "  Puedes cambiar cuáles están activas, o pasar a Premium para tenerlas todas.</div>"
     )
-    assert "Free allowance (max. 3 modules)" in traducir_html(aviso)
+    assert "Your Free plan allows 3 active areas" in traducir_html(aviso)
     assert ">Mar</option>" in traducir_html("<option>Mar</option>")
     assert "Days in a row met: Hacer ejercicio" in traducir_html(
         "<p>Días seguidos cumpliendo: Hacer ejercicio</p>"
@@ -245,12 +242,12 @@ def test_la_preferencia_guardada_gana_a_la_cookie(web_client):
     web_client.get("/idioma?lang=en&next=/app", follow_redirects=False)
     hoy = web_client.get("/app")
     assert ">Today</a>" in hoy.text
-    assert ">Settings</a>" in hoy.text
     assert ">Sign out</button>" in hoy.text
     assert ">Hoy</a>" not in hoy.text
-    assert ">Configuración</a>" not in hoy.text
-    assert "0 active modules" in hoy.text
+    assert "0 active areas" in hoy.text
     cfg = web_client.get("/app/configuracion")
+    assert ">Settings</a>" in cfg.text
+    assert ">Configuración</a>" not in cfg.text
     assert "Language" in cfg.text
     from app.db.core import ejecutar
 
@@ -309,12 +306,12 @@ def test_lectura_y_enfoque_en_ingles(web_client):
     assert "No books yet. Add one under New." in libros.text
     assert "Sin libros" not in libros.text
     nuevo = web_client.get("/app/m/biblioteca?tab=nuevo")
-    assert "Save book" in nuevo.text
+    assert "Add book" in nuevo.text
     foco = web_client.get("/app/m/deep_work")
     assert "Focus blocks · daily log" in foco.text
     assert "Bloques de enfoque" not in foco.text
     config = web_client.get("/app/m/deep_work?tab=config")
-    assert "Create block" in config.text
+    assert "Add block" in config.text
 
 
 def test_token_de_google_se_guarda_cifrado_y_el_plano_se_migra(web_client, monkeypatch, tmp_path):

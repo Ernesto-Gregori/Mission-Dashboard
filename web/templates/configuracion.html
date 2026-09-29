@@ -3,7 +3,7 @@
 <header class="page-header">
   <div>
     <h1>Configuración</h1>
-    <p class="muted">Nombres, áreas y el día a día. Apagar un área lo esconde y deja tus registros donde están.</p>
+    <p class="muted">Tus áreas y el día a día. Apagar un área lo esconde y deja tus registros donde están.</p>
   </div>
 </header>
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
@@ -29,19 +29,11 @@
           <input id="mod-{{ m.clave }}" type="checkbox" name="activo" value="{{ m.clave }}" {% if m.activo %}checked{% endif %} />
           {{ m.emoji }} {{ m.nombre }}
         </label>
-        <label for="alias-{{ m.clave }}">Nombre en tu cuenta</label>
-        <input id="alias-{{ m.clave }}" name="alias_{{ m.clave }}" value="{{ m.alias }}" maxlength="40" placeholder="Vacío usa el nombre neutro" />
       </li>
       {% endfor %}
     </ul>
     {% else %}
     <p class="muted empty-state">Todavía no hay áreas. Hoy, Semana y Cuenta siguen disponibles.</p>
-    {% endif %}
-    {% if 'sandbox' in modulos|map(attribute='clave') %}
-    <label class="check-row" for="snippets-on">
-      <input id="snippets-on" type="checkbox" name="snippets" value="1" {% if snippets %}checked{% endif %} />
-      Mostrar snippets dentro de Ideas
-    </label>
     {% endif %}
   </section>
 
@@ -197,7 +189,7 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
   {% else %}
   <p class="muted">La exportación está en Premium.</p>
   {% endif %}
-  <form id="borrar" method="post" action="/app/configuracion/borrar">
+  <form id="borrar" method="post" action="/app/configuracion/borrar" onsubmit="return confirm('Esto borra tu cuenta y todos tus registros. No se puede deshacer. ¿Seguir?')">
     <h3>Eliminar la cuenta</h3>
     <p class="muted">Borra tu usuario y tus registros. No se puede deshacer.</p>
     <label for="borrar-password">Contraseña</label>

@@ -138,11 +138,11 @@ def init_app_state() -> None:
         ensure_calendar_sync_schema()
         ensure_telegram_schema()
         try:
-            from app.onboarding import migrar_nombres_cuenta
+            from app.onboarding import migrar_vocabulario_unico
 
-            migrar_nombres_cuenta()
+            migrar_vocabulario_unico()
         except Exception as e:
-            print(f"[web.startup] personalizacion: {e}")
+            print(f"[web.startup] vocabulario: {e}")
         try:
             register_webhook()
         except Exception as e:

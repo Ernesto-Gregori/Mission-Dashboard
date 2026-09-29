@@ -1,6 +1,15 @@
-<aside class="sidebar">
+<div class="nav-bar">
+  <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="app-sidebar">
+    <span class="nav-toggle-icon" aria-hidden="true"></span>
+    <span>Menú</span>
+  </button>
+  <a class="nav-bar-brand" href="/app">Mission Dashboard</a>
+</div>
+<div class="nav-scrim" hidden></div>
+<aside class="sidebar" id="app-sidebar">
   <header class="sidebar-header">
     <a class="brand" href="/app">Mission Dashboard</a>
+    <button class="nav-close" type="button" aria-label="Cerrar el menú">✕</button>
     <div class="meta">{{ user.username }} · {{ user.rol }}</div>
   </header>
   <nav aria-label="Navegación principal" class="app-nav">
@@ -19,7 +28,6 @@
     {% endif %}
   </nav>
   <div class="sidebar-footer">
-    <a class="btn secondary block" href="/app/configuracion">Configuración</a>
     <form method="post" action="/app/tema">
       <input type="hidden" name="theme" value="{% if theme == 'light' %}dark{% else %}light{% endif %}" />
       <input type="hidden" name="next" value="{{ request.url.path }}" />
@@ -32,3 +40,4 @@
     </form>
   </div>
 </aside>
+<script src="{{ asset('js/nav.js') }}" defer></script>

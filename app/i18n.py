@@ -21,7 +21,6 @@ _NO_TRADUCIR = {
     "Fe",
     "Pareja",
     "Deep Work",
-    "Sandbox",
     "Biblioteca",
     "Salud & Energía",
     "Mission Dashboard",
@@ -42,7 +41,7 @@ CATALOGO = {
     "Dinero": "Money",
     "Cuerpo": "Body",
     "Día": "Day",
-    "Vida": "Life",
+    "Áreas": "Areas",
     "Sistema": "System",
     "Configuración": "Settings",
     "Tema oscuro": "Dark theme",
@@ -86,10 +85,8 @@ CATALOGO = {
     "Elige cómo empezar": "Choose how to start",
     "Coach — cuéntame de ti": "Coach — tell me about you",
     "Coach — tu sistema": "Coach — your system",
-    "Control de mando": "Today",
     "Política de privacidad": "Privacy policy",
     "Términos de servicio": "Terms of service",
-    "Módulo": "Module",
     "Tablero privado de hábitos, agenda, salud y finanzas.": "Private board for habits, schedule, health, and money.",
     "Para qué pide Google": "Why it asks for Google",
     "Volver al acceso": "Back to sign in",
@@ -112,19 +109,13 @@ CATALOGO = {
     "Devocional y oración.": "Devotional and prayer.",
     "Libros, progreso y resaltados.": "Books, progress, and highlights.",
     "Citas, notas y conexión.": "Dates, notes, and connection.",
-    "Proyectos y snippets.": "Projects and snippets.",
-    "Proyectos y notas sueltas.": "Projects and loose notes.",
     "Ingreso, gastos y vencimientos.": "Income, expenses, and bills.",
     "Bloques de trabajo concentrado.": "Blocks of focused work.",
     "Una práctica para cuidar lo que te sostiene.": "A practice for what sustains you.",
     "Personas que quieres cuidar: pareja, familia o amigos.": "People you want to care for: partner, family, or friends.",
     # Configuración
-    "Nombres, áreas y el día a día. Apagar un área lo esconde y deja tus registros donde están.": "Names, areas, and the day to day. Turning an area off hides it and leaves your records in place.",
-    "Áreas": "Areas",
-    "Nombre en tu cuenta": "Name on your account",
-    "Vacío usa el nombre neutro": "Empty uses the neutral name",
+    "Tus áreas y el día a día. Apagar un área lo esconde y deja tus registros donde están.": "Your areas and the day to day. Turning an area off hides it and leaves your records in place.",
     "Todavía no hay áreas. Hoy, Semana y Cuenta siguen disponibles.": "No areas yet. Today, Week, and Account stay available.",
-    "Mostrar snippets dentro de Ideas": "Show snippets inside Ideas",
     "Día y asistente": "Day and assistant",
     "Ritual": "Ritual",
     "Gratitud e intención en Hoy": "Gratitude and intention on Today",
@@ -205,15 +196,16 @@ CATALOGO = {
     "Nuevo hábito": "New habit",
     "Agregar": "Add",
     "Reactivar": "Reactivate",
-    "Módulos": "Modules",
-    "Ningún módulo activo.": "No active module.",
+    "Ninguna área activa.": "No active area.",
     "Abrir configuración": "Open settings",
     "para renombrar, apagar o cambiar el ritual sin pasar por el coach.": "to rename, turn off, or change the ritual without the coach.",
-    "✏️ Cambiar módulos con el coach": "✏️ Change modules with the coach",
+    "✏️ Cambiar mis áreas con el coach": "✏️ Change my areas with the coach",
     "Plan Free: el Coach IA de setup es una sola vez.": "Free plan: the AI setup coach runs once.",
     "Desbloquear reconfiguración (Premium)": "Unlock reconfiguration (Premium)",
     "Disponibles en Premium": "Available on Premium",
-    "Upgrade": "Upgrade",
+    "Ver planes": "See plans",
+    "Elegir este plan": "Choose this plan",
+    "Tu plan actual": "Your current plan",
     "Tu sistema propuesto": "Your proposed system",
     "Hábitos sugeridos": "Suggested habits",
     "← Atrás": "← Back",
@@ -262,7 +254,7 @@ CATALOGO = {
     "Guardar briefing": "Save briefing",
     # Plan y avisos
     "Plan actual:": "Current plan:",
-    "Módulos ilimitados": "Unlimited modules",
+    "Áreas ilimitadas": "Unlimited areas",
     "Coach reconfigurable": "Coach can be reconfigured",
     "Briefings diarios": "Daily briefings",
     "Google Fit / Calendar": "Google Fit / Calendar",
@@ -277,7 +269,7 @@ for _clave, _valor in FRASES_TG.items():
     CATALOGO.setdefault(_clave, _valor)
 
 _PATRONES = (
-    (re.compile(r"^(\d+) módulos activos$"), r"\1 active modules"),
+    (re.compile(r"^(\d+) áreas activas$"), r"\1 active areas"),
     (re.compile(r"^Archivados \((\d+)\)$"), r"Archived (\1)"),
     (re.compile(r"^Demasiados intentos\. Espera (\d+)s\.$"), r"Too many attempts. Wait \1s."),
     (re.compile(r"^Cupo esta semana: (\d+)/(\d+)\.$"), r"Quota this week: \1/\2."),
@@ -312,24 +304,17 @@ _PATRONES = (
     (re.compile(r"^(\d+) días de racha$"), r"\1-day streak"),
     (re.compile(r"^✝️ (\d+) días$"), r"✝️ \1 days"),
     (
-        re.compile(r"^Una lectura de tus módulos juntos\. Cupo esta semana: (\d+)/(\d+)\.$"),
-        r"A reading of your modules together. Quota this week: \1/\2.",
+        re.compile(r"^Una lectura de tus áreas juntas\. Cupo esta semana: (\d+)/(\d+)\.$"),
+        r"A reading of your areas together. Quota this week: \1/\2.",
     ),
     (
-        re.compile(r"^Una lectura de tus módulos juntos\. Cupo esta semana: ilimitado\.$"),
-        r"A reading of your modules together. Quota this week: unlimited.",
-    ),
-    (
-        re.compile(
-            r"^Máximo (\d+) MB\. Lo ideal es un solo ejercicio de (\d+) s o menos "
-            r"\(se rechaza si supera (\d+) s\)\.$"
-        ),
-        r"Maximum \1 MB. A single exercise of \2 s or less is ideal (it is rejected if it runs over \3 s).",
+        re.compile(r"^Una lectura de tus áreas juntas\. Cupo esta semana: ilimitado\.$"),
+        r"A reading of your areas together. Quota this week: unlimited.",
     ),
     (re.compile(r"^Generado (.+) · ventana (\d+) días$"), r"Generated \1 · \2-day window"),
     (re.compile(r"^(\d+) días · (\d+) min$"), r"\1 days · \2 min"),
     (re.compile(r"^JSON inválido: (.+)$"), r"Invalid JSON: \1"),
-    (re.compile(r"^Último scrape: (.+)$"), r"Last scrape: \1"),
+    (re.compile(r"^Última actualización: (.+)$"), r"Last update: \1"),
     (re.compile(r"^(\d+) productos$"), r"\1 products"),
     (
         re.compile(r"^(\d+) productos indexados\. Usa la búsqueda o actualiza una tienda\.$"),
@@ -344,49 +329,48 @@ _PATRONES = (
     (re.compile(r"^(.+) · pág\. (\d+)/(\d+)$"), r"\1 · p. \2/\3"),
     (re.compile(r"^(.+) · pág\. (\d+)$"), r"\1 · p. \2"),
     (re.compile(r"^pág\. (\d+)/(—|\d+) · ([\d.]+)%$"), r"p. \1/\2 · \3%"),
-    (re.compile(r"^(.*?) · Free: máx\. (\d+) módulos$"), r"\1 · Free: max. \2 modules"),
+    (re.compile(r"^(.*?) · Free: máx\. (\d+) áreas$"), r"\1 · Free: max. \2 areas"),
+    (
+        re.compile(r"^Tu plan permite máximo (\d+) áreas\.$"),
+        r"Your plan allows at most \1 areas.",
+    ),
+    (
+        re.compile(r"^Tu plan permite máximo (\d+) áreas\. Desmarca (\d+) o pasa a Premium\.$"),
+        r"Your plan allows at most \1 areas. Uncheck \2 or move to Premium.",
+    ),
     (
         re.compile(
-            r"^Este módulo no está en tu cupo Free \(máx\. (\d+) módulos\)\. "
-            r"Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX\.$"
+            r"^Tu plan Free permite (\d+) áreas activas\. Puedes cambiar cuáles están activas, "
+            r"o pasar a Premium para tenerlas todas\.$"
         ),
-        r"This module is outside your Free allowance (max. \1 modules). "
-        r"Move to Premium to unlock it, or turn it on inside your allowance.",
+        r"Your Free plan allows \1 active areas. You can change which ones are on, "
+        r"or move to Premium to have them all.",
     ),
 )
 
 _PATRONES_TG = tuple((re.compile(patron), reemplazo) for patron, reemplazo in _PATRONES_TG_SRC)
 
-_MODULO_EN = {
-    "finanzas": "Finance",
-    "agenda": "Calendar",
-    "salud": "Health",
-    "deep_work": "Focus",
-    "sandbox": "Ideas",
-    "biblioteca": "Reading",
-    "teologia": "Spirituality",
-    "matrimonio": "Relationships",
-}
 _ESTADO_EN = {"Completado": "Done", "Parcial": "Partial", "Postergado": "Postponed"}
 _MOMENTO_EN = {"manana": "morning", "tarde": "afternoon", "noche": "evening"}
 _RE_GASTO = re.compile(r"^Anoté \$([0-9.]+) en «(.+)» → (.+) \((.+)\)\.$")
 _RE_LISTO = re.compile(r"^Listo: ahora está en (.+) \((.+)\)\.$")
 _RE_SOBRE = re.compile(r"^Sobre más justo: (🟢|🟡|🔴) (.+) \$(\d+)$")
 _RE_LUZ = re.compile(r"^(🟢|🟡|🔴) (.+): \$(\d+) de \$(\d+)$")
-_RE_SALUD = re.compile(r"^Salud: (.+)$")
+_RE_CUERPO = re.compile(r"^Cuerpo: (.+)$")
 _RE_ROJOS = re.compile(r"^Sobres en rojo: (.+)$")
-_RE_MODULO_AYUDA = re.compile(
-    r"^El módulo «([a-z0-9_]+)» está apagado\. Se prende en la app, en Coach\. No listo comandos\.$"
+_RE_AREA_AYUDA = re.compile(
+    r"^El área «(.+)» está apagada\. Se prende en la app, en Cuenta → Configuración\. No listo comandos\.$"
 )
-_RE_MODULO_OFF = re.compile(
-    r"^El módulo «([a-z0-9_]+)» está apagado, así que no guardé nada\. "
-    r"Activalo en la app → Coach → Módulos\.$"
+_RE_AREA_OFF = re.compile(
+    r"^El área «(.+)» está apagada, así que no guardé nada\. "
+    r"Actívala en la app, en Cuenta → Configuración\.$"
 )
 _RE_ENERGIA = re.compile(r"^Anoté energía de (manana|tarde|noche) en (\d)/5\.$")
 _RE_BLOQUE = re.compile(r"^(\d{2}:\d{2}) (.+) · (Completado|Parcial|Postergado)$")
 _RE_ESTADO = re.compile(r"^(.+): (Completado|Parcial|Postergado)\.$")
 
 _ATRIBUTOS = {"placeholder", "aria-label", "title", "alt"}
+_ATRIBUTOS_CONFIRM = {"onsubmit", "onclick"}
 _SALTAR = {"script", "style", "textarea"}
 
 
@@ -475,27 +459,27 @@ def _caso_telegram(nucleo: str) -> str | None:
     if rojos:
         nombres = ", ".join(_nucleo(p.strip()) for p in rojos.group(1).split(","))
         return f"Envelopes in the red: {nombres}"
-    salud = _RE_SALUD.fullmatch(nucleo)
-    if salud:
-        resto = re.sub(r"sueño ([\d.]+) h", r"sleep \1 h", salud.group(1))
+    cuerpo = _RE_CUERPO.fullmatch(nucleo)
+    if cuerpo:
+        resto = re.sub(r"sueño ([\d.]+) h", r"sleep \1 h", cuerpo.group(1))
         resto = re.sub(r"rutina (.+) días", r"routine \1 days", resto)
-        return f"Health: {resto}"
-    ayuda = _RE_MODULO_AYUDA.fullmatch(nucleo)
+        return f"Body: {resto}"
+    ayuda = _RE_AREA_AYUDA.fullmatch(nucleo)
     if ayuda:
         return (
-            f"The «{_MODULO_EN.get(ayuda.group(1), ayuda.group(1))}» module is off. "
-            "Turn it on in the app, under Coach. I won't list commands."
+            f"The «{_nucleo(ayuda.group(1))}» area is off. "
+            "Turn it on in the app, under Account → Settings. I won't list commands."
         )
-    apagado = _RE_MODULO_OFF.fullmatch(nucleo)
+    apagado = _RE_AREA_OFF.fullmatch(nucleo)
     if apagado:
         return (
-            f"The «{_MODULO_EN.get(apagado.group(1), apagado.group(1))}» module is off, so I saved nothing. "
-            "Turn it on in the app → Coach → Modules."
+            f"The «{_nucleo(apagado.group(1))}» area is off, so I saved nothing. "
+            "Turn it on in the app, under Account → Settings."
         )
-    mods = re.fullmatch(r"Módulos: (.+)", nucleo)
-    if mods and mods.group(1) != "ninguno":
-        nombres = ", ".join(_MODULO_EN.get(p.strip(), p.strip()) for p in mods.group(1).split(","))
-        return f"Modules: {nombres}"
+    areas = re.fullmatch(r"Áreas: (.+)", nucleo)
+    if areas and areas.group(1) != "ninguna":
+        nombres = ", ".join(_nucleo(p.strip()) for p in areas.group(1).split(","))
+        return f"Areas: {nombres}"
     energia = _RE_ENERGIA.fullmatch(nucleo)
     if energia:
         momento = _MOMENTO_EN.get(energia.group(1), energia.group(1))
@@ -615,7 +599,7 @@ class _Reescritor(HTMLParser):
 
 def _atributos_cambiaron(attrs) -> bool:
     for clave, valor in attrs:
-        if valor is None or clave not in _ATRIBUTOS and clave != "onsubmit":
+        if valor is None or (clave not in _ATRIBUTOS and clave not in _ATRIBUTOS_CONFIRM):
             continue
         if _valor_atributo(clave, valor) != valor:
             return True
@@ -634,7 +618,7 @@ def _traducir_confirm(decoded: str) -> str:
 
 def _valor_atributo(clave: str, valor: str) -> str:
     decoded = html.unescape(valor)
-    if clave == "onsubmit":
+    if clave in _ATRIBUTOS_CONFIRM:
         nuevo = _traducir_confirm(decoded)
     elif clave in _ATRIBUTOS:
         nuevo = traducir_fragmento(decoded)
@@ -651,7 +635,11 @@ def _reconstruir(tag: str, attrs) -> str:
         if valor is None:
             partes.append(f" {clave}")
             continue
-        shown = _valor_atributo(clave, valor) if clave in _ATRIBUTOS or clave == "onsubmit" else valor
+        shown = (
+            _valor_atributo(clave, valor)
+            if clave in _ATRIBUTOS or clave in _ATRIBUTOS_CONFIRM
+            else valor
+        )
         partes.append(f' {clave}="{shown}"')
     partes.append(">")
     return "".join(partes)

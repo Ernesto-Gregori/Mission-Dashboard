@@ -99,7 +99,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
     return {
         "title": "Finanzas",
         "user": user,
-        "meta": meta_para("finanzas", int(user["id"])),
+        "meta": meta_para("finanzas"),
         "mes": mes,
         "anio": anio,
         "meses": list(enumerate(MESES, start=1)),
@@ -124,7 +124,7 @@ def _vencimientos_ctx(request: Request, user: dict, *, error: str | None = None)
     return {
         "title": "Vencimientos",
         "user": user,
-        "meta": meta_para("finanzas", int(user["id"])),
+        "meta": meta_para("finanzas"),
         "mes": mes,
         "anio": anio,
         "meses": list(enumerate(MESES, start=1)),
@@ -142,7 +142,7 @@ def _paywall(request: Request, user: dict):
         "paywall.html",
         title="Finanzas",
         user=user,
-        meta=meta_para("finanzas", int(user["id"])),
+        meta=meta_para("finanzas"),
         clave="finanzas",
         plan=plan_vigente(user),
         plan_free=plan_vigente(user) == PLAN_FREE,
@@ -168,7 +168,7 @@ def _precios_ctx(request: Request, user: dict, *, flash: str | None = None, erro
     return {
         "title": "Precios supermercados",
         "user": user,
-        "meta": meta_para("finanzas", int(user["id"])),
+        "meta": meta_para("finanzas"),
         "mes": mes,
         "anio": anio,
         "meses": list(enumerate(MESES, start=1)),
@@ -201,7 +201,7 @@ def _confirm_ctx(request: Request, user: dict, draft: dict, *, error: str | None
     return {
         "title": "Confirmar escaneo",
         "user": user,
-        "meta": meta_para("finanzas", int(user["id"])),
+        "meta": meta_para("finanzas"),
         "mes": mes,
         "anio": anio,
         "hoy": str(_hoy()),
@@ -372,7 +372,7 @@ async def escanear_recibo(
             **_ctx(
                 request,
                 user,
-                error="Para escanear hace falta GROQ_API_KEY en el entorno.",
+                error="El escaneo de tickets necesita la IA, que está desactivada.",
             ),
         )
 

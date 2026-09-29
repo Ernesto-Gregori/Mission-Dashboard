@@ -15,7 +15,7 @@
 <section class="card price-match-card">
   <h2>🏷 Comparación de precios</h2>
   <p class="muted compact-copy">
-    Cruces automáticos con el catálogo scrapeado (umbral de confianza).
+    Cruces automáticos con el catálogo de precios.
     Si el match es dudoso, aparece como sin coincidencia clara.
   </p>
   <ul class="price-match-list">
@@ -133,7 +133,7 @@
   </p>
   {% if not vision_ok %}
   <div class="flash-warn">
-    Visión offline: configura <code>GROQ_API_KEY</code> para escanear.
+    El escaneo de tickets necesita la IA, que está desactivada.
   </div>
   {% else %}
   <form method="post" action="/app/m/finanzas/escanear" enctype="multipart/form-data"

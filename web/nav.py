@@ -6,8 +6,6 @@ from typing import Any
 from fastapi import Request
 
 from app.onboarding import (
-    etiqueta_blurb,
-    etiqueta_nav,
     listar_modulos_usuario,
     modulo_activo,
     usuario_onboarding_completo,
@@ -26,6 +24,7 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
     {
         "id": "semana",
         "label": "Semana",
+        "blurb": "Planificar la semana, bloques de enfoque y revisión del domingo.",
         "group": "Día",
         "always": True,
         "prefixes": ("/app/planificador", "/app/m/agenda", "/app/m/deep_work", "/app/revision", "/app/rueda"),
@@ -33,44 +32,37 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
     {
         "id": "dinero",
         "label": "Dinero",
-        "group": "Vida",
+        "group": "Áreas",
         "prefixes": ("/app/m/finanzas", "/app/presupuesto"),
         "modules": ("finanzas",),
     },
     {
         "id": "cuerpo",
         "label": "Cuerpo",
-        "group": "Vida",
+        "group": "Áreas",
         "prefixes": ("/app/m/salud",),
         "modules": ("salud",),
     },
     {
-        "id": "fe",
-        "label": "Fe",
-        "group": "Vida",
+        "id": "espiritualidad",
+        "label": "Espiritualidad",
+        "group": "Áreas",
         "prefixes": ("/app/m/teologia",),
         "modules": ("teologia",),
     },
     {
         "id": "lectura",
         "label": "Lectura",
-        "group": "Vida",
+        "group": "Áreas",
         "prefixes": ("/app/m/biblioteca",),
         "modules": ("biblioteca",),
     },
     {
-        "id": "pareja",
-        "label": "Pareja",
-        "group": "Vida",
+        "id": "relaciones",
+        "label": "Relaciones",
+        "group": "Áreas",
         "prefixes": ("/app/m/matrimonio",),
         "modules": ("matrimonio",),
-    },
-    {
-        "id": "ideas",
-        "label": "Ideas",
-        "group": "Vida",
-        "prefixes": ("/app/m/sandbox",),
-        "modules": ("sandbox",),
     },
     {
         "id": "alma",
@@ -93,25 +85,17 @@ _HUB_HREF = {
     "semana": "/app/planificador",
     "dinero": "/app/m/finanzas",
     "cuerpo": "/app/m/salud",
-    "fe": "/app/m/teologia",
+    "espiritualidad": "/app/m/teologia",
     "lectura": "/app/m/biblioteca",
-    "pareja": "/app/m/matrimonio",
-    "ideas": "/app/m/sandbox",
+    "relaciones": "/app/m/matrimonio",
     "alma": "/app/asistente",
     "cuenta": "/app/coach",
 }
 
-_HUB_BLURB = {
-    "semana": "Planificar la semana, bloques de enfoque y revisión del domingo.",
-    "dinero": "Ingreso repartido en sobres, vencimientos y precios.",
-    "cuerpo": "Sueño, ejercicio y energía.",
-    "fe": "Devocional y oración.",
-    "lectura": "Libros, progreso y resaltados.",
-    "pareja": "Citas, notas y conexión.",
-    "ideas": "Proyectos y snippets.",
-}
+# Hubs con tarjeta propia en Hoy.
+_HUB_CARDS = ("semana", "dinero", "cuerpo", "espiritualidad", "lectura", "relaciones")
 
-GROUP_ORDER = ("Día", "Vida", "Sistema")
+GROUP_ORDER = ("Día", "Áreas", "Sistema")
 
 
 def _activos(user_id: int) -> set[str]:
@@ -125,18 +109,22 @@ def _activos(user_id: int) -> set[str]:
     return activos
 
 
-def _hub_label(hub: dict[str, Any], user_id: int) -> str:
+def _area(hub: dict[str, Any]) -> dict | None:
+    """El área que da nombre al hub, si el hub es exactamente un área."""
     mods = hub.get("modules") or ()
     if len(mods) == 1 and mods[0] in MODULE_TEMPLATES:
-        return etiqueta_nav(mods[0], user_id)
-    return hub["label"]
+        return MODULE_TEMPLATES[mods[0]]
+    return None
 
 
-def _hub_blurb(hub: dict[str, Any], user_id: int) -> str:
-    mods = hub.get("modules") or ()
-    if len(mods) == 1 and hub["id"] in _HUB_BLURB:
-        return etiqueta_blurb(mods[0], user_id)
-    return _HUB_BLURB.get(hub["id"], "")
+def _hub_label(hub: dict[str, Any]) -> str:
+    area = _area(hub)
+    return str(area["nombre"]) if area else hub["label"]
+
+
+def _hub_blurb(hub: dict[str, Any]) -> str:
+    area = _area(hub)
+    return str(area["blurb"]) if area else str(hub.get("blurb") or "")
 
 
 def _norm_path(path: str) -> str:
@@ -179,7 +167,7 @@ def build_sidebar(user: dict, request: Request) -> list[dict]:
         groups[hub["group"]].append(
             {
                 "id": hub["id"],
-                "label": _hub_label(hub, uid),
+                "label": _hub_label(hub),
                 "href": _HUB_HREF[hub["id"]],
                 "active": _matches(path, hub),
             }
@@ -213,7 +201,7 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
             tabs.append(
                 _tab(
                     "/app/m/deep_work",
-                    etiqueta_nav("deep_work", uid),
+                    MODULE_TEMPLATES["deep_work"]["nombre"],
                     path.startswith("/app/m/deep_work"),
                 )
             )
@@ -238,11 +226,12 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
     elif hub == "cuenta":
         tabs = [
             _tab("/app/coach", "Mi sistema", path.startswith("/app/coach")),
+            _tab("/app/configuracion", "Configuración", path.startswith("/app/configuracion")),
             _tab("/app/billing", "Plan y cobros", path.startswith("/app/billing")),
             _tab("/app/usuarios", "Telegram y usuarios", path.startswith("/app/usuarios")),
         ]
         if _is_admin(user):
-            tabs.append(_tab("/app/familia", "Familia", path.startswith("/app/familia")))
+            tabs.append(_tab("/app/familia", "Comparativa", path.startswith("/app/familia")))
     return tabs if len(tabs) >= 2 else []
 
 
@@ -256,7 +245,7 @@ def dashboard_hubs(user: dict) -> list[dict]:
         "semana": [
             {"label": "Planificador", "href": "/app/planificador"},
             *(
-                [{"label": etiqueta_nav("deep_work", uid), "href": "/app/m/deep_work"}]
+                [{"label": MODULE_TEMPLATES["deep_work"]["nombre"], "href": "/app/m/deep_work"}]
                 if "deep_work" in activos
                 else []
             ),
@@ -270,14 +259,14 @@ def dashboard_hubs(user: dict) -> list[dict]:
     }
     out = []
     for hub in _HUB_SPECS:
-        if hub["id"] not in _HUB_BLURB or not _visible(hub, activos, True):
+        if hub["id"] not in _HUB_CARDS or not _visible(hub, activos, True):
             continue
         out.append(
             {
                 "id": hub["id"],
-                "label": _hub_label(hub, uid),
+                "label": _hub_label(hub),
                 "href": _HUB_HREF[hub["id"]],
-                "descripcion": _hub_blurb(hub, uid),
+                "descripcion": _hub_blurb(hub),
                 "children": children.get(hub["id"], []),
                 "activo": True,
             }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -18,6 +19,7 @@ from web.deps import require_onboarded, render
 from web.nav import dashboard_hubs
 
 router = APIRouter(prefix="/app", tags=["dashboard"])
+log = logging.getLogger("mission.dashboard")
 
 
 @router.get("", response_class=HTMLResponse)
@@ -34,7 +36,7 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
     mods = []
     for key in MODULE_TEMPLATES:
         mods.append({
-            **meta_para(key, uid),
+            **meta_para(key),
             "clave": key,
             "activo": key in activos,
             "href": f"/app/m/{key}",
@@ -76,15 +78,19 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
                 google_error = estado_cal["error"]
         except Exception:
             pass
+    foco_falla = False
     try:
         foco_items = [i for i in items_foco(user_id=uid) if i.get("kind") != "habito"]
     except Exception:
+        # Sin esto, un fallo de agenda se veía igual que un día sin nada agendado.
+        log.exception("items_foco falló para el usuario %s", uid)
         foco_items = []
+        foco_falla = True
 
     return render(
         request,
         "dashboard.html",
-        title="Control de mando",
+        title="Hoy",
         user=user,
         plan=plan,
         plan_label=limites(plan)["nombre"],
@@ -101,6 +107,7 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         ritual_b=ritual_etiquetas(uid)[1],
         habitos=habitos,
         foco_items=foco_items,
+        foco_falla=foco_falla,
         google_ok=google_ok,
         google_error=google_error,
         puede_google=puede_google(plan),

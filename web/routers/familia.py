@@ -43,7 +43,7 @@ def _ctx(
 ):
     mes, anio = _periodo(request)
     return {
-        "title": "Familia",
+        "title": "Comparativa",
         "user": user,
         "flash": flash,
         "error": error,

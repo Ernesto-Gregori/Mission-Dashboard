@@ -58,7 +58,7 @@ def fake_actions(monkeypatch):
 
 def test_command_of_inactive_module_writes_nothing(linked, fake_actions):
     out = _say("/leer dune 40", "m1")
-    assert "apagado" in out and "no guardé nada" in out
+    assert "apagad" in out and "no guardé nada" in out
     assert fake_actions == []
 
 

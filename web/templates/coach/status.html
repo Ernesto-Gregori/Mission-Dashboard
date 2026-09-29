@@ -1,7 +1,7 @@
 {% extends "layout_app.html" %}
 {% block content %}
 <h1>Mi sistema</h1>
-<p class="muted">Qué módulos usas y qué hábitos marcas cada día en Hoy.</p>
+<p class="muted">Qué áreas usas y qué hábitos marcas cada día en Hoy.</p>
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
@@ -21,7 +21,7 @@
         <input id="hab-hora-{{ h.clave }}" name="hora" type="time" value="{{ h.hora if h.hora and h.hora != '—' else '' }}" />
         <span class="habit-actions">
           <button class="btn secondary" type="submit">Guardar</button>
-          <button class="btn secondary" type="submit" formaction="/app/coach/habitos/{{ h.clave }}/archivar" formnovalidate>Archivar</button>
+          <button class="btn secondary" type="submit" formaction="/app/coach/habitos/{{ h.clave }}/archivar" formnovalidate onclick="return confirm('¿Archivar este hábito? Deja de aparecer en Hoy.')">Archivar</button>
         </span>
       </form>
     </li>
@@ -39,7 +39,7 @@
     <input id="hab-new-label" name="label" placeholder="Ej: Leer 20 minutos" maxlength="40" required />
     <label class="sr-only" for="hab-new-hora">Hora (opcional)</label>
     <input id="hab-new-hora" name="hora" type="time" />
-    <span class="habit-actions"><button class="btn" type="submit">Agregar</button></span>
+    <span class="habit-actions"><button class="btn" type="submit">Agregar hábito</button></span>
   </form>
 
   {% if habitos_archivados %}
@@ -60,7 +60,7 @@
 </section>
 
 <div class="card">
-  <h2>Módulos</h2>
+  <h2>Áreas</h2>
   {% if activos %}
   <ul>
     {% for m in activos %}
@@ -68,13 +68,13 @@
     {% endfor %}
   </ul>
   {% else %}
-  <p class="muted">Ningún módulo activo.</p>
+  <p class="muted">Ninguna área activa.</p>
   {% endif %}
 
-  <p><a href="/app/configuracion">Abrir configuración</a> para renombrar, apagar o cambiar el ritual sin pasar por el coach.</p>
+  <p><a href="/app/configuracion">Abrir configuración</a> para apagar un área o cambiar el ritual sin pasar por el coach.</p>
   {% if puede_reconfig %}
   <form method="post" action="/app/coach/reconfigurar">
-    <button class="btn" type="submit">✏️ Cambiar módulos con el coach</button>
+    <button class="btn" type="submit">✏️ Cambiar mis áreas con el coach</button>
   </form>
   {% else %}
   <p class="muted">Plan Free: el Coach IA de setup es una sola vez.</p>
@@ -90,7 +90,7 @@
     <li>{{ m.emoji }} {{ m.nombre }} — {{ m.descripcion }}</li>
     {% endfor %}
   </ul>
-  <a class="btn secondary" href="/app/billing">Upgrade</a>
+  <a class="btn secondary" href="/app/billing">Ver planes</a>
 </div>
 {% endif %}
 {% endblock %}

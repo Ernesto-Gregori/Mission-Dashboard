@@ -1,4 +1,4 @@
-"""Armador de rutinas: schema, parseo IA, persistencia y UI."""
+"""Armador de rutinas: parseo IA, persistencia, equipamiento y UI."""
 from __future__ import annotations
 
 import json
@@ -8,15 +8,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db.exercises import (
-    apply_analysis,
-    crear_exercise,
     guardar_routine,
-    listar_exercises,
+    listar_equipment,
     obtener_routine,
 )
 from app.exercise_routine import RoutineError, parse_routine_payload
 from app.tenant import as_user
-from tests.test_exercise_library import SAMPLE_ANALYSIS, _setup_salud
 
 
 @pytest.fixture()
@@ -30,7 +27,6 @@ def web_client(monkeypatch):
     monkeypatch.setenv("SESSION_SECRET", "test-secret-please-change")
     monkeypatch.setenv("TURSO_URL", "")
     monkeypatch.setenv("TURSO_TOKEN", "")
-    monkeypatch.setenv("EXERCISE_STORAGE_DIR", str(td / "ex_uploads"))
     monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
     monkeypatch.delenv("RENDER", raising=False)
     monkeypatch.delenv("FLY_APP_NAME", raising=False)
@@ -53,6 +49,32 @@ def web_client(monkeypatch):
         yield client
 
 
+def _setup_salud(client: TestClient, username: str = "rt_user") -> None:
+    r = client.post(
+        "/setup",
+        data={"username": username, "password": "password1", "password2": "password1"},
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 307)
+    client.post(
+        "/app/coach/perfil",
+        data={
+            "nombre": "Neto",
+            "situacion": "prueba",
+            "objetivos": "ejercicio",
+            "tiempo": "20",
+            "notas": "",
+            "areas": ["salud"],
+        },
+        follow_redirects=False,
+    )
+    client.post(
+        "/app/coach/activar",
+        data={"modulos": ["salud"]},
+        follow_redirects=False,
+    )
+
+
 SAMPLE_PLAN = {
     "nombre": "Fuerza 3 días",
     "objetivo": "fuerza",
@@ -65,7 +87,6 @@ SAMPLE_PLAN = {
             "calentamiento": ["Círculos de hombro 2 min"],
             "bloques": [
                 {
-                    "exercise_id": 1,
                     "nombre": "Swing con pesa rusa",
                     "series": 3,
                     "reps": "10-12",
@@ -73,7 +94,6 @@ SAMPLE_PLAN = {
                     "notas": "Bisagra de cadera",
                 },
                 {
-                    "exercise_id": None,
                     "nombre": "Flexiones",
                     "series": 3,
                     "reps": "8-12",
@@ -90,7 +110,6 @@ SAMPLE_PLAN = {
             "calentamiento": ["Gato-camello"],
             "bloques": [
                 {
-                    "exercise_id": None,
                     "nombre": "Remo con banda",
                     "series": 4,
                     "reps": "10",
@@ -107,7 +126,6 @@ SAMPLE_PLAN = {
             "calentamiento": ["Sentadilla al aire 8 reps"],
             "bloques": [
                 {
-                    "exercise_id": None,
                     "nombre": "Sentadilla goblet",
                     "series": 3,
                     "reps": "8-10",
@@ -131,37 +149,42 @@ def test_schema_creates_routine_table(web_client):
     assert "exercise_routines" in tables
 
 
-def test_parse_routine_strips_foreign_exercise_ids():
+def test_la_biblioteca_de_videos_ya_no_se_crea(web_client):
+    """La subida de video se retiró: el esquema nuevo no vuelve a crear la tabla."""
+    import app.db.core as core
+
+    tables = {
+        r["name"]
+        for r in (core.ejecutar("SELECT name FROM sqlite_master WHERE type='table'", fetchall=True) or [])
+    }
+    assert "exercises" not in tables
+    assert "user_equipment" in tables
+
+
+def test_parse_routine_reads_the_coach_json():
     raw = json.dumps(SAMPLE_PLAN, ensure_ascii=False)
-    parsed = parse_routine_payload(
-        f"```json\n{raw}\n```",
-        allowed_ids={1},
-        expected_days=3,
-        minutos=40,
-    )
+    parsed = parse_routine_payload(f"```json\n{raw}\n```", expected_days=3, minutos=40)
     assert parsed["nombre"] == "Fuerza 3 días"
     assert len(parsed["dias"]) == 3
-    assert parsed["dias"][0]["bloques"][0]["exercise_id"] == 1
-    assert parsed["dias"][0]["bloques"][0]["series"] == 3
-    assert parsed["dias"][0]["bloques"][0]["reps"] == "10-12"
-
-    parsed2 = parse_routine_payload(
-        raw,
-        allowed_ids=set(),
-        expected_days=3,
-        minutos=40,
-    )
-    assert parsed2["dias"][0]["bloques"][0]["exercise_id"] is None
+    bloque = parsed["dias"][0]["bloques"][0]
+    assert bloque["nombre"] == "Swing con pesa rusa"
+    assert bloque["series"] == 3
+    assert bloque["reps"] == "10-12"
+    assert "exercise_id" not in bloque
 
 
 def test_parse_routine_rejects_empty_days():
     with pytest.raises(RoutineError):
         parse_routine_payload(
             json.dumps({"nombre": "x", "dias": []}),
-            allowed_ids=set(),
             expected_days=3,
             minutos=40,
         )
+
+
+def test_parse_routine_rejects_non_json():
+    with pytest.raises(RoutineError):
+        parse_routine_payload("el coach se fue de tema", expected_days=3, minutos=40)
 
 
 def test_rutina_tab_shows_builder_form(web_client):
@@ -176,20 +199,54 @@ def test_rutina_tab_shows_builder_form(web_client):
     assert b'href="/app/m/salud?tab=rutina"' in web_client.get("/app/m/salud").content
 
 
+def test_salud_ya_no_ofrece_subir_video(web_client):
+    """La pestaña de biblioteca y su formulario de subida desaparecieron."""
+    _setup_salud(web_client, "rt_novideo")
+    cuerpo = web_client.get("/app/m/salud").content
+    assert b"tab=ejercicios" not in cuerpo
+    assert "Agregar ejercicio desde video".encode() not in cuerpo
+    assert b'type="file"' not in cuerpo
+
+    # Un tab desconocido cae en Hoy, no en una pantalla vacía.
+    r = web_client.get("/app/m/salud?tab=ejercicios")
+    assert r.status_code == 200
+    assert "Registro del día".encode() in r.content
+    assert web_client.post(
+        "/app/m/salud/ejercicios/subir", follow_redirects=False
+    ).status_code == 404
+
+
+def test_el_equipamiento_se_administra_en_la_pestana_rutina(web_client):
+    _setup_salud(web_client, "rt_equip")
+    r = web_client.post(
+        "/app/m/salud/equipamiento",
+        data={"equipment_name": "pesa rusa"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "tab=rutina" in r.headers["location"]
+
+    r = web_client.get("/app/m/salud?tab=rutina")
+    assert "Equipamiento disponible".encode() in r.content
+    assert b"pesa rusa" in r.content
+
+    eq_id = int(listar_equipment(1)[0]["id"])
+    r = web_client.post(
+        f"/app/m/salud/equipamiento/{eq_id}/borrar",
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert "tab=rutina" in r.headers["location"]
+    assert listar_equipment(1) == []
+
+
 def test_generate_and_improve_routine(web_client, monkeypatch):
     _setup_salud(web_client, "rt_ok")
-    with as_user({"id": 1, "username": "rt_ok"}):
-        eid = crear_exercise(1, "data/uploads/exercises/1/swing.mp4", "otro")
-        apply_analysis(eid, 1, SAMPLE_ANALYSIS)
-
-    plan = json.loads(json.dumps(SAMPLE_PLAN))
-    plan["dias"][0]["bloques"][0]["exercise_id"] = listar_exercises(1)[0]["id"]
 
     monkeypatch.setattr(
-        "web.routers.ejercicios.generate_routine",
+        "web.routers.rutina.generate_routine",
         lambda **kwargs: parse_routine_payload(
-            json.dumps(plan, ensure_ascii=False),
-            allowed_ids={int(listar_exercises(1)[0]["id"])},
+            json.dumps(SAMPLE_PLAN, ensure_ascii=False),
             expected_days=int(kwargs["dias"]),
             minutos=int(kwargs["minutos"]),
         ),
@@ -219,14 +276,13 @@ def test_generate_and_improve_routine(web_client, monkeypatch):
     assert row["minutos_sesion"] == 40
     assert "pesa rusa" in row["equipamiento"]
 
-    plan2 = json.loads(json.dumps(plan))
+    plan2 = json.loads(json.dumps(SAMPLE_PLAN))
     plan2["nombre"] = "Fuerza 3 días v2"
     plan2["dias"][0]["bloques"][0]["series"] = 4
     monkeypatch.setattr(
-        "web.routers.ejercicios.generate_routine",
+        "web.routers.rutina.generate_routine",
         lambda **kwargs: parse_routine_payload(
             json.dumps(plan2, ensure_ascii=False),
-            allowed_ids={int(listar_exercises(1)[0]["id"])},
             expected_days=3,
             minutos=40,
         ),

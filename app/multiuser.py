@@ -19,9 +19,6 @@ USER_TABLES = [
     "resaltados",
     "devocionales",
     "registros_salud",
-    "sandbox_ideas",
-    "sandbox_snippets",
-    "sandbox_sesiones",
     "matrimonio_citas",
     "matrimonio_notas",
     "matrimonio_habitos",
@@ -32,13 +29,12 @@ USER_TABLES = [
     "calendar_sync_state",
     "telegram_links",
     "telegram_reminders",
-    "exercises",
     "user_equipment",
 ]
 
 MODULOS_DEFAULT = [
     "agenda", "finanzas", "deep_work", "teologia",
-    "biblioteca", "salud", "sandbox", "matrimonio",
+    "biblioteca", "salud", "matrimonio",
 ]
 
 
@@ -189,7 +185,6 @@ def _ensure_per_user_indexes(ejecutar) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_habito_dia_user ON habitos_diarios_v2(user_id, fecha, habito_clave)",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_mat_habito_user ON matrimonio_habitos(user_id, fecha)",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_sesion_user ON sesiones_completadas(user_id, fecha, bloque_fijo_id)",
-        "CREATE INDEX IF NOT EXISTS idx_exercises_user_status ON exercises(user_id, status, creado_en DESC)",
         "CREATE INDEX IF NOT EXISTS idx_user_equipment_user ON user_equipment(user_id)",
     ]
     for sql in indexes:
@@ -494,7 +489,6 @@ def migrate_multiuser() -> dict:
                             "libros",
                             "registros_salud",
                             "matrimonio_citas",
-                            "sandbox_ideas",
                             "sesiones_completadas",
                         ):
                             try:
@@ -576,7 +570,6 @@ def migrate_multiuser() -> dict:
                 "libros",
                 "registros_salud",
                 "matrimonio_citas",
-                "sandbox_ideas",
                 "sesiones_completadas",
             ):
                 try:

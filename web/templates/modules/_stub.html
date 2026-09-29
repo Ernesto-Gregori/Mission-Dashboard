@@ -1,15 +1,10 @@
 {% extends "layout_app.html" %}
 {% block content %}
 <h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
-<span class="badge stub">sin plantilla HTMX</span>
 <div class="card" style="margin-top:1rem">
   <p>{{ meta.descripcion }}</p>
   <p class="muted">{{ meta.para_quien }}</p>
-  <p class="muted">
-    No hay <code>web/templates/modules/{{ clave }}.html</code> aún.
-    Los módulos de Fase 2 ya tienen router dedicado; este fallback no debería
-    usarse en producción.
-  </p>
+  <p class="muted">Esta área todavía no tiene su propia pantalla.</p>
 </div>
-<p><a href="/app">← Control de mando</a></p>
+<p><a href="/app">← Hoy</a></p>
 {% endblock %}

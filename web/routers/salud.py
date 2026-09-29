@@ -29,11 +29,11 @@ from app.cuenta import metricas_salud
 from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
-from web.routers.ejercicios import ejercicios_page_extras
+from web.routers.rutina import rutina_page_extras
 
 router = APIRouter(prefix="/app/m/salud", tags=["salud"])
 
-TABS = ("hoy", "ejercicios", "rutina", "historial")
+TABS = ("hoy", "rutina", "historial")
 
 
 def _tab(request: Request) -> str:
@@ -149,9 +149,9 @@ def _ctx(
     }
 
     return {
-        "title": meta_para("salud", int(user["id"]))["nombre"],
+        "title": meta_para("salud")["nombre"],
         "user": user,
-        "meta": meta_para("salud", int(user["id"])),
+        "meta": meta_para("salud"),
         "tab": tab,
         "flash": flash,
         "error": error,
@@ -180,7 +180,7 @@ def _ctx(
         "objetivo_labels": OBJETIVO_LABELS,
         "metricas": metricas_salud(int(user["id"])),
         "warn": warn,
-        **ejercicios_page_extras(int(user["id"])),
+        **rutina_page_extras(int(user["id"])),
     }
 
 
@@ -201,9 +201,9 @@ def salud_page(request: Request, user: Annotated[dict, Depends(require_onboarded
         return render(
             request,
             "paywall.html",
-            title=meta_para("salud", int(user["id"]))["nombre"],
+            title=meta_para("salud")["nombre"],
             user=user,
-            meta=meta_para("salud", int(user["id"])),
+            meta=meta_para("salud"),
             clave="salud",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,
@@ -307,7 +307,7 @@ async def fit_importar(request: Request, user: Annotated[dict, Depends(require_o
             **_ctx(
                 request,
                 user,
-                error="Google Fit requiere plan Premium o Familia.",
+                error="Google Fit requiere plan Premium.",
             ),
         )
     try:
@@ -387,7 +387,7 @@ async def token_paste(request: Request, user: Annotated[dict, Depends(require_on
         return render(
             request,
             "modules/salud.html",
-            **_ctx(request, user, error="Google Fit requiere Premium o Familia."),
+            **_ctx(request, user, error="Google Fit requiere plan Premium."),
         )
     from app.google_fit import guardar_token_desde_json
 

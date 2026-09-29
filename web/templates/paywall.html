@@ -3,14 +3,21 @@
 <h1>{{ meta.emoji }} {{ meta.nombre }}</h1>
 {% if plan_free %}
 <div class="flash-warn">
-  Este módulo no está en tu cupo Free (máx. {{ lim_free.modulos_max }} módulos).
-  Pasa a Premium para desbloquearlo, o actívalo dentro de tu cupo cuando el Coach esté en HTMX.
+  Tu plan Free permite {{ lim_free.modulos_max }} áreas activas. Puedes cambiar
+  cuáles están activas, o pasar a Premium para tenerlas todas.
 </div>
-<a class="btn" href="/app/billing">Ver Premium / Familia</a>
+<div class="form-actions">
+  <a class="btn" href="/app/configuracion">Elegir mis áreas</a>
+  <a class="btn secondary" href="/app/billing">Ver planes</a>
+</div>
 {% else %}
 <div class="flash-warn">
-  El módulo no está activo en tu sistema. Actívalo con el Coach (fase 2 de migración).
+  Esta área está apagada, así que no se muestra en tu sistema. Tus registros
+  siguen guardados.
+</div>
+<div class="form-actions">
+  <a class="btn" href="/app/configuracion">Encenderla en Configuración</a>
 </div>
 {% endif %}
-<p style="margin-top:1rem"><a href="/app">← Volver</a></p>
+<p class="paywall-back"><a href="/app">← Volver</a></p>
 {% endblock %}

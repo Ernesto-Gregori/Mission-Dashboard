@@ -53,8 +53,8 @@ def test_modulo_finanzas_apagado_no_escribe(web_client):
     _setup(web_client)
     web_client.post("/app/coach/activar", data={"modulos": ["agenda"]})
     out = _say("/gasto 35 super", "f4")
-    assert "apagado" in out and _rows("gastos_sobres") == []
-    assert "Saldo" not in _say("/saldo", "f5") or "apagado" in _say("/saldo", "f6")
+    assert "apagad" in out and _rows("gastos_sobres") == []
+    assert "Saldo" not in _say("/saldo", "f5") or "apagad" in _say("/saldo", "f6")
 
 
 def test_ingreso_y_reemplazo(web_client):

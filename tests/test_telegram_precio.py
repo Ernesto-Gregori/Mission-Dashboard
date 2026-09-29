@@ -55,12 +55,13 @@ def test_precio_sin_producto(web_client):
 def test_modulo_finanzas_apagado(web_client):
     _setup(web_client)
     web_client.post("/app/coach/activar", data={"modulos": ["agenda"]})
-    assert "apagado" in _say("/precio leche", "c4")
+    assert "apagad" in _say("/precio leche", "c4")
 
 
 def test_estado_resume(web_client, monkeypatch):
     _setup(web_client)
     monkeypatch.setattr("app.google_calendar.calendar_disponible", lambda: False)
     out = _say("/estado", "c5")
-    assert "Plan:" in out and "finanzas" in out and "sin vincular" in out
+    assert "Plan:" in out and "Dinero" in out and "sin vincular" in out
+    assert "finanzas" not in out
     assert "Llamadas de IA" in out

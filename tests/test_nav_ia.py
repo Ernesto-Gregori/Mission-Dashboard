@@ -56,7 +56,7 @@ def _onboard(client: TestClient, username: str = "nav_user", mods=None) -> None:
 
 def _sidebar(html: bytes) -> str:
     text = html.decode()
-    m = re.search(r'<aside class="sidebar">(.*?)</aside>', text, re.S)
+    m = re.search(r'<aside class="sidebar"[^>]*>(.*?)</aside>', text, re.S)
     assert m, "sidebar missing"
     return m.group(1)
 
@@ -99,10 +99,28 @@ def test_sidebar_uses_hubs_not_page_dump(web_client):
 
     # Módulos inactivos no se listan uno a uno.
     assert "Biblioteca" not in side
-    assert "Sandbox" not in side
     assert "Teología" not in side and "Teologia" not in side
 
     assert len(hrefs) <= 10
+
+
+def test_el_menu_se_puede_plegar_en_movil(web_client):
+    """En móvil la navegación es un drawer, no una barra que empuja el contenido."""
+    _onboard(web_client)
+    body = web_client.get("/app").content.decode()
+
+    assert '<aside class="sidebar" id="app-sidebar">' in body
+    assert 'aria-controls="app-sidebar"' in body
+    assert 'aria-expanded="false"' in body
+    assert 'class="nav-scrim" hidden' in body
+    assert 'aria-label="Cerrar el menú"' in body
+    assert "/static/js/nav.js?v=" in body
+
+    css = (Path(__file__).resolve().parent.parent / "web/static/css/app.css").read_text("utf-8")
+    assert '.sidebar[data-open="true"]' in css
+    assert "body.nav-open" in css
+    # El patrón viejo (sidebar siempre visible con scroll horizontal) no vuelve.
+    assert ".nav-group-label { display: none; }" not in css
 
 
 def test_inactive_module_hubs_hidden(web_client):
@@ -111,7 +129,6 @@ def test_inactive_module_hubs_hidden(web_client):
     side = _sidebar(r.content)
     assert "Cuerpo" not in side
     assert "Lectura" not in side
-    assert "Ideas" not in side
     assert "Dinero" in side
     assert "Hoy" in side
 
@@ -166,17 +183,37 @@ def test_semana_hub_links_planificador_enfoque_revision(web_client):
     assert b'href="/app/m/agenda' not in r.content
 
 
-def test_familia_vive_en_cuenta_admin(web_client):
+def test_la_comparativa_vive_en_cuenta_admin(web_client):
+    """La comparativa entre usuarios es admin y no presta el nombre del plan retirado."""
     _onboard(web_client)
     r = web_client.get("/app/m/matrimonio")
     assert r.status_code == 200
     assert b'href="/app/familia"' not in r.content
-    assert b'data-hub="pareja"' in r.content
+    assert b'data-hub="relaciones"' in r.content
     r = web_client.get("/app/familia")
     assert r.status_code == 200
     assert b'href="/app/coach"' in r.content
     assert b'href="/app/billing"' in r.content
     assert b'href="/app/familia"' in r.content
+    assert "Comparativa".encode() in r.content
+    assert b">Familia<" not in r.content
+
+
+def test_configuracion_es_una_pestana_de_cuenta_y_no_un_atajo_aparte(web_client):
+    """Ajustar la cuenta se hace en un solo lugar: el hub Cuenta."""
+    _onboard(web_client)
+    r = web_client.get("/app/configuracion")
+    assert r.status_code == 200
+    body = r.content.decode()
+    # La pestaña existe y queda marcada como la página actual.
+    assert re.search(r'<a[^>]*href="/app/configuracion"[^>]*aria-current="page"', body)
+    assert 'href="/app/coach"' in body
+    assert 'href="/app/billing"' in body
+    # El atajo del pie ya no compite con la pestaña.
+    side = _sidebar(r.content)
+    pie = side[side.index('class="sidebar-footer"') :]
+    assert 'href="/app/configuracion"' not in pie
+    assert "/app/configuracion" not in _link_hrefs(side)
 
 
 def test_cuenta_hub_covers_billing(web_client):

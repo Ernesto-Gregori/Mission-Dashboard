@@ -137,10 +137,10 @@ def ensure_database() -> None:
         except Exception as e:
             print(f"[ensure_database] billing: {e}")
         try:
-            from app.onboarding import migrar_nombres_cuenta
-            migrar_nombres_cuenta()
+            from app.onboarding import migrar_vocabulario_unico
+            migrar_vocabulario_unico()
         except Exception as e:
-            print(f"[ensure_database] personalizacion: {e}")
+            print(f"[ensure_database] vocabulario: {e}")
         try:
             from app.db.relax import relajar_cheques_personales
             from app.cuenta import asegurar_schema
@@ -162,10 +162,10 @@ def ensure_database() -> None:
         except Exception as e:
             print(f"[ensure_database] billing: {e}")
         try:
-            from app.onboarding import migrar_nombres_cuenta
-            migrar_nombres_cuenta()
+            from app.onboarding import migrar_vocabulario_unico
+            migrar_vocabulario_unico()
         except Exception as e:
-            print(f"[ensure_database] personalizacion: {e}")
+            print(f"[ensure_database] vocabulario: {e}")
         try:
             from app.db.relax import relajar_cheques_personales
             from app.cuenta import asegurar_schema

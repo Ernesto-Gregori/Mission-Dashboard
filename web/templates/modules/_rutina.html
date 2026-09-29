@@ -1,10 +1,7 @@
 <section class="rt-wrap">
   <div class="card">
     <h2>Rutina semanal</h2>
-    <p class="muted">El coach arma tu semana con los días, el tiempo y el equipo que tienes. Prefiere los ejercicios de tu biblioteca.</p>
-    {% if rutina_ready_count == 0 %}
-    <p class="muted">Todavía no hay clips analizados. Puede armar una rutina de peso corporal; cuanto más subas, más personal se vuelve.</p>
-    {% endif %}
+    <p class="muted">El coach arma tu semana con los días, el tiempo y el equipo que tienes.</p>
 
     <form class="rt-build-form" method="post" action="/app/m/salud/rutina/generar">
       <div class="health-form-grid">
@@ -40,7 +37,7 @@
         <button class="btn" type="submit" {% if not ia_ok %}disabled{% endif %}>
           {% if rutina %}Rehacer rutina{% else %}Armar mi rutina{% endif %}
         </button>
-        {% if not ia_ok %}<span class="muted">Configura GROQ_API_KEY</span>{% endif %}
+        {% if not ia_ok %}<span class="muted">IA desactivada</span>{% endif %}
       </div>
     </form>
   </div>
@@ -83,13 +80,7 @@
           {% for lift in day.bloques %}
           <li>
             <div class="rt-lift-main">
-              <p class="rt-lift-name">
-                {% if lift.exercise_id %}
-                <a href="/app/m/salud/ejercicios/{{ lift.exercise_id }}">{{ lift.nombre }}</a>
-                {% else %}
-                {{ lift.nombre }}
-                {% endif %}
-              </p>
+              <p class="rt-lift-name">{{ lift.nombre }}</p>
               <p class="rt-lift-scheme">
                 <span class="rt-sets">{{ lift.series }}</span>
                 <span class="rt-times" aria-hidden="true">×</span>
@@ -129,4 +120,30 @@
     </form>
   </div>
   {% endif %}
+
+  <div class="card">
+    <h2>Equipamiento disponible</h2>
+    <p class="muted">Qué tienes a mano (banda elástica, pesa rusa, etc.). Lo que guardes acá aparece arriba para elegirlo.</p>
+    {% if user_equipment %}
+    <ul class="rt-equip-list">
+      {% for eq in user_equipment %}
+      <li>
+        <span>{{ eq.equipment_name }}</span>
+        <form method="post" action="/app/m/salud/equipamiento/{{ eq.id }}/borrar" onsubmit="return confirm('¿Eliminar este equipamiento?')">
+          <button class="btn secondary" type="submit">Quitar</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Todavía no registraste equipamiento.</p>
+    {% endif %}
+    <form class="rt-equip-form" method="post" action="/app/m/salud/equipamiento">
+      <label for="eq-name">Nuevo equipamiento</label>
+      <div class="rt-equip-row">
+        <input id="eq-name" name="equipment_name" maxlength="80" placeholder="Ej. banda elástica" required />
+        <button class="btn" type="submit">Agregar</button>
+      </div>
+    </form>
+  </div>
 </section>

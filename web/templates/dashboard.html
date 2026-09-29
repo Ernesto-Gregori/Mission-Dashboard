@@ -31,10 +31,10 @@
   <h2>También te pueden servir (Premium)</h2>
   <ul class="muted">
     {% for k in just_finished.resto %}
-    <li>Módulo «{{ k }}»</li>
+    <li>{{ k }}</li>
     {% endfor %}
   </ul>
-  <a class="btn secondary" href="/app/billing">Ver upgrade</a>
+  <a class="btn secondary" href="/app/billing">Ver planes</a>
 </section>
 {% endif %}
 
@@ -50,7 +50,9 @@
     {% if puede_google and google_error %}
     <p class="flash-warn" role="alert">{{ google_error }}{% if not google_ok %} <a href="/app/m/salud">Conectar en Salud</a>{% endif %}</p>
     {% endif %}
-    {% if not foco_items %}
+    {% if foco_falla %}
+    <p class="flash-warn" role="alert">No se pudo leer tu agenda de hoy. Vuelve a intentar en un momento.</p>
+    {% elif not foco_items %}
     <p class="muted empty-state">Nada agendado para hoy.</p>
     {% else %}
     <ol class="foco-list hoy-foco-list">
@@ -115,10 +117,9 @@
   <div class="section-heading">
     <div>
       <h2 id="modules-title">Tus áreas</h2>
-      <p class="muted">{{ activos_count }} módulos activos</p>
+      <p class="muted">{{ activos_count }} áreas activas</p>
     </div>
-    <a href="/app/configuracion">Configuración</a>
-    <a href="/app/coach">Mi sistema</a>
+    <a href="/app/configuracion">Elegir mis áreas</a>
   </div>
   {% set areas_vida = life_hubs | rejectattr('id', 'equalto', 'semana') | list %}
   {% if not areas_vida %}

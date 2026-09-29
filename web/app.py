@@ -51,12 +51,11 @@ from web.routers import tema as tema_router
 from web.routers import agenda as agenda_router
 from web.routers import finanzas as finanzas_router
 from web.routers import salud as salud_router
-from web.routers import ejercicios as ejercicios_router
+from web.routers import rutina as rutina_router
 from web.routers import deep_work as deep_work_router
 from web.routers import teologia as teologia_router
 from web.routers import biblioteca as biblioteca_router
 from web.routers import matrimonio as matrimonio_router
-from web.routers import sandbox as sandbox_router
 from web.routers import usuarios as usuarios_router
 from web.routers import oauth_google as oauth_router
 from web.routers import modules as modules_router
@@ -115,12 +114,11 @@ def create_app() -> FastAPI:
     app.include_router(agenda_router.router)  # antes del catch-all /m/{clave}
     app.include_router(finanzas_router.router)  # antes del catch-all /m/{clave}
     app.include_router(salud_router.router)  # antes del catch-all /m/{clave}
-    app.include_router(ejercicios_router.router)
+    app.include_router(rutina_router.router)
     app.include_router(deep_work_router.router)  # antes del catch-all /m/{clave}
     app.include_router(teologia_router.router)  # antes del catch-all /m/{clave}
     app.include_router(biblioteca_router.router)  # antes del catch-all /m/{clave}
     app.include_router(matrimonio_router.router)  # antes del catch-all /m/{clave}
-    app.include_router(sandbox_router.router)  # antes del catch-all /m/{clave}
     app.include_router(modules_router.router)
     app.include_router(billing_router.router)
     app.include_router(usuarios_router.router)

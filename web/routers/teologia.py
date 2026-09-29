@@ -26,7 +26,6 @@ from app.database import (
     parse_dias_oracion,
     pedidos_para_hoy,
 )
-from app.cuenta import usa_vocabulario_cuenta
 from app.onboarding import meta_para, modulo_activo
 from app.timezone_config import hoy as _hoy
 from web.deps import require_onboarded, render
@@ -100,11 +99,11 @@ def _ctx(
     }
 
     return {
-        "title": meta_para("teologia", int(user["id"]))["nombre"],
+        "title": meta_para("teologia")["nombre"],
         "user": user,
-        "meta": meta_para("teologia", int(user["id"])),
+        "meta": meta_para("teologia"),
         "tab": tab,
-        "flash": flash,
+        "flash": flash or request.session.pop("teo_flash", None),
         "error": error,
         "sugerencia": sugerencia or request.session.pop("teo_sugerencia", None),
         "fecha": fecha,
@@ -122,7 +121,6 @@ def _ctx(
         "urgencia_labels": URGENCIA_LABELS,
         "hoy_pedidos": hoy_pedidos,
         "ia_ok": api_key_configurada(),
-        "vocabulario_cuenta": usa_vocabulario_cuenta("teologia", int(user["id"])),
     }
 
 
@@ -143,9 +141,9 @@ def teologia_page(request: Request, user: Annotated[dict, Depends(require_onboar
         return render(
             request,
             "paywall.html",
-            title=meta_para("teologia", int(user["id"]))["nombre"],
+            title=meta_para("teologia")["nombre"],
             user=user,
-            meta=meta_para("teologia", int(user["id"])),
+            meta=meta_para("teologia"),
             clave="teologia",
             plan=plan_vigente(user),
             plan_free=plan_vigente(user) == PLAN_FREE,
@@ -192,6 +190,7 @@ async def save_devocional(request: Request, user: Annotated[dict, Depends(requir
             status_code=400,
             **_ctx(request, user, error="No se pudo guardar el devocional."),
         )
+    request.session["teo_flash"] = "Devocional guardado."
     return _redirect("hoy", fecha)
 
 
@@ -201,7 +200,7 @@ async def sugerir(request: Request, user: Annotated[dict, Depends(require_onboar
     request.session["teo_tab"] = "hoy"
     ctx = _ctx(request, user)
     if not api_key_configurada():
-        ctx["error"] = "IA offline: configura GROQ_API_KEY."
+        ctx["error"] = "La IA está desactivada, así que no puedo sugerir una lectura."
         return render(request, "modules/teologia.html", **ctx)
     tema = str(form.get("tema") or "ánimo y fe").strip()
     texto = sugerir_lectura_devocional(tema) or "Sin sugerencia."
@@ -249,6 +248,7 @@ async def create_pedido(request: Request, user: Annotated[dict, Depends(require_
             status_code=400,
             **_ctx(request, user, error="No se pudo crear el pedido."),
         )
+    request.session["teo_flash"] = "Pedido agregado."
     return _redirect("oracion")
 
 
@@ -263,6 +263,7 @@ async def pedido_estado(
     estado = str(form.get("estado") or "Activo")
     nota = str(form.get("nota_respuesta") or "")
     actualizar_estado_pedido(int(pedido_id), estado, nota)
+    request.session["teo_flash"] = "Pedido actualizado."
     return _redirect("oracion")
 
 
@@ -298,6 +299,7 @@ async def pedido_editar(
         urgencia,
         dias,
     )
+    request.session["teo_flash"] = "Pedido actualizado."
     return _redirect("oracion")
 
 
@@ -308,4 +310,5 @@ def pedido_eliminar(
     user: Annotated[dict, Depends(require_onboarded)],
 ):
     eliminar_pedido(int(pedido_id))
+    request.session["teo_flash"] = "Pedido eliminado."
     return _redirect("oracion")

@@ -20,7 +20,6 @@ MODULE_STATUS = {
     "teologia": "live",
     "biblioteca": "live",
     "salud": "live",
-    "sandbox": "live",
     "matrimonio": "live",
 }
 
@@ -34,13 +33,13 @@ def module_page(
     if clave not in MODULE_TEMPLATES:
         meta = None
     else:
-        meta = meta_para(clave, int(user["id"]))
+        meta = meta_para(clave)
     if not meta:
         return render(
             request,
             "error.html",
-            title="Módulo",
-            error="Módulo desconocido.",
+            title="Área",
+            error="No conozco esa área.",
             user=user,
             status_code=404,
         )

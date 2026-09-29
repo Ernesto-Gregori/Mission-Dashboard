@@ -1,4 +1,4 @@
-"""Briefing del día, armado con los módulos activos."""
+"""Briefing del día, armado con las áreas activas."""
 from __future__ import annotations
 
 import re
@@ -27,7 +27,7 @@ def is_briefing_request(text: str) -> bool:
 
 
 def build_briefing(user_id: int) -> str:
-    """Secciones según módulos activos. Fe, pareja y salud solo con opt-in."""
+    """Secciones según las áreas activas. Fe, pareja y cuerpo solo con opt-in."""
     from app.db.telegram_state import briefing_extra
     from app.onboarding import modulo_activo
     from app.timezone_config import hoy as hoy_fn
@@ -125,7 +125,7 @@ def _linea_salud(user_id: int) -> str:
     rutina = obtener_routine(user_id)
     if rutina:
         partes.append(f"rutina {rutina.get('dias_semana') or '?'} días")
-    return "Salud: " + (", ".join(partes) if partes else "sin registro hoy.")
+    return "Cuerpo: " + (", ".join(partes) if partes else "sin registro hoy.")
 
 
 def _linea_oracion() -> str:
@@ -147,8 +147,8 @@ def _linea_pareja(dia) -> str:
         fetchall=True,
     ) or []
     if not rows:
-        return "Pareja: sin cita hoy."
-    return "Pareja: " + "; ".join(f"{str(r.get('hora') or '')[:5]} {r.get('titulo')}" for r in rows)
+        return "Relaciones: sin cita hoy."
+    return "Relaciones: " + "; ".join(f"{str(r.get('hora') or '')[:5]} {r.get('titulo')}" for r in rows)
 
 
 def _ejecutar(ctx: Contexto, _datos: dict) -> Respuesta:
@@ -183,7 +183,7 @@ SILENCIO = Accion(
     clave="silencio",
     comandos=("/silencio",),
     ejecutar=_ejecutar_silencio,
-    uso="Usá /silencio, /silencio 3 o /silencio 0 para reanudar.",
+    uso="Usa /silencio, /silencio 3 o /silencio 0 para reanudar.",
     parse=_parse_silencio,
 )
 

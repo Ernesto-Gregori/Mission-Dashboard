@@ -108,9 +108,13 @@
         </div>
         <div>
           <label for="appointment-scope">Ámbito</label>
+          {% set ambito_actual = cita_edit.ambito if cita_edit else ambitos[0] %}
           <select id="appointment-scope" name="ambito">
+            {% if ambito_actual and ambito_actual not in ambitos %}
+            <option value="{{ ambito_actual }}" selected>{{ ambito_actual }}</option>
+            {% endif %}
             {% for a in ambitos %}
-            <option value="{{ a }}" {% if (cita_edit.ambito if cita_edit else 'Matrimonio') == a %}selected{% endif %}>{{ a }}</option>
+            <option value="{{ a }}" {% if ambito_actual == a %}selected{% endif %}>{{ a }}</option>
             {% endfor %}
           </select>
         </div>
@@ -118,9 +122,13 @@
       <div class="relationship-form-grid cols-2">
         <div>
           <label for="appointment-type">Tipo</label>
+          {% set tipo_actual = cita_edit.tipo_cita if cita_edit else '' %}
           <select id="appointment-type" name="tipo_cita">
-            {% for t in tipos_flat %}
-            <option value="{{ t }}" {% if (cita_edit.tipo_cita if cita_edit else '') == t %}selected{% endif %}>{{ emojis_tipo.get(t, '') }} {{ t.replace('_', ' ') }}</option>
+            {% if tipo_actual and tipo_actual not in tipos_cita %}
+            <option value="{{ tipo_actual }}" selected>{{ emojis_tipo.get(tipo_actual, '') }} {{ tipo_actual.replace('_', ' ') }}</option>
+            {% endif %}
+            {% for t in tipos_cita %}
+            <option value="{{ t }}" {% if tipo_actual == t %}selected{% endif %}>{{ emojis_tipo.get(t, '') }} {{ t.replace('_', ' ') }}</option>
             {% endfor %}
           </select>
         </div>
@@ -158,7 +166,7 @@
         <textarea id="appointment-preparation" name="preparacion" rows="2">{{ cita_edit.notas_preparacion if cita_edit else '' }}</textarea>
       </div>
       <div class="form-actions">
-        <button class="btn" type="submit">{% if cita_edit %}💾 Guardar cambios{% else %}➕ Crear cita{% endif %}</button>
+        <button class="btn" type="submit">{% if cita_edit %}💾 Guardar cambios{% else %}➕ Agregar cita{% endif %}</button>
         {% if cita_edit %}<a class="btn secondary" href="/app/m/matrimonio?tab=nueva">Cancelar</a>{% endif %}
       </div>
     </form>
@@ -212,7 +220,7 @@
         <input id="note-context" name="contexto" value="{{ nota_edit.contexto if nota_edit else '' }}" placeholder="Cuándo / por qué lo anotaste" />
       </div>
       <div class="form-actions">
-        <button class="btn" type="submit">{% if nota_edit %}💾 Guardar{% else %}➕ Añadir nota{% endif %}</button>
+        <button class="btn" type="submit">{% if nota_edit %}💾 Guardar{% else %}➕ Agregar nota{% endif %}</button>
         {% if nota_edit %}<a class="btn secondary" href="/app/m/matrimonio?tab=notas">Cancelar</a>{% endif %}
       </div>
     </form>

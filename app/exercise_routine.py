@@ -1,18 +1,16 @@
-"""Coach IA: arma y mejora una rutina semanal a partir de la biblioteca."""
+"""Coach IA: arma y mejora una rutina semanal con el equipo que tiene el usuario."""
 from __future__ import annotations
 
 import json
 
 from app.ai_client import api_key_configurada, chat_simple, last_ai_error
-from app.db.exercises import listar_exercises
-from app.exercise_analysis import extract_json_object
 from app.logging_config import get_logger
 
 log = get_logger("exercise_routine")
 
 SYSTEM_COACH_RUTINA = (
     "Eres un coach de fuerza y acondicionamiento. Hablas español, eres concreto "
-    "y armás rutinas que se pueden seguir como en una app de entrenamiento: "
+    "y armas rutinas que se pueden seguir como en una app de entrenamiento: "
     "días, ejercicios, series, repeticiones y descanso. "
     "No recetes suplementos ni dietas. No inventes máquinas que el usuario no tiene."
 )
@@ -27,26 +25,6 @@ class RoutineError(ValueError):
     """Error controlado al armar o interpretar la rutina."""
 
 
-def catalogo_ejercicios(user_id: int) -> list[dict]:
-    rows = listar_exercises(user_id, status="ready")
-    catalog = []
-    for r in rows:
-        catalog.append(
-            {
-                "id": int(r["id"]),
-                "nombre": (r.get("nombre_ejercicio") or "Ejercicio")[:120],
-                "primarios": r.get("grupos_musculares_primarios") or [],
-                "equipo": r.get("equipamiento_detectado") or [],
-                "nivel": r.get("nivel_dificultad"),
-                "tipo": r.get("tipo_movimiento"),
-                "series_reps": r.get("series_reps_sugeridas")
-                or r.get("series_reps_mencionadas"),
-                "cues": (r.get("cues_de_forma") or [])[:2],
-            }
-        )
-    return catalog
-
-
 def _clamp_int(val, default: int, lo: int, hi: int) -> int:
     try:
         n = int(float(val))
@@ -55,14 +33,35 @@ def _clamp_int(val, default: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, n))
 
 
+def _extract_json_object(text: str) -> dict:
+    raw = (text or "").strip()
+    if not raw:
+        raise RoutineError("La IA no devolvió contenido.")
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start < 0 or end <= start:
+        raise RoutineError("La IA no devolvió JSON.")
+    try:
+        data = json.loads(raw[start : end + 1])
+    except json.JSONDecodeError as e:
+        raise RoutineError("No se pudo interpretar el JSON de la IA.") from e
+    if not isinstance(data, dict):
+        raise RoutineError("El JSON de la IA no es un objeto.")
+    return data
+
+
 def parse_routine_payload(
     text: str,
     *,
-    allowed_ids: set[int],
     expected_days: int,
     minutos: int,
 ) -> dict:
-    data = extract_json_object(text)
+    data = _extract_json_object(text)
     dias_in = data.get("dias")
     if not isinstance(dias_in, list) or not dias_in:
         raise RoutineError("La IA no armó los días de la rutina.")
@@ -81,18 +80,8 @@ def parse_routine_payload(
             nombre = str(b.get("nombre") or "").strip()[:120]
             if not nombre:
                 continue
-            eid_raw = b.get("exercise_id")
-            eid = None
-            if eid_raw not in (None, "", "null", "None"):
-                try:
-                    eid = int(eid_raw)
-                except (TypeError, ValueError):
-                    eid = None
-            if eid is not None and eid not in allowed_ids:
-                eid = None
             bloques.append(
                 {
-                    "exercise_id": eid,
                     "nombre": nombre,
                     "series": _clamp_int(b.get("series"), 3, 1, 8),
                     "reps": str(b.get("reps") or "8-12").strip()[:40],
@@ -137,11 +126,9 @@ def _build_prompt(
     dias: int,
     minutos: int,
     equipo: list[str],
-    catalog: list[dict],
     notas: str,
     previous: dict | None,
 ) -> str:
-    catalog_txt = json.dumps(catalog[:40], ensure_ascii=False)
     equipo_txt = ", ".join(equipo) if equipo else "peso corporal"
     prev = ""
     if previous:
@@ -156,16 +143,13 @@ Restricciones:
 - Exactamente {dias} días de entrenamiento (no más, no menos).
 - Cada sesión debe caber en {minutos} minutos, incluyendo calentamiento y cierre.
 - Equipamiento disponible: {equipo_txt}.
-- Prefiere ejercicios de la BIBLIOTECA y usa su id en exercise_id.
-- Si falta un patrón (empuje, jalón, piernas, core), puedes añadir movimientos
-  de peso corporal o del equipo listado, con exercise_id null.
+- Cubre los patrones básicos (empuje, jalón, piernas, core) con movimientos de
+  peso corporal o del equipo listado.
 - No uses máquinas ni equipo que no esté en la lista.
 - Series y reps realistas para el tiempo. Descanso en segundos.
 
 Notas del usuario: {notas_txt}
 {prev}
-
-BIBLIOTECA (JSON): {catalog_txt}
 
 Devuelve ÚNICAMENTE un JSON con esta forma:
 {{
@@ -180,7 +164,6 @@ Devuelve ÚNICAMENTE un JSON con esta forma:
       "calentamiento": ["2-4 ítems cortos"],
       "bloques": [
         {{
-          "exercise_id": 12,
           "nombre": "nombre del ejercicio",
           "series": 3,
           "reps": "8-10",
@@ -212,12 +195,10 @@ def generate_routine(
     if not api_key_configurada():
         raise RoutineError("Configura GROQ_API_KEY para que el coach arme la rutina.")
 
-    catalog = catalogo_ejercicios(user_id)
     prompt = _build_prompt(
         dias=dias_n,
         minutos=minutos_n,
         equipo=equipo_n,
-        catalog=catalog,
         notas=notas,
         previous=previous,
     )
@@ -227,7 +208,6 @@ def generate_routine(
         raise RoutineError(f"No se pudo armar la rutina ({detalle}).")
     plan = parse_routine_payload(
         raw,
-        allowed_ids={int(e["id"]) for e in catalog},
         expected_days=dias_n,
         minutos=minutos_n,
     )
@@ -236,7 +216,6 @@ def generate_routine(
             "event": "exercise_routine_generated",
             "user_id": int(user_id),
             "dias": len(plan.get("dias") or []),
-            "catalog": len(catalog),
             "improve": bool(previous),
         }
     )

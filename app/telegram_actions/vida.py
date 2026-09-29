@@ -13,9 +13,9 @@ def _alma(ctx: Contexto, datos: dict) -> Respuesta:
     try:
         texto = responder(str(datos.get("texto") or ""), flags, user_id=ctx.user_id)
     except ValueError:
-        return Respuesta("Escribí el mensaje. Ejemplo: /alma cómo viene mi semana")
+        return Respuesta("Escribe el mensaje. Ejemplo: /alma cómo viene mi semana")
     if not any(flags.values()):
-        texto += "\n\nNo hay categorías autorizadas. Se activan en la app, en Alma. El bot no puede prenderlas."
+        texto += "\n\nNo hay categorías autorizadas. Se activan en la app, en Cuenta → Configuración. El bot no puede prenderlas."
     return Respuesta(texto[:1500])
 
 
@@ -23,7 +23,7 @@ ALMA = Accion(
     clave="alma",
     comandos=("/alma",),
     ejecutar=_alma,
-    uso="Escribí el mensaje. Ejemplo: /alma cómo viene mi semana",
+    uso="Escribe el mensaje. Ejemplo: /alma cómo viene mi semana",
     parse=lambda args: {"texto": args.strip()} if args.strip() else None,
 )
 

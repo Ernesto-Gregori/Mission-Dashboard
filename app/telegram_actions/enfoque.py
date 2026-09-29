@@ -1,4 +1,4 @@
-"""Bloques de enfoque del día. Requiere el módulo deep_work."""
+"""Bloques de enfoque del día. Requiere el área Enfoque (deep_work)."""
 from __future__ import annotations
 
 from app.telegram_actions.base import Accion, Contexto, Respuesta
@@ -16,7 +16,9 @@ def _bloques():
 def _listar(_ctx: Contexto, _datos: dict) -> Respuesta:
     bloques = _bloques()
     if not bloques:
-        return Respuesta("Hoy no tenés bloques de enfoque. Se arman en la app → Enfoque.")
+        return Respuesta(
+            "Hoy no tienes bloques de enfoque. Se arman en la app, en Semana → Enfoque."
+        )
     lineas = ["Enfoque de hoy"]
     botones = []
     for b in bloques:

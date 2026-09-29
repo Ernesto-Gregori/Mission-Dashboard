@@ -1,4 +1,4 @@
-"""Centro de configuración: alias, interruptores y datos de la cuenta."""
+"""Centro de configuración: interruptores de área, día a día y datos de la cuenta."""
 from __future__ import annotations
 
 import json
@@ -27,7 +27,6 @@ from app.cuenta import (
     frecuencia_desde_eleccion,
     guardar_prefs,
     leer_prefs,
-    snippets_visibles,
 )
 from app.onboarding import listar_modulos_usuario, nombre_visible
 from app.ritual import listar_habitos_config
@@ -72,8 +71,7 @@ def _ctx(request: Request, user: dict, *, error: str | None = None, flash: str |
         modulos.append({
             "clave": clave,
             "emoji": MODULE_TEMPLATES[clave]["emoji"],
-            "nombre": nombre_visible(clave, uid),
-            "alias": (row.get("alias") or ""),
+            "nombre": nombre_visible(clave),
             "activo": int(row.get("activo") or 0) == 1,
         })
     superficies = []
@@ -97,7 +95,6 @@ def _ctx(request: Request, user: dict, *, error: str | None = None, flash: str |
         "flash": flash or request.session.pop("config_flash", None),
         "modulos": modulos,
         "superficies": superficies,
-        "snippets": snippets_visibles(uid),
         "prefs": prefs,
         "monedas": MONEDAS,
         "metodos": METODOS,
@@ -149,15 +146,9 @@ async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(
     else:
         rueda = rueda_conservando_estructura(prev_rueda, etiquetas)
     activos = {str(v) for v in form.getlist("activo")}
-    alias = {
-        clave: str(form.get(f"alias_{clave}") or "")
-        for clave in MODULE_TEMPLATES
-    }
     error = guardar_modulos(
         uid,
         activos=activos,
-        alias=alias,
-        snippets=str(form.get("snippets") or "") in ("1", "on", "true"),
         tope=modulos_max(plan_vigente(user)),
     )
     if error:

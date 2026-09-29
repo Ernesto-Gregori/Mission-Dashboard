@@ -16,7 +16,7 @@ HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 TAREA_VERB_RE = re.compile(
     r"^\s*(?:agendar|agend[aá]|agend[aá]me|record[aá]me|recordarme|recu[eé]rdame)\b\s*", re.I
 )
-USO = "Usá un título y hora. Ejemplo: /tarea mañana 5pm llamar al banco."
+USO = "Usa un título y hora. Ejemplo: /tarea mañana 5pm llamar al banco."
 DURACION_MIN = 60
 
 
@@ -288,7 +288,7 @@ def _ejecutar_mover(ctx: Contexto, datos: dict) -> Respuesta:
 
     eid = _evento_n(ctx, int(datos["n"]))
     if eid is None:
-        return Respuesta("No encuentro ese número. Mandá /agenda primero.")
+        return Respuesta("No encuentro ese número. Manda /agenda primero.")
     fin = _mas_minutos(datos["hora"], DURACION_MIN)
     if not actualizar_evento(eid, {"hora_inicio": datos["hora"], "hora_fin": fin}):
         return Respuesta("No pude mover ese evento.")
@@ -323,7 +323,7 @@ def _ejecutar_cancelar(ctx: Contexto, datos: dict) -> Respuesta:
 
     eid = _evento_n(ctx, int(datos["n"]))
     if eid is None:
-        return Respuesta("No encuentro ese número. Mandá /agenda primero.")
+        return Respuesta("No encuentro ese número. Manda /agenda primero.")
     cancel_reminders(ctx.user_id, eid)
     if not eliminar_evento(eid):
         return Respuesta("No pude cancelar ese evento.")

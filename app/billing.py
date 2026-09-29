@@ -1,5 +1,5 @@
 """
-billing.py — Planes Free / Premium / Familia (app web).
+billing.py — Planes Free / Premium (app web).
 
 Stripe/Lemon Checkout + webhook FastAPI actualizan usuarios.plan en Turso.
 """
@@ -15,8 +15,11 @@ log = get_logger("billing")
 
 PLAN_FREE = "free"
 PLAN_PREMIUM = "premium"
-PLAN_FAMILIA = "familia"
-PLANES_VALIDOS = (PLAN_FREE, PLAN_PREMIUM, PLAN_FAMILIA)
+PLANES_VALIDOS = (PLAN_FREE, PLAN_PREMIUM)
+
+# Planes retirados y a qué plan vigente equivalen. Se leen para que una cuenta
+# que ya los tenía no caiga a free mientras la BD se pone al día.
+PLANES_RETIRADOS = {"familia": PLAN_PREMIUM}
 
 # Límites por plan (producto web — no modo local)
 PLAN_LIMITES: dict[str, dict[str, Any]] = {
@@ -45,19 +48,6 @@ PLAN_LIMITES: dict[str, dict[str, Any]] = {
         "historial_dias": None,
         "export": True,
         "usuarios_cuenta": 1,
-    },
-    PLAN_FAMILIA: {
-        "nombre": "Pareja / Familia",
-        "precio": "$14/mes",
-        "modulos_max": None,
-        "ia_mensual": None,
-        "briefings_semana": 7,
-        "coach_reconfig": True,
-        "google": True,
-        "telegram": True,
-        "historial_dias": None,
-        "export": True,
-        "usuarios_cuenta": 2,
     },
 }
 
@@ -90,6 +80,18 @@ def ensure_billing_schema() -> None:
         except Exception:
             pass
 
+    # El plan Familia se retiró: quien lo tenía queda en Premium.
+    try:
+        ejecutar(
+            """
+            UPDATE usuarios
+            SET plan = 'premium'
+            WHERE LOWER(TRIM(plan)) = 'familia'
+            """
+        )
+    except Exception as e:
+        log.warning("ensure_billing_schema plan retirado: %s", e)
+
     # Grandfather: todo admin tiene al menos Premium (dueño de la app)
     try:
         ejecutar(
@@ -97,7 +99,7 @@ def ensure_billing_schema() -> None:
             UPDATE usuarios
             SET plan = 'premium', plan_expira_en = NULL
             WHERE rol = 'admin'
-              AND COALESCE(LOWER(TRIM(plan)), 'free') NOT IN ('premium', 'familia')
+              AND COALESCE(LOWER(TRIM(plan)), 'free') != 'premium'
             """
         )
         ejecutar(
@@ -122,6 +124,8 @@ def ensure_billing_schema() -> None:
 
 def normalizar_plan(plan: str | None) -> str:
     p = (plan or PLAN_FREE).strip().lower()
+    if p in PLANES_RETIRADOS:
+        return PLANES_RETIRADOS[p]
     if p not in PLANES_VALIDOS:
         return PLAN_FREE
     return p
@@ -160,7 +164,7 @@ def plan_vigente(user: dict | None = None) -> str:
     """
     Plan efectivo del usuario.
 
-    - Admin: siempre Premium (o Familia si ya lo tiene). Sin expiración.
+    - Admin: siempre Premium. Sin expiración.
     - Otros: si plan_expira_en pasó → free.
     """
     ensure_billing_schema()
@@ -168,9 +172,6 @@ def plan_vigente(user: dict | None = None) -> str:
 
     # Dueño / admin: acceso completo a lo Premium (Google, módulos ilimitados, IA…)
     if str(user.get("rol") or "").lower() == "admin":
-        plan = normalizar_plan(user.get("plan"))
-        if plan == PLAN_FAMILIA:
-            return PLAN_FAMILIA
         return PLAN_PREMIUM
 
     plan = normalizar_plan(user.get("plan"))
@@ -195,7 +196,7 @@ def plan_vigente(user: dict | None = None) -> str:
 def modulos_permitidos(plan: str | None = None) -> list[str]:
     """
     Módulos que el plan puede activar.
-    Free/Premium/Familia: catálogo completo; Free limita por cantidad (modulos_max).
+    Free/Premium: catálogo completo; Free limita por cantidad (modulos_max).
     """
     _ = normalizar_plan(plan or plan_vigente())
     return list(MODULE_TEMPLATES.keys())
@@ -243,8 +244,6 @@ def stripe_configured() -> bool:
     return bool(_secret("STRIPE_SECRET_KEY") and (
         _secret("STRIPE_PRICE_PREMIUM")
         or _secret("STRIPE_LINK_PREMIUM")
-        or _secret("STRIPE_PRICE_FAMILIA")
-        or _secret("STRIPE_LINK_FAMILIA")
     ))
 
 
@@ -274,7 +273,6 @@ def stripe_link(plan_destino: str) -> str:
     """Payment Link estático (fallback). Preferir Checkout Session."""
     key = {
         PLAN_PREMIUM: "STRIPE_LINK_PREMIUM",
-        PLAN_FAMILIA: "STRIPE_LINK_FAMILIA",
     }.get(normalizar_plan(plan_destino), "")
     if not key:
         return ""
@@ -284,7 +282,6 @@ def stripe_link(plan_destino: str) -> str:
 def stripe_price_id(plan_destino: str) -> str:
     key = {
         PLAN_PREMIUM: "STRIPE_PRICE_PREMIUM",
-        PLAN_FAMILIA: "STRIPE_PRICE_FAMILIA",
     }.get(normalizar_plan(plan_destino), "")
     return _secret(key) if key else ""
 
@@ -575,14 +572,10 @@ def plan_desde_price_id(price_id: str | None) -> str | None:
     price_id = price_id.strip()
     if price_id and price_id == stripe_price_id(PLAN_PREMIUM):
         return PLAN_PREMIUM
-    if price_id and price_id == stripe_price_id(PLAN_FAMILIA):
-        return PLAN_FAMILIA
     import os
 
     if price_id == (os.getenv("STRIPE_PRICE_PREMIUM") or "").strip():
         return PLAN_PREMIUM
-    if price_id == (os.getenv("STRIPE_PRICE_FAMILIA") or "").strip():
-        return PLAN_FAMILIA
     return None
 
 

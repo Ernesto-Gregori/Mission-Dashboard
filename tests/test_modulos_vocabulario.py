@@ -1,6 +1,7 @@
-"""Nombres neutros, alias de cuentas ya existentes y módulos que se pueden apagar."""
+"""Un solo nombre por área y módulos que se pueden apagar sin perder datos."""
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from app.timezone_config import hoy as _hoy
 @pytest.fixture()
 def web_client(monkeypatch):
     td = Path(tempfile.mkdtemp())
-    db_path = td / "alias_test.db"
+    db_path = td / "vocabulario_test.db"
     monkeypatch.setenv("MISSION_ALLOW_SQLITE", "1")
     monkeypatch.setenv("SESSION_SECRET", "test-secret-please-change")
     monkeypatch.setenv("TURSO_URL", "")
@@ -50,30 +51,81 @@ def _onboard(client: TestClient, username: str, mods: list[str]) -> None:
     client.post("/app/coach/activar", data={"modulos": mods}, follow_redirects=False)
 
 
-def test_usuario_nuevo_ve_nombres_neutros(web_client):
-    _onboard(web_client, "nuevo", ["teologia", "matrimonio", "sandbox", "biblioteca", "deep_work"])
-    teo = web_client.get("/app/m/teologia")
-    assert teo.status_code == 200
-    assert "Espiritualidad" in teo.text
-    assert "Teología / Devocional" not in teo.text
-
-    side = web_client.get("/app").content.decode()
-    assert "Espiritualidad" in side
-    assert "Relaciones" in side
-    assert ">Fe</a>" not in side
-    assert ">Pareja</a>" not in side
-
-    assert b"Relaciones" in web_client.get("/app/m/matrimonio").content
-    assert b"Ideas" in web_client.get("/app/m/sandbox").content
-    assert b"Lectura" in web_client.get("/app/m/biblioteca").content
-    assert b"Enfoque" in web_client.get("/app/m/deep_work").content
+def _sidebar(html: str) -> str:
+    m = re.search(r'<aside class="sidebar"[^>]*>(.*?)</aside>', html, re.S)
+    assert m, "sidebar missing"
+    return m.group(1)
 
 
-def test_cuenta_existente_conserva_sus_nombres(web_client):
+def _h1(html: str) -> str:
+    m = re.search(r"<h1>(.*?)</h1>", html, re.S)
+    assert m, "h1 missing"
+    return m.group(1).strip()
+
+
+def _etiqueta_menu(sidebar: str, hub_id: str) -> str:
+    m = re.search(rf'data-hub="{hub_id}"[^>]*>(.*?)</a>', sidebar, re.S)
+    assert m, f"hub {hub_id} missing from sidebar"
+    return m.group(1).strip()
+
+
+TODAS = ["teologia", "matrimonio", "biblioteca", "deep_work", "finanzas", "salud", "agenda"]
+
+
+def test_el_catalogo_no_apunta_a_paginas_de_streamlit():
+    """page: era la ruta de la app vieja. Nada la lee."""
+    from app.templates import MODULE_TEMPLATES
+
+    assert MODULE_TEMPLATES
+    for clave, meta in MODULE_TEMPLATES.items():
+        assert "page" not in meta, clave
+
+
+
+
+def test_el_menu_y_el_titulo_dicen_lo_mismo(web_client):
+    """Un área tiene un solo nombre: el del menú es el del encabezado de su página."""
+    from web.nav import _HUB_HREF, _HUB_SPECS
+    from app.templates import MODULE_TEMPLATES
+
+    _onboard(web_client, "coherente", TODAS)
+    sidebar = _sidebar(web_client.get("/app").text)
+    vistos = 0
+    for hub in _HUB_SPECS:
+        mods = [m for m in hub.get("modules") or () if m in MODULE_TEMPLATES]
+        if len(mods) != 1:
+            continue
+        pagina = web_client.get(_HUB_HREF[hub["id"]])
+        assert pagina.status_code == 200
+        nombre = MODULE_TEMPLATES[mods[0]]["nombre"]
+        assert _h1(pagina.text) == nombre
+        assert _etiqueta_menu(sidebar, hub["id"]) == nombre
+        vistos += 1
+    assert vistos >= 5
+
+
+def test_ningun_nombre_de_la_cuenta_original_sobrevive(web_client):
+    _onboard(web_client, "nuevo", TODAS)
+    viejos = (
+        "Teología / Devocional",
+        "Matrimonio / Pareja",
+        "Salud & Energía",
+        "Deep Work",
+        ">Fe</a>",
+        ">Pareja</a>",
+        ">Biblioteca</a>",
+    )
+    for ruta in ("/app", "/app/m/teologia", "/app/m/matrimonio", "/app/configuracion"):
+        cuerpo = web_client.get(ruta).text
+        for viejo in viejos:
+            assert viejo not in cuerpo, f"{viejo} sigue en {ruta}"
+
+
+def test_una_cuenta_con_alias_heredados_vuelve_al_nombre_comun(web_client):
     from app.db.core import ejecutar
-    from app.onboarding import MIGRACION_ALIAS, etiqueta_nav, migrar_nombres_cuenta, nombre_visible
+    from app.onboarding import MIGRACION_VOCABULARIO, migrar_vocabulario_unico, nombre_visible
 
-    ejecutar("DELETE FROM _migrations WHERE id = ?", [MIGRACION_ALIAS])
+    ejecutar("DELETE FROM _migrations WHERE id = ?", [MIGRACION_VOCABULARIO])
     ejecutar(
         """
         INSERT INTO usuarios (username, password_hash, salt, rol, onboarding_completo)
@@ -83,43 +135,23 @@ def test_cuenta_existente_conserva_sus_nombres(web_client):
     legacy = ejecutar(
         "SELECT id FROM usuarios WHERE username = 'legacy'", fetchall=True
     )[0]["id"]
-    for clave in ("teologia", "matrimonio", "deep_work", "sandbox", "biblioteca"):
+    for clave, alias in (("teologia", "Teología / Devocional"), ("deep_work", "Deep Work")):
         ejecutar(
             """
-            INSERT INTO user_modulos (user_id, modulo, activo, config_json)
-            VALUES (?, ?, 1, '{}')
+            INSERT INTO user_modulos (user_id, modulo, activo, config_json, alias)
+            VALUES (?, ?, 1, '{}', ?)
             """,
-            [legacy, clave],
+            [legacy, clave, alias],
         )
-    migrar_nombres_cuenta()
+    migrar_vocabulario_unico()
 
-    assert nombre_visible("teologia", legacy) == "Teología / Devocional"
-    assert nombre_visible("matrimonio", legacy) == "Matrimonio / Pareja"
-    assert nombre_visible("deep_work", legacy) == "Deep Work"
-    assert nombre_visible("sandbox", legacy) == "Sandbox"
-    assert nombre_visible("biblioteca", legacy) == "Biblioteca"
-    assert etiqueta_nav("teologia", legacy) == "Fe"
-    assert etiqueta_nav("matrimonio", legacy) == "Pareja"
-
-    ejecutar(
-        """
-        INSERT INTO usuarios (username, password_hash, salt, rol, onboarding_completo)
-        VALUES ('despues', 'x', 'y', 'usuario', 1)
-        """
-    )
-    despues = ejecutar(
-        "SELECT id FROM usuarios WHERE username = 'despues'", fetchall=True
-    )[0]["id"]
-    ejecutar(
-        """
-        INSERT INTO user_modulos (user_id, modulo, activo, config_json)
-        VALUES (?, 'teologia', 1, '{}')
-        """,
-        [despues],
-    )
-    migrar_nombres_cuenta()
-    assert nombre_visible("teologia", despues) == "Espiritualidad"
-    assert nombre_visible("teologia", legacy) == "Teología / Devocional"
+    assert nombre_visible("teologia") == "Espiritualidad"
+    assert nombre_visible("deep_work") == "Enfoque"
+    quedan = ejecutar(
+        "SELECT COUNT(*) AS n FROM user_modulos WHERE alias IS NOT NULL",
+        fetchall=True,
+    )[0]["n"]
+    assert int(quedan) == 0
 
 
 def test_apagar_modulo_oculta_y_no_borra(web_client):

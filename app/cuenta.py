@@ -222,28 +222,19 @@ def ritual_etiquetas(user_id: int | None = None) -> tuple[str, str]:
     return prefs["ritual_a"], prefs["ritual_b"]
 
 
-def usa_vocabulario_cuenta(clave: str, user_id: int | None = None) -> bool:
-    from app.onboarding import _alias
-
-    alias = _alias(clave, user_id)
-    cuenta = (MODULE_TEMPLATES.get(clave) or {}).get("nombre_cuenta") or ""
-    return bool(alias) and alias == cuenta
-
-
 _RUEDA_MIN = 3
 _RUEDA_MAX = 12
 _RUEDA_EXTRA_MAX = 4
 
 
-def _nombre_area(clave: str, nombre: str, overrides: dict, user_id: int) -> str:
+_NOMBRE_AREA = {"fe": "Espiritualidad", "matrimonio": "Vínculos"}
+
+
+def _nombre_area(clave: str, nombre: str, overrides: dict) -> str:
     propio = overrides.get(clave)
     if isinstance(propio, str) and propio.strip():
         return propio.strip()[:40]
-    if clave == "fe" and not usa_vocabulario_cuenta("teologia", user_id):
-        return "Espiritualidad"
-    if clave == "matrimonio" and not usa_vocabulario_cuenta("matrimonio", user_id):
-        return "Vínculos"
-    return nombre
+    return _NOMBRE_AREA.get(clave, nombre)
 
 
 def _ocultas_rueda(raw: dict) -> list[str]:
@@ -317,11 +308,11 @@ def areas_rueda(user_id: int | None = None) -> tuple[tuple[str, str, str], ...]:
     for clave, nombre, emoji in AREAS:
         if clave in ocultas:
             continue
-        out.append((clave, _nombre_area(clave, nombre, overrides, uid_i), emoji))
+        out.append((clave, _nombre_area(clave, nombre, overrides), emoji))
     out.extend(_extras_rueda(raw))
     if len(out) < _RUEDA_MIN:
         out = [
-            (clave, _nombre_area(clave, nombre, overrides, uid_i), emoji)
+            (clave, _nombre_area(clave, nombre, overrides), emoji)
             for clave, nombre, emoji in AREAS
         ]
     return tuple(out[:_RUEDA_MAX])
@@ -339,7 +330,7 @@ def catalogo_areas_rueda(user_id: int | None = None) -> list[dict]:
     for clave, nombre, emoji in AREAS:
         filas.append({
             "clave": clave,
-            "nombre": _nombre_area(clave, nombre, overrides, uid_i),
+            "nombre": _nombre_area(clave, nombre, overrides),
             "emoji": emoji,
             "activo": clave not in ocultas,
         })
@@ -427,17 +418,6 @@ def metricas_salud(user_id: int | None = None) -> set[str]:
     return {m for m in elegidas if m in todas} or todas
 
 
-def snippets_visibles(user_id: int | None = None) -> bool:
-    from app.onboarding import listar_modulos_usuario
-
-    for row in listar_modulos_usuario(user_id):
-        if row.get("modulo") != "sandbox":
-            continue
-        cfg = _json_dict(row.get("config_json"))
-        return bool(cfg.get("snippets", True))
-    return True
-
-
 def _json_dict(raw) -> dict:
     if isinstance(raw, dict):
         return raw
@@ -466,8 +446,6 @@ def guardar_modulos(
     user_id: int,
     *,
     activos: set[str],
-    alias: dict[str, str],
-    snippets: bool,
     tope: int | None,
 ) -> str | None:
     """Activa o apaga sin borrar datos. Devuelve un error o None."""
@@ -487,23 +465,18 @@ def guardar_modulos(
     for clave in list(MODULE_TEMPLATES) + list(SUPERFICIES):
         orden += 1
         activo = 1 if clave in activos else 0
-        alias_txt = (alias.get(clave) or "").strip()[:40]
-        alias_val = alias_txt or None
         previo = actuales.get(clave) or {}
         cfg = _json_dict(previo.get("config_json"))
-        if clave == "sandbox":
-            cfg["snippets"] = bool(snippets)
         ejecutar(
             """
-            INSERT INTO user_modulos (user_id, modulo, activo, config_json, orden, alias)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO user_modulos (user_id, modulo, activo, config_json, orden)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(user_id, modulo) DO UPDATE SET
                 activo = excluded.activo,
                 config_json = excluded.config_json,
-                orden = excluded.orden,
-                alias = excluded.alias
+                orden = excluded.orden
             """,
-            [user_id, clave, activo, json.dumps(cfg, ensure_ascii=False), orden, alias_val],
+            [user_id, clave, activo, json.dumps(cfg, ensure_ascii=False), orden],
         )
     invalidate_data_caches()
     return None

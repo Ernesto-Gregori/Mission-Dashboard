@@ -36,7 +36,7 @@ En la app: **Salud** → Conectar con Google.
 - Webhooks: `POST /lemon/webhook` o `POST /stripe/webhook`
 - Retorno: `/app/billing?checkout=success|cancel`
 
-## Telegram (Premium / Familia)
+## Telegram (Premium)
 - Bot API oficial (BotFather). Callback: `POST /telegram/webhook`
 - Vincular en `/app/usuarios?tab=telegram` (código + `t.me/bot?start=…`)
 - Intenciones: briefing, gasto, tarea (sync Calendar), nota de voz
@@ -50,7 +50,7 @@ En la app: **Salud** → Conectar con Google.
   `/silencio` lo pausa. Una vez por usuario y día. El script `scripts/run_telegram_briefings.py` sigue sirviendo si hay un cron aparte.
 - Teclado: Briefing, Saldo (si Finanzas está activo), Hábitos, Ayuda
 - `/alma` usa el mismo historial que la web y no prende categorías. `/coach` respeta el cupo. `/semana` resume.
-- `/idea` guarda en Sandbox (dominio `#personal` y similares; si no, Otros). `/leyendo` y `/leer` actualizan la página.
+- `/leyendo` y `/leer` actualizan la página del libro.
 - `/orar`, `/oraciones` y `/respondida` usan Teología. `/nota` y `/conexion` usan Matrimonio. `/rutina` resume el ejercicio. No hay devocional por el bot.
 - Una foto (máximo 5 MB) se lee como recibo si hay cupo de IA. No se guarda hasta confirmar. Documentos no.
 - `/precio` muestra los 3 más baratos del catálogo. `/estado` resume plan, módulos, Google y llamadas de IA del mes.

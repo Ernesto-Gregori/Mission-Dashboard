@@ -56,7 +56,7 @@ NOTA = Accion(
     modulo="matrimonio",
     ejecutar=_nota,
     deshacer=_deshacer_nota,
-    uso="Escribí la nota. Ejemplo: /nota le gusta el café de la esquina",
+    uso="Escribe la nota. Ejemplo: /nota le gusta el café de la esquina",
     parse=lambda args: {"texto": args.strip()[:500]} if args.strip() else None,
 )
 
@@ -66,6 +66,6 @@ CONEXION = Accion(
     alias=("/conexión",),
     modulo="matrimonio",
     ejecutar=_conexion,
-    uso="Decime los minutos. Ejemplo: /conexion 30",
+    uso="Dime los minutos. Ejemplo: /conexion 30",
     parse=_parse_min,
 )

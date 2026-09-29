@@ -262,7 +262,7 @@ async def tg_recordatorios(request: Request, user: Annotated[dict, Depends(requi
             request,
             "usuarios.html",
             status_code=403,
-            **_ctx(request, user, error="Telegram requiere plan Premium o Familia."),
+            **_ctx(request, user, error="Telegram requiere plan Premium."),
         )
     form = await request.form()
     ensure_telegram_schema()
@@ -275,7 +275,7 @@ async def tg_recordatorios(request: Request, user: Annotated[dict, Depends(requi
             request,
             "usuarios.html",
             status_code=400,
-            **_ctx(request, user, error="Elegí una anticipación de la lista."),
+            **_ctx(request, user, error="Elige una anticipación de la lista."),
         )
     aviso = "Recordatorios apagados." if minutos == 0 else f"Te aviso {minutos} min antes de cada evento."
     return render(request, "usuarios.html", **_ctx(request, user, flash=aviso))
@@ -289,7 +289,7 @@ async def tg_briefing(request: Request, user: Annotated[dict, Depends(require_on
             request,
             "usuarios.html",
             status_code=403,
-            **_ctx(request, user, error="Telegram requiere plan Premium o Familia."),
+            **_ctx(request, user, error="Telegram requiere plan Premium."),
         )
     form = await request.form()
     ensure_telegram_schema()
@@ -305,7 +305,7 @@ async def tg_briefing(request: Request, user: Annotated[dict, Depends(require_on
             request,
             "usuarios.html",
             status_code=400,
-            **_ctx(request, user, error="Revisá la hora (HH:MM) y las secciones."),
+            **_ctx(request, user, error="Revisa la hora (HH:MM) y las secciones."),
         )
     ctx = _ctx(request, user, flash="Briefing de la mañana guardado.")
     if request.headers.get("hx-request"):
