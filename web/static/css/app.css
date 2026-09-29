@@ -800,8 +800,10 @@ textarea {
     flex-basis: 100%;
     text-align: left;
   }
-  .agenda-week-nav > form { flex: 1; }
-  .agenda-week-nav > form > .btn { width: 100%; }
+  .agenda-week-nav > form,
+  .agenda-week-nav > a.btn { flex: 1; }
+  .agenda-week-nav > form > .btn,
+  .agenda-week-nav > a.btn { width: 100%; }
   .agenda-week-nav .button-group { display: grid; grid-template-columns: 1fr 1fr; }
   .agenda-form-grid.cols-2,
   .agenda-form-grid.cols-3 { grid-template-columns: 1fr; }

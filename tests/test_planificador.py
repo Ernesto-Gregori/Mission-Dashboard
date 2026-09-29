@@ -1,6 +1,7 @@
 """Planificador semanal — Calendar + bloques locales."""
 from __future__ import annotations
 
+import re
 import tempfile
 from datetime import timedelta
 from pathlib import Path
@@ -69,7 +70,7 @@ def test_planificador_pagina(web_client):
     assert b'for="plan-title"' in r.content
     assert b"solo_local" in r.content
     assert b"data-planner-grid" in r.content
-    assert b"/app/planificador/vista/dia" in r.content
+    assert b'href="/app/planificador?vista=dia"' in r.content
 
 
 def test_planificador_muestra_error_real_de_calendar(web_client, monkeypatch):
@@ -287,3 +288,31 @@ def test_bloques_deep_work_en_planificador_y_hoy(web_client):
     assert len(semana) == 7
     assert [b["estado"] for b in semana if b["fecha"] == _hoy().isoformat()] == ["Completado"]
     assert "BloqueEnfoqueTest ✓" in web_client.get("/app").content.decode()
+
+
+def _rango(html: str) -> str:
+    encontrado = re.search(r'class="agenda-week-nav".*?<h2>(.*?)</h2>', html, re.S)
+    assert encontrado, "falta el rango de la semana"
+    return encontrado.group(1)
+
+
+def test_la_semana_vive_en_la_url(web_client):
+    """Anterior y Siguiente son enlaces. Volver a w=0 no usa la semana que quedó en la sesión."""
+    _onboard(web_client)
+    pagina = web_client.get("/app/planificador")
+    assert pagina.status_code == 200
+    assert b'href="/app/planificador?vista=semana&amp;w=-1"' in pagina.content or b'href="/app/planificador?vista=semana&w=-1"' in pagina.content
+    assert b'action="/app/planificador/semana"' not in pagina.content
+    cero = web_client.get("/app/planificador?vista=semana&w=0").text
+    uno = web_client.get("/app/planificador?vista=semana&w=1").text
+    assert _rango(cero) != _rango(uno)
+    vuelta = web_client.get("/app/planificador?vista=semana&w=0").text
+    assert _rango(vuelta) == _rango(cero)
+    web_client.get("/app/planificador?vista=semana&w=1")
+    assert _rango(web_client.get("/app/planificador?vista=semana").text) == _rango(uno)
+    desnuda = web_client.get("/app/planificador", follow_redirects=False)
+    assert desnuda.status_code == 303
+    assert desnuda.headers["location"].endswith("/app/planificador?vista=semana&w=1")
+    explicita = web_client.get("/app/planificador?vista=semana&w=0", follow_redirects=False)
+    assert explicita.status_code == 200
+    assert _rango(explicita.text) == _rango(cero)
