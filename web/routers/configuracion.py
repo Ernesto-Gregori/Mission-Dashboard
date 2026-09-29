@@ -29,7 +29,7 @@ from app.cuenta import (
     leer_prefs,
 )
 from app.onboarding import listar_modulos_usuario, nombre_visible
-from app.ritual import listar_habitos_config
+from app.ritual import actualizar_habito, crear_habito, listar_habitos_config, set_habito_activo
 from app.rueda import AREAS
 from app.templates import MODULE_TEMPLATES, SUPERFICIES
 from web.deps import render, require_onboarded
@@ -98,6 +98,7 @@ def _ctx(
         {"clave": clave, "nombre": data["nombre"]}
         for clave, data in catalogo_sobres(uid).items()
     ]
+    habitos = _habitos_con_dias(uid)
     return {
         "title": "Configuración",
         "user": user,
@@ -110,7 +111,9 @@ def _ctx(
         "metodos": METODOS,
         "frecuencias": FRECUENCIAS,
         "dias_habito": DIAS_HABITO,
-        "habitos": _habitos_con_dias(uid),
+        "habitos": habitos,
+        "habitos_activos": [h for h in habitos if int(h.get("activo") or 0) == 1],
+        "habitos_archivados": [h for h in habitos if int(h.get("activo") or 0) != 1],
         "categorias": categorias,
         "areas": areas_rueda(uid),
         "areas_cfg": catalogo_areas_rueda(uid),
@@ -132,6 +135,52 @@ def _tab_pedido(request: Request) -> str:
 @router.get("/", response_class=HTMLResponse)
 def configuracion_page(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     return render(request, "configuracion.html", **_ctx(request, user, tab=_tab_pedido(request)))
+
+
+def _volver_habitos(request: Request, ok: bool, msg: str) -> RedirectResponse:
+    request.session["config_flash" if ok else "config_error"] = msg
+    return RedirectResponse("/app/configuracion?tab=dia#habitos", status_code=303)
+
+
+@router.post("/habitos")
+async def habito_crear(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    form = await request.form()
+    ok, msg = crear_habito(
+        str(form.get("label") or ""),
+        str(form.get("emoji") or ""),
+        str(form.get("hora") or ""),
+        user_id=int(user["id"]),
+        frecuencia=str(form.get("frecuencia") or "diaria"),
+    )
+    return _volver_habitos(request, ok, msg)
+
+
+@router.post("/habitos/{clave}/editar")
+async def habito_editar(
+    clave: str, request: Request, user: Annotated[dict, Depends(require_onboarded)]
+):
+    form = await request.form()
+    ok, msg = actualizar_habito(
+        clave,
+        str(form.get("label") or ""),
+        str(form.get("emoji") or ""),
+        str(form.get("hora") or ""),
+        user_id=int(user["id"]),
+        frecuencia=str(form.get("frecuencia")) if form.get("frecuencia") else None,
+    )
+    return _volver_habitos(request, ok, msg)
+
+
+@router.post("/habitos/{clave}/archivar")
+def habito_archivar(clave: str, request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    set_habito_activo(clave, False, user_id=int(user["id"]))
+    return _volver_habitos(request, True, "Hábito archivado; su historial se conserva.")
+
+
+@router.post("/habitos/{clave}/reactivar")
+def habito_reactivar(clave: str, request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    set_habito_activo(clave, True, user_id=int(user["id"]))
+    return _volver_habitos(request, True, "Hábito reactivado.")
 
 
 def _guardar_parcial(uid: int, **cambios) -> None:

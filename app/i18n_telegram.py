@@ -105,7 +105,7 @@ FRASES = {
     "Relaciones: sin cita hoy.": "Relationships: no date today.",
     "Cuerpo: sin registro hoy.": "Body: no log today.",
     "Listo: el briefing de la mañana vuelve cuando le toque.": "Done: the morning briefing returns on its next slot.",
-    "No tienes hábitos activos. Se crean en la app, en Cuenta → Mi sistema.": "You have no active habits. They are created in the app, under Account → My system.",
+    "No tienes hábitos activos. Se crean en la app, en Cuenta → Configuración → Día.": "You have no active habits. They are created in the app, under Account → Settings → Day.",
     "Hábitos de hoy": "Today's habits",
     "Para marcar: /hecho leer  (o «ya leí»).": "To check one off: /hecho leer  (or «ya leí»).",
     "Ese hábito ya no está. No marqué nada.": "That habit is gone. I checked nothing off.",

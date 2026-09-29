@@ -281,10 +281,11 @@ def test_habito_en_dias_concretos_solo_sale_esos_dias(web_client):
     assert listar_habitos(1, fecha="2026-09-30")
     assert listar_habitos(1, fecha="2026-09-29") == []
     web_client.post(
-        f"/app/coach/habitos/{clave}/editar",
+        f"/app/configuracion/habitos/{clave}/editar",
         data={"label": "Piano suave", "emoji": "🎹", "hora": ""},
         follow_redirects=False,
     )
+    assert any(h["label"] == "Piano suave" for h in listar_habitos_config(1))
     assert listar_habitos(1, fecha="2026-09-29") == []
     assert listar_habitos(1, fecha="2026-09-28")
     pagina = web_client.get("/app/configuracion?tab=dia").text

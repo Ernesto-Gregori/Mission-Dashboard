@@ -65,6 +65,61 @@
   </div>
 </form>
 {% elif tab == 'dia' %}
+<section class="card" id="habitos" aria-labelledby="habitos-title">
+  <h2 id="habitos-title">Hábitos diarios</h2>
+  <p class="muted compact-copy">Aparecen como checklist en Hoy. Archivar un hábito lo oculta sin borrar su historial.</p>
+  <p class="muted compact-copy">Más abajo eliges cada cuánto aparece. Eso se guarda con el botón Guardar de la página.</p>
+  {% if habitos_activos %}
+  <ul class="habit-list">
+    {% for h in habitos_activos %}
+    <li>
+      <form class="habit-row" method="post" action="/app/configuracion/habitos/{{ h.clave }}/editar">
+        <label class="sr-only" for="hab-emoji-{{ h.clave }}">Emoji</label>
+        <input id="hab-emoji-{{ h.clave }}" name="emoji" value="{{ h.emoji }}" maxlength="4" />
+        <label class="sr-only" for="hab-label-{{ h.clave }}">Nombre</label>
+        <input id="hab-label-{{ h.clave }}" name="label" value="{{ h.label }}" maxlength="40" required />
+        <label class="sr-only" for="hab-hora-{{ h.clave }}">Hora (opcional)</label>
+        <input id="hab-hora-{{ h.clave }}" name="hora" type="time" value="{{ h.hora if h.hora and h.hora != '—' else '' }}" />
+        <span class="habit-actions">
+          <button class="btn secondary" type="submit">Guardar</button>
+          <button class="btn secondary" type="submit" formaction="/app/configuracion/habitos/{{ h.clave }}/archivar" formnovalidate onclick="return confirm('¿Archivar este hábito? Deja de aparecer en Hoy.')">Archivar</button>
+        </span>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Todavía no tienes hábitos activos.</p>
+  {% endif %}
+
+  <h3>Nuevo hábito</h3>
+  <form class="habit-row" method="post" action="/app/configuracion/habitos">
+    <label class="sr-only" for="hab-new-emoji">Emoji</label>
+    <input id="hab-new-emoji" name="emoji" placeholder="⭐" maxlength="4" />
+    <label class="sr-only" for="hab-new-label">Nombre</label>
+    <input id="hab-new-label" name="label" placeholder="Ej: Leer 20 minutos" maxlength="40" required />
+    <label class="sr-only" for="hab-new-hora">Hora (opcional)</label>
+    <input id="hab-new-hora" name="hora" type="time" />
+    <span class="habit-actions"><button class="btn" type="submit">Agregar hábito</button></span>
+  </form>
+
+  {% if habitos_archivados %}
+  <details>
+    <summary>Archivados ({{ habitos_archivados|length }})</summary>
+    <ul class="habit-list">
+      {% for h in habitos_archivados %}
+      <li class="habit-archived">
+        <span>{{ h.emoji }} {{ h.label }}</span>
+        <form class="inline-form" method="post" action="/app/configuracion/habitos/{{ h.clave }}/reactivar">
+          <button class="btn secondary" type="submit">Reactivar</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>
+
 <form method="post" action="/app/configuracion">
   <input type="hidden" name="seccion" value="dia" />
   <section class="card" aria-labelledby="dia-title">

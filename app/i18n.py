@@ -67,6 +67,7 @@ CATALOGO = {
     "Precios supermercados": "Grocery prices",
     "Precios": "Prices",
     "Mi sistema": "My system",
+    "Editar hábitos": "Edit habits",
     "Plan y cobros": "Plan and billing",
     "Telegram y usuarios": "Telegram and users",
     "Familia": "Family",
