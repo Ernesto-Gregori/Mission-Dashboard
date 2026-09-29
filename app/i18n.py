@@ -107,6 +107,7 @@ CATALOGO = {
     "Ritual y hábitos": "Ritual and habits",
     "Registrado hoy.": "Logged today.",
     "Guardar ritual": "Save ritual",
+    "Anotar": "Log",
     "Tus áreas": "Your areas",
     "Del Coach": "From the Coach",
     "Ver briefing completo →": "See the full briefing →",

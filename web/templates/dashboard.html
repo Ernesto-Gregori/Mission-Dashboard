@@ -6,40 +6,13 @@
   </div>
 </header>
 
-{% if onboarded_flash %}
-<div class="flash-ok" role="status">Tu sistema quedó configurado con el Coach.</div>
-{% endif %}
-
-{% if checkout_flash %}
-  {% if checkout_flash.kind == 'ok' %}
-  <div class="flash-ok" role="status">{{ checkout_flash.message }}</div>
-  {% else %}
-  <div class="flash-warn" role="status">{{ checkout_flash.message }}</div>
-  {% endif %}
+{% if aviso %}
+<div class="flash-{{ aviso.kind }}" role="{{ aviso.role }}">{{ aviso.message }}{% if aviso.detalle %}: {{ aviso.detalle }}{% endif %}{% if aviso.href %} <a href="{{ aviso.href }}">{{ aviso.link }}</a>{% endif %}</div>
 {% endif %}
 
 {% if insight_destacado %}
-<section class="briefing-block">
-  <h2>Del Coach</h2>
-  <p><strong>{{ insight_destacado.titulo }}</strong> — {{ insight_destacado.cuerpo }}</p>
-  <a href="/app/revision#briefing">Ver briefing completo →</a>
-</section>
+<p class="hoy-resumen"><a href="/app/revision#briefing">Del Coach</a> — {{ insight_destacado.titulo }}</p>
 {% endif %}
-
-{% if just_finished and just_finished.resto %}
-<section class="card card-compact">
-  <h2>También te pueden servir (Premium)</h2>
-  <ul class="muted">
-    {% for k in just_finished.resto %}
-    <li>{{ k }}</li>
-    {% endfor %}
-  </ul>
-  <a class="btn secondary" href="/app/billing">Ver planes</a>
-</section>
-{% endif %}
-
-{% if hoy_flash %}<div class="flash-ok" role="status">{{ hoy_flash }}</div>{% endif %}
-{% if hoy_error %}<div class="flash-error" role="alert">{{ hoy_error }}</div>{% endif %}
 
 <div class="hoy-grid">
   <section class="hoy-panel" aria-labelledby="foco-hoy-title">
@@ -47,14 +20,9 @@
       <h2 id="foco-hoy-title">Agenda de hoy</h2>
       <a href="/app/planificador?vista=dia">Línea de tiempo</a>
     </div>
-    {% if puede_google and google_error %}
-    <p class="flash-warn" role="alert">{{ google_error }}{% if not google_ok %} <a href="/app/configuracion?tab=conexiones">Conectar en Configuración</a>{% endif %}</p>
-    {% endif %}
-    {% if foco_falla %}
-    <p class="flash-warn" role="alert">No se pudo leer tu agenda de hoy. Vuelve a intentar en un momento.</p>
-    {% elif not foco_items %}
+    {% if not foco_falla and not foco_items %}
     <p class="muted empty-state">Nada agendado para hoy.</p>
-    {% else %}
+    {% elif not foco_falla %}
     <ol class="foco-list hoy-foco-list">
       {% for e in foco_items %}
       <li class="foco-item origen-{{ e.origen }} kind-{{ e.kind }}">
@@ -118,46 +86,10 @@
       </ul>
       {% endif %}
       <div class="form-actions">
-        <button class="btn" type="submit">Guardar ritual</button>
+        <button class="btn" type="submit">Anotar</button>
       </div>
     </form>
   </section>
   {% endif %}
 </div>
-
-<section class="dashboard-section" aria-labelledby="modules-title">
-  <div class="section-heading">
-    <div>
-      <h2 id="modules-title">Tus áreas</h2>
-      <p class="muted">{{ activos_count }} áreas activas</p>
-    </div>
-    <a href="/app/configuracion">Elegir mis áreas</a>
-  </div>
-  {% set areas_vida = life_hubs | rejectattr('id', 'equalto', 'semana') | list %}
-  {% if not areas_vida %}
-  <p class="muted empty-state">Todavía no activaste áreas. Hoy, Semana y Cuenta siguen aquí. Puedes armarlas en <a href="/app/configuracion">Configuración</a>.</p>
-  {% endif %}
-  {% if life_hubs %}
-  <div class="module-grid hub-grid">
-    {% for h in life_hubs %}
-    <article class="module-card hub-card" data-hub="{{ h.id }}">
-      <a class="hub-card-main" href="{{ h.href }}">
-        <span class="module-copy">
-          <strong>{{ h.label }}</strong>
-          <span class="muted">{{ h.descripcion }}</span>
-        </span>
-      </a>
-      {% if h.children %}
-      <ul class="hub-children">
-        {% for c in h.children %}
-        <li><a href="{{ c.href }}">{{ c.label }}</a></li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-    </article>
-    {% endfor %}
-  </div>
-  {% endif %}
-</section>
-
 {% endblock %}
