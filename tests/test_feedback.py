@@ -72,7 +72,6 @@ def test_toda_accion_destructiva_pide_confirmacion():
 
 GUARDADOS = (
     ("/app/m/biblioteca/nuevo", {"titulo": "Los hermanos Karamázov"}, "Libro agregado."),
-    ("/app/m/sandbox/idea", {"titulo": "Huerta en el balcón"}, "Idea agregada."),
     ("/app/m/deep_work/bloque", {"nombre": "Mañana profunda"}, "Bloque agregado."),
     (
         "/app/m/teologia/devocional",
@@ -84,7 +83,7 @@ GUARDADOS = (
 
 @pytest.mark.parametrize("ruta,datos,aviso", GUARDADOS)
 def test_guardar_avisa_en_pantalla(web_client, ruta, datos, aviso):
-    _onboard(web_client, ["biblioteca", "sandbox", "deep_work", "teologia"])
+    _onboard(web_client, ["biblioteca", "deep_work", "teologia"])
     r = web_client.post(ruta, data=datos, follow_redirects=True)
     assert r.status_code == 200
     assert aviso in r.text

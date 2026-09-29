@@ -49,7 +49,7 @@ En la app: **Salud** → Conectar con Google.
   Se activa en Usuarios → Telegram. `/silencio` lo pausa. Una vez por usuario y día
 - Teclado: Briefing, Saldo (si Finanzas está activo), Hábitos, Ayuda
 - `/alma` usa el mismo historial que la web y no prende categorías. `/coach` respeta el cupo. `/semana` resume.
-- `/idea` guarda en Sandbox (dominio `#personal` y similares; si no, Otros). `/leyendo` y `/leer` actualizan la página.
+- `/leyendo` y `/leer` actualizan la página del libro.
 - `/orar`, `/oraciones` y `/respondida` usan Teología. `/nota` y `/conexion` usan Matrimonio. `/rutina` resume el ejercicio. No hay devocional por el bot.
 - Una foto (máximo 5 MB) se lee como recibo si hay cupo de IA. No se guarda hasta confirmar. Documentos no.
 - `/precio` muestra los 3 más baratos del catálogo. `/estado` resume plan, módulos, Google y llamadas de IA del mes.

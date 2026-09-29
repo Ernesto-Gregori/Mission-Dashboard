@@ -23,7 +23,6 @@
   --module-biblioteca: #e3b341;
   --module-matrimonio: #ff7b72;
   --module-teologia: #a5d6ff;
-  --module-sandbox: #d2a8ff;
   --radius: 10px;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -65,7 +64,6 @@
   --module-biblioteca: #9a6700;
   --module-matrimonio: #cf222e;
   --module-teologia: #0550ae;
-  --module-sandbox: #8250df;
 }
 
 * { box-sizing: border-box; }
@@ -463,7 +461,6 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
 .module-card[data-module="biblioteca"] { --module-accent: var(--module-biblioteca); }
 .module-card[data-module="matrimonio"] { --module-accent: var(--module-matrimonio); }
 .module-card[data-module="teologia"] { --module-accent: var(--module-teologia); }
-.module-card[data-module="sandbox"] { --module-accent: var(--module-sandbox); }
 .module-icon {
   display: grid;
   place-items: center;
@@ -612,7 +609,6 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
 .module-header[data-module="biblioteca"] { --module-current: var(--module-biblioteca); }
 .module-header[data-module="matrimonio"] { --module-current: var(--module-matrimonio); }
 .module-header[data-module="teologia"] { --module-current: var(--module-teologia); }
-.module-header[data-module="sandbox"] { --module-current: var(--module-sandbox); }
 
 /* Agenda */
 .agenda-rachas {
@@ -1735,116 +1731,6 @@ a.ex-card:hover {
   .theology-date-form .btn,
   .reading-suggestion-form .btn { width: 100%; }
   .theology-form-grid.cols-2 { grid-template-columns: 1fr; }
-}
-
-/* Sandbox */
-.sandbox-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0 0 1rem;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  font-variant-numeric: tabular-nums;
-}
-.sandbox-metrics div {
-  padding: 0.75rem 1rem;
-  border-left: 1px solid var(--border);
-}
-.sandbox-metrics div:first-child { border-left: 0; }
-.sandbox-metrics dt { color: var(--muted); font-size: var(--text-xs); }
-.sandbox-metrics dd { margin: 0.15rem 0 0; font-weight: 650; }
-.sandbox-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-sandbox); }
-.sandbox-filter-form {
-  display: grid;
-  grid-template-columns: minmax(8rem, 0.8fr) minmax(8rem, 0.8fr) minmax(12rem, 1.6fr) auto;
-  align-items: end;
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
-}
-.sandbox-filter-form > :not(input[type="hidden"]) { margin-block: 0; }
-.idea-list,
-.snippet-list,
-.session-history { display: grid; gap: 0.75rem; }
-.idea-card,
-.snippet-card,
-.session-card {
-  min-width: 0;
-  padding: 1rem 1.15rem;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-.idea-card { border-color: color-mix(in srgb, var(--module-sandbox) 35%, var(--border)); }
-.sandbox-item-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-.sandbox-item-meta,
-.sandbox-item-description,
-.sandbox-tags {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: var(--text-sm);
-}
-.idea-scores {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-}
-.idea-card p:last-of-type { margin-bottom: 0; }
-.idea-form,
-.snippet-form,
-.sandbox-session-form,
-.mentor-form { margin-top: 0.75rem; }
-.sandbox-form-grid {
-  display: grid;
-  gap: 0.75rem;
-}
-.sandbox-form-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.sandbox-form-grid.title-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
-.sandbox-form-grid.snippet-heading-grid { grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); }
-.code-input,
-.code-block { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-.code-block {
-  max-width: 100%;
-  margin: 0.75rem 0 0;
-  padding: 0.75rem;
-  overflow: auto;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: var(--text-sm);
-  line-height: 1.55;
-  tab-size: 2;
-}
-.compact-code { padding: 0.6rem; font-size: var(--text-xs); }
-.compact-actions { margin-top: 0; }
-.session-history { margin-top: 0.75rem; }
-.session-card p { margin-bottom: 0; }
-
-@media (max-width: 800px) {
-  .sandbox-filter-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sandbox-filter-form input:not([type="hidden"]),
-  .sandbox-filter-form .btn { grid-column: 1 / -1; }
-  .sandbox-form-grid.cols-3,
-  .sandbox-form-grid.snippet-heading-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sandbox-form-grid.snippet-heading-grid > :first-child { grid-column: 1 / -1; }
-}
-
-@media (max-width: 520px) {
-  .sandbox-metrics div { padding-inline: 0.6rem; }
-  .sandbox-filter-form,
-  .sandbox-form-grid.cols-3,
-  .sandbox-form-grid.title-grid,
-  .sandbox-form-grid.snippet-heading-grid { grid-template-columns: 1fr; }
-  .sandbox-form-grid.snippet-heading-grid > :first-child { grid-column: auto; }
-  .sandbox-item-header { flex-direction: column; }
-  .compact-actions,
-  .compact-actions form,
-  .compact-actions .btn { width: 100%; }
 }
 
 /* Usuarios */

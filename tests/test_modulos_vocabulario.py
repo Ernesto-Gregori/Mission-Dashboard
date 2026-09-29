@@ -69,7 +69,7 @@ def _etiqueta_menu(sidebar: str, hub_id: str) -> str:
     return m.group(1).strip()
 
 
-TODAS = ["teologia", "matrimonio", "sandbox", "biblioteca", "deep_work", "finanzas", "salud", "agenda"]
+TODAS = ["teologia", "matrimonio", "biblioteca", "deep_work", "finanzas", "salud", "agenda"]
 
 
 def test_el_menu_y_el_titulo_dicen_lo_mismo(web_client):
@@ -90,7 +90,7 @@ def test_el_menu_y_el_titulo_dicen_lo_mismo(web_client):
         assert _h1(pagina.text) == nombre
         assert _etiqueta_menu(sidebar, hub["id"]) == nombre
         vistos += 1
-    assert vistos >= 6
+    assert vistos >= 5
 
 
 def test_ningun_nombre_de_la_cuenta_original_sobrevive(web_client):
@@ -100,7 +100,6 @@ def test_ningun_nombre_de_la_cuenta_original_sobrevive(web_client):
         "Matrimonio / Pareja",
         "Salud & Energía",
         "Deep Work",
-        "Sandbox",
         ">Fe</a>",
         ">Pareja</a>",
         ">Biblioteca</a>",

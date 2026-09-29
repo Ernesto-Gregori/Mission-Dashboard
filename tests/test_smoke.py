@@ -336,7 +336,7 @@ def test_aplicar_modulos_respeta_cupo_free(isolated_db, monkeypatch):
     monkeypatch.setattr("app.tenant.current_user", lambda: user)
 
     aplicar_modulos(
-        ["agenda", "finanzas", "salud", "teologia", "sandbox"],
+        ["agenda", "finanzas", "salud", "teologia", "matrimonio"],
         user_id=uid,
     )
     activos = {

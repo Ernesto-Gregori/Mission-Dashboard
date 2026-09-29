@@ -48,7 +48,6 @@ def migrar_local_a_turso():
     tablas = [
         'bitacora_semanal', 'bloques_fijos', 'sesiones_completadas',
         'libros', 'resaltados', 'devocionales', 'registros_salud',
-        'sandbox_ideas', 'sandbox_snippets', 'sandbox_sesiones',
         'matrimonio_citas', 'matrimonio_notas', 'matrimonio_habitos',
         'habitos_config', 'habitos_diarios_v2', 'pedidos_oracion',
         'ingreso_mensual', 'gastos_sobres', 'receipt_items',

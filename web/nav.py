@@ -65,13 +65,6 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "modules": ("matrimonio",),
     },
     {
-        "id": "ideas",
-        "label": "Ideas",
-        "group": "Áreas",
-        "prefixes": ("/app/m/sandbox",),
-        "modules": ("sandbox",),
-    },
-    {
         "id": "alma",
         "label": "Alma",
         "group": "Sistema",
@@ -95,13 +88,12 @@ _HUB_HREF = {
     "espiritualidad": "/app/m/teologia",
     "lectura": "/app/m/biblioteca",
     "relaciones": "/app/m/matrimonio",
-    "ideas": "/app/m/sandbox",
     "alma": "/app/asistente",
     "cuenta": "/app/coach",
 }
 
 # Hubs con tarjeta propia en Hoy.
-_HUB_CARDS = ("semana", "dinero", "cuerpo", "espiritualidad", "lectura", "relaciones", "ideas")
+_HUB_CARDS = ("semana", "dinero", "cuerpo", "espiritualidad", "lectura", "relaciones")
 
 GROUP_ORDER = ("Día", "Áreas", "Sistema")
 

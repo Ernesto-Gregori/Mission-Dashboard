@@ -99,7 +99,6 @@ def test_sidebar_uses_hubs_not_page_dump(web_client):
 
     # Módulos inactivos no se listan uno a uno.
     assert "Biblioteca" not in side
-    assert "Sandbox" not in side
     assert "Teología" not in side and "Teologia" not in side
 
     assert len(hrefs) <= 10
@@ -130,7 +129,6 @@ def test_inactive_module_hubs_hidden(web_client):
     side = _sidebar(r.content)
     assert "Cuerpo" not in side
     assert "Lectura" not in side
-    assert "Ideas" not in side
     assert "Dinero" in side
     assert "Hoy" in side
 

@@ -44,8 +44,6 @@ AREA_OPTIONS = [
     "ejercicio",
     "pareja",
     "matrimonio",
-    "proyectos",
-    "ideas",
     "enfoque",
 ]
 

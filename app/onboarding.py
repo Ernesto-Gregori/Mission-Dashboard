@@ -362,8 +362,6 @@ def _sugerencia_fallback(perfil: dict) -> dict:
         "ejercicio": "salud",
         "pareja": "matrimonio",
         "matrimonio": "matrimonio",
-        "ideas": "sandbox",
-        "proyectos": "sandbox",
     }
     for a in areas:
         key = mapa.get(a.lower().strip())

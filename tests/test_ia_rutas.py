@@ -36,7 +36,6 @@ RUTAS_CON_SESION: dict[str, int] = {
     "/app/m/teologia": 200,
     "/app/m/biblioteca": 200,
     "/app/m/matrimonio": 200,
-    "/app/m/sandbox": 200,
     "/app/m/deep_work": 200,
     "/app/asistente": 200,
     "/app/coach": 200,
@@ -63,7 +62,6 @@ TODOS_LOS_MODULOS = [
     "teologia",
     "biblioteca",
     "salud",
-    "sandbox",
     "matrimonio",
 ]
 
@@ -181,7 +179,7 @@ def test_cada_pantalla_de_modulo_se_alcanza_desde_la_navegacion(web_client):
     _onboard_completo(web_client)
     side = _sidebar(web_client.get("/app").content)
     hrefs = [href for href, _ in _enlaces_de_nav(side)]
-    for clave in ("finanzas", "salud", "teologia", "biblioteca", "matrimonio", "sandbox"):
+    for clave in ("finanzas", "salud", "teologia", "biblioteca", "matrimonio"):
         assert any(h.startswith(f"/app/m/{clave}") for h in hrefs), f"{clave} sin enlace"
     # deep_work y revisión viven en las pestañas del hub Semana, no en el sidebar.
     semana = web_client.get("/app/planificador").content

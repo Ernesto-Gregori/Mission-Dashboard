@@ -418,17 +418,6 @@ def metricas_salud(user_id: int | None = None) -> set[str]:
     return {m for m in elegidas if m in todas} or todas
 
 
-def snippets_visibles(user_id: int | None = None) -> bool:
-    from app.onboarding import listar_modulos_usuario
-
-    for row in listar_modulos_usuario(user_id):
-        if row.get("modulo") != "sandbox":
-            continue
-        cfg = _json_dict(row.get("config_json"))
-        return bool(cfg.get("snippets", True))
-    return True
-
-
 def _json_dict(raw) -> dict:
     if isinstance(raw, dict):
         return raw
@@ -457,7 +446,6 @@ def guardar_modulos(
     user_id: int,
     *,
     activos: set[str],
-    snippets: bool,
     tope: int | None,
 ) -> str | None:
     """Activa o apaga sin borrar datos. Devuelve un error o None."""
@@ -479,8 +467,6 @@ def guardar_modulos(
         activo = 1 if clave in activos else 0
         previo = actuales.get(clave) or {}
         cfg = _json_dict(previo.get("config_json"))
-        if clave == "sandbox":
-            cfg["snippets"] = bool(snippets)
         ejecutar(
             """
             INSERT INTO user_modulos (user_id, modulo, activo, config_json, orden)

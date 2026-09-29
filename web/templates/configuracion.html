@@ -35,12 +35,6 @@
     {% else %}
     <p class="muted empty-state">Todavía no hay áreas. Hoy, Semana y Cuenta siguen disponibles.</p>
     {% endif %}
-    {% if 'sandbox' in modulos|map(attribute='clave') %}
-    <label class="check-row" for="snippets-on">
-      <input id="snippets-on" type="checkbox" name="snippets" value="1" {% if snippets %}checked{% endif %} />
-      Mostrar snippets dentro de Ideas
-    </label>
-    {% endif %}
   </section>
 
   <section class="card" aria-labelledby="sup-title">

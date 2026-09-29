@@ -77,7 +77,6 @@ _TEMAS_AYUDA = {
     "agenda": "agenda",
     "salud": "salud",
     "enfoque": "deep_work",
-    "ideas": "sandbox",
     "lectura": "biblioteca",
     "fe": "teologia",
     "pareja": "matrimonio",
@@ -115,7 +114,7 @@ def ayuda_texto(user_id: int | None, tema: str = "") -> str:
     if modulo is None:
         return (
             "No conozco ese tema. Probá /ayuda finanzas, agenda, salud, enfoque, "
-            "ideas, lectura, fe, pareja, habitos o alma."
+            "lectura, fe, pareja, habitos o alma."
         )
     muestra = next((a for a in REGISTRO if a.modulo == modulo), None)
     if muestra is None or not disponible(muestra, user_id):
@@ -131,7 +130,7 @@ def help_text(*, linked: bool = True) -> str:
         "• /gasto 35 super — anotar un gasto\n"
         "• /saldo · /habitos · /agenda · /tarea\n"
         "• /deshacer — lo último que guardé\n"
-        "• /ayuda finanzas — también agenda, salud, enfoque, ideas, lectura, fe, pareja, habitos, alma\n\n"
+        "• /ayuda finanzas — también agenda, salud, enfoque, lectura, fe, pareja, habitos, alma\n\n"
         "Texto suelto («35 en super») o una nota de voz también sirven.\n"
         "Desvincular: en la app → Usuarios → Telegram."
     )

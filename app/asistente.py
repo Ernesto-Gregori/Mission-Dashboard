@@ -18,7 +18,6 @@ CATEGORIA_LABELS = {
     "calendario": ("Calendario de la semana", "Calendario"),
     "finanzas": ("Finanzas del mes", "Finanzas"),
     "enfoque": ("Deep Work de la semana", "Enfoque"),
-    "ideas": ("Ideas y proyectos", "Ideas"),
 }
 CATEGORIAS = tuple(CATEGORIA_LABELS)
 MAX_MENSAJE = 2000
@@ -65,7 +64,7 @@ def ensure_asistente_schema() -> None:
         """,
         *(
             f"ALTER TABLE asistente_prefs ADD COLUMN share_{k} INTEGER NOT NULL DEFAULT 0"
-            for k in ("finanzas", "enfoque", "ideas")
+            for k in ("finanzas", "enfoque")
         ),
         """
         CREATE TABLE IF NOT EXISTS user_prefs (
@@ -268,8 +267,6 @@ def construir_contexto(flags: dict[str, bool], user_id: int | None = None) -> st
         partes.append(_ctx_finanzas(uid_i))
     if "enfoque" in activas:
         partes.append(_ctx_enfoque())
-    if "ideas" in activas:
-        partes.append(_ctx_ideas())
     texto = "\n\n".join(partes)
     return texto[:MAX_CONTEXTO]
 
@@ -427,24 +424,6 @@ def _ctx_enfoque() -> str:
     domingo = lunes + timedelta(days=6)
     sesiones = obtener_sesiones_semana(lunes.isoformat(), domingo.isoformat())
     return "Deep Work de esta semana:\n" + construir_resumen_semana(sesiones)
-
-
-def _ctx_ideas() -> str:
-    from app.db.sandbox import obtener_ideas
-
-    activas = [
-        i for i in obtener_ideas()
-        if i.get("estado") not in ("Completado", "Abandonado")
-    ][:10]
-    if not activas:
-        return "Ideas y proyectos: ninguno activo."
-    lineas = ["Ideas y proyectos activos:"]
-    for i in activas:
-        lineas.append(
-            f"- {i.get('titulo')} [{i.get('estado')}, prioridad {i.get('prioridad')}]"
-            + (f": {_trunc(str(i.get('descripcion') or ''), 120)}" if i.get("descripcion") else "")
-        )
-    return "\n".join(lineas)
 
 
 def responder(mensaje: str, flags: dict[str, bool], user_id: int | None = None) -> str:

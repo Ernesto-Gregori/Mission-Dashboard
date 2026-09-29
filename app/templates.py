@@ -62,15 +62,6 @@ MODULE_TEMPLATES: dict[str, dict] = {
         "para_quien": "Quien quiere registrar el cuerpo sin obligación de entrenar.",
         "prioridad": 3,
     },
-    "sandbox": {
-        "nombre": "Ideas",
-        "blurb": "Proyectos y notas sueltas.",
-        "emoji": "🧪",
-        "page": "pages/07_Sandbox.py",
-        "descripcion": "Ideas y proyectos. Los snippets de código van dentro, se pueden ocultar.",
-        "para_quien": "Proyectos creativos o experimentos.",
-        "prioridad": 5,
-    },
     "matrimonio": {
         "nombre": "Relaciones",
         "blurb": "Personas que quieres cuidar: pareja, familia o amigos.",

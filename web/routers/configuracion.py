@@ -27,7 +27,6 @@ from app.cuenta import (
     frecuencia_desde_eleccion,
     guardar_prefs,
     leer_prefs,
-    snippets_visibles,
 )
 from app.onboarding import listar_modulos_usuario, nombre_visible
 from app.ritual import listar_habitos_config
@@ -96,7 +95,6 @@ def _ctx(request: Request, user: dict, *, error: str | None = None, flash: str |
         "flash": flash or request.session.pop("config_flash", None),
         "modulos": modulos,
         "superficies": superficies,
-        "snippets": snippets_visibles(uid),
         "prefs": prefs,
         "monedas": MONEDAS,
         "metodos": METODOS,
@@ -151,7 +149,6 @@ async def configuracion_guardar(request: Request, user: Annotated[dict, Depends(
     error = guardar_modulos(
         uid,
         activos=activos,
-        snippets=str(form.get("snippets") or "") in ("1", "on", "true"),
         tope=modulos_max(plan_vigente(user)),
     )
     if error:

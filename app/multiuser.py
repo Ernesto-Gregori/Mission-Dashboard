@@ -19,9 +19,6 @@ USER_TABLES = [
     "resaltados",
     "devocionales",
     "registros_salud",
-    "sandbox_ideas",
-    "sandbox_snippets",
-    "sandbox_sesiones",
     "matrimonio_citas",
     "matrimonio_notas",
     "matrimonio_habitos",
@@ -38,7 +35,7 @@ USER_TABLES = [
 
 MODULOS_DEFAULT = [
     "agenda", "finanzas", "deep_work", "teologia",
-    "biblioteca", "salud", "sandbox", "matrimonio",
+    "biblioteca", "salud", "matrimonio",
 ]
 
 
@@ -494,7 +491,6 @@ def migrate_multiuser() -> dict:
                             "libros",
                             "registros_salud",
                             "matrimonio_citas",
-                            "sandbox_ideas",
                             "sesiones_completadas",
                         ):
                             try:
@@ -576,7 +572,6 @@ def migrate_multiuser() -> dict:
                 "libros",
                 "registros_salud",
                 "matrimonio_citas",
-                "sandbox_ideas",
                 "sesiones_completadas",
             ):
                 try:

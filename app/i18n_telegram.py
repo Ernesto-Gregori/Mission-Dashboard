@@ -10,8 +10,8 @@ FRASES = {
     "• /briefing — foco del día": "• /briefing — focus for the day",
     "• /gasto 35 super — anotar un gasto": "• /gasto 35 super — log an expense",
     "• /deshacer — lo último que guardé": "• /deshacer — the last thing I saved",
-    "• /ayuda finanzas — también agenda, salud, enfoque, ideas, lectura, fe, pareja, habitos, alma": (
-        "• /ayuda finanzas — also agenda, salud, enfoque, ideas, lectura, fe, pareja, habitos, alma"
+    "• /ayuda finanzas — también agenda, salud, enfoque, lectura, fe, pareja, habitos, alma": (
+        "• /ayuda finanzas — also agenda, salud, enfoque, lectura, fe, pareja, habitos, alma"
     ),
     "Texto suelto («35 en super») o una nota de voz también sirven.": (
         "Free text («35 en super») or a voice note also works."
@@ -37,8 +37,8 @@ FRASES = {
     "/ayuda muestra todos los comandos.": "/ayuda lists every command.",
     "Ya estás vinculado.": "You are already linked.",
     "Ese tema no tiene comandos.": "That topic has no commands.",
-    "No conozco ese tema. Probá /ayuda finanzas, agenda, salud, enfoque, ideas, lectura, fe, pareja, habitos o alma.": (
-        "I don't know that topic. Try /ayuda finanzas, agenda, salud, enfoque, ideas, lectura, fe, pareja, habitos or alma."
+    "No conozco ese tema. Probá /ayuda finanzas, agenda, salud, enfoque, lectura, fe, pareja, habitos o alma.": (
+        "I don't know that topic. Try /ayuda finanzas, agenda, salud, enfoque, lectura, fe, pareja, habitos or alma."
     ),
     "Ese módulo no tiene comandos.": "That module has no commands.",
     "Chat inválido.": "Invalid chat.",
@@ -86,9 +86,6 @@ FRASES = {
     "Usá un monto. Ejemplo: /ingreso 800": "Use an amount. Example: /ingreso 800",
     "Primero /gastos, después /borrar 2.": "First /gastos, then /borrar 2.",
     "Decime el producto. Ejemplo: /precio leche": "Tell me the product. Example: /precio leche",
-    "Escribí la idea. Ejemplo: /idea armar un estante #personal": (
-        "Write the idea. Example: /idea armar un estante #personal"
-    ),
     "Escribí el pedido. Ejemplo: /orar salud de mamá": "Write the request. Example: /orar salud de mamá",
     "Primero /oraciones, después /respondida 1.": "First /oraciones, then /respondida 1.",
     "Decime el libro y la página. Ejemplo: /leer El Hobbit 40": (
@@ -129,9 +126,6 @@ FRASES = {
     "No pude mover ese evento.": "I couldn't move that event.",
     "No pude cancelar ese evento.": "I couldn't cancel that event.",
     "El catálogo de precios está vacío. No hay nada que comparar.": "The price catalog is empty. There is nothing to compare.",
-    "No tenés ideas. Ejemplo: /idea armar un estante #personal": (
-        "You have no ideas. Example: /idea armar un estante #personal"
-    ),
     "No hay pedidos activos. Ejemplo: /orar salud de mamá": "No active requests. Example: /orar salud de mamá",
     "Oraciones": "Prayers",
     "Para cerrar uno: /respondida 1": "To close one: /respondida 1",
@@ -252,7 +246,6 @@ PATRONES = [
     (r"^Anoté la nota: «(.+)»\.$", r"Logged the note: «\1»."),
     (r"^Anoté (\d+) min de conexión\.$", r"Logged \1 min of connection."),
     (r"^Anoté el pedido «(.+)»\.$", r"Logged the request «\1»."),
-    (r"^Anoté la idea «(.+)» en (.+)\.$", r"Logged the idea «\1» under \2."),
     (r"^Anoté ([0-9.]+) h de sueño, calidad (\d)/5\. El resto del día quedó igual\.$", (
         r"Logged \1 h of sleep, quality \2/5. The rest of the day stays as it was."
     )),

@@ -20,7 +20,6 @@ MODULE_STATUS = {
     "teologia": "live",
     "biblioteca": "live",
     "salud": "live",
-    "sandbox": "live",
     "matrimonio": "live",
 }
 
