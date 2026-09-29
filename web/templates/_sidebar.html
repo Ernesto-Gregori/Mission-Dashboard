@@ -28,13 +28,6 @@
     {% endif %}
   </nav>
   <div class="sidebar-footer">
-    <form method="post" action="/app/tema">
-      <input type="hidden" name="theme" value="{% if theme == 'light' %}dark{% else %}light{% endif %}" />
-      <input type="hidden" name="next" value="{{ request.url.path }}" />
-      <button class="btn secondary block" type="submit">
-        {% if theme == 'light' %}Tema oscuro{% else %}Tema claro{% endif %}
-      </button>
-    </form>
     <form method="post" action="/logout">
       <button class="btn secondary block" type="submit">Cerrar sesión</button>
     </form>

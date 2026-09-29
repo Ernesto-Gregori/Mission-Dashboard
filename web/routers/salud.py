@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -371,12 +372,15 @@ async def fit_importar(request: Request, user: Annotated[dict, Depends(require_o
 def oauth_start(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     plan = plan_vigente(user)
     if not puede_google(plan):
-        return _redirect("hoy", google="err", msg="Premium%20requerido")
+        return RedirectResponse("/app/configuracion?tab=conexiones&google=err&msg=Premium%20requerido", status_code=303)
     from app.google_fit import crear_url_autorizacion_web
 
     url, err = crear_url_autorizacion_web(user_id=int(user["id"]))
     if not url:
-        return _redirect("hoy", google="err", msg=(err or "oauth")[:120])
+        return RedirectResponse(
+            f"/app/configuracion?tab=conexiones&google=err&msg={quote((err or 'oauth')[:120])}",
+            status_code=303,
+        )
     return RedirectResponse(url, status_code=303)
 
 
@@ -384,14 +388,10 @@ def oauth_start(request: Request, user: Annotated[dict, Depends(require_onboarde
 async def token_paste(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     form = await request.form()
     if not puede_google(plan_vigente(user)):
-        return render(
-            request,
-            "modules/salud.html",
-            **_ctx(request, user, error="Google Fit requiere plan Premium."),
-        )
+        request.session["config_error"] = "Google Fit requiere plan Premium."
+        return RedirectResponse("/app/configuracion?tab=conexiones", status_code=303)
     from app.google_fit import guardar_token_desde_json
 
     ok, msg = guardar_token_desde_json(str(form.get("token_json") or ""))
-    if ok:
-        return render(request, "modules/salud.html", **_ctx(request, user, flash=msg))
-    return render(request, "modules/salud.html", **_ctx(request, user, error=msg))
+    request.session["config_flash" if ok else "config_error"] = msg
+    return RedirectResponse("/app/configuracion?tab=conexiones", status_code=303)

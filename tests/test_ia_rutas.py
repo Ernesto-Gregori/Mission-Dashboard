@@ -41,7 +41,6 @@ RUTAS_CON_SESION: dict[str, int] = {
     "/app/coach": 200,
     "/app/configuracion": 200,
     "/app/billing": 200,
-    "/app/usuarios": 200,
     "/app/familia": 200,
 }
 
@@ -53,6 +52,7 @@ RUTAS_SIN_PANTALLA: dict[str, str] = {
     "/app/rueda": "/app/revision",
     "/app/m/agenda": "/app/",
     "/app/presupuesto": "/app/m/finanzas",
+    "/app/usuarios": "/app/configuracion?tab=usuarios",
 }
 
 TODOS_LOS_MODULOS = [

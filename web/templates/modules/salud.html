@@ -76,40 +76,7 @@
 
 {% if tab == 'hoy' %}
 <section>
-  <div class="card health-integration">
-    <h2>🔗 Google Fit</h2>
-    {% if not puede_google %}
-    <div class="flash-warn">Google Fit/Calendar requiere plan Premium.
-      <a href="/app/billing">Ver planes</a>
-    </div>
-    {% else %}
-      {% if fit.autenticado %}
-      <div class="integration-status">
-        <span class="badge ok">Vinculado</span>
-        <form method="post" action="/app/m/salud/fit/importar">
-          <input type="hidden" name="fecha" value="{{ fecha }}" />
-          <button class="btn" type="submit">Importar datos de hoy (Fit)</button>
-        </form>
-      </div>
-      {% else %}
-      <p class="muted">No vinculado.</p>
-      <div class="form-actions">
-        <a class="btn" href="/app/m/salud/oauth/start">🔐 Conectar con Google</a>
-      </div>
-      <details class="token-fallback">
-        <summary>Pegar token JSON (respaldo)</summary>
-        <form method="post" action="/app/m/salud/token/paste">
-          <label for="fit-token">Token JSON</label>
-          <textarea id="fit-token" name="token_json" rows="4" placeholder='{"token":"...","refresh_token":"..."}'></textarea>
-          <button class="btn secondary" type="submit">Guardar token</button>
-        </form>
-      </details>
-      {% endif %}
-      {% if fit.error %}<p class="muted">{{ fit.error }}</p>{% endif %}
-      {% if fit_error %}<p class="flash-error" role="alert">{{ fit_error }}</p>{% endif %}
-      {% for a in fit_avisos %}<p class="muted">{{ a }}</p>{% endfor %}
-    {% endif %}
-  </div>
+  <p class="muted"><a href="/app/configuracion?tab=conexiones">Conectar Google y Telegram</a></p>
 
   <div class="card">
     <h2>Registro del día</h2>

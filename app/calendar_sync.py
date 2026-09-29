@@ -423,6 +423,7 @@ def items_foco(fecha: str | None = None, user_id: int | None = None) -> list[dic
                 "google_id": None,
                 "fuente": "habito",
                 "completado": bool(int(h.get("completado") or 0)),
+                "ref": h.get("clave"),
                 "color": "#3fb950",
             }
         )
@@ -512,6 +513,7 @@ def items_foco(fecha: str | None = None, user_id: int | None = None) -> list[dic
                 "google_id": None,
                 "fuente": "deep_work",
                 "completado": b["estado"] == "Completado",
+                "ref": str(b["id"]),
                 "color": b.get("color") or "#58a6ff",
             }
         )
@@ -521,6 +523,46 @@ def items_foco(fecha: str | None = None, user_id: int | None = None) -> list[dic
 
     items.sort(key=_key)
     return items
+
+
+def completar_item(kind: str, ref: str, user_id: int) -> tuple[bool, str]:
+    """Marca un hábito o un bloque de enfoque de hoy, solo de este usuario."""
+    uid_i = int(user_id)
+    tipo = (kind or "").strip()
+    clave = (ref or "").strip()
+    if tipo == "habito":
+        from app.ritual import habitos_hoy, listar_habitos, marcar_habitos
+
+        permitidas = {h["clave"] for h in listar_habitos(uid_i)}
+        if clave not in permitidas:
+            return False, "Eso no se marca desde Hoy."
+        hechos = {c for c, ok in habitos_hoy(uid_i).items() if ok}
+        marcar_habitos(sorted(hechos | {clave}), user_id=uid_i)
+        return True, "Listo."
+    if tipo == "enfoque":
+        from app.db.deep_work import bloques_para_fecha, registrar_sesion
+        from app.tenant import try_uid
+
+        try:
+            bloque_id = int(clave)
+        except (TypeError, ValueError):
+            return False, "Eso no se marca desde Hoy."
+        dia = str(_hoy())
+        ids = set()
+        for bloque in bloques_para_fecha(dia, uid_i):
+            try:
+                ids.add(int(bloque["id"]))
+            except (TypeError, ValueError, KeyError):
+                continue
+        if bloque_id not in ids:
+            return False, "Eso no se marca desde Hoy."
+        # registrar_sesion persiste con el usuario del request, no con un id suelto.
+        if try_uid() != uid_i:
+            return False, "Eso no se marca desde Hoy."
+        if not registrar_sesion(dia, bloque_id, "Completado"):
+            return False, "Eso no se marca desde Hoy."
+        return True, "Listo."
+    return False, "Eso no se marca desde Hoy."
 
 
 def pull_today(user_id: int | None = None, force: bool = False) -> dict:

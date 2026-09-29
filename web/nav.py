@@ -228,7 +228,6 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
             _tab("/app/coach", "Mi sistema", path.startswith("/app/coach")),
             _tab("/app/configuracion", "Configuración", path.startswith("/app/configuracion")),
             _tab("/app/billing", "Plan y cobros", path.startswith("/app/billing")),
-            _tab("/app/usuarios", "Telegram y usuarios", path.startswith("/app/usuarios")),
         ]
         if _is_admin(user):
             tabs.append(_tab("/app/familia", "Comparativa", path.startswith("/app/familia")))

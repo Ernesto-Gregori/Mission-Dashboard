@@ -36,7 +36,7 @@ def test_el_menu_senala_las_pantallas_de_la_app(web_client):
     _link_admin("42")
     out = _say("/ayuda", "v4")
     assert "/ayuda dinero" in out
-    assert "Cuenta → Telegram y usuarios" in out
+    assert "Cuenta → Configuración → Conexiones" in out
     assert "Usuarios → Telegram" not in out
     assert "finanzas" not in out
 
