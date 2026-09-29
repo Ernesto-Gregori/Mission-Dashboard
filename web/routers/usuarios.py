@@ -262,7 +262,7 @@ async def tg_recordatorios(request: Request, user: Annotated[dict, Depends(requi
             request,
             "usuarios.html",
             status_code=403,
-            **_ctx(request, user, error="Telegram requiere plan Premium o Familia."),
+            **_ctx(request, user, error="Telegram requiere plan Premium."),
         )
     form = await request.form()
     ensure_telegram_schema()
@@ -289,7 +289,7 @@ async def tg_briefing(request: Request, user: Annotated[dict, Depends(require_on
             request,
             "usuarios.html",
             status_code=403,
-            **_ctx(request, user, error="Telegram requiere plan Premium o Familia."),
+            **_ctx(request, user, error="Telegram requiere plan Premium."),
         )
     form = await request.form()
     ensure_telegram_schema()

@@ -13,7 +13,6 @@ Env requeridas:
   TURSO_URL
   TURSO_TOKEN
   STRIPE_PRICE_PREMIUM   (price_xxx)
-  STRIPE_PRICE_FAMILIA   (price_xxx)  opcional
 
 Stripe Dashboard → Developers → Webhooks → Add endpoint:
   https://TU-WEBHOOK/stripe/webhook

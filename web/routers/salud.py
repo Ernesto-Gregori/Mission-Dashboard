@@ -307,7 +307,7 @@ async def fit_importar(request: Request, user: Annotated[dict, Depends(require_o
             **_ctx(
                 request,
                 user,
-                error="Google Fit requiere plan Premium o Familia.",
+                error="Google Fit requiere plan Premium.",
             ),
         )
     try:
@@ -387,7 +387,7 @@ async def token_paste(request: Request, user: Annotated[dict, Depends(require_on
         return render(
             request,
             "modules/salud.html",
-            **_ctx(request, user, error="Google Fit requiere Premium o Familia."),
+            **_ctx(request, user, error="Google Fit requiere plan Premium."),
         )
     from app.google_fit import guardar_token_desde_json
 

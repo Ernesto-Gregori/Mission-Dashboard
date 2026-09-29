@@ -149,14 +149,14 @@ def test_callback_from_unlinked_chat_does_nothing(linked):
     assert len(_rows("telegram_pending")) == 1
 
 
-def test_familia_users_cannot_confirm_each_other(linked):
+def test_dos_usuarios_no_confirman_lo_del_otro(linked):
     from app.database import autenticar_usuario
     from app.db.usuarios import crear_usuario
     from app.telegram import handle_inbound, start_link
 
-    ok, _ = crear_usuario("tg_familia", "password1", rol="usuario", plan="familia")
+    ok, _ = crear_usuario("tg_otro", "password1", rol="usuario", plan="premium")
     assert ok
-    ok, _, code = start_link(int(autenticar_usuario("tg_familia", "password1")["id"]))
+    ok, _, code = start_link(int(autenticar_usuario("tg_otro", "password1")["id"]))
     handle_inbound("43", text=f"/start {code}", update_id="fam-link", send_fn=lambda c, b: None)
 
     _say("/gasto 250 televisor", "fam1", chat="42")

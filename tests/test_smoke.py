@@ -228,10 +228,6 @@ def test_admin_siempre_premium(isolated_db, monkeypatch):
     assert bil.modulos_max(bil.plan_vigente(admin)) is None
     assert bil.puede_reconfigurar_coach(bil.plan_vigente(admin)) is True
 
-    # Familia se respeta si ya la tiene
-    admin["plan"] = "familia"
-    assert bil.plan_vigente(admin) == "familia"
-
     # Grandfather en schema sube admins free → premium en BD
     bil.ensure_billing_schema()
     row = db.ejecutar(
@@ -239,6 +235,30 @@ def test_admin_siempre_premium(isolated_db, monkeypatch):
     )[0]
     assert row["plan"] == "premium"
     assert row["plan_expira_en"] in (None, "")
+
+
+def test_el_plan_familia_retirado_queda_en_premium(isolated_db):
+    """El plan Familia se quitó: quien lo tenía no pierde lo que pagó."""
+    from app import billing as bil
+
+    db = isolated_db
+    bil.ensure_billing_schema()
+    ok, _ = db.crear_usuario("ex_familia", "password1", rol="usuario", plan="free")
+    assert ok
+    uid = int(db.ejecutar(
+        "SELECT id FROM usuarios WHERE username='ex_familia'", fetchall=True
+    )[0]["id"])
+    db.ejecutar("UPDATE usuarios SET plan='familia' WHERE id=?", [uid])
+
+    assert "familia" not in bil.PLANES_VALIDOS
+    # Una sesión que todavía trae el plan viejo no cae a free.
+    assert bil.normalizar_plan("familia") == "premium"
+    assert bil.plan_vigente({"id": uid, "rol": "usuario", "plan": "familia"}) == "premium"
+
+    # Y la BD converge sola en el próximo arranque.
+    bil.ensure_billing_schema()
+    row = db.ejecutar("SELECT plan FROM usuarios WHERE id=?", [uid], fetchall=True)[0]
+    assert row["plan"] == "premium"
 
 
 def test_stripe_checkout_event_aplica_plan(isolated_db, monkeypatch):

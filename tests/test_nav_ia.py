@@ -183,7 +183,8 @@ def test_semana_hub_links_planificador_enfoque_revision(web_client):
     assert b'href="/app/m/agenda' not in r.content
 
 
-def test_familia_vive_en_cuenta_admin(web_client):
+def test_la_comparativa_vive_en_cuenta_admin(web_client):
+    """La comparativa entre usuarios es admin y no presta el nombre del plan retirado."""
     _onboard(web_client)
     r = web_client.get("/app/m/matrimonio")
     assert r.status_code == 200
@@ -194,6 +195,8 @@ def test_familia_vive_en_cuenta_admin(web_client):
     assert b'href="/app/coach"' in r.content
     assert b'href="/app/billing"' in r.content
     assert b'href="/app/familia"' in r.content
+    assert "Comparativa".encode() in r.content
+    assert b">Familia<" not in r.content
 
 
 def test_configuracion_es_una_pestana_de_cuenta_y_no_un_atajo_aparte(web_client):

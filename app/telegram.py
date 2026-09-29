@@ -4,7 +4,7 @@ Las acciones (briefing, gasto, tarea…) viven en ``app/telegram_actions/``.
 
 Sustituye WhatsApp Cloud API (Meta): BotFather, gratis, opt-in (el bot
 no escribe a extraños). Un chat no vinculado NUNCA ejecuta acciones.
-Plan Premium/Familia. Rate-limit propio por chat_id (no bypasea login).
+Plan Premium. Rate-limit propio por chat_id (no bypasea login).
 Groq cuenta en uso_ia. Recordatorios: telegram_reminders + cron.
 """
 from __future__ import annotations
@@ -825,7 +825,7 @@ def handle_inbound(
     from app.billing import plan_vigente, puede_telegram
 
     if not puede_telegram(plan_vigente(user)):
-        return reply("Telegram requiere plan Premium o Familia. Activalo en /app/billing — no ejecuté ninguna acción.")
+        return reply("Telegram requiere plan Premium. Activalo en /app/billing — no ejecuté ninguna acción.")
 
     set_current_user(user)
     clave_comandos = f"{chat_id}:{_idioma_chat(int(user['id']))}"

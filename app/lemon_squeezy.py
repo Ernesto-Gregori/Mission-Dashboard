@@ -33,45 +33,39 @@ def lemon_configured() -> bool:
         and (
             _secret("LEMON_SQUEEZY_VARIANT_PREMIUM")
             or _secret("LEMON_SQUEEZY_CHECKOUT_PREMIUM")
-            or _secret("LEMON_SQUEEZY_VARIANT_FAMILIA")
-            or _secret("LEMON_SQUEEZY_CHECKOUT_FAMILIA")
         )
     )
 
 
 def variant_id_for_plan(plan: str) -> str:
-    from app.billing import PLAN_FAMILIA, PLAN_PREMIUM, normalizar_plan
+    from app.billing import PLAN_PREMIUM, normalizar_plan
 
     plan = normalizar_plan(plan)
     key = {
         PLAN_PREMIUM: "LEMON_SQUEEZY_VARIANT_PREMIUM",
-        PLAN_FAMILIA: "LEMON_SQUEEZY_VARIANT_FAMILIA",
     }.get(plan, "")
     return _secret(key) if key else ""
 
 
 def checkout_link_for_plan(plan: str) -> str:
     """Buy link estático (Share → Checkout) como fallback sin API checkout."""
-    from app.billing import PLAN_FAMILIA, PLAN_PREMIUM, normalizar_plan
+    from app.billing import PLAN_PREMIUM, normalizar_plan
 
     plan = normalizar_plan(plan)
     key = {
         PLAN_PREMIUM: "LEMON_SQUEEZY_CHECKOUT_PREMIUM",
-        PLAN_FAMILIA: "LEMON_SQUEEZY_CHECKOUT_FAMILIA",
     }.get(plan, "")
     return _secret(key) if key else ""
 
 
 def plan_desde_variant_id(variant_id: str | int | None) -> str | None:
-    from app.billing import PLAN_FAMILIA, PLAN_PREMIUM
+    from app.billing import PLAN_PREMIUM
 
     if variant_id is None or variant_id == "":
         return None
     vid = str(variant_id).strip()
     if vid and vid == variant_id_for_plan(PLAN_PREMIUM):
         return PLAN_PREMIUM
-    if vid and vid == variant_id_for_plan(PLAN_FAMILIA):
-        return PLAN_FAMILIA
     return None
 
 

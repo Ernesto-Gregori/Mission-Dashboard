@@ -231,7 +231,7 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
             _tab("/app/usuarios", "Telegram y usuarios", path.startswith("/app/usuarios")),
         ]
         if _is_admin(user):
-            tabs.append(_tab("/app/familia", "Familia", path.startswith("/app/familia")))
+            tabs.append(_tab("/app/familia", "Comparativa", path.startswith("/app/familia")))
     return tabs if len(tabs) >= 2 else []
 
 

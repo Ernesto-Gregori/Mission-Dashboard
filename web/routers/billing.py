@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.billing import (
-    PLAN_FAMILIA,
     PLAN_PREMIUM,
     crear_checkout_session,
     limites,
@@ -31,7 +30,6 @@ def _ctx(request: Request, user: dict, **extra):
         "payment_provider": payment_provider(),
         "planes": [
             {"clave": PLAN_PREMIUM, **limites(PLAN_PREMIUM)},
-            {"clave": PLAN_FAMILIA, **limites(PLAN_FAMILIA)},
         ],
         "error": None,
         "checkout_url": None,

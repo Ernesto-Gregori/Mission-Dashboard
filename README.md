@@ -36,7 +36,7 @@ En la app: **Salud** → Conectar con Google.
 - Webhooks: `POST /lemon/webhook` o `POST /stripe/webhook`
 - Retorno: `/app/billing?checkout=success|cancel`
 
-## Telegram (Premium / Familia)
+## Telegram (Premium)
 - Bot API oficial (BotFather). Callback: `POST /telegram/webhook`
 - Vincular en `/app/usuarios?tab=telegram` (código + `t.me/bot?start=…`)
 - Intenciones: briefing, gasto, tarea (sync Calendar), nota de voz

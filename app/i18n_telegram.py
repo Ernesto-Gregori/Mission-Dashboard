@@ -25,8 +25,8 @@ FRASES = {
         "This Telegram is not linked to Mission Dashboard. Open the app → Users → Telegram, generate a code and tap Start on the bot (or send the 6-digit code). /ayuda lists what the bot can do."
     ),
     "Tu cuenta está inactiva.": "Your account is inactive.",
-    "Telegram requiere plan Premium o Familia. Activalo en /app/billing — no ejecuté ninguna acción.": (
-        "Telegram requires a Premium or Family plan. Turn it on at /app/billing — I did not run anything."
+    "Telegram requiere plan Premium. Activalo en /app/billing — no ejecuté ninguna acción.": (
+        "Telegram requires a Premium plan. Turn it on at /app/billing — I did not run anything."
     ),
     "No pude transcribir el audio. Probá en texto o /ayuda.": "I couldn't transcribe the audio. Try text or /ayuda.",
     "Hubo un error procesando el mensaje. No se guardó nada.": "There was an error processing the message. Nothing was saved.",

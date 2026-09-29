@@ -71,9 +71,9 @@ def crear_usuario(
         return False, "La contraseña debe tener al menos 8 caracteres"
     if rol not in ("admin", "usuario"):
         rol = "usuario"
-    plan = (plan or "free").strip().lower()
-    if plan not in ("free", "premium", "familia"):
-        plan = "free"
+    from app.billing import normalizar_plan
+
+    plan = normalizar_plan(plan)
     existentes = ejecutar(
         "SELECT id FROM usuarios WHERE username = ?",
         [username],

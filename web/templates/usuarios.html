@@ -41,7 +41,7 @@
     {% endif %}
     {% include "telegram_briefing.html" %}
     {% if not puede_telegram %}
-    <div class="flash-warn">Telegram requiere plan Premium o Familia. <a href="/app/billing">Ver planes</a></div>
+    <div class="flash-warn">Telegram requiere plan Premium. <a href="/app/billing">Ver planes</a></div>
     {% endif %}
     {% if tg_link and tg_link.verified %}
     <p>Cuenta vinculada{% if tg_link.tg_username %} <strong>@{{ tg_link.tg_username }}</strong>{% endif %}
