@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.billing import limites, plan_vigente, puede_google, resumen_plan_ui
-from app.calendar_sync import items_foco, pull_range
+from app.calendar_sync import completar_item, items_foco, pull_range
 from app.coach_insights import ultimo_briefing
 from app.onboarding import listar_modulos_usuario, meta_para, modulo_activo
 from app.cuenta import ritual_etiquetas
@@ -116,3 +116,18 @@ def dashboard(request: Request, user: Annotated[dict, Depends(require_onboarded)
         hoy_error=request.session.pop("hoy_error", None),
         life_hubs=dashboard_hubs(user),
     )
+
+
+@router.post("/completar")
+def completar_desde_hoy(
+    request: Request,
+    user: Annotated[dict, Depends(require_onboarded)],
+    kind: Annotated[str, Form()] = "",
+    ref: Annotated[str, Form()] = "",
+):
+    ok, msg = completar_item(kind, ref, int(user["id"]))
+    if ok:
+        request.session["hoy_flash"] = "Listo."
+    else:
+        request.session["hoy_error"] = msg
+    return RedirectResponse("/app", status_code=303)
