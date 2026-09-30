@@ -87,7 +87,7 @@ def test_cita_completada_se_registra_como_gasto_una_vez(web_client):
     assert "Costo registrado en Finanzas" in body
     assert f'id="cita-costo-{cid}"' not in body
 
-    fin = web_client.get(f"/app/m/finanzas?mes={_hoy().month}&anio={_hoy().year}").content.decode()
+    fin = web_client.get(f"/app/m/finanzas?tab=historial&mes={_hoy().month}&anio={_hoy().year}").content.decode()
     assert "Cita: Cena aniversario" in fin
     assert "Cita con Esposa" in fin
     assert "$52.50" in fin

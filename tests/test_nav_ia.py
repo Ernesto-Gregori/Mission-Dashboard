@@ -170,7 +170,10 @@ def test_dinero_tabs_mes_vencimientos_precios(web_client):
     assert r.status_code == 200
     assert b'href="/app/m/finanzas/vencimientos' in r.content
     assert b'href="/app/m/finanzas/precios' in r.content
-    assert b"Reparto del ingreso" in r.content
+    assert b"Reparto del ingreso" not in r.content
+    assert b"tab=mes" in r.content
+    mes = web_client.get("/app/m/finanzas?tab=mes")
+    assert b"Reparto del ingreso" in mes.content
     assert b"/app/presupuesto" not in r.content
 
 

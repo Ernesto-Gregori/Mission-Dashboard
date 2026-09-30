@@ -281,10 +281,13 @@ def test_los_modulos_se_traducen_y_el_espanol_sigue_igual(web_client):
     dinero = web_client.get("/app/m/finanzas")
     assert dinero.status_code == 200
     assert "Add expense" in dinero.text
+    assert ">Expense</a>" in dinero.text
+    assert "Cargarlo en Mes" not in dinero.text
     assert "Agregar gasto" not in dinero.text
-    assert ">Jan</option>" in dinero.text
-    assert ">Dec</option>" in dinero.text
-    assert ">Mar</option>" in dinero.text
+    mes = web_client.get("/app/m/finanzas?tab=mes")
+    assert ">Jan</option>" in mes.text
+    assert ">Dec</option>" in mes.text
+    assert ">Mar</option>" in mes.text
     plan = web_client.get("/app/planificador")
     assert "Draggable timeline, synced with Google Calendar." in plan.text
     assert "Línea de tiempo arrastrable" not in plan.text

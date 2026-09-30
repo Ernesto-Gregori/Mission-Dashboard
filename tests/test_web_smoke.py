@@ -213,8 +213,9 @@ def test_coach_flow_activa_modulos(web_client):
         follow_redirects=True,
     )
     assert r.status_code == 200
-    assert b"super" in r.content
-    assert b'class="data-table finance-table"' in r.content
+    historial = web_client.get("/app/m/finanzas?tab=historial&mes=7&anio=2026")
+    assert b"super" in historial.content
+    assert b'class="data-table finance-table"' in historial.content
 
 
 def test_coach_reconfig_uses_app_shell(web_client):

@@ -215,6 +215,6 @@ def test_b7_origen_telegram_registered_and_reply(linked):
     rows = _rows("gastos_sobres")
     assert len(rows) == 1 and rows[0]["origen"] == "telegram"
     linked.post("/app/coach/activar", data={"modulos": ["agenda", "salud", "finanzas"]})
-    page = linked.get("/app/m/finanzas")
+    page = linked.get("/app/m/finanzas?tab=historial")
     assert page.status_code == 200
     assert b'<span class="badge">telegram</span>' in page.content

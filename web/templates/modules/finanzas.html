@@ -11,30 +11,23 @@
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
-{% if price_matches %}
-<section class="card price-match-card">
-  <h2>🏷 Comparación de precios</h2>
-  <p class="muted compact-copy">
-    Cruces automáticos con el catálogo de precios.
-    Si el match es dudoso, aparece como sin coincidencia clara.
-  </p>
-  <ul class="price-match-list">
-    {% for m in price_matches %}
-    <li>
-      <strong>{{ m.nombre }}</strong><br />
-      <span class="price-match-result{% if m.sin_coincidencia_clara %} is-uncertain{% endif %}">
-        {{ m.resumen }}
-      </span>
-    </li>
-    {% endfor %}
-  </ul>
-  <p class="muted compact-copy" style="margin-top:0.75rem">
-    <a href="/app/m/finanzas/precios?mes={{ mes }}&anio={{ anio }}">Ver catálogo de supermercados →</a>
-  </p>
-</section>
-{% endif %}
-
 <div class="finance-overview">
+<section class="card finance-summary">
+  <h2>Resumen</h2>
+  {% if resumen.sin_ingreso %}
+  <div class="flash-warn">Sin ingreso este mes. <a href="/app/m/finanzas?tab=mes&mes={{ mes }}&anio={{ anio }}">Cargarlo en Mes</a></div>
+  {% else %}
+  <dl class="finance-metrics">
+    <div><dt>Ingreso</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.ingreso) }}</dd></div>
+    <div><dt>Gastado</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.total_gastado) }}</dd></div>
+    <div><dt>Disponible</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.total_disponible) }}</dd></div>
+    <div><dt>Uso global</dt><dd>{{ '%.0f'|format(resumen.pct_global) }}%</dd></div>
+  </dl>
+  {% endif %}
+</section>
+</div>
+
+{% if tab == 'mes' %}
 <section class="card">
   <h2>📅 Período e ingreso</h2>
   <form class="finance-period-form" method="post" action="/app/m/finanzas/periodo">
@@ -67,22 +60,6 @@
     </div>
   </form>
 </section>
-
-<section class="card finance-summary">
-  <h2>Resumen</h2>
-  {% if resumen.sin_ingreso %}
-  <div class="flash-warn">Sin ingreso este mes — registra uno arriba para ver presupuestos.</div>
-  {% else %}
-  <dl class="finance-metrics">
-    <div><dt>Ingreso</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.ingreso) }}</dd></div>
-    <div><dt>Gastado</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.total_gastado) }}</dd></div>
-    <div><dt>Disponible</dt><dd>{{ moneda }}{{ '%.0f'|format(resumen.total_disponible) }}</dd></div>
-    <div><dt>Uso global</dt><dd>{{ '%.0f'|format(resumen.pct_global) }}%</dd></div>
-  </dl>
-  {% endif %}
-</section>
-</div>
-
 <section class="envelope-grid" aria-label="Estado de los sobres">
   {% for s in sobres_ui %}
   <article class="envelope-card" style="--envelope-color:{{ s.color }}">
@@ -124,6 +101,91 @@
     </form>
   </details>
 </section>
+
+<section class="card" aria-labelledby="spend-title">
+  <h2 id="spend-title">A dónde va el dinero</h2>
+  {% if resumen.total_gastado <= 0 %}
+  <p class="muted">Sin gastos este mes.</p>
+  {% else %}
+  <div class="spend-chart" role="img" aria-label="Distribución del gasto por sobre">
+    {% for s in resumen.stacked %}
+    {% if s.pct > 0 %}
+    <div class="spend-seg" style="width: {{ s.pct }}%; background: {{ s.color }}" title="{{ s.label }} {{ '%.0f'|format(s.pct) }}%">
+      <span class="sr-only">{{ s.label }} {{ '%.0f'|format(s.pct) }}%</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <ul class="spend-legend">
+    {% for d in resumen.chart %}
+    <li>{{ d.nombre }} {{ moneda }}{{ '%.0f'|format(d.monto) }} ({{ '%.0f'|format(d.pct) }}%)</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% elif tab == 'historial' %}
+<div class="card">
+  <h2>Historial</h2>
+  {% if not gastos %}
+  <p class="muted">Sin gastos este mes.</p>
+  {% else %}
+  <div class="table-scroll">
+    <table class="data-table finance-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Sobre</th>
+          <th>Detalle</th>
+          <th>Monto</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in gastos %}
+        <tr>
+          <td>{{ g.fecha }}</td>
+          <td>{{ g.sobre }}</td>
+          <td>{{ g.descripcion }} <span class="badge">{{ g.sub_label }}</span>
+            {% if g.origen_label and g.origen_label != 'manual' %}
+            <span class="badge">{{ g.origen_label }}</span>
+            {% endif %}
+          </td>
+          <td>{{ moneda }}{{ '%.2f'|format(g.monto) }}</td>
+          <td>
+            <form method="post" action="/app/m/finanzas/gasto/{{ g.id }}/eliminar" onsubmit="return confirm('¿Eliminar gasto?')">
+              <button class="btn secondary icon-button" type="submit" aria-label="Eliminar gasto {{ g.descripcion }}">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+{% if price_matches %}
+<section class="card price-match-card">
+  <h2>🏷 Comparación de precios</h2>
+  <p class="muted compact-copy">
+    Cruces automáticos con el catálogo de precios.
+    Si el match es dudoso, aparece como sin coincidencia clara.
+  </p>
+  <ul class="price-match-list">
+    {% for m in price_matches %}
+    <li>
+      <strong>{{ m.nombre }}</strong><br />
+      <span class="price-match-result{% if m.sin_coincidencia_clara %} is-uncertain{% endif %}">
+        {{ m.resumen }}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="muted compact-copy" style="margin-top:0.75rem">
+    <a href="/app/m/finanzas/precios?mes={{ mes }}&anio={{ anio }}">Ver catálogo de supermercados →</a>
+  </p>
+</section>
+{% endif %}
 
 <div class="card">
   <h2>📷 Escanear recibo / transferencia</h2>
@@ -214,67 +276,7 @@
   }
   if (sobreSel) { sobreSel.addEventListener('change', fillSubs); }
 </script>
+{% endif %}
 
-<section class="card" aria-labelledby="spend-title">
-  <h2 id="spend-title">A dónde va el dinero</h2>
-  {% if resumen.total_gastado <= 0 %}
-  <p class="muted">Sin gastos este mes.</p>
-  {% else %}
-  <div class="spend-chart" role="img" aria-label="Distribución del gasto por sobre">
-    {% for s in resumen.stacked %}
-    {% if s.pct > 0 %}
-    <div class="spend-seg" style="width: {{ s.pct }}%; background: {{ s.color }}" title="{{ s.label }} {{ '%.0f'|format(s.pct) }}%">
-      <span class="sr-only">{{ s.label }} {{ '%.0f'|format(s.pct) }}%</span>
-    </div>
-    {% endif %}
-    {% endfor %}
-  </div>
-  <ul class="spend-legend">
-    {% for d in resumen.chart %}
-    <li>{{ d.nombre }} {{ moneda }}{{ '%.0f'|format(d.monto) }} ({{ '%.0f'|format(d.pct) }}%)</li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-</section>
-
-<div class="card">
-  <h2>Historial</h2>
-  {% if not gastos %}
-  <p class="muted">Sin gastos este mes.</p>
-  {% else %}
-  <div class="table-scroll">
-    <table class="data-table finance-table">
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Sobre</th>
-          <th>Detalle</th>
-          <th>Monto</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for g in gastos %}
-        <tr>
-          <td>{{ g.fecha }}</td>
-          <td>{{ g.sobre }}</td>
-          <td>{{ g.descripcion }} <span class="badge">{{ g.sub_label }}</span>
-            {% if g.origen_label and g.origen_label != 'manual' %}
-            <span class="badge">{{ g.origen_label }}</span>
-            {% endif %}
-          </td>
-          <td>{{ moneda }}{{ '%.2f'|format(g.monto) }}</td>
-          <td>
-            <form method="post" action="/app/m/finanzas/gasto/{{ g.id }}/eliminar" onsubmit="return confirm('¿Eliminar gasto?')">
-              <button class="btn secondary icon-button" type="submit" aria-label="Eliminar gasto {{ g.descripcion }}">✕</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-</div>
 
 {% endblock %}

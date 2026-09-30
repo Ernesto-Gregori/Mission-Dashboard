@@ -202,8 +202,15 @@ def hub_tabs(user: dict, request: Request) -> list[dict]:
         mes = request.query_params.get("mes") or request.session.get("fin_mes") or ""
         anio = request.query_params.get("anio") or request.session.get("fin_anio") or ""
         qs = f"?mes={mes}&anio={anio}" if mes and anio else ""
+        extra = f"&mes={mes}&anio={anio}" if mes and anio else ""
+        pagina = _norm_path(path) == "/app/m/finanzas"
+        tab = str(request.query_params.get("tab") or "gasto")
+        if tab not in ("gasto", "mes", "historial"):
+            tab = "gasto"
         tabs = [
-            _tab(f"/app/m/finanzas{qs}", "Mes", _norm_path(path) == "/app/m/finanzas"),
+            _tab(f"/app/m/finanzas?tab=gasto{extra}", "Gasto", pagina and tab == "gasto"),
+            _tab(f"/app/m/finanzas?tab=mes{extra}", "Mes", pagina and tab == "mes"),
+            _tab(f"/app/m/finanzas?tab=historial{extra}", "Historial", pagina and tab == "historial"),
             _tab(
                 f"/app/m/finanzas/vencimientos{qs}",
                 "Vencimientos",

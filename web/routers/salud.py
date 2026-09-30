@@ -34,7 +34,7 @@ from web.routers.rutina import rutina_page_extras
 
 router = APIRouter(prefix="/app/m/salud", tags=["salud"])
 
-TABS = ("hoy", "rutina", "historial")
+TABS = ("hoy", "rutina", "historial", "racha")
 
 
 def _tab(request: Request) -> str:
@@ -291,7 +291,7 @@ async def guardar_objetivo_salud(request: Request, user: Annotated[dict, Depends
         except Exception:
             valor = None
     guardar_objetivo(tipo, valor, user_id=int(user["id"]))
-    return _redirect("hoy", _fecha(request))
+    return _redirect("racha", _fecha(request))
 
 
 @router.post("/fit/importar")

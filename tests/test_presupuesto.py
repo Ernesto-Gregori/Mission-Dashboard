@@ -86,7 +86,7 @@ def test_reparto_por_defecto_es_3_sobres(web_client):
             "monto": "200",
         },
     )
-    r = web_client.get("/app/m/finanzas?mes=9&anio=2026")
+    r = web_client.get("/app/m/finanzas?tab=mes&mes=9&anio=2026")
     assert r.status_code == 200
     body = r.content.decode()
     assert "3 sobres" in body
@@ -212,13 +212,27 @@ def test_ingreso_sugerido_desde_vencimientos(web_client):
         "/app/m/finanzas/vencimientos",
         data={"titulo": "Luz", "tipo": "factura", "monto": "40", "dia": "5"},
     )
-    body = web_client.get("/app/m/finanzas?mes=10&anio=2026").content.decode()
+    body = web_client.get("/app/m/finanzas?tab=mes&mes=10&anio=2026").content.decode()
     assert 'value="1500.00"' in body
     assert "Sugerido desde tus vencimientos de ingreso (Freelance, Sueldo)" in body
     # Solo se prellena: el mes sigue sin ingreso hasta que el usuario lo guarda.
     assert "Sin ingreso este mes" in body
 
     web_client.post("/app/m/finanzas/periodo", data={"mes": "10", "anio": "2026", "monto": "1400"})
-    body = web_client.get("/app/m/finanzas?mes=10&anio=2026").content.decode()
+    body = web_client.get("/app/m/finanzas?tab=mes&mes=10&anio=2026").content.decode()
     assert 'value="1400.00"' in body
     assert "Sugerido desde" not in body
+def test_el_gasto_no_comparte_pantalla_con_el_reparto(web_client):
+    """Anotar un gasto no arrastra el reparto ni el historial."""
+    _onboard(web_client)
+    gasto = web_client.get("/app/m/finanzas?mes=9&anio=2026")
+    assert gasto.status_code == 200
+    assert "Agregar gasto" in gasto.text
+    assert "Reparto del ingreso" not in gasto.text
+    assert "<h2>Historial</h2>" not in gasto.text
+    mes = web_client.get("/app/m/finanzas?tab=mes&mes=9&anio=2026")
+    assert "Reparto del ingreso" in mes.text
+    assert "Agregar gasto" not in mes.text
+    historial = web_client.get("/app/m/finanzas?tab=historial&mes=9&anio=2026")
+    assert "<h2>Historial</h2>" in historial.text
+    assert "Agregar gasto" not in historial.text
