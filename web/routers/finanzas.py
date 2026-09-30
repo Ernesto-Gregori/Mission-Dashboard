@@ -46,6 +46,16 @@ from web.deps import render, require_onboarded
 
 router = APIRouter(prefix="/app/m/finanzas", tags=["finanzas"])
 
+TABS = ("gasto", "mes", "historial")
+
+
+def _tab(request: Request, tab: str | None = None) -> str:
+    if tab in TABS:
+        return tab
+    elegido = str(request.query_params.get("tab") or "gasto").lower()
+    return elegido if elegido in TABS else "gasto"
+
+
 MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
 SESSION_DRAFT_KEY = "finanzas_scan_draft"
@@ -78,7 +88,7 @@ def _flash(request: Request, flash: str | None = None) -> str | None:
     return flash
 
 
-def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str | None = None):
+def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str | None = None, tab: str | None = None):
     mes, anio = _periodo(request)
     flash = _flash(request, flash)
     resumen = resumen_mes(mes, anio, user_id=int(user["id"]))
@@ -116,6 +126,7 @@ def _ctx(request: Request, user: dict, *, flash: str | None = None, error: str |
         "price_matches": request.session.pop(SESSION_MATCHES_KEY, None),
         "finanzas_section": "sobres",
         "moneda": moneda_simbolo(int(user["id"])),
+        "tab": _tab(request, tab),
     }
 
 
@@ -281,10 +292,10 @@ async def set_reparto(request: Request, user: Annotated[dict, Depends(require_on
             request,
             "modules/finanzas.html",
             status_code=400,
-            **_ctx(request, user, error=msg),
+            **_ctx(request, user, error=msg, tab="mes"),
         )
     mes, anio = _periodo(request)
-    return RedirectResponse(f"/app/m/finanzas?mes={mes}&anio={anio}", status_code=303)
+    return RedirectResponse(f"/app/m/finanzas?tab=mes&mes={mes}&anio={anio}", status_code=303)
 
 
 @router.post("/periodo")
@@ -309,15 +320,15 @@ async def set_periodo(request: Request, user: Annotated[dict, Depends(require_on
                 return render(
                     request,
                     "modules/finanzas.html",
-                    **_ctx(request, user, error="No se pudo guardar el ingreso."),
+                    **_ctx(request, user, error="No se pudo guardar el ingreso.", tab="mes"),
                 )
         except Exception:
             return render(
                 request,
                 "modules/finanzas.html",
-                **_ctx(request, user, error="Monto de ingreso inválido."),
+                **_ctx(request, user, error="Monto de ingreso inválido.", tab="mes"),
             )
-    return RedirectResponse(f"/app/m/finanzas?mes={mes}&anio={anio}", status_code=303)
+    return RedirectResponse(f"/app/m/finanzas?tab=mes&mes={mes}&anio={anio}", status_code=303)
 
 
 @router.post("/gasto")
@@ -354,7 +365,7 @@ def del_gasto(
 ):
     mes, anio = _periodo(request)
     eliminar_gasto_sobre(int(gasto_id))
-    return RedirectResponse(f"/app/m/finanzas?mes={mes}&anio={anio}", status_code=303)
+    return RedirectResponse(f"/app/m/finanzas?tab=historial&mes={mes}&anio={anio}", status_code=303)
 
 
 @router.post("/escanear", response_class=HTMLResponse)

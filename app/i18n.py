@@ -65,6 +65,7 @@ CATALOGO = {
     "Revisión": "Review",
     "Planificador": "Planner",
     "Mes": "Month",
+    "Gasto": "Expense",
     "Vencimientos": "Bills",
     "Precios supermercados": "Grocery prices",
     "Precios": "Prices",

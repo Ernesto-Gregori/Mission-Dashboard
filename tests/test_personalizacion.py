@@ -338,8 +338,9 @@ def test_categoria_nueva_acepta_un_gasto(web_client):
         follow_redirects=True,
     )
     assert r.status_code == 200
-    assert "alimento" in r.text
-    assert "€" in r.text
+    historial = web_client.get("/app/m/finanzas?tab=historial")
+    assert "alimento" in historial.text
+    assert "€" in historial.text
 
 
 def test_exportar_y_borrar_la_propia_cuenta(web_client):

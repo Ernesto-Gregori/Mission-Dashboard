@@ -60,7 +60,7 @@ def _onboard(client: TestClient, username: str = "racha_user") -> None:
 
 def test_salud_muestra_racha_y_graficos(web_client):
     _onboard(web_client)
-    r = web_client.get("/app/m/salud")
+    r = web_client.get("/app/m/salud?tab=racha")
     assert r.status_code == 200
     assert b"Racha" in r.content
     assert b"streak-count" in r.content
@@ -109,6 +109,18 @@ def test_racha_ejercicio_consecutiva(web_client):
         )
         assert calcular_racha_objetivo(int(user["id"])) == 1
 
-    r = web_client.get("/app/m/salud")
+    r = web_client.get("/app/m/salud?tab=racha")
     assert r.status_code == 200
     assert b"progress-bar is-met" in r.content or b"is-met" in r.content
+def test_el_dia_no_apila_los_graficos(web_client):
+    """Hoy muestra el registro. Los gráficos viven en la pestaña Racha."""
+    _onboard(web_client)
+    hoy = web_client.get("/app/m/salud")
+    assert hoy.status_code == 200
+    assert "Registro del día" in hoy.text
+    assert "progress-chart" not in hoy.text
+    assert 'href="/app/m/salud?tab=racha"' in hoy.text
+    racha = web_client.get("/app/m/salud?tab=racha")
+    assert "progress-chart" in racha.text
+    assert 'for="goal-type"' in racha.text
+    assert "Registro del día" not in racha.text

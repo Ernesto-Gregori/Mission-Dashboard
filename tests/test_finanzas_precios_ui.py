@@ -136,7 +136,7 @@ def test_resumen_y_busqueda_catalogo(isolated_db):
 
 def test_finanzas_sobres_sin_catalogo_inline(web_client):
     _setup_finanzas(web_client)
-    r = web_client.get("/app/m/finanzas")
+    r = web_client.get("/app/m/finanzas?tab=mes")
     assert r.status_code == 200
     body = r.text
     assert "Reparto del ingreso" in body

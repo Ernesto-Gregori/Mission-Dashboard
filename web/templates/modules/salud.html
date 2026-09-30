@@ -20,6 +20,14 @@
 </dl>
 {% endif %}
 
+<nav class="agenda-tabs health-tabs" aria-label="Secciones de Salud">
+  <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/salud?tab=hoy&fecha={{ fecha }}"{% if tab == 'hoy' %} aria-current="page"{% endif %}>📅 Hoy</a>
+  <a class="{% if tab == 'rutina' %}active{% endif %}" href="/app/m/salud?tab=rutina"{% if tab == 'rutina' %} aria-current="page"{% endif %}>Rutina</a>
+  <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/salud?tab=historial"{% if tab == 'historial' %} aria-current="page"{% endif %}>🗂️ Historial</a>
+  <a class="{% if tab == 'racha' %}active{% endif %}" href="/app/m/salud?tab=racha"{% if tab == 'racha' %} aria-current="page"{% endif %}>Racha</a>
+</nav>
+
+{% if tab == 'racha' %}
 <section class="card health-streak" aria-labelledby="streak-title">
   <div class="streak-head">
     <div>
@@ -67,16 +75,13 @@
     </div>
   </div>
 </section>
+{% endif %}
 
-<nav class="agenda-tabs health-tabs" aria-label="Secciones de Salud">
-  <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/salud?tab=hoy&fecha={{ fecha }}"{% if tab == 'hoy' %} aria-current="page"{% endif %}>📅 Hoy</a>
-  <a class="{% if tab == 'rutina' %}active{% endif %}" href="/app/m/salud?tab=rutina"{% if tab == 'rutina' %} aria-current="page"{% endif %}>Rutina</a>
-  <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/salud?tab=historial"{% if tab == 'historial' %} aria-current="page"{% endif %}>🗂️ Historial</a>
-</nav>
 
 {% if tab == 'hoy' %}
 <section>
   <p class="muted"><a href="/app/configuracion?tab=conexiones">Conectar Google y Telegram</a></p>
+  <p class="muted"><a href="/app/m/salud?tab=racha">Racha</a> · 🔥 {{ racha }}</p>
 
   <div class="card">
     <h2>Registro del día</h2>
