@@ -9,17 +9,20 @@
 {% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
 {% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
 
-<nav class="agenda-tabs" aria-label="Partes de la configuración">
-  <a href="/app/configuracion?tab=areas" class="{% if tab == 'areas' %}active{% endif %}"{% if tab == 'areas' %} aria-current="page"{% endif %}>Áreas</a>
-  <a href="/app/configuracion?tab=dia" class="{% if tab == 'dia' %}active{% endif %}"{% if tab == 'dia' %} aria-current="page"{% endif %}>Día</a>
-  <a href="/app/configuracion?tab=dinero" class="{% if tab == 'dinero' %}active{% endif %}"{% if tab == 'dinero' %} aria-current="page"{% endif %}>Dinero</a>
-  <a href="/app/configuracion?tab=rueda" class="{% if tab == 'rueda' %}active{% endif %}"{% if tab == 'rueda' %} aria-current="page"{% endif %}>Rueda</a>
-  <a href="/app/configuracion?tab=conexiones" class="{% if tab == 'conexiones' %}active{% endif %}"{% if tab == 'conexiones' %} aria-current="page"{% endif %}>Conexiones</a>
-  <a href="/app/configuracion?tab=datos" class="{% if tab == 'datos' %}active{% endif %}"{% if tab == 'datos' %} aria-current="page"{% endif %}>Datos</a>
-  {% if is_admin %}
-  <a href="/app/configuracion?tab=usuarios" class="{% if tab == 'usuarios' %}active{% endif %}"{% if tab == 'usuarios' %} aria-current="page"{% endif %}>Usuarios</a>
-  {% endif %}
-</nav>
+{% set cfg_tabs = [
+  {"href": "/app/configuracion?tab=areas", "label": "Áreas", "active": tab == "areas"},
+  {"href": "/app/configuracion?tab=dia", "label": "Día", "active": tab == "dia"},
+  {"href": "/app/configuracion?tab=dinero", "label": "Dinero", "active": tab == "dinero"},
+  {"href": "/app/configuracion?tab=rueda", "label": "Rueda", "active": tab == "rueda"},
+  {"href": "/app/configuracion?tab=conexiones", "label": "Conexiones", "active": tab == "conexiones"},
+  {"href": "/app/configuracion?tab=datos", "label": "Datos", "active": tab == "datos"},
+] %}
+{% if is_admin %}
+{% set cfg_tabs = cfg_tabs + [{"href": "/app/configuracion?tab=usuarios", "label": "Usuarios", "active": tab == "usuarios"}] %}
+{% endif %}
+{% with tabs=cfg_tabs, tabs_modifier="", tabs_label="Partes de la configuración" %}
+{% include "_section_tabs.html" %}
+{% endwith %}
 
 {% if tab == 'areas' %}
 <form method="post" action="/app/configuracion">

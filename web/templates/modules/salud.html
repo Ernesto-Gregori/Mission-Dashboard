@@ -20,12 +20,14 @@
 </dl>
 {% endif %}
 
-<nav class="agenda-tabs health-tabs" aria-label="Secciones de Salud">
-  <a class="{% if tab == 'hoy' %}active{% endif %}" href="/app/m/salud?tab=hoy&fecha={{ fecha }}"{% if tab == 'hoy' %} aria-current="page"{% endif %}>📅 Hoy</a>
-  <a class="{% if tab == 'rutina' %}active{% endif %}" href="/app/m/salud?tab=rutina"{% if tab == 'rutina' %} aria-current="page"{% endif %}>Rutina</a>
-  <a class="{% if tab == 'historial' %}active{% endif %}" href="/app/m/salud?tab=historial"{% if tab == 'historial' %} aria-current="page"{% endif %}>🗂️ Historial</a>
-  <a class="{% if tab == 'racha' %}active{% endif %}" href="/app/m/salud?tab=racha"{% if tab == 'racha' %} aria-current="page"{% endif %}>Racha</a>
-</nav>
+{% with tabs=[
+  {"href": "/app/m/salud?tab=hoy&fecha=" ~ fecha, "label": "📅 Hoy", "active": tab == "hoy"},
+  {"href": "/app/m/salud?tab=rutina", "label": "Rutina", "active": tab == "rutina"},
+  {"href": "/app/m/salud?tab=historial", "label": "🗂️ Historial", "active": tab == "historial"},
+  {"href": "/app/m/salud?tab=racha", "label": "Racha", "active": tab == "racha"},
+], tabs_modifier="health-tabs", tabs_label="Secciones de Salud" %}
+{% include "_section_tabs.html" %}
+{% endwith %}
 
 {% if tab == 'racha' %}
 <section class="card health-streak" aria-labelledby="streak-title">

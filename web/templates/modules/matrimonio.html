@@ -25,12 +25,14 @@
 </div>
 {% endif %}
 
-<nav class="agenda-tabs relationship-tabs" aria-label="Secciones de relaciones">
-  <a class="{% if tab == 'citas' %}active{% endif %}" href="/app/m/matrimonio?tab=citas"{% if tab == 'citas' %} aria-current="page"{% endif %}>📅 Citas</a>
-  <a class="{% if tab == 'nueva' %}active{% endif %}" href="/app/m/matrimonio?tab=nueva"{% if tab == 'nueva' %} aria-current="page"{% endif %}>➕ Nueva</a>
-  <a class="{% if tab == 'notas' %}active{% endif %}" href="/app/m/matrimonio?tab=notas"{% if tab == 'notas' %} aria-current="page"{% endif %}>📝 Notas</a>
-  <a class="{% if tab == 'habitos' %}active{% endif %}" href="/app/m/matrimonio?tab=habitos"{% if tab == 'habitos' %} aria-current="page"{% endif %}>❤️ Hábitos</a>
-</nav>
+{% with tabs=[
+  {"href": "/app/m/matrimonio?tab=citas", "label": "📅 Citas", "active": tab == "citas"},
+  {"href": "/app/m/matrimonio?tab=nueva", "label": "➕ Nueva", "active": tab == "nueva"},
+  {"href": "/app/m/matrimonio?tab=notas", "label": "📝 Notas", "active": tab == "notas"},
+  {"href": "/app/m/matrimonio?tab=habitos", "label": "❤️ Hábitos", "active": tab == "habitos"},
+], tabs_modifier="relationship-tabs", tabs_label="Secciones de relaciones" %}
+{% include "_section_tabs.html" %}
+{% endwith %}
 
 {% if tab == 'citas' %}
 <section>
