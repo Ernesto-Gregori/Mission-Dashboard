@@ -1,4 +1,4 @@
-"""Stripe webhook — mismo contrato que webhook/main.py, integrado en FastAPI web."""
+"""Stripe webhook canónico: POST /stripe/webhook."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException, Request
