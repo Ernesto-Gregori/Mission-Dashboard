@@ -251,3 +251,23 @@ def test_el_css_suelta_bloques_que_ya_no_se_pintan():
     assert ".alma-user" in css
     assert ".book-card.status-leyendo" in css
     assert ".backup-result" in css
+
+def test_las_secciones_comparten_el_marcado_de_pestana(web_client):
+    """Cuerpo, lectura, enfoque, relaciones, espiritualidad y Configuración usan el mismo enlace."""
+    _onboard(
+        web_client,
+        "tabs_user",
+        mods=["agenda", "salud", "biblioteca", "deep_work", "matrimonio", "teologia", "finanzas"],
+    )
+    casos = [
+        ("/app/m/salud", r'href="/app/m/salud\?tab=hoy[^"]*" class="active" aria-current="page"'),
+        ("/app/m/biblioteca", r'href="/app/m/biblioteca\?tab=catalogo" class="active" aria-current="page"'),
+        ("/app/m/deep_work", r'href="/app/m/deep_work\?tab=dia[^"]*" class="active" aria-current="page"'),
+        ("/app/m/matrimonio", r'href="/app/m/matrimonio\?tab=citas" class="active" aria-current="page"'),
+        ("/app/m/teologia", r'href="/app/m/teologia\?tab=hoy[^"]*" class="active" aria-current="page"'),
+        ("/app/configuracion", r'href="/app/configuracion\?tab=areas" class="active" aria-current="page"'),
+        ("/app/m/finanzas", r'href="/app/m/finanzas\?tab=gasto[^"]*" class="active" aria-current="page"'),
+    ]
+    for path, marca in casos:
+        body = web_client.get(path).text
+        assert re.search(marca, body), path

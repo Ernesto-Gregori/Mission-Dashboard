@@ -1,0 +1,5 @@
+<nav class="agenda-tabs{% if tabs_modifier %} {{ tabs_modifier }}{% endif %}" aria-label="{{ tabs_label }}">
+  {% for t in tabs %}
+  <a href="{{ t.href }}"{% if t.active %} class="active" aria-current="page"{% endif %}>{{ t.label }}</a>
+  {% endfor %}
+</nav>
