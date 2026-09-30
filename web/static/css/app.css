@@ -211,34 +211,6 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .hoy-panel .section-heading { justify-content: flex-start; flex-wrap: wrap; }
 .hoy-foco-list { margin: 0; padding: 0; list-style: none; }
 .ritual-compact { display: grid; gap: var(--space-3); }
-.rueda-hoy { margin-bottom: 1.5rem; }
-.rueda-hoy-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
-}
-.hub-grid { align-items: stretch; }
-.hub-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  text-decoration: none;
-}
-.hub-card-main {
-  color: inherit;
-  text-decoration: none;
-}
-.hub-card-main:hover { text-decoration: none; color: var(--text); }
-.hub-children {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.85rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: var(--text-sm);
-}
-.hub-children a { color: var(--accent); }
 
 .main {
   width: 100%;
@@ -412,8 +384,7 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
 .muted { color: var(--muted); }
 
 .page-header,
-.section-heading,
-.account-card {
+.section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -421,80 +392,11 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
 }
 .page-header { margin-bottom: var(--space-6); }
 .page-header p,
-.section-heading p,
-.account-card p { margin: 0.35rem 0 0; }
+.section-heading p { margin: 0.35rem 0 0; }
 
-.dashboard-section { margin-top: var(--space-6); }
 .section-heading { margin-bottom: var(--space-3); }
-.section-heading h2,
-.account-card h2 { margin: 0; }
+.section-heading h2 { margin: 0; }
 
-.module-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.65rem;
-}
-.module-card {
-  --module-accent: var(--accent);
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.8rem;
-  min-height: 76px;
-  padding: 0.8rem;
-  color: var(--text);
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: background-color 180ms ease, border-color 180ms ease, transform 120ms ease;
-}
-.module-card:hover {
-  color: var(--text);
-  background: var(--bg-hover);
-  border-color: color-mix(in srgb, var(--module-accent) 55%, var(--border));
-  text-decoration: none;
-}
-.module-card:active { transform: translateY(1px); }
-.module-card[data-module="agenda"] { --module-accent: var(--module-agenda); }
-.module-card[data-module="finanzas"] { --module-accent: var(--module-finanzas); }
-.module-card[data-module="salud"] { --module-accent: var(--module-salud); }
-.module-card[data-module="deep_work"] { --module-accent: var(--module-deep-work); }
-.module-card[data-module="biblioteca"] { --module-accent: var(--module-biblioteca); }
-.module-card[data-module="matrimonio"] { --module-accent: var(--module-matrimonio); }
-.module-card[data-module="teologia"] { --module-accent: var(--module-teologia); }
-.module-icon {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  background: color-mix(in srgb, var(--module-accent) 14%, transparent);
-  border-radius: 8px;
-  font-size: var(--text-lg);
-}
-.module-copy { display: grid; gap: 0.15rem; min-width: 0; }
-.module-copy .muted {
-  overflow: hidden;
-  font-size: var(--text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.module-card.is-inactive .module-icon { filter: saturate(0.35); }
-
-.module-card.hub-card {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.75rem;
-  min-height: 0;
-}
-
-.account-card {
-  margin-top: var(--space-6);
-  padding: var(--space-4);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-.card-compact { max-width: 46rem; }
 
 @media (max-width: 800px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
@@ -566,7 +468,6 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
   .hoy-grid { grid-template-columns: 1fr; }
   .main { padding-top: 1.5rem; }
   .page-header { align-items: flex-start; }
-  .module-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 800px) and (prefers-reduced-motion: reduce) {
@@ -574,12 +475,8 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
 }
 
 @media (max-width: 480px) {
-  .page-header,
-  .account-card { align-items: stretch; flex-direction: column; }
-  .page-header .btn,
-  .account-card .btn { width: 100%; }
-  .module-card { grid-template-columns: auto minmax(0, 1fr); }
-  .module-card .badge { grid-column: 2; justify-self: start; }
+  .page-header { align-items: stretch; flex-direction: column; }
+  .page-header .btn { width: 100%; }
 }
 
 /* Module foundations */
@@ -612,14 +509,6 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
 .module-header[data-module="teologia"] { --module-current: var(--module-teologia); }
 
 /* Agenda */
-.agenda-rachas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
 .agenda-tabs {
   display: flex;
   gap: 0.4rem;
@@ -645,7 +534,8 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
   color: var(--text);
   text-decoration: none;
 }
-.agenda-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-agenda); }
+.agenda-tabs { --tab-accent: var(--module-agenda); }
+.agenda-tabs a.active { box-shadow: inset 0 -2px 0 var(--tab-accent); }
 .agenda-week-nav {
   display: flex;
   flex-wrap: wrap;
@@ -757,15 +647,6 @@ h3 { font-size: var(--text-base); line-height: 1.35; }
   border-top: 1px solid var(--border);
 }
 .journal-section h3 { margin: 0 0 0.75rem; }
-.journal-auto-summary { margin-top: 1rem; font-variant-numeric: tabular-nums; }
-.coach-response {
-  margin-top: 0.75rem;
-  padding: 0.9rem;
-  background: var(--bg);
-  border-radius: 8px;
-  white-space: pre-wrap;
-}
-.history-filter { margin-bottom: 1rem; }
 .pre-wrap { white-space: pre-wrap; }
 
 .agenda-ev-list {
@@ -832,17 +713,6 @@ textarea {
   background: rgba(210, 153, 34, 0.12);
   border-radius: 6px;
 }
-.finance-disclosure > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-height: 44px;
-  font-size: var(--text-lg);
-  font-weight: 650;
-  cursor: pointer;
-}
-.finance-disclosure[open] > summary { margin-bottom: 0.75rem; }
 .store-list { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
 .store-row {
   display: flex;
@@ -1002,13 +872,7 @@ textarea {
   font-size: var(--text-base);
   font-weight: 650;
 }
-.health-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-salud); }
-.integration-status {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
+.health-tabs { --tab-accent: var(--module-salud); }
 .token-fallback { margin-top: 1rem; }
 .token-fallback summary {
   display: inline-flex;
@@ -1083,7 +947,6 @@ textarea {
   .health-history-metrics div:nth-child(3) { border-left: 0; }
   .health-history-metrics div:nth-child(n+3) { border-top: 1px solid var(--border); }
   .health-form-grid.cols-3 { grid-template-columns: 1fr; }
-  .integration-status .btn { width: 100%; }
 }
 
 .rt-cta { margin: 0.35rem 0 0.85rem; }
@@ -1200,7 +1063,7 @@ textarea {
 }
 
 /* Deep Work */
-.deep-work-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-deep-work); }
+.deep-work-tabs { --tab-accent: var(--module-deep-work); }
 .deep-work-date-form {
   display: flex;
   align-items: end;
@@ -1329,7 +1192,7 @@ textarea {
 .library-metrics div:first-child { border-left: 0; }
 .library-metrics dt { color: var(--muted); font-size: var(--text-xs); }
 .library-metrics dd { margin: 0.15rem 0 0; font-weight: 650; }
-.library-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-biblioteca); }
+.library-tabs { --tab-accent: var(--module-biblioteca); }
 .library-book-form { margin-top: 0.75rem; }
 .library-form-grid {
   display: grid;
@@ -1446,7 +1309,7 @@ textarea {
   border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
 }
-.relationship-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-matrimonio); }
+.relationship-tabs { --tab-accent: var(--module-matrimonio); }
 .appointment-filter-form,
 .relationship-filter-form {
   display: flex;
@@ -1527,7 +1390,7 @@ textarea {
   border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
 }
-.theology-tabs a.active { box-shadow: inset 0 -2px 0 var(--module-teologia); }
+.theology-tabs { --tab-accent: var(--module-teologia); }
 .theology-date-form,
 .reading-suggestion-form {
   display: flex;
@@ -1653,12 +1516,6 @@ textarea {
 }
 
 /* Usuarios */
-.users-page-header { margin-bottom: 1rem; }
-.users-page-header h1,
-.users-page-header p { margin: 0; }
-.users-page-header p { margin-top: 0.35rem; }
-.users-tabs a.active { box-shadow: inset 0 -2px 0 var(--accent); }
-.users-notice,
 .backup-result { margin-top: 1rem; }
 /* Una sola tarjeta de plan no debe quedar encajada en una columna angosta. */
 .plan-cards {
@@ -1788,17 +1645,11 @@ textarea {
 .chip-google { border-color: var(--accent); }
 .chip-local { border-color: var(--module-biblioteca); }
 .chip-mat { border-color: var(--module-matrimonio); }
-.planner-empty { font-size: var(--text-xs); margin: 0.35rem 0 0; }
 .planner-views { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .planner-views .btn.is-current {
   border-color: var(--accent);
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.foco-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.85rem;
 }
 .foco-list {
   list-style: none;
@@ -1939,7 +1790,6 @@ textarea {
 .tl-month-num { font-size: var(--text-xs); color: var(--muted); }
 .tl-month-block { margin-top: 0.2rem; width: 100%; }
 @media (max-width: 800px) {
-  .foco-layout { grid-template-columns: 1fr; }
   .tl-grid.vista-semana { grid-template-columns: repeat(7, minmax(5.5rem, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2018,7 +1868,6 @@ textarea {
   margin: 0.75rem 0;
 }
 .spend-seg { height: 100%; min-width: 2px; }
-.spend-empty { background: var(--border); min-width: 0; }
 .spend-legend {
   display: flex;
   flex-wrap: wrap;
@@ -2028,15 +1877,6 @@ textarea {
   margin: 0 0 1rem;
   font-size: var(--text-sm);
 }
-.spend-legend .swatch {
-  display: inline-block;
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 2px;
-  margin-right: 0.35rem;
-  vertical-align: -0.1rem;
-}
-.spend-bars { margin-top: 0.5rem; }
 .due-calendar h3 { margin: 1.25rem 0 0.5rem; font-size: var(--text-base); }
 .due-grid { margin: 0.75rem 0 1rem; }
 .due-head,
@@ -2115,15 +1955,6 @@ textarea {
   stroke-width: 2;
 }
 .rueda-label { font-size: 14px; }
-.rueda-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1rem;
-  list-style: none;
-  padding: 0;
-  margin: 0.75rem 0 0;
-  font-size: var(--text-sm);
-}
 .rueda-form { display: grid; gap: 0.65rem; }
 .rueda-field {
   display: grid;
