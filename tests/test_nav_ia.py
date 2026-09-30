@@ -231,3 +231,23 @@ def test_cuenta_hub_covers_billing(web_client):
     assert b'href="/app/billing"' in r.content
     assert b"Plan y cobros" in r.content
     assert b"tab=plan" not in r.content
+
+def test_el_css_suelta_bloques_que_ya_no_se_pintan():
+    """Lo retirado de Hoy y de las áreas no debe seguir ocupando app.css."""
+    css = (Path(__file__).resolve().parent.parent / "web/static/css/app.css").read_text("utf-8")
+    for muerto in (
+        ".hub-card",
+        ".module-card",
+        ".foco-layout",
+        ".rueda-hoy",
+        ".users-tabs",
+        ".account-card",
+        ".finance-disclosure",
+    ):
+        assert muerto not in css
+    assert css.count("box-shadow: inset 0 -2px 0") == 1
+    assert "--tab-accent: var(--module-salud)" in css
+    assert ".tl-grid.vista-semana" in css
+    assert ".alma-user" in css
+    assert ".book-card.status-leyendo" in css
+    assert ".backup-result" in css
