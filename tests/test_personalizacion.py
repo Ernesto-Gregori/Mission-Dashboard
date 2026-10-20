@@ -338,7 +338,7 @@ def test_categoria_nueva_acepta_un_gasto(web_client):
         follow_redirects=True,
     )
     assert r.status_code == 200
-    historial = web_client.get("/app/m/finanzas?tab=historial")
+    historial = web_client.get("/app/m/finanzas?tab=historial&mes=9&anio=2026")
     assert "alimento" in historial.text
     assert "€" in historial.text
 

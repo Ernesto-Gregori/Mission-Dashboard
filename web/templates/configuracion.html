@@ -127,8 +127,8 @@
           <form class="inline-form" method="post" action="/app/configuracion/habitos/{{ h.clave }}/reactivar">
             <button class="btn secondary" type="submit">Reactivar</button>
           </form>
-          <form class="inline-form" method="post" action="/app/configuracion/habitos/{{ h.clave }}/eliminar">
-            <button class="btn secondary" type="submit" formnovalidate onclick="return confirm('¿Eliminar este hábito y su historial?')">Eliminar</button>
+          <form class="inline-form" method="post" action="/app/configuracion/habitos/{{ h.clave }}/eliminar" onsubmit="return confirm('¿Eliminar este hábito y su historial?')">
+            <button class="btn secondary" type="submit" formnovalidate>Eliminar</button>
           </form>
         </span>
       </li>
