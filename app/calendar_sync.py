@@ -24,7 +24,8 @@ from app.timezone_config import hoy as _hoy, iso_ahora
 
 log = get_logger("calendar_sync")
 
-POLL_MIN_SECONDS = 45
+# Recargar Hoy no debe pegarle a Google en cada visita.
+POLL_MIN_SECONDS = 15 * 60
 HORA_HABITO_VACIA = {"", "—", "-", "n/a", "na", "none"}
 
 

@@ -15,8 +15,24 @@
   <h2>Tiendas</h2>
   <p class="muted compact-copy">
     Catálogo local para cruzar precios al escanear recibos.
-    <strong>Actualizar</strong> trae una muestra de precios de esa tienda.
+    <strong>Actualizar</strong> recorre la tienda en segundo plano y guarda la foto del producto.
+    También puede correr sola cada noche.
   </p>
+  <form method="post" action="/app/m/finanzas/precios/horario">
+    <div class="finance-form-grid">
+      <div>
+        <label for="hora-precios">Hora de actualización</label>
+        <input id="hora-precios" name="hora_precios" type="number" min="0" max="23" value="{{ horario.hora_precios }}" />
+      </div>
+    </div>
+    <label class="check-row" for="precios-activo">
+      <input id="precios-activo" type="checkbox" name="precios_activo" value="1" {% if horario.precios_activo %}checked{% endif %} />
+      Actualizar solo
+    </label>
+    <div class="form-actions">
+      <button class="btn secondary" type="submit">Guardar horario</button>
+    </div>
+  </form>
   {% if total_productos_sv == 0 %}
   <div class="flash-warn">
     Catálogo vacío — pulsa <strong>Actualizar</strong> en una tienda para cargar precios.
@@ -85,7 +101,10 @@
       <tbody>
         {% for p in productos_sv %}
         <tr>
-          <td>
+          <td class="product-cell">
+            {% if p.imagen_url and p.imagen_url.startswith('http') %}
+            <img class="product-thumb" src="{{ p.imagen_url }}" alt="" />
+            {% endif %}
             {% if p.url_producto %}
             <a href="{{ p.url_producto }}" target="_blank" rel="noopener">{{ p.nombre }}</a>
             {% else %}

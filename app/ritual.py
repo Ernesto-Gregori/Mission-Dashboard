@@ -194,6 +194,25 @@ def actualizar_habito(
     return True, "Hábito actualizado."
 
 
+def eliminar_habito(clave: str, user_id: int | None = None) -> bool:
+    """Borra el hábito y su historial diario. Archivar no hace esto."""
+    from app.db.core import ejecutar, invalidate_data_caches
+
+    uid_i = _uid(user_id)
+    if not any(h["clave"] == clave for h in listar_habitos_config(uid_i)):
+        return False
+    ejecutar(
+        "DELETE FROM habitos_diarios_v2 WHERE user_id = ? AND habito_clave = ?",
+        [uid_i, clave],
+    )
+    ejecutar(
+        "DELETE FROM habitos_config WHERE user_id = ? AND clave = ?",
+        [uid_i, clave],
+    )
+    invalidate_data_caches()
+    return True
+
+
 def set_habito_activo(clave: str, activo: bool, user_id: int | None = None) -> bool:
     """Archivar en lugar de borrar: el historial diario usa la clave."""
     from app.db.core import ejecutar, invalidate_data_caches

@@ -147,6 +147,28 @@ async def eliminar_rutina(
     return _redirect_rutina(flash="Rutina eliminada.")
 
 
+@router.post("/perfil")
+async def guardar_perfil_fisico(
+    request: Request,
+    user: Annotated[dict, Depends(require_onboarded)],
+):
+    from app.perfil_fisico import guardar
+
+    form = await request.form()
+    ok, msg = guardar(
+        int(user["id"]),
+        peso_kg=form.get("peso_kg"),
+        altura_cm=form.get("altura_cm"),
+        edad=form.get("edad"),
+        sexo=str(form.get("sexo") or ""),
+        objetivo=str(form.get("objetivo") or "general"),
+        notas=str(form.get("notas") or ""),
+    )
+    if ok:
+        return _redirect_rutina(flash=msg)
+    return _redirect_rutina(error=msg)
+
+
 def rutina_page_extras(user_id: int) -> dict:
     """Contexto extra para la pestaña Rutina (usado por salud._ctx)."""
     equipment = listar_equipment(user_id)
@@ -165,4 +187,11 @@ def rutina_page_extras(user_id: int) -> dict:
         "rutina_equipo_opciones": [
             {"name": n, "checked": n in selected} for n in options
         ],
+        "perfil": _perfil(user_id),
     }
+
+
+def _perfil(user_id: int) -> dict:
+    from app.perfil_fisico import leer
+
+    return leer(int(user_id))

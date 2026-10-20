@@ -234,7 +234,7 @@ def obtener_tipos_bloque() -> list:
     Obtiene los tipos únicos ya usados en BD
     más los defaults, sin duplicados.
     """
-    defaults = ['Instituto', 'Programacion', 'Biblioteca', 'Personal']
+    defaults = ['Enfoque', 'Estudio', 'Trabajo', 'Personal']
     try:
         from app.tenant import uid
         rows = ejecutar("""

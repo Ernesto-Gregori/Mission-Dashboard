@@ -13,7 +13,6 @@ CATEGORIAS_PEDIDO = [
     "Personal",
     "Familia",
     "Matrimonio",
-    "Instituto",
     "Ministerio",
     "Otros",
 ]

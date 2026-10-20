@@ -17,6 +17,7 @@ from app.database import (
     bloques_para_fecha,
     crear_bloque,
     desactivar_bloque,
+    eliminar_bloque,
     obtener_sesiones_semana,
     obtener_tipos_bloque,
     obtener_todos_bloques,
@@ -89,7 +90,7 @@ def _ctx(
             DIAS_LABELS_DW[d - 1] for d in b["dias_list"] if 1 <= d <= 7
         )
 
-    tipos = obtener_tipos_bloque() or ["Enfoque", "Estudio", "Código", "Otro"]
+    tipos = obtener_tipos_bloque() or ["Enfoque", "Estudio", "Trabajo", "Personal"]
     color_labels = list(COLORES_DW.keys())
     meta = meta_para("deep_work")
 
@@ -286,6 +287,17 @@ def deactivate_bloque(
 ):
     desactivar_bloque(int(bloque_id))
     request.session["dw_flash"] = "Bloque desactivado."
+    return _redirect("config")
+
+
+@router.post("/bloque/{bloque_id}/eliminar")
+def delete_bloque(
+    bloque_id: int,
+    request: Request,
+    user: Annotated[dict, Depends(require_onboarded)],
+):
+    eliminar_bloque(int(bloque_id))
+    request.session["dw_flash"] = "Bloque eliminado."
     return _redirect("config")
 
 

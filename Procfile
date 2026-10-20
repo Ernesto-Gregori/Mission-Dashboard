@@ -1,2 +1,2 @@
 # Mission Dashboard Web (FastAPI + HTMX)
-web: uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-8000}
+web: uvicorn web.app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1

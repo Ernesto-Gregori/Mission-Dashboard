@@ -10,7 +10,7 @@ from app.db.schema import (
     SUPERMERCADO_SELECTOS,
     SUPERMERCADO_WALMART,
 )
-from app.scrapers.base import ScrapeResult, SupermarketScraper, persist_products
+from app.scrapers.base import ScrapeResult, SupermarketScraper, persist_iter
 from app.scrapers.despensa_don_juan import DespensaDonJuanScraper
 from app.scrapers.super_selectos import SuperSelectosScraper
 from app.scrapers.walmart_sv import WalmartSvScraper
@@ -30,22 +30,22 @@ def run_scraper(key: str) -> ScrapeResult:
     run_id = fr.iniciar_scrape_run(key)
     scraper = SCRAPERS[key]()
     try:
-        result = scraper.scrape()
-        persist_products(result)
+        result = persist_iter(scraper.iter_products())
+        leidos = int((result.meta or {}).get("count") or 0)
         fr.finalizar_scrape_run(
             run_id,
             status="ok",
             products_upserted=result.upserted,
             products_unchanged=result.unchanged,
             meta={
-                "count": len(result.products),
+                "count": leidos,
                 **(result.meta or {}),
             },
         )
         log.info(
             "Scrape %s OK: %s productos, upserted=%s unchanged=%s",
             key,
-            len(result.products),
+            leidos,
             result.upserted,
             result.unchanged,
         )

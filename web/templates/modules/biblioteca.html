@@ -29,8 +29,7 @@
 {% if tab == 'nuevo' %}
 <section>
   <div class="card">
-    <h2>➕ Agregar libro (manual)</h2>
-    <p class="muted">La carga PDF / ISBN con IA se puede añadir después en esta vista web.</p>
+    <h2>➕ Agregar libro</h2>
     <form class="library-book-form" method="post" action="/app/m/biblioteca/nuevo">
       <div class="library-form-grid title-grid">
         <div><label for="book-title">Título *</label><input id="book-title" name="titulo" required /></div>
@@ -56,6 +55,11 @@
         <div><label for="book-publisher">Editorial</label><input id="book-publisher" name="editorial" /></div>
       </div>
       <div><label for="book-description">Descripción</label><textarea id="book-description" name="descripcion" rows="3"></textarea></div>
+      <label class="check-row" for="book-ai">
+        <input id="book-ai" type="checkbox" name="categorizar" value="1" {% if not ia_ok %}disabled{% endif %} />
+        Categorizar con IA
+      </label>
+      {% if not ia_ok %}<p class="muted">La categorización con IA necesita GROQ_API_KEY.</p>{% endif %}
       <div class="form-actions"><button class="btn" type="submit">Agregar libro</button></div>
     </form>
   </div>
@@ -112,7 +116,12 @@
         <div class="library-form-grid">
           <div>
             <label for="category-{{ L.id }}">Categoría</label>
-            <select id="category-{{ L.id }}" name="categoria">{% for c in categorias %}<option value="{{ c }}" {% if L.categoria_principal == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+            <select id="category-{{ L.id }}" name="categoria">
+              {% if L.categoria_principal and L.categoria_principal not in categorias %}
+              <option value="{{ L.categoria_principal }}" selected>{{ L.categoria_principal }}</option>
+              {% endif %}
+              {% for c in categorias %}<option value="{{ c }}" {% if L.categoria_principal == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+            </select>
           </div>
           <div>
             <label for="status-{{ L.id }}">Estado</label>
@@ -125,6 +134,9 @@
         </div>
         <div><label for="description-{{ L.id }}">Descripción</label><textarea id="description-{{ L.id }}" name="descripcion" rows="2">{{ L.descripcion or '' }}</textarea></div>
         <div class="form-actions"><button class="btn" type="submit">Guardar</button></div>
+      </form>
+      <form class="secondary-action" method="post" action="/app/m/biblioteca/libro/{{ L.id }}/categorizar">
+        <button class="btn secondary" type="submit" {% if not ia_ok %}disabled{% endif %}>Categorizar con IA</button>
       </form>
       <form class="secondary-action" method="post" action="/app/m/biblioteca/libro/{{ L.id }}/eliminar" onsubmit="return confirm('¿Eliminar libro y resaltados?')">
         <button class="btn secondary" type="submit">🗑️ Eliminar</button>

@@ -153,6 +153,16 @@ def init_app_state() -> None:
             start_telegram_jobs()
         except Exception as e:
             print(f"[web.startup] telegram jobs: {e}")
+        try:
+            from app.notas import ensure_notas_schema
+            from app.perfil_fisico import ensure_perfil_schema
+            from app.sync_horario import ensure_sync_schema
+
+            ensure_notas_schema()
+            ensure_perfil_schema()
+            ensure_sync_schema()
+        except Exception as e:
+            print(f"[web.startup] notas/perfil/sync: {e}")
     except Exception as e:
         print(f"[web.startup] fase3-5: {e}")
 

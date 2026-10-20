@@ -1990,7 +1990,7 @@ textarea {
   align-items: center;
 }
 .habit-row input { margin: 0; }
-.habit-actions { display: flex; gap: 0.4rem; }
+.habit-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .habit-archived { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
 @media (max-width: 700px) {
   .habit-row { grid-template-columns: 3.5rem minmax(0, 1fr); }
@@ -1998,3 +1998,22 @@ textarea {
 }
 .appointment-expense-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.5rem 0; }
 .appointment-expense-form input { width: 8rem; margin: 0; }
+.product-cell { display: flex; align-items: center; gap: 0.6rem; }
+.product-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+.note-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.75rem;
+}
+.note-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.note-card.is-done { opacity: 0.65; }
+@media (max-width: 700px) {
+  .note-grid { grid-template-columns: 1fr; }
+}

@@ -314,57 +314,21 @@ async def fit_importar(request: Request, user: Annotated[dict, Depends(require_o
     try:
         from datetime import date as _date
 
-        from app.google_fit import obtener_datos_dia
+        from app.fit_import import importar_dia
 
-        datos = obtener_datos_dia(_date.fromisoformat(fecha))
+        ok, msg = importar_dia(_date.fromisoformat(fecha))
     except Exception as e:
-        datos = {"error": str(e)}
-
-    if datos.get("error"):
+        ok, msg = False, str(e)
+    if not ok:
         return render(
             request,
             "modules/salud.html",
-            **_ctx(request, user, error=f"Fit: {datos['error']}", fit_preview=datos),
+            **_ctx(request, user, error=f"Fit: {msg}"),
         )
-
-    # Merge Fit into saved/manual row and persist as mixto
-    reg = obtener_registro_salud(fecha) or {}
-    merged = {
-        "horas_sueno": datos.get("horas_sueno") if datos.get("horas_sueno") is not None else reg.get("horas_sueno"),
-        "calidad_sueno": datos.get("calidad_sueno") or reg.get("calidad_sueno"),
-        "hora_dormir": datos.get("hora_dormir") or reg.get("hora_dormir"),
-        "hora_despertar": datos.get("hora_despertar") or reg.get("hora_despertar"),
-        "energia_manana": reg.get("energia_manana"),
-        "energia_tarde": reg.get("energia_tarde"),
-        "energia_noche": reg.get("energia_noche"),
-        "hizo_ejercicio": datos.get("hizo_ejercicio") or reg.get("hizo_ejercicio"),
-        "tipo_ejercicio": datos.get("tipo_ejercicio") or reg.get("tipo_ejercicio"),
-        "duracion_minutos": datos.get("duracion_minutos") or reg.get("duracion_minutos"),
-        "intensidad": reg.get("intensidad"),
-        "notas_ejercicio": reg.get("notas_ejercicio"),
-        "zonas_musculares": [],
-        "sesiones_json": datos.get("sesiones_fit") or [],
-        "calorias_fit": datos.get("calorias"),
-        "pasos_fit": datos.get("pasos"),
-        "fc_promedio_fit": datos.get("fc_promedio"),
-        "fc_maxima_fit": datos.get("fc_maxima"),
-        "fuente_datos": "mixto",
-        "productividad_percibida": reg.get("productividad_percibida"),
-    }
-    try:
-        z = json.loads(reg.get("zonas_musculares") or "[]")
-        merged["zonas_musculares"] = z if isinstance(z, list) else []
-    except Exception:
-        pass
-    guardar_registro_salud(fecha, merged)
-    avisos = "; ".join(datos.get("avisos_fit") or [])
-    flash = "Datos de Google Fit importados."
-    if avisos:
-        flash += f" ({avisos})"
     return render(
         request,
         "modules/salud.html",
-        **_ctx(request, user, flash=flash, fit_preview=datos),
+        **_ctx(request, user, flash=msg),
     )
 
 

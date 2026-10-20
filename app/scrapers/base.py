@@ -28,6 +28,7 @@ class NormalizedProduct:
     unidad: str | None
     sku_o_id_externo: str
     url_producto: str | None
+    imagen_url: str | None = None
     meta: dict[str, Any] = field(default_factory=dict)
 
 
@@ -140,60 +141,89 @@ class SupermarketScraper(ABC):
         return ScrapeResult(products=products, meta={"count": len(products)})
 
 
-def persist_products(result: ScrapeResult) -> ScrapeResult:
-    """Upsert en supermarket_products; cuenta upserted vs unchanged."""
+def _persist_one(p: NormalizedProduct) -> bool:
+    """Guarda un producto. True si ya estaba igual."""
     from app.db import finanzas_receipts as fr
     from app.db.core import ejecutar
 
+    fr.ensure_imagen_producto()
+    existing = (
+        ejecutar(
+            """
+            SELECT id, nombre, precio, categoria, unidad, url_producto,
+                   imagen_url, activo
+            FROM supermarket_products
+            WHERE supermercado = ? AND sku_o_id_externo = ?
+            """,
+            [p.supermercado, p.sku_o_id_externo],
+            fetchall=True,
+        )
+        or []
+    )
+    same = False
+    if existing:
+        row = existing[0]
+        same = (
+            (row.get("nombre") or "") == p.nombre
+            and (
+                row.get("precio") is None
+                and p.precio is None
+                or (
+                    row.get("precio") is not None
+                    and p.precio is not None
+                    and abs(float(row["precio"]) - float(p.precio)) < 0.001
+                )
+            )
+            and (row.get("categoria") or None) == (p.categoria or None)
+            and (row.get("unidad") or None) == (p.unidad or None)
+            and (row.get("url_producto") or None) == (p.url_producto or None)
+            and (row.get("imagen_url") or None) == (p.imagen_url or None)
+            and int(row.get("activo") or 0) == 1
+        )
+    fr.upsert_supermarket_product(
+        supermercado=p.supermercado,
+        nombre=p.nombre,
+        nombre_normalizado=p.nombre_normalizado or normalize_name(p.nombre),
+        categoria=p.categoria,
+        precio=p.precio,
+        unidad=p.unidad,
+        sku_o_id_externo=p.sku_o_id_externo,
+        url_producto=p.url_producto,
+        imagen_url=p.imagen_url,
+        activo=True,
+    )
+    return same
+
+
+def persist_products(result: ScrapeResult) -> ScrapeResult:
+    """Upsert en supermarket_products; cuenta upserted vs unchanged."""
     upserted = 0
     unchanged = 0
     for p in result.products:
-        existing = (
-            ejecutar(
-                """
-                SELECT id, nombre, precio, categoria, unidad, url_producto, activo
-                FROM supermarket_products
-                WHERE supermercado = ? AND sku_o_id_externo = ?
-                """,
-                [p.supermercado, p.sku_o_id_externo],
-                fetchall=True,
-            )
-            or []
-        )
-        same = False
-        if existing:
-            row = existing[0]
-            same = (
-                (row.get("nombre") or "") == p.nombre
-                and (
-                    row.get("precio") is None
-                    and p.precio is None
-                    or (
-                        row.get("precio") is not None
-                        and p.precio is not None
-                        and abs(float(row["precio"]) - float(p.precio)) < 0.001
-                    )
-                )
-                and (row.get("categoria") or None) == (p.categoria or None)
-                and (row.get("unidad") or None) == (p.unidad or None)
-                and (row.get("url_producto") or None) == (p.url_producto or None)
-                and int(row.get("activo") or 0) == 1
-            )
-        fr.upsert_supermarket_product(
-            supermercado=p.supermercado,
-            nombre=p.nombre,
-            nombre_normalizado=p.nombre_normalizado or normalize_name(p.nombre),
-            categoria=p.categoria,
-            precio=p.precio,
-            unidad=p.unidad,
-            sku_o_id_externo=p.sku_o_id_externo,
-            url_producto=p.url_producto,
-            activo=True,
-        )
-        if same:
+        if _persist_one(p):
             unchanged += 1
         else:
             upserted += 1
     result.upserted = upserted
     result.unchanged = unchanged
+    result.products.clear()
     return result
+
+
+def persist_iter(productos: Iterator[NormalizedProduct]) -> ScrapeResult:
+    """Persiste página a página para no retener el catálogo en memoria."""
+    upserted = 0
+    unchanged = 0
+    count = 0
+    for p in productos:
+        count += 1
+        if _persist_one(p):
+            unchanged += 1
+        else:
+            upserted += 1
+    return ScrapeResult(
+        products=[],
+        upserted=upserted,
+        unchanged=unchanged,
+        meta={"count": count},
+    )

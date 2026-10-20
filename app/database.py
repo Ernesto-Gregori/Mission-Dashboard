@@ -82,6 +82,7 @@ from app.db.deep_work import (  # noqa: F401
     construir_resumen_semana,
     crear_bloque,
     desactivar_bloque,
+    eliminar_bloque,
     obtener_bloques_fijos,
     obtener_estado_sesion,
     obtener_sesiones_semana,

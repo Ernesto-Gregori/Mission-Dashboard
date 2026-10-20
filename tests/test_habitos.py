@@ -140,3 +140,40 @@ def test_no_edita_habitos_de_otro_usuario(web_client):
 
     uid = int(autenticar_usuario("ritual_user", "password1")["id"])
     assert [h["label"] for h in listar_habitos_config(uid)] == ["Privado"]
+
+
+def test_eliminar_habito_borra_el_historial(web_client):
+    _onboard(web_client)
+    web_client.post(
+        "/app/configuracion/habitos",
+        data={"label": "Temporal", "emoji": "⏳"},
+        follow_redirects=True,
+    )
+    from app.database import autenticar_usuario
+    from app.db.core import ejecutar
+
+    uid = int(autenticar_usuario("ritual_user", "password1")["id"])
+    ejecutar(
+        """
+        INSERT INTO habitos_diarios_v2 (user_id, fecha, habito_clave, completado)
+        VALUES (?, '2026-09-30', 'temporal', 1)
+        """,
+        [uid],
+    )
+    r = web_client.post(
+        "/app/configuracion/habitos/temporal/eliminar",
+        follow_redirects=True,
+    )
+    assert "Hábito eliminado" in r.content.decode()
+    cfg = ejecutar(
+        "SELECT clave FROM habitos_config WHERE user_id = ? AND clave = ?",
+        [uid, "temporal"],
+        fetchall=True,
+    )
+    hist = ejecutar(
+        "SELECT id FROM habitos_diarios_v2 WHERE user_id = ? AND habito_clave = ?",
+        [uid, "temporal"],
+        fetchall=True,
+    )
+    assert not cfg
+    assert not hist

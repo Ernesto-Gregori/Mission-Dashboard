@@ -17,6 +17,7 @@ from app.scrapers.super_selectos import (
 SAMPLE_HTML = """
 <html><body>
 <div class="producto-box">
+  <img src="https://cdn.example/snickers.jpg" alt="" />
   <a href="/products?category=012&amp;productId=5630"></a>
   <div class="precios"><strong class="precio">$1.55</strong>
     <span class="antes" data-label="Antes:">$1.60</span>
@@ -69,6 +70,7 @@ def test_parse_category_html_extrae_precio_actual_no_ahorro():
     assert by_sku["5630"].categoria == "Chocolate"
     assert by_sku["4803"].precio == pytest.approx(0.85)
     assert "ahorro" not in (by_sku["5630"].nombre.lower())
+    assert by_sku["5630"].imagen_url == "https://cdn.example/snickers.jpg"
 
 
 def test_scraper_usa_fallback_si_primary_403(isolated_db):
@@ -129,8 +131,8 @@ def test_run_scraper_registra_scrape_run(isolated_db, monkeypatch):
     class Fake:
         key = "super_selectos"
 
-        def scrape(self):
-            return ScrapeResult(products=products, meta={"fake": True})
+        def iter_products(self):
+            yield from products
 
     monkeypatch.setitem(
         __import__("app.scrapers.runner", fromlist=["SCRAPERS"]).SCRAPERS,

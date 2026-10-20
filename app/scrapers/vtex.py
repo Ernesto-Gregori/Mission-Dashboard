@@ -57,6 +57,21 @@ def _categoria_from_product(product: dict[str, Any]) -> str | None:
     return parts[-1] if parts else None
 
 
+def _imagen_from_product(product: dict[str, Any]) -> str | None:
+    items = product.get("items") or []
+    if not items:
+        return None
+    images = items[0].get("images") or []
+    if not images:
+        return None
+    url = str(images[0].get("imageUrl") or "").strip()
+    if url.startswith("//"):
+        url = "https:" + url
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    return None
+
+
 def parse_vtex_product(
     product: dict[str, Any],
     *,
@@ -81,6 +96,7 @@ def parse_vtex_product(
         unidad=unidad,
         sku_o_id_externo=sku,
         url_producto=link,
+        imagen_url=_imagen_from_product(product),
         meta={
             "source": "vtex_catalog_search",
             "brand": product.get("brand"),

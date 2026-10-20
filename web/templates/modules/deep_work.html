@@ -194,6 +194,9 @@
         <button class="btn secondary" type="submit">Reactivar</button>
       </form>
       {% endif %}
+      <form method="post" action="/app/m/deep_work/bloque/{{ b.id }}/eliminar" onsubmit="return confirm('¿Eliminar este bloque?')">
+        <button class="btn secondary" type="submit">Eliminar</button>
+      </form>
     </div>
   </article>
   {% endfor %}
