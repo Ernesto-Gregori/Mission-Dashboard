@@ -22,6 +22,13 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
         "also": ("/app/foco", "/app/ritual"),
     },
     {
+        "id": "notas",
+        "label": "Notas",
+        "group": "Día",
+        "always": True,
+        "prefixes": ("/app/notas",),
+    },
+    {
         "id": "semana",
         "label": "Semana",
         "blurb": "Planificar la semana, bloques de enfoque y revisión del domingo.",
@@ -82,6 +89,7 @@ _HUB_SPECS: tuple[dict[str, Any], ...] = (
 
 _HUB_HREF = {
     "hoy": "/app",
+    "notas": "/app/notas",
     "semana": "/app/planificador",
     "dinero": "/app/m/finanzas",
     "cuerpo": "/app/m/salud",

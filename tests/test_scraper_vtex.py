@@ -24,6 +24,7 @@ SAMPLE_PRODUCT = {
     "items": [
         {
             "measurementUnit": "un",
+            "images": [{"imageUrl": "https://cdn.example/tortilla.jpg"}],
             "sellers": [
                 {
                     "commertialOffer": {
@@ -80,6 +81,7 @@ def test_parse_vtex_product_precio_y_categoria():
     assert p.unidad == "un"
     assert p.categoria == "Tortillas de Harina"
     assert "tortil" in (p.url_producto or "")
+    assert p.imagen_url.endswith("tortilla.jpg")
 
 
 def test_walmart_scraper_paginacion_mock():

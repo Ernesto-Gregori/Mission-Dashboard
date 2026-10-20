@@ -39,6 +39,7 @@ from web.routers import billing as billing_router
 from web.routers import coach as coach_router
 from web.routers import configuracion as configuracion_router
 from web.routers import dashboard as dash_router
+from web.routers import notas as notas_router
 from web.routers import asistente as asistente_router
 from web.routers import planificador as planificador_router
 from web.routers import foco as foco_router
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(coach_router.router)
     app.include_router(configuracion_router.router)
     app.include_router(dash_router.router)
+    app.include_router(notas_router.router)
     app.include_router(asistente_router.router)
     app.include_router(planificador_router.router)
     app.include_router(foco_router.router)

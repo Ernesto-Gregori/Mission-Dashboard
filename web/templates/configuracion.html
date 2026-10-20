@@ -79,7 +79,7 @@
 {% elif tab == 'dia' %}
 <section class="card" id="habitos" aria-labelledby="habitos-title">
   <h2 id="habitos-title">Hábitos diarios</h2>
-  <p class="muted compact-copy">Aparecen como checklist en Hoy. Archivar un hábito lo oculta sin borrar su historial.</p>
+  <p class="muted compact-copy">Aparecen como checklist en Hoy. Archivar oculta el hábito y el historial se conserva. Eliminar lo borra junto con ese historial.</p>
   <p class="muted compact-copy">Más abajo eliges cada cuánto aparece. Eso se guarda con el botón Guardar de la página.</p>
   {% if habitos_activos %}
   <ul class="habit-list">
@@ -95,6 +95,7 @@
         <span class="habit-actions">
           <button class="btn secondary" type="submit">Guardar</button>
           <button class="btn secondary" type="submit" formaction="/app/configuracion/habitos/{{ h.clave }}/archivar" formnovalidate onclick="return confirm('¿Archivar este hábito? Deja de aparecer en Hoy.')">Archivar</button>
+          <button class="btn secondary" type="submit" formaction="/app/configuracion/habitos/{{ h.clave }}/eliminar" formnovalidate onclick="return confirm('¿Eliminar este hábito y su historial?')">Eliminar</button>
         </span>
       </form>
     </li>
@@ -122,9 +123,14 @@
       {% for h in habitos_archivados %}
       <li class="habit-archived">
         <span>{{ h.emoji }} {{ h.label }}</span>
-        <form class="inline-form" method="post" action="/app/configuracion/habitos/{{ h.clave }}/reactivar">
-          <button class="btn secondary" type="submit">Reactivar</button>
-        </form>
+        <span class="habit-actions">
+          <form class="inline-form" method="post" action="/app/configuracion/habitos/{{ h.clave }}/reactivar">
+            <button class="btn secondary" type="submit">Reactivar</button>
+          </form>
+          <form class="inline-form" method="post" action="/app/configuracion/habitos/{{ h.clave }}/eliminar" onsubmit="return confirm('¿Eliminar este hábito y su historial?')">
+            <button class="btn secondary" type="submit" formnovalidate>Eliminar</button>
+          </form>
+        </span>
       </li>
       {% endfor %}
     </ul>
@@ -289,6 +295,30 @@ document.querySelectorAll(".freq-select").forEach(function (sel) {
 {% elif tab == 'conexiones' %}
 <section class="card" aria-labelledby="google-title">
   <h2 id="google-title">Google Fit y Calendar</h2>
+  <form method="post" action="/app/configuracion/sync">
+    <p class="muted compact-copy">La hora es local, de 0 a 23. Fit trae el día de hoy. Los precios recorren las tiendas una vez al día.</p>
+    <div class="finance-form-grid">
+      <div>
+        <label for="hora-fit">Hora de Google Fit</label>
+        <input id="hora-fit" name="hora_fit" type="number" min="0" max="23" value="{{ horario.hora_fit }}" />
+      </div>
+      <div>
+        <label for="hora-precios">Hora de precios</label>
+        <input id="hora-precios" name="hora_precios" type="number" min="0" max="23" value="{{ horario.hora_precios }}" />
+      </div>
+    </div>
+    <label class="check-row" for="fit-activo">
+      <input id="fit-activo" type="checkbox" name="fit_activo" value="1" {% if horario.fit_activo %}checked{% endif %} />
+      Actualizar Fit a esa hora
+    </label>
+    <label class="check-row" for="precios-activo">
+      <input id="precios-activo" type="checkbox" name="precios_activo" value="1" {% if horario.precios_activo %}checked{% endif %} />
+      Actualizar precios a esa hora
+    </label>
+    <div class="form-actions">
+      <button class="btn secondary" type="submit">Guardar horario</button>
+    </div>
+  </form>
   {% if not puede_google %}
   <div class="flash-warn">Google Fit/Calendar requiere plan Premium.
     <a href="/app/billing">Ver planes</a>

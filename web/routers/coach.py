@@ -37,7 +37,6 @@ AREA_OPTIONS = [
     "espiritual",
     "finanzas",
     "estudio",
-    "programacion",
     "lectura",
     "salud",
     "ejercicio",

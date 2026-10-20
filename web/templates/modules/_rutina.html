@@ -1,5 +1,49 @@
 <section class="rt-wrap">
   <div class="card">
+    <h2>Datos para el coach</h2>
+    <p class="muted">Peso, altura y objetivo. Los campos vacíos se pueden dejar así.</p>
+    <form method="post" action="/app/m/salud/perfil">
+      <div class="health-form-grid">
+        <div>
+          <label for="pf-peso">Peso (kg)</label>
+          <input id="pf-peso" name="peso_kg" inputmode="decimal" value="{{ perfil.peso_kg if perfil and perfil.peso_kg else '' }}" />
+        </div>
+        <div>
+          <label for="pf-altura">Altura (cm)</label>
+          <input id="pf-altura" name="altura_cm" inputmode="decimal" value="{{ perfil.altura_cm if perfil and perfil.altura_cm else '' }}" />
+        </div>
+        <div>
+          <label for="pf-edad">Edad</label>
+          <input id="pf-edad" name="edad" inputmode="numeric" value="{{ perfil.edad if perfil and perfil.edad else '' }}" />
+        </div>
+        <div>
+          <label for="pf-sexo">Sexo</label>
+          <select id="pf-sexo" name="sexo">
+            <option value="" {% if not perfil or not perfil.sexo %}selected{% endif %}>Prefiero no decir</option>
+            <option value="mujer" {% if perfil and perfil.sexo == 'mujer' %}selected{% endif %}>Mujer</option>
+            <option value="hombre" {% if perfil and perfil.sexo == 'hombre' %}selected{% endif %}>Hombre</option>
+            <option value="otro" {% if perfil and perfil.sexo == 'otro' %}selected{% endif %}>Otro</option>
+          </select>
+        </div>
+        <div>
+          <label for="pf-objetivo">Objetivo</label>
+          <select id="pf-objetivo" name="objetivo">
+            {% for o in ['general', 'fuerza', 'bajar de peso', 'resistencia', 'movilidad'] %}
+            <option value="{{ o }}" {% if perfil and perfil.objetivo == o %}selected{% endif %}>{{ o }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label for="pf-notas">Lesiones o límites</label>
+        <textarea id="pf-notas" name="notas" rows="2" maxlength="300">{{ perfil.notas if perfil else '' }}</textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary" type="submit">Guardar datos</button>
+      </div>
+    </form>
+  </div>
+  <div class="card">
     <h2>Rutina semanal</h2>
     <p class="muted">El coach arma tu semana con los días, el tiempo y el equipo que tienes.</p>
 

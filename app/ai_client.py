@@ -310,8 +310,8 @@ def _fallback(tipo: str) -> str:
 # ═══════════════════════════════════════════════════════════════
 
 SYSTEM_MISION = (
-    "Eres la Secretaria IA de Mission Dashboard, asistente personal cristiano "
-    "para teología, programación, finanzas y matrimonio. "
+    "Eres la Secretaria IA de Mission Dashboard, asistente personal "
+    "para hábitos, lectura, finanzas y vida diaria. "
     "Responde en español, de forma breve y práctica."
 )
 
@@ -475,7 +475,7 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni explicaciones:
 {{
     "titulo": "título exacto del libro",
     "autor": "nombre completo del autor principal",
-    "categoria_principal": "una de: Teologia/Programacion/Matrimonio/Filosofia/Liderazgo/Historia/Otros",
+    "categoria_principal": "una de: Espiritualidad, Relaciones, Filosofia, Liderazgo, Historia, Ciencia, Negocios, Salud, Ficcion, Otros",
     "descripcion": "resumen del libro en 2-3 oraciones basado en el contenido real",
     "editorial": "editorial si aparece, sino null",
     "anio_publicacion": "año como número si aparece sino null",
@@ -608,7 +608,7 @@ Temas actuales: {metadatos.get('temas_clave', [])}
 
 Responde SOLO en JSON válido sin texto adicional:
 {{
-  "categoria_principal": "una de: Teologia, Programacion, Matrimonio, Filosofia, Liderazgo, Historia, Otros",
+  "categoria_principal": "una de: Espiritualidad, Relaciones, Filosofia, Liderazgo, Historia, Ciencia, Negocios, Salud, Ficcion, Otros",
   "descripcion_mejorada": "descripción clara y útil de 2-3 oraciones",
   "temas_clave": ["lista", "de", "temas", "máximo 6"],
   "subcategorias": ["subcategorías", "máximo 3"],

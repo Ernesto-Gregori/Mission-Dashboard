@@ -433,6 +433,7 @@ def ensure_remote_schema():
         "ALTER TABLE gastos_sobres ADD COLUMN metodo_pago TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN origen TEXT DEFAULT 'manual'",
         "ALTER TABLE gastos_sobres ADD COLUMN imagen_url TEXT",
+        "ALTER TABLE supermarket_products ADD COLUMN imagen_url TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN raw_ocr_data TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN ocr_estado TEXT DEFAULT 'ninguno'",
         "ALTER TABLE user_prefs ADD COLUMN theme TEXT DEFAULT 'dark'",

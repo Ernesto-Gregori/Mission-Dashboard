@@ -145,6 +145,7 @@ def init_finanzas_receipts(cursor):
         "ALTER TABLE gastos_sobres ADD COLUMN metodo_pago TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN origen TEXT DEFAULT 'manual'",
         "ALTER TABLE gastos_sobres ADD COLUMN imagen_url TEXT",
+        "ALTER TABLE supermarket_products ADD COLUMN imagen_url TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN raw_ocr_data TEXT",
         "ALTER TABLE gastos_sobres ADD COLUMN ocr_estado TEXT DEFAULT 'ninguno'",
     ):
@@ -188,6 +189,7 @@ def init_finanzas_receipts(cursor):
             unidad TEXT,
             sku_o_id_externo TEXT,
             url_producto TEXT,
+            imagen_url TEXT,
             fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             activo INTEGER NOT NULL DEFAULT 1,
             UNIQUE(supermercado, sku_o_id_externo)

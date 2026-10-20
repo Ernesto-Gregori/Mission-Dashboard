@@ -50,6 +50,23 @@ _PROD_NOMBRE = re.compile(
 _PRECIO = re.compile(r'<strong class="precio"[^>]*>\s*\$?\s*([0-9]+(?:\.[0-9]+)?)', re.I)
 _CAT_LINK = re.compile(r'<div class="cat"[^>]*>\s*<a[^>]*>([^<]+)</a>', re.I)
 _SVG = re.compile(r"<svg[\s\S]*?</svg>", re.I)
+_IMG = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.I)
+
+
+def _imagen_producto(chunk: str, base_url: str) -> str | None:
+    match = _IMG.search(chunk)
+    if not match:
+        return None
+    src = unescape(match.group(1)).strip()
+    if not src or ".svg" in src.lower():
+        return None
+    if src.startswith("//"):
+        src = "https:" + src
+    elif not src.startswith("http"):
+        src = urljoin(base_url.rstrip("/") + "/", src)
+    if src.startswith("http://") or src.startswith("https://"):
+        return src
+    return None
 
 
 def _store_bases() -> list[str]:
@@ -101,6 +118,7 @@ def parse_category_html(html: str, *, category_id: str, base_url: str) -> list[N
                 unidad=None,
                 sku_o_id_externo=sku,
                 url_producto=url,
+                imagen_url=_imagen_producto(chunk, base_url),
                 meta={"category_id": category_id, "source": "html_category"},
             )
         )

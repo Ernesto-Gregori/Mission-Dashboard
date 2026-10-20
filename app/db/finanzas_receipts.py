@@ -10,6 +10,20 @@ from typing import Any, Optional
 
 from app.db.core import ejecutar, invalidate_data_caches
 
+_imagen_lista = False
+
+
+def ensure_imagen_producto() -> None:
+    """Columna de foto para catálogos que ya existían antes de este campo."""
+    global _imagen_lista
+    if _imagen_lista:
+        return
+    try:
+        ejecutar("ALTER TABLE supermarket_products ADD COLUMN imagen_url TEXT")
+    except Exception:
+        pass
+    _imagen_lista = True
+
 
 def agregar_receipt_item(
     *,
@@ -75,18 +89,20 @@ def upsert_supermarket_product(
     unidad: str | None = None,
     sku_o_id_externo: str | None = None,
     url_producto: str | None = None,
+    imagen_url: str | None = None,
     activo: bool = True,
 ) -> int:
     """Inserta o actualiza por (supermercado, sku_o_id_externo)."""
+    ensure_imagen_producto()
     if not sku_o_id_externo:
         # Sin SKU: insert simple (no upsert estable)
         return ejecutar(
             """
             INSERT INTO supermarket_products
                 (supermercado, nombre, nombre_normalizado, categoria,
-                 precio, unidad, sku_o_id_externo, url_producto, activo,
-                 fecha_actualizacion)
-            VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, CURRENT_TIMESTAMP)
+                 precio, unidad, sku_o_id_externo, url_producto, imagen_url,
+                 activo, fecha_actualizacion)
+            VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, CURRENT_TIMESTAMP)
             """,
             [
                 supermercado,
@@ -96,6 +112,7 @@ def upsert_supermarket_product(
                 precio,
                 unidad,
                 url_producto,
+                imagen_url,
                 1 if activo else 0,
             ],
         )
@@ -122,6 +139,7 @@ def upsert_supermarket_product(
                 precio = ?,
                 unidad = ?,
                 url_producto = ?,
+                imagen_url = ?,
                 activo = ?,
                 fecha_actualizacion = CURRENT_TIMESTAMP
             WHERE id = ?
@@ -133,6 +151,7 @@ def upsert_supermarket_product(
                 precio,
                 unidad,
                 url_producto,
+                imagen_url,
                 1 if activo else 0,
                 pid,
             ],
@@ -141,24 +160,25 @@ def upsert_supermarket_product(
 
     return ejecutar(
         """
-        INSERT INTO supermarket_products
-            (supermercado, nombre, nombre_normalizado, categoria,
-             precio, unidad, sku_o_id_externo, url_producto, activo,
-             fecha_actualizacion)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """,
-        [
-            supermercado,
-            nombre,
-            nombre_normalizado or None,
-            categoria,
-            precio,
-            unidad,
-            sku_o_id_externo,
-            url_producto,
-            1 if activo else 0,
-        ],
-    )
+            INSERT INTO supermarket_products
+                (supermercado, nombre, nombre_normalizado, categoria,
+                 precio, unidad, sku_o_id_externo, url_producto, imagen_url,
+                 activo, fecha_actualizacion)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            [
+                supermercado,
+                nombre,
+                nombre_normalizado or None,
+                categoria,
+                precio,
+                unidad,
+                sku_o_id_externo,
+                url_producto,
+                imagen_url,
+                1 if activo else 0,
+            ],
+        )
 
 
 def guardar_price_match(
@@ -319,6 +339,7 @@ def buscar_productos(
     supermercado: str | None = None,
     limit: int = 40,
 ) -> list[dict]:
+    ensure_imagen_producto()
     limit = max(1, min(100, int(limit)))
     q = (q or "").strip()
     params: list[Any] = []
@@ -333,7 +354,7 @@ def buscar_productos(
     params.append(limit)
     sql = f"""
         SELECT id, supermercado, nombre, precio, unidad, categoria,
-               url_producto, fecha_actualizacion
+               url_producto, imagen_url, fecha_actualizacion
         FROM supermarket_products
         WHERE {' AND '.join(where)}
         ORDER BY nombre ASC

@@ -1,7 +1,8 @@
 """Finanzas HTMX — ingreso, sobres, gastos, escaneo y precios SV."""
 from __future__ import annotations
 
-import os
+import sys
+import threading
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -191,7 +192,14 @@ def _precios_ctx(request: Request, user: dict, *, flash: str | None = None, erro
         "filtro_super": filtro_super or "",
         "total_productos_sv": sum(int(c.get("productos") or 0) for c in catalogo_sv),
         "finanzas_section": "precios",
+        "horario": _horario_precios(user),
     }
+
+
+def _horario_precios(user: dict) -> dict:
+    from app.sync_horario import leer
+
+    return leer(int(user["id"]))
 
 
 def _confirm_ctx(request: Request, user: dict, draft: dict, *, error: str | None = None):
@@ -518,15 +526,32 @@ def servir_upload(
     return FileResponse(path, media_type="image/jpeg")
 
 
-def _scrape_ui_env_defaults() -> dict[str, str]:
-    """Límites cortos para no colgar la petición HTTP del home server."""
-    defaults: dict[str, str] = {}
-    if not os.environ.get("VTEX_MAX_PAGES", "").strip():
-        defaults["VTEX_MAX_PAGES"] = "2"
-    if not os.environ.get("SELECTOS_CATEGORIES", "").strip():
-        # Un par de categorías típicas (comida) — scrape completo vía CLI/cron.
-        defaults["SELECTOS_CATEGORIES"] = "01,02"
-    return defaults
+_scrape_locks: dict[str, threading.Lock] = {}
+
+
+def lanzar_scrape(key: str) -> bool:
+    """En pruebas corre en el acto. En producción, en segundo plano y sin tope de páginas."""
+    lock = _scrape_locks.setdefault(key, threading.Lock())
+
+    def _run() -> None:
+        from app.scrapers import run_scraper
+
+        run_scraper(key)
+
+    if "pytest" in sys.modules:
+        _run()
+        return True
+    if not lock.acquire(blocking=False):
+        return False
+
+    def _bg() -> None:
+        try:
+            _run()
+        finally:
+            lock.release()
+
+    threading.Thread(target=_bg, name=f"scrape-{key}", daemon=True).start()
+    return True
 
 
 @router.post("/precios/actualizar")
@@ -536,7 +561,7 @@ async def actualizar_catalogo_sv(
     supermercado: Annotated[str, Form(...)],
 ):
     """Dispara scrape de una tienda y vuelve a la sección de precios."""
-    from app.scrapers import SCRAPERS, run_scraper
+    from app.scrapers import SCRAPERS
 
     mes, anio = _periodo(request)
     key = (supermercado or "").strip()
@@ -551,12 +576,9 @@ async def actualizar_catalogo_sv(
             ),
         )
 
-    applied = _scrape_ui_env_defaults()
-    prev = {k: os.environ.get(k) for k in applied}
+    label = SUPERMERCADO_LABELS.get(key, key)
     try:
-        for k, v in applied.items():
-            os.environ[k] = v
-        result = run_scraper(key)
+        arranco = lanzar_scrape(key)
     except Exception as e:
         return render(
             request,
@@ -564,22 +586,49 @@ async def actualizar_catalogo_sv(
             **_precios_ctx(
                 request,
                 user,
-                error=f"No se pudo actualizar {SUPERMERCADO_LABELS.get(key, key)}: {e}",
+                error=f"No se pudo actualizar {label}: {e}",
             ),
         )
-    finally:
-        for k, old in prev.items():
-            if old is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = old
-
-    label = SUPERMERCADO_LABELS.get(key, key)
-    request.session[SESSION_FLASH_KEY] = (
-        f"{label}: {result.upserted} productos nuevos/actualizados"
-        f" ({len(result.products)} leídos)."
-    )
+    if "pytest" in sys.modules:
+        request.session[SESSION_FLASH_KEY] = f"{label}: catálogo actualizado."
+    elif arranco:
+        request.session[SESSION_FLASH_KEY] = (
+            f"{label}: la actualización sigue en segundo plano. "
+            "También puede correr sola a la hora que elijas."
+        )
+    else:
+        request.session[SESSION_FLASH_KEY] = f"{label}: ya hay una actualización en curso."
     return RedirectResponse(
         f"/app/m/finanzas/precios?mes={mes}&anio={anio}&flash=catalogo",
+        status_code=303,
+    )
+
+
+@router.post("/precios/horario")
+async def precios_horario(
+    request: Request,
+    user: Annotated[dict, Depends(require_onboarded)],
+):
+    from app.sync_horario import guardar
+
+    form = await request.form()
+    actual = _horario_precios(user)
+    try:
+        hora = int(form.get("hora_precios"))
+    except (TypeError, ValueError):
+        hora = actual["hora_precios"]
+    if hora < 0 or hora > 23:
+        hora = actual["hora_precios"]
+    guardar(
+        int(user["id"]),
+        hora_fit=actual["hora_fit"],
+        hora_precios=hora,
+        fit_activo=bool(actual["fit_activo"]),
+        precios_activo=form.get("precios_activo") in ("1", "on", "true"),
+    )
+    mes, anio = _periodo(request)
+    request.session[SESSION_FLASH_KEY] = "Horario de precios guardado."
+    return RedirectResponse(
+        f"/app/m/finanzas/precios?mes={mes}&anio={anio}&flash=horario",
         status_code=303,
     )

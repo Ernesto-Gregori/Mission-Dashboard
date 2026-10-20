@@ -6,6 +6,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from app.ai_client import api_key_configurada
+from app.biblioteca_ia import sugerir_categoria
 from app.billing import PLAN_FREE, limites, plan_vigente
 from app.database import (
     CATEGORIAS_LIBRO,
@@ -114,6 +116,7 @@ def _ctx(
         "libro_res": libro_res,
         "resaltados": resaltados,
         "libro_sel": libro_sel or "",
+        "ia_ok": api_key_configurada(),
     }
 
 
@@ -161,12 +164,28 @@ async def nuevo_libro(request: Request, user: Annotated[dict, Depends(require_on
     except Exception:
         paginas, anio = 0, 0
     estado = str(form.get("estado") or "catalogado")
+    autor = str(form.get("autor") or "")
+    categoria = str(form.get("categoria") or "Otros")
+    descripcion = str(form.get("descripcion") or "")
+    if str(form.get("categorizar") or "") == "1":
+        try:
+            sug = sugerir_categoria(titulo, autor, descripcion)
+        except Exception as e:
+            return render(
+                request,
+                "modules/biblioteca.html",
+                status_code=400,
+                **_ctx(request, user, error=str(e)),
+            )
+        categoria = sug["categoria"]
+        if sug.get("descripcion"):
+            descripcion = sug["descripcion"]
     lid = crear_libro_manual(
         titulo,
-        autor=str(form.get("autor") or ""),
-        categoria=str(form.get("categoria") or "Otros"),
+        autor=autor,
+        categoria=categoria,
         total_paginas=paginas,
-        descripcion=str(form.get("descripcion") or ""),
+        descripcion=descripcion,
         isbn=str(form.get("isbn") or ""),
         editorial=str(form.get("editorial") or ""),
         anio=anio,
@@ -233,6 +252,53 @@ async def edit_libro(
             **_ctx(request, user, error="No se pudo editar el libro."),
         )
     request.session["bib_flash"] = "Libro actualizado."
+    return _redirect("catalogo")
+
+
+@router.post("/libro/{libro_id}/categorizar")
+def categorizar_libro(
+    libro_id: int,
+    request: Request,
+    user: Annotated[dict, Depends(require_onboarded)],
+):
+    libro = obtener_libro(int(libro_id))
+    if not libro:
+        return render(
+            request,
+            "modules/biblioteca.html",
+            status_code=404,
+            **_ctx(request, user, error="No encontré ese libro."),
+        )
+    try:
+        sug = sugerir_categoria(
+            str(libro.get("titulo") or ""),
+            str(libro.get("autor") or ""),
+            str(libro.get("descripcion") or ""),
+        )
+    except Exception as e:
+        return render(
+            request,
+            "modules/biblioteca.html",
+            status_code=400,
+            **_ctx(request, user, error=str(e)),
+        )
+    desc_actual = str(libro.get("descripcion") or "")
+    desc_nueva = str(sug.get("descripcion") or "")
+    if len(desc_nueva) <= len(desc_actual):
+        desc_nueva = desc_actual
+    actualizar_libro(
+        int(libro_id),
+        titulo=str(libro.get("titulo") or ""),
+        autor=str(libro.get("autor") or ""),
+        categoria=sug["categoria"],
+        total_paginas=int(libro.get("total_paginas") or 0),
+        pagina_actual=int(libro.get("pagina_actual") or 0),
+        descripcion=desc_nueva,
+        isbn=str(libro.get("isbn") or ""),
+        editorial=str(libro.get("editorial") or ""),
+        estado=str(libro.get("estado") or "catalogado"),
+    )
+    request.session["bib_flash"] = f"Categoría: {sug['categoria']}."
     return _redirect("catalogo")
 
 

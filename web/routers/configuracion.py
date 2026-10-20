@@ -29,7 +29,13 @@ from app.cuenta import (
     leer_prefs,
 )
 from app.onboarding import listar_modulos_usuario, nombre_visible
-from app.ritual import actualizar_habito, crear_habito, listar_habitos_config, set_habito_activo
+from app.ritual import (
+    actualizar_habito,
+    crear_habito,
+    eliminar_habito,
+    listar_habitos_config,
+    set_habito_activo,
+)
 from app.rueda import AREAS
 from app.templates import MODULE_TEMPLATES, SUPERFICIES
 from web.deps import render, require_onboarded
@@ -157,6 +163,12 @@ def _ctx(
     }
 
 
+def _horario(user: dict) -> dict:
+    from app.sync_horario import leer
+
+    return leer(int(user["id"]))
+
+
 def _estado_google() -> dict:
     estado = {"autenticado": False, "error": ""}
     try:
@@ -180,6 +192,7 @@ def _ctx_conexiones(user: dict, tab: str) -> dict:
         "tg_recordatorio_opciones": (),
         "tg_briefing": None,
         "tg_briefing_extras": (),
+        "horario": _horario(user),
     }
     if tab != "conexiones":
         return vacio
@@ -199,6 +212,7 @@ def _ctx_conexiones(user: dict, tab: str) -> dict:
         "tg_briefing_extras": BRIEFING_EXTRAS,
         "tg_code": None,
         "tg_deep_link": "",
+        "horario": _horario(user),
     }
 
 
@@ -283,6 +297,38 @@ def habito_archivar(clave: str, request: Request, user: Annotated[dict, Depends(
 def habito_reactivar(clave: str, request: Request, user: Annotated[dict, Depends(require_onboarded)]):
     set_habito_activo(clave, True, user_id=int(user["id"]))
     return _volver_habitos(request, True, "Hábito reactivado.")
+
+
+@router.post("/habitos/{clave}/eliminar")
+def habito_eliminar(clave: str, request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    if eliminar_habito(clave, user_id=int(user["id"])):
+        return _volver_habitos(request, True, "Hábito eliminado.")
+    return _volver_habitos(request, False, "No encontré ese hábito.")
+
+
+@router.post("/sync")
+async def guardar_sync(request: Request, user: Annotated[dict, Depends(require_onboarded)]):
+    from app.sync_horario import guardar
+
+    form = await request.form()
+
+    def _hora(nombre: str, default: int) -> int:
+        try:
+            n = int(form.get(nombre))
+        except (TypeError, ValueError):
+            return default
+        return n if 0 <= n <= 23 else default
+
+    actual = _horario(user)
+    guardar(
+        int(user["id"]),
+        hora_fit=_hora("hora_fit", actual["hora_fit"]),
+        hora_precios=_hora("hora_precios", actual["hora_precios"]),
+        fit_activo=form.get("fit_activo") in ("1", "on", "true"),
+        precios_activo=form.get("precios_activo") in ("1", "on", "true"),
+    )
+    request.session["config_flash"] = "Horario guardado."
+    return RedirectResponse("/app/configuracion?tab=conexiones", status_code=303)
 
 
 def _guardar_parcial(uid: int, **cambios) -> None:

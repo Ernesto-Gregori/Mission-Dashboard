@@ -8,14 +8,50 @@ from app.tenant import uid
 from app.timezone_config import iso_ahora
 
 CATEGORIAS = [
-    "Teologia",
-    "Programacion",
-    "Matrimonio",
+    "Espiritualidad",
+    "Relaciones",
     "Filosofia",
     "Liderazgo",
     "Historia",
+    "Ciencia",
+    "Negocios",
+    "Salud",
+    "Ficcion",
     "Otros",
 ]
+
+_ALIAS_CATEGORIA = {
+    "teologia": "Espiritualidad",
+    "espiritualidad": "Espiritualidad",
+    "programacion": "Ciencia",
+    "codigo": "Ciencia",
+    "ciencia": "Ciencia",
+    "matrimonio": "Relaciones",
+    "relaciones": "Relaciones",
+    "filosofia": "Filosofia",
+    "liderazgo": "Liderazgo",
+    "historia": "Historia",
+    "negocios": "Negocios",
+    "salud": "Salud",
+    "ficcion": "Ficcion",
+    "otros": "Otros",
+}
+
+
+def normalizar_categoria(valor: str | None) -> str:
+    """Deja la categoría en la lista actual. Los nombres viejos se traducen."""
+    import unicodedata
+
+    raw = (valor or "").strip()
+    if raw in CATEGORIAS:
+        return raw
+    key = "".join(
+        c
+        for c in unicodedata.normalize("NFKD", raw.lower())
+        if not unicodedata.combining(c)
+    )
+    key = "".join(key.split())
+    return _ALIAS_CATEGORIA.get(key, "Otros")
 
 ESTADOS_LIBRO = [
     "por_procesar",
@@ -87,8 +123,7 @@ def crear_libro_manual(
     titulo = (titulo or "").strip()
     if not titulo:
         return None
-    if categoria not in CATEGORIAS:
-        categoria = "Otros"
+    categoria = normalizar_categoria(categoria)
     if estado not in ESTADOS_LIBRO:
         estado = "catalogado"
     try:
@@ -200,7 +235,9 @@ def guardar_metadatos_ia(libro_id: int, metadatos: dict) -> bool:
             "isbn": str(data.get("isbn") or ""),
             "editorial": str(data.get("editorial") or ""),
             "anio_publicacion": int(data.get("anio_publicacion") or 0),
-            "categoria_principal": str(data.get("categoria_principal") or "Otros"),
+            "categoria_principal": normalizar_categoria(
+                str(data.get("categoria_principal") or "Otros")
+            ),
             "total_paginas": int(data.get("total_paginas") or 0),
             "descripcion": str(data.get("descripcion") or ""),
             "subcategorias": data.get("subcategorias", "[]"),
@@ -242,8 +279,7 @@ def actualizar_libro(
 ) -> bool:
     if not obtener_libro(libro_id):
         return False
-    if categoria not in CATEGORIAS:
-        categoria = "Otros"
+    categoria = normalizar_categoria(categoria)
     campos = {
         "titulo": str(titulo or "").strip() or "Sin título",
         "autor": str(autor or ""),

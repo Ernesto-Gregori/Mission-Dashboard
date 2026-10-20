@@ -641,10 +641,8 @@ def provision_user_defaults(
             return
 
     habitos = [
-        ("devocional", "Devocional", "📖", "05:45", 1),
-        ("codigo", "Código", "💻", "06:15", 2),
-        ("lectura", "Lectura", "📚", "19:30", 3),
-        ("calistenia", "Calistenia", "💪", "Mié 16:30", 4),
+        ("lectura", "Lectura", "📚", "19:30", 1),
+        ("movimiento", "Movimiento", "🚶", "07:00", 2),
     ]
     for clave, label, emoji, hora, orden in habitos:
         ejecutar("""
@@ -659,9 +657,7 @@ def provision_user_defaults(
     ) or [{"n": 0}]
     if int(n_b[0]["n"] or 0) == 0:
         bloques = [
-            ("Instituto Bíblico", "08:00", "12:30", "[1,2,3,4,5]", "Instituto", "#a371f7"),
-            ("Deep Work: Código", "06:15", "07:15", "[1,2,3,4,5]", "Programacion", "#3fb950"),
-            ("Sesión Biblioteca", "19:30", "21:00", "[2,3,4]", "Biblioteca", "#e3b341"),
+            ("Bloque de enfoque", "06:15", "07:15", "[1,2,3,4,5]", "Enfoque", "#3fb950"),
         ]
         for nombre, inicio, fin, dias, tipo, color in bloques:
             ejecutar("""

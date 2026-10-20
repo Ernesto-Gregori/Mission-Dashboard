@@ -128,6 +128,7 @@ def _build_prompt(
     equipo: list[str],
     notas: str,
     previous: dict | None,
+    perfil_txt: str = "",
 ) -> str:
     equipo_txt = ", ".join(equipo) if equipo else "peso corporal"
     prev = ""
@@ -137,7 +138,10 @@ def _build_prompt(
             + json.dumps(previous, ensure_ascii=False)[:6000]
         )
     notas_txt = (notas or "").strip() or "(sin notas extra)"
+    cuerpo = (perfil_txt or "").strip() or "Sin peso, altura ni edad. No asumas cifras."
     return f"""Arma una rutina semanal para entrenar en casa / gym ligero.
+
+{cuerpo}
 
 Restricciones:
 - Exactamente {dias} días de entrenamiento (no más, no menos).
@@ -195,12 +199,22 @@ def generate_routine(
     if not api_key_configurada():
         raise RoutineError("Configura GROQ_API_KEY para que el coach arme la rutina.")
 
+    perfil_txt = ""
+    try:
+        from app.perfil_fisico import leer as leer_perfil
+        from app.perfil_fisico import texto_para_coach
+
+        perfil_txt = texto_para_coach(leer_perfil(int(user_id)))
+    except Exception:
+        perfil_txt = ""
+
     prompt = _build_prompt(
         dias=dias_n,
         minutos=minutos_n,
         equipo=equipo_n,
         notas=notas,
         previous=previous,
+        perfil_txt=perfil_txt,
     )
     raw = chat_simple(prompt, contexto=SYSTEM_COACH_RUTINA, max_tokens=2500)
     if not raw or raw.startswith("🤖"):

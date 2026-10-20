@@ -163,6 +163,26 @@ def actualizar_bloque(
         return False
 
 
+def eliminar_bloque(bloque_id: int) -> bool:
+    """Borra el bloque y las sesiones ligadas a él."""
+    try:
+        ejecutar(
+            "DELETE FROM sesiones_completadas WHERE bloque_fijo_id = ? AND user_id = ?",
+            [bloque_id, uid()],
+        )
+        ejecutar(
+            "DELETE FROM bloques_fijos WHERE id = ? AND user_id = ?",
+            [bloque_id, uid()],
+        )
+        try:
+            invalidate_data_caches()
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False
+
+
 def desactivar_bloque(bloque_id: int) -> bool:
     try:
         ejecutar(

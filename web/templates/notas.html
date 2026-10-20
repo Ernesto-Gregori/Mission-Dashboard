@@ -1,0 +1,69 @@
+{% extends "layout_app.html" %}
+{% block content %}
+<header class="module-header">
+  <span class="module-header-icon" aria-hidden="true">📝</span>
+  <div>
+    <h1>Notas</h1>
+    <p class="muted">Ideas sueltas y tareas que no son un hábito.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash-ok" role="status">{{ flash }}</div>{% endif %}
+{% if error %}<div class="flash-error" role="alert">{{ error }}</div>{% endif %}
+
+{% with tabs=[
+  {"href": "/app/notas?tab=tareas", "label": "Tareas", "active": tab == "tareas"},
+  {"href": "/app/notas?tab=notas", "label": "Ideas", "active": tab == "notas"},
+], tabs_label="Notas" %}
+{% include "_section_tabs.html" %}
+{% endwith %}
+
+<section class="card">
+  <h2>{% if tab == 'tareas' %}Nueva tarea{% else %}Nueva idea{% endif %}</h2>
+  <form method="post" action="/app/notas?tab={{ tab }}">
+    <div>
+      <label for="nota-titulo">Título</label>
+      <input id="nota-titulo" name="titulo" maxlength="160" required />
+    </div>
+    <div>
+      <label for="nota-cuerpo">Detalle</label>
+      <textarea id="nota-cuerpo" name="cuerpo" rows="3" maxlength="4000"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">Guardar</button>
+    </div>
+  </form>
+</section>
+
+{% if items %}
+<div class="note-grid">
+  {% for n in items %}
+  <article class="card note-card{% if n.estado == 'hecha' %} is-done{% endif %}">
+    <form method="post" action="/app/notas/{{ n.id }}/editar?tab={{ tab }}">
+      <label class="sr-only" for="nota-titulo-{{ n.id }}">Título</label>
+      <input id="nota-titulo-{{ n.id }}" name="titulo" value="{{ n.titulo }}" maxlength="160" required />
+      <label class="sr-only" for="nota-cuerpo-{{ n.id }}">Detalle</label>
+      <textarea id="nota-cuerpo-{{ n.id }}" name="cuerpo" rows="3" maxlength="4000">{{ n.cuerpo or '' }}</textarea>
+      <input type="hidden" name="estado" value="{{ n.estado }}" />
+      <div class="note-actions">
+        <button class="btn secondary" type="submit">Guardar</button>
+      </div>
+    </form>
+    <div class="note-actions">
+      {% if tab == 'tareas' %}
+      <form method="post" action="/app/notas/{{ n.id }}/hecha?tab={{ tab }}">
+        <input type="hidden" name="hecha" value="{{ 0 if n.estado == 'hecha' else 1 }}" />
+        <button class="btn secondary" type="submit">{% if n.estado == 'hecha' %}Reabrir{% else %}Hecha{% endif %}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/app/notas/{{ n.id }}/eliminar?tab={{ tab }}" onsubmit="return confirm('¿Eliminar?')">
+        <button class="btn secondary" type="submit">Eliminar</button>
+      </form>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">{% if tab == 'tareas' %}No hay tareas pendientes.{% else %}Todavía no hay ideas.{% endif %}</p>
+{% endif %}
+{% endblock %}

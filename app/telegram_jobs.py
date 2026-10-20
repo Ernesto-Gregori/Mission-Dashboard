@@ -40,10 +40,20 @@ def start_telegram_jobs() -> None:
         threading.Thread(target=_loop, name="telegram-jobs", daemon=True).start()
 
 
+def _nightly() -> None:
+    from app.nightly_jobs import run_nightly_jobs_once
+
+    try:
+        run_nightly_jobs_once()
+    except Exception:
+        log.exception("nightly jobs failed")
+
+
 def _loop() -> None:
     while True:
         try:
             run_telegram_jobs_once()
         except Exception:
             log.exception("telegram jobs failed")
+        threading.Thread(target=_nightly, name="nightly-jobs", daemon=True).start()
         time.sleep(INTERVAL_S)
